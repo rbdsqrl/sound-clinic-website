@@ -1,0 +1,10 @@
+import client from './client'
+import type { ApiResponse, InviteRequest, InviteResponse, AcceptInviteRequest } from '../types'
+
+export const invitationsApi = {
+  send: (data: InviteRequest) =>
+    client.post<ApiResponse<InviteResponse>>('/invitations', data).then((r) => r.data.data),
+
+  accept: (data: AcceptInviteRequest) =>
+    client.post<ApiResponse<void>>('/invitations/accept', data).then((r) => r.data),
+}
