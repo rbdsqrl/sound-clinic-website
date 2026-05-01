@@ -14,9 +14,10 @@ import { Modal } from '../../components/ui/Modal'
 import { Badge } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
+import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { useToast } from '../../hooks/useToast'
 import { format } from 'date-fns'
-import type { AddConditionRequest, AssignTherapistRequest, LinkParentRequest } from '../../types'
+import type { AddConditionRequest, AssignTherapistRequest, LinkParentRequest, UserResponse } from '../../types'
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -50,11 +51,16 @@ export default function PatientDetailPage() {
     onSuccess: () => { refresh(); toast('Condition removed', 'success') },
   })
 
-  // Parent form
-  const parentForm = useForm<{ parentId: string }>()
+  // Parent search picker
+  const [selectedParent, setSelectedParent] = useState<UserResponse | null>(null)
   const linkParentMutation = useMutation({
     mutationFn: (d: LinkParentRequest) => patientsApi.linkParent(id!, d),
-    onSuccess: () => { refresh(); toast('Parent linked', 'success'); setParentModal(false); parentForm.reset() },
+    onSuccess: () => {
+      refresh()
+      toast('Parent linked', 'success')
+      setParentModal(false)
+      setSelectedParent(null)
+    },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast(msg ?? 'Failed to link parent', 'error')
@@ -65,11 +71,16 @@ export default function PatientDetailPage() {
     onSuccess: () => { refresh(); toast('Parent unlinked', 'success') },
   })
 
-  // Therapist form
-  const therapistForm = useForm<{ therapistId: string }>()
+  // Therapist search picker
+  const [selectedTherapist, setSelectedTherapist] = useState<UserResponse | null>(null)
   const assignTherapistMutation = useMutation({
     mutationFn: (d: AssignTherapistRequest) => patientsApi.assignTherapist(id!, d),
-    onSuccess: () => { refresh(); toast('Therapist assigned', 'success'); setTherapistModal(false); therapistForm.reset() },
+    onSuccess: () => {
+      refresh()
+      toast('Therapist assigned', 'success')
+      setTherapistModal(false)
+      setSelectedTherapist(null)
+    },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast(msg ?? 'Failed to assign therapist', 'error')
@@ -92,17 +103,24 @@ export default function PatientDetailPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/patients" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary-600">
+        <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary-600">
           <ArrowLeft size={14} /> Back to patients
         </Link>
-        <h1 className="text-2xl font-bold text-slate-800">{patient.firstName} {patient.lastName}</h1>
-        <p className="mt-1 text-sm text-slate-500">Clinic: {clinicName}</p>
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-full bg-primary-100 text-primary-700 font-bold text-base flex items-center justify-center flex-shrink-0">
+            {patient.firstName[0]}{patient.lastName[0]}
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{patient.firstName} {patient.lastName}</h1>
+            <p className="text-sm text-slate-500">{clinicName}</p>
+          </div>
+        </div>
       </div>
 
       {/* Basic info */}
       <Card>
         <CardHeader title="Patient Info" />
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
           {[
             ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
             ['Gender', patient.gender?.toLowerCase()],
@@ -141,7 +159,7 @@ export default function PatientDetailPage() {
                     {c.notes && <p className="text-xs text-slate-500 italic">{c.notes}</p>}
                   </div>
                 </div>
-                <button onClick={() => removeConditionMutation.mutate(c.id)} className="ml-2 text-slate-400 hover:text-red-500">
+                <button onClick={() => removeConditionMutation.mutate(c.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                   <X size={14} />
                 </button>
               </div>
@@ -170,7 +188,7 @@ export default function PatientDetailPage() {
                     <p className="text-xs text-slate-500">{p.email}</p>
                   </div>
                 </div>
-                <button onClick={() => unlinkParentMutation.mutate(p.id)} className="ml-2 text-slate-400 hover:text-red-500">
+                <button onClick={() => unlinkParentMutation.mutate(p.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                   <X size={14} />
                 </button>
               </div>
@@ -199,7 +217,7 @@ export default function PatientDetailPage() {
                     <p className="text-xs text-slate-500">Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}</p>
                   </div>
                 </div>
-                <button onClick={() => unassignTherapistMutation.mutate(t.id)} className="ml-2 text-slate-400 hover:text-red-500">
+                <button onClick={() => unassignTherapistMutation.mutate(t.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                   <X size={14} />
                 </button>
               </div>
@@ -225,28 +243,60 @@ export default function PatientDetailPage() {
         </form>
       </Modal>
 
-      <Modal open={parentModal} onClose={() => { setParentModal(false); parentForm.reset() }} title="Link Parent by User ID">
-        <form onSubmit={parentForm.handleSubmit((d) => linkParentMutation.mutate({ parentId: d.parentId }))} className="space-y-4">
-          <Input label="Parent User ID" placeholder="UUID of the parent user"
-            hint="The parent must already have an account in your organisation."
-            {...parentForm.register('parentId', { required: 'Required' })} />
+      <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
+        <div className="space-y-4">
+          <UserSearchPicker
+            role="PARENT"
+            selected={selectedParent}
+            onSelect={setSelectedParent}
+            onClear={() => setSelectedParent(null)}
+            label="Search parent by email"
+            placeholder="e.g. jane@example.com"
+          />
+          {!selectedParent && (
+            <p className="text-xs text-slate-400">
+              The person must already have an account with the <strong>Parent</strong> role in your organisation.
+            </p>
+          )}
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setParentModal(false); parentForm.reset() }}>Cancel</Button>
-            <Button type="submit" loading={linkParentMutation.isPending}>Link</Button>
+            <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
+            <Button
+              disabled={!selectedParent}
+              loading={linkParentMutation.isPending}
+              onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
+            >
+              Link Parent
+            </Button>
           </div>
-        </form>
+        </div>
       </Modal>
 
-      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); therapistForm.reset() }} title="Assign Therapist by User ID">
-        <form onSubmit={therapistForm.handleSubmit((d) => assignTherapistMutation.mutate({ therapistId: d.therapistId }))} className="space-y-4">
-          <Input label="Therapist User ID" placeholder="UUID of the therapist"
-            hint="The therapist must already have an account in your organisation."
-            {...therapistForm.register('therapistId', { required: 'Required' })} />
+      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
+        <div className="space-y-4">
+          <UserSearchPicker
+            role="THERAPIST"
+            selected={selectedTherapist}
+            onSelect={setSelectedTherapist}
+            onClear={() => setSelectedTherapist(null)}
+            label="Search therapist by email"
+            placeholder="e.g. john@clinic.com"
+          />
+          {!selectedTherapist && (
+            <p className="text-xs text-slate-400">
+              The person must already have an account with the <strong>Therapist</strong> role in your organisation.
+            </p>
+          )}
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); therapistForm.reset() }}>Cancel</Button>
-            <Button type="submit" loading={assignTherapistMutation.isPending}>Assign</Button>
+            <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); setSelectedTherapist(null) }}>Cancel</Button>
+            <Button
+              disabled={!selectedTherapist}
+              loading={assignTherapistMutation.isPending}
+              onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
+            >
+              Assign Therapist
+            </Button>
           </div>
-        </form>
+        </div>
       </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

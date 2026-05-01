@@ -60,75 +60,108 @@ export default function PatientsPage() {
         <Button onClick={() => setShowModal(true)}><Plus size={16} /> Add Patient</Button>
       </div>
 
-      <Card padding={false}>
-        {!patients?.length ? (
-          <div className="p-6">
-            <EmptyState
-              icon={<Users size={32} />}
-              title="No patients yet"
-              description="Add your first patient to start managing care."
-              action={{ label: 'Add patient', onClick: () => setShowModal(true) }}
-            />
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-3 text-left">Patient</th>
-                <th className="px-6 py-3 text-left">Clinic</th>
-                <th className="px-6 py-3 text-left">Conditions</th>
-                <th className="px-6 py-3 text-left">Therapists</th>
-                <th className="px-6 py-3 text-left">DOB</th>
-                <th className="px-6 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {patients.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-slate-800">{p.firstName} {p.lastName}</p>
-                    {p.gender && <p className="text-xs text-slate-400 capitalize">{p.gender.toLowerCase()}</p>}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{clinicMap[p.clinicId] ?? '—'}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {p.conditions.length === 0 ? (
-                        <span className="text-slate-400">—</span>
-                      ) : p.conditions.slice(0, 2).map((c) => (
+      {!patients?.length ? (
+        <Card>
+          <EmptyState
+            icon={<Users size={32} />}
+            title="No patients yet"
+            description="Add your first patient to start managing care."
+            action={{ label: 'Add patient', onClick: () => setShowModal(true) }}
+          />
+        </Card>
+      ) : (
+        <>
+          {/* Card list — mobile */}
+          <div className="space-y-3 sm:hidden">
+            {patients.map((p) => (
+              <Link key={p.id} to={`/patients/${p.id}`}>
+                <Card className="active:bg-slate-50">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 flex-shrink-0 rounded-full bg-primary-100 text-primary-700 font-semibold text-sm flex items-center justify-center">
+                        {p.firstName[0]}{p.lastName[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-800 truncate">{p.firstName} {p.lastName}</p>
+                        <p className="text-xs text-slate-500 truncate">{clinicMap[p.clinicId] ?? '—'}</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="flex-shrink-0 text-slate-400" />
+                  </div>
+                  {(p.conditions.length > 0 || p.dateOfBirth) && (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      {p.dateOfBirth && (
+                        <span className="text-xs text-slate-400">{format(new Date(p.dateOfBirth), 'MMM d, yyyy')}</span>
+                      )}
+                      {p.conditions.slice(0, 2).map((c) => (
                         <Badge key={c.id} variant="blue">{c.name}</Badge>
                       ))}
-                      {p.conditions.length > 2 && (
-                        <Badge variant="slate">+{p.conditions.length - 2}</Badge>
-                      )}
+                      {p.conditions.length > 2 && <Badge variant="slate">+{p.conditions.length - 2}</Badge>}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{p.therapists.length}</td>
-                  <td className="px-6 py-4 text-slate-500">
-                    {p.dateOfBirth ? format(new Date(p.dateOfBirth), 'MMM d, yyyy') : '—'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <Link to={`/patients/${p.id}`} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline">
-                      View <ChevronRight size={12} />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+                  )}
+                </Card>
+              </Link>
+            ))}
+          </div>
+
+          {/* Table — sm and up */}
+          <Card padding={false} className="hidden sm:block">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-6 py-3 text-left">Patient</th>
+                    <th className="px-6 py-3 text-left">Clinic</th>
+                    <th className="px-6 py-3 text-left">Conditions</th>
+                    <th className="px-6 py-3 text-left">Therapists</th>
+                    <th className="px-6 py-3 text-left">DOB</th>
+                    <th className="px-6 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {patients.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-slate-800">{p.firstName} {p.lastName}</p>
+                        {p.gender && <p className="text-xs text-slate-400 capitalize">{p.gender.toLowerCase()}</p>}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{clinicMap[p.clinicId] ?? '—'}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {p.conditions.length === 0 ? <span className="text-slate-400">—</span>
+                            : p.conditions.slice(0, 2).map((c) => <Badge key={c.id} variant="blue">{c.name}</Badge>)}
+                          {p.conditions.length > 2 && <Badge variant="slate">+{p.conditions.length - 2}</Badge>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{p.therapists.length}</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {p.dateOfBirth ? format(new Date(p.dateOfBirth), 'MMM d, yyyy') : '—'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link to={`/patients/${p.id}`} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline">
+                          View <ChevronRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
 
       <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Add Patient" size="md">
         <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
           <Select label="Clinic" placeholder="Select clinic…" options={clinicOptions} error={errors.clinicId?.message}
             {...register('clinicId', { required: 'Clinic is required' })} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="First name" placeholder="Alex" error={errors.firstName?.message}
               {...register('firstName', { required: 'Required' })} />
             <Input label="Last name" placeholder="Johnson" error={errors.lastName?.message}
               {...register('lastName', { required: 'Required' })} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Date of birth" type="date" {...register('dateOfBirth')} />
             <Select label="Gender" placeholder="Select…" options={GENDERS} {...register('gender')} />
           </div>

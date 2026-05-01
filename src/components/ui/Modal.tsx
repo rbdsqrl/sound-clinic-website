@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react'
 import { X } from 'lucide-react'
+import { colors, styles, border } from '../../theme'
 
 interface ModalProps {
   open: boolean
@@ -12,25 +13,56 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    if (open) document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
+    if (open) {
+      document.addEventListener('keydown', handler)
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
   }, [open, onClose])
 
   if (!open) return null
 
-  const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
+  const widths = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full ${widths[size]} rounded-2xl bg-white shadow-xl`}>
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-base font-semibold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0" style={styles.modalBackdrop} onClick={onClose} />
+
+      {/* Panel */}
+      <div
+        className={`relative w-full ${widths[size]} rounded-t-2xl sm:rounded-2xl max-h-[92dvh] flex flex-col`}
+        style={styles.modal}
+      >
+        {/* Mobile drag handle */}
+        <div className="flex justify-center pt-2.5 pb-0 sm:hidden flex-shrink-0">
+          <div className="h-1 w-10 rounded-full" style={{ background: border.dragHandle }} />
+        </div>
+
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+          style={{ borderBottom: `1px solid ${border.dividerDark}` }}
+        >
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 transition-colors"
+            style={{ color: colors.text.dim }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.text.primary}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+          >
             <X size={18} />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+
+        {/* Content */}
+        <div className="overflow-y-auto px-5 py-5 flex-1">
+          {children}
+        </div>
       </div>
     </div>
   )

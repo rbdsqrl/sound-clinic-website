@@ -1,25 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CSS CUSTOM PROPERTIES
+   All colours and visual tokens live here.
+   Light mode = :root defaults.  Dark mode = .dark overrides.
+   Edit these values to retheme the entire application.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand colours ──────────────────────────────────────────────────────── */
+  --color-accent:          #4FB6B2;       /* Soft Teal  — nav active, links, badges   */
+  --color-accent-raw:      79, 182, 178;
+  --color-cta:             #F28C8C;       /* Warm Coral — primary CTA buttons         */
+  --color-cta-raw:         242, 140, 140;
+  --color-cta-end:         #D97070;       /* Coral gradient end                       */
+  --color-secondary:       #A7D8F0;       /* Sky Blue   — highlights / info           */
+  --color-secondary-raw:   167, 216, 240;
+
+  /* ── Text ───────────────────────────────────────────────────────────────── */
+  --text-heading:          #253545;       /* Page headings                            */
+  --text-primary:          #374B5F;       /* Body text, card titles                   */
+  --text-muted:            #6B8499;       /* Labels, secondary                        */
+  --text-dim:              #9DB4C6;       /* Descriptions, placeholders               */
+  --text-link:             #4FB6B2;       /* Hyperlinks                               */
+  /* Sidebar / light-surface text (same as dark text in light mode) */
+  --text-sidebar-primary:  #253545;
+  --text-sidebar-label:    #374B5F;
+  --text-sidebar-muted:    #7A9BB0;
+
+  /* ── Surfaces ───────────────────────────────────────────────────────────── */
+  --surface-app:           #F9FBFC;
+  --surface-card:          #FFFFFF;
+  --surface-card-raw:      255, 255, 255;
+  --surface-sidebar:       #FFFFFF;
+  --surface-overlay:       rgba(30, 55, 80, 0.45);
+  --surface-mobile-overlay: rgba(249, 251, 252, 0.85);
+  --surface-mobile-header: rgba(255, 255, 255, 0.95);
+  --surface-footer:        rgba(79, 182, 178, 0.04);
+  --surface-filter-strip:  rgba(79, 182, 178, 0.04);
+  --surface-row-hover:     rgba(79, 182, 178, 0.03);
+
+  /* ── Borders ────────────────────────────────────────────────────────────── */
+  --border-card:           1px solid rgba(0, 0, 0, 0.07);
+  --border-divider:        rgba(0, 0, 0, 0.07);
+  --border-sidebar:        rgba(79, 182, 178, 0.12);
+  --border-medium:         1px solid rgba(0, 0, 0, 0.10);
+  --border-drag:           rgba(0, 0, 0, 0.12);
+  --border-raw:            0, 0, 0;
+
+  /* ── Shadows ────────────────────────────────────────────────────────────── */
+  --shadow-card:           0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-glow:           0 0 20px rgba(79, 182, 178, 0.18);
+  --shadow-glow-sm:        0 0 10px rgba(79, 182, 178, 0.12);
+  --shadow-glow-lg:        0 0 40px rgba(79, 182, 178, 0.22);
+  --shadow-button-cta:     0 2px 10px rgba(242, 140, 140, 0.28);
+  --shadow-button-accent:  0 2px 10px rgba(79, 182, 178, 0.22);
+  --shadow-logo:           0 4px 16px rgba(79, 182, 178, 0.28);
+  --shadow-nav-active:     0 2px 8px rgba(79, 182, 178, 0.10);
+  --shadow-modal:          0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-nav-dot:        0 0 6px rgba(79, 182, 178, 0.8);
+
+  /* ── Backdrops ──────────────────────────────────────────────────────────── */
+  --card-backdrop:         blur(0px);
+  --modal-backdrop:        blur(6px);
+  --header-backdrop:       blur(12px);
+  --sidebar-backdrop:      blur(0px);
+
+  /* ── Gradients ──────────────────────────────────────────────────────────── */
+  --gradient-button-cta:   linear-gradient(135deg, #F28C8C 0%, #D97070 100%);
+  --gradient-button-accent: linear-gradient(135deg, #4FB6B2 0%, #3A9E9A 100%);
+  --gradient-logo:         linear-gradient(135deg, #4FB6B2 0%, #A7D8F0 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(79,182,178,0.10) 0%, #F9FBFC 60%);
+  --gradient-summary:      linear-gradient(135deg, #4FB6B2, #A7D8F0);
+
+  /* ── Form elements ──────────────────────────────────────────────────────── */
+  --form-bg:               #FFFFFF;
+  --form-border:           rgba(0, 0, 0, 0.12);
+  --form-text:             #374B5F;
+  --form-placeholder:      #9DB4C6;
+  --form-label:            #4A6A7A;
+  --form-error:            #D96060;
+
+  /* ── Scrollbar ──────────────────────────────────────────────────────────── */
+  --scrollbar-thumb:       #C5D8E3;
+  --scrollbar-thumb-hover: #A7C4D4;
+
+  /* ── Status / semantic (same across modes) ──────────────────────────────── */
+  --color-success:         #52B86A;
+  --color-success-raw:     82, 184, 106;
+  --color-warning:         #E0A840;
+  --color-warning-raw:     224, 168, 64;
+  --color-danger:          #D96060;
+  --color-danger-raw:      217, 96, 96;
+  --color-info:            #5A9FD4;
+  --color-info-raw:        90, 159, 212;
+  --color-purple-raw:      152, 100, 220;
+  --color-slate-raw:       100, 116, 139;
+  --color-pink-raw:        220, 100, 160;
+  --color-amber-raw:       210, 140, 50;
+}
+
+/* ── Dark mode overrides ──────────────────────────────────────────────────── */
+.dark {
+  --color-accent:          #5ABFBB;
+  --color-accent-raw:      90, 191, 187;
+  --color-cta:             #F09090;
+  --color-cta-raw:         240, 144, 144;
+  --color-cta-end:         #C87070;
+  --color-secondary:       #89C5E8;
+  --color-secondary-raw:   137, 197, 232;
+
+  --text-heading:          #E2EDF5;
+  --text-primary:          #B8CCDF;
+  --text-muted:            #6A8DAA;
+  --text-dim:              #3C5270;
+  --text-link:             #5ABFBB;
+  --text-sidebar-primary:  #E2EDF5;
+  --text-sidebar-label:    #B8CCDF;
+  --text-sidebar-muted:    #6A8DAA;
+
+  --surface-app:           #18202E;        /* Warm dark — not cold navy              */
+  --surface-card:          rgba(26, 38, 58, 0.85);
+  --surface-card-raw:      26, 38, 58;
+  --surface-sidebar:       rgba(20, 30, 48, 0.98);
+  --surface-overlay:       rgba(6, 10, 20, 0.72);
+  --surface-mobile-overlay: rgba(18, 26, 42, 0.72);
+  --surface-mobile-header: rgba(20, 30, 48, 0.95);
+  --surface-footer:        rgba(255, 255, 255, 0.03);
+  --surface-filter-strip:  rgba(255, 255, 255, 0.03);
+  --surface-row-hover:     rgba(255, 255, 255, 0.025);
+
+  --border-card:           1px solid rgba(255, 255, 255, 0.07);
+  --border-divider:        rgba(255, 255, 255, 0.06);
+  --border-sidebar:        rgba(90, 191, 187, 0.10);
+  --border-medium:         1px solid rgba(255, 255, 255, 0.10);
+  --border-drag:           rgba(255, 255, 255, 0.12);
+  --border-raw:            255, 255, 255;
+
+  --shadow-card:           0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-glow:           0 0 20px rgba(90, 191, 187, 0.18);
+  --shadow-glow-sm:        0 0 10px rgba(90, 191, 187, 0.12);
+  --shadow-glow-lg:        0 0 40px rgba(90, 191, 187, 0.22);
+  --shadow-button-cta:     0 2px 10px rgba(240, 144, 144, 0.22);
+  --shadow-button-accent:  0 2px 10px rgba(90, 191, 187, 0.18);
+  --shadow-logo:           0 4px 16px rgba(90, 191, 187, 0.28);
+  --shadow-nav-active:     0 2px 8px rgba(90, 191, 187, 0.10);
+  --shadow-modal:          0 8px 40px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.06);
+  --shadow-nav-dot:        0 0 6px rgba(90, 191, 187, 0.8);
+
+  --card-backdrop:         blur(14px);
+  --modal-backdrop:        blur(8px);
+  --header-backdrop:       blur(12px);
+  --sidebar-backdrop:      blur(20px);
+
+  --gradient-button-cta:   linear-gradient(135deg, #F09090 0%, #C87070 100%);
+  --gradient-button-accent: linear-gradient(135deg, #5ABFBB 0%, #3DA5A1 100%);
+  --gradient-logo:         linear-gradient(135deg, #5ABFBB 0%, #89C5E8 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(90,191,187,0.09) 0%, #18202E 60%);
+  --gradient-summary:      linear-gradient(135deg, #5ABFBB, #89C5E8);
+
+  --form-bg:               rgba(20, 30, 50, 0.80);
+  --form-border:           rgba(255, 255, 255, 0.10);
+  --form-text:             #B8CCDF;
+  --form-placeholder:      #3C5270;
+  --form-label:            #6A8DAA;
+  --form-error:            #F08888;
+
+  --scrollbar-thumb:       #2A3C58;
+  --scrollbar-thumb-hover: #3A527A;
+}
+
+/* ── Base styles ──────────────────────────────────────────────────────────── */
+
 @layer base {
   * { box-sizing: border-box; }
+
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
   body {
-    @apply font-sans text-slate-800 bg-slate-50 antialiased;
+    @apply font-sans antialiased;
+    background-color: var(--surface-app);
+    color: var(--text-primary);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  ::-webkit-scrollbar              { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track        { background: transparent; }
+  ::-webkit-scrollbar-thumb        { background: var(--scrollbar-thumb); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover  { background: var(--scrollbar-thumb-hover); }
+}
+
+/* ── Component layer ──────────────────────────────────────────────────────── */
+
+@layer components {
+
+  /* Form elements */
+  .form-label {
+    @apply block text-sm font-medium mb-1.5;
+    color: var(--form-label);
+  }
+
+  .form-input {
+    @apply block w-full rounded-lg px-3 py-2.5 text-sm transition-all duration-200 focus:outline-none;
+    background:  var(--form-bg);
+    border:      1px solid var(--form-border);
+    color:       var(--form-text);
+  }
+  .form-input::placeholder { color: var(--form-placeholder); }
+  .form-input:focus {
+    border-color: var(--color-accent);
+    box-shadow:
+      0 0 0 1px rgba(var(--color-accent-raw), 0.35),
+      0 0 12px rgba(var(--color-accent-raw), 0.10);
+  }
+  .form-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .form-error {
+    @apply mt-1 text-xs;
+    color: var(--form-error);
+  }
+
+  /* Glass card helper (used on auth pages) */
+  .glass-card {
+    backdrop-filter: var(--card-backdrop);
+    -webkit-backdrop-filter: var(--card-backdrop);
+    background:   var(--surface-card);
+    border:       var(--border-card);
+    border-radius: 16px;
+    box-shadow:   var(--shadow-card);
   }
 }
 
-@layer components {
-  .form-label {
-    @apply block text-sm font-medium text-slate-700 mb-1;
+/* ── Utility layer ────────────────────────────────────────────────────────── */
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 18px rgba(var(--color-accent-raw), 0.55);
   }
-  .form-input {
-    @apply block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
-           placeholder-slate-400 shadow-sm
-           focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500
-           disabled:bg-slate-50 disabled:text-slate-500;
-  }
-  .form-error {
-    @apply mt-1 text-xs text-red-600;
+  .border-glow {
+    border-color: rgba(var(--color-accent-raw), 0.35);
+    box-shadow:   0 0 12px rgba(var(--color-accent-raw), 0.14);
   }
 }

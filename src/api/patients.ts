@@ -12,6 +12,9 @@ export const patientsApi = {
   list: () =>
     client.get<ApiResponse<PatientResponse[]>>('/patients').then((r) => r.data.data),
 
+  myChildren: () =>
+    client.get<ApiResponse<PatientResponse[]>>('/patients/my-children').then((r) => r.data.data),
+
   get: (id: string) =>
     client.get<ApiResponse<PatientResponse>>(`/patients/${id}`).then((r) => r.data.data),
 

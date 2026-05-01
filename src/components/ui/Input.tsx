@@ -16,11 +16,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={inputId}
-          className={clsx('form-input', error && 'border-red-400 focus:border-red-500 focus:ring-red-500', className)}
+          className={clsx('form-input', error && 'border-red-500/50 focus:border-red-500', className)}
           {...props}
         />
         {error && <p className="form-error">{error}</p>}
-        {!error && hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+        {!error && hint && <p className="mt-1 text-xs" style={{ color: '#3E5070' }}>{hint}</p>}
       </div>
     )
   }

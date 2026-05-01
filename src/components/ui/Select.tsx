@@ -1,11 +1,26 @@
 import { forwardRef, SelectHTMLAttributes } from 'react'
 import { clsx } from '../../lib/clsx'
 
+export interface SelectOption {
+  value: string
+  label: string
+}
+
+export interface SelectOptionGroup {
+  group: string
+  options: SelectOption[]
+}
+
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
   placeholder?: string
-  options: { value: string; label: string }[]
+  /** Either a flat array of options OR an array of grouped options */
+  options: SelectOption[] | SelectOptionGroup[]
+}
+
+function isGrouped(opts: SelectOption[] | SelectOptionGroup[]): opts is SelectOptionGroup[] {
+  return opts.length > 0 && 'group' in opts[0]
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
@@ -21,9 +36,18 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           {...props}
         >
           {placeholder && <option value="">{placeholder}</option>}
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
+          {isGrouped(options)
+            ? options.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.options.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
+              ))
+            : options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))
+          }
         </select>
         {error && <p className="form-error">{error}</p>}
       </div>

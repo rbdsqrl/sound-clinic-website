@@ -22,7 +22,7 @@ export default function AcceptInvitePage() {
       setDone(true)
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Failed to accept invitation.')
+      setError(msg ?? 'Failed to complete account setup.')
     }
   }
 
@@ -30,7 +30,7 @@ export default function AcceptInvitePage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-500">Invalid or missing invitation token.</p>
+          <p className="text-slate-500">Invalid or missing sign-up link.</p>
           <Link to="/login" className="mt-4 inline-block text-primary-600 hover:underline text-sm">Go to login</Link>
         </div>
       </div>
@@ -61,8 +61,8 @@ export default function AcceptInvitePage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 shadow-lg mb-4">
             <Ear size={28} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Accept your invitation</h1>
-          <p className="mt-1 text-sm text-slate-500">Set up your account to get started</p>
+          <h1 className="text-2xl font-bold text-slate-800">Set up your account</h1>
+          <p className="mt-1 text-sm text-slate-500">Complete your details to get started</p>
         </div>
 
         <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-100">

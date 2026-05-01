@@ -22,7 +22,7 @@ export const tokenStorage = {
   },
 }
 
-// ── Request: attach Bearer token ───────────────────────────────────────────────
+// ── Request: attach Bearer token ──────────────────────────────────────────────
 client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStorage.getAccess()
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -38,12 +38,15 @@ const processQueue = (error: unknown, token: string | null) => {
   failedQueue = []
 }
 
+const AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh']
+
 client.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    const isAuthEndpoint = AUTH_PATHS.some((p) => original?.url?.includes(p))
 
-    if (error.response?.status === 401 && !original._retry) {
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })

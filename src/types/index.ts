@@ -15,8 +15,18 @@ export interface UserResponse {
   dateOfBirth: string | null
   gender: Gender | null
   role: Role
+  additionalRoles: Role[]
   isActive: boolean
   createdAt: string
+}
+
+/** All roles this user holds (primary + additional). */
+export function allRoles(user: UserResponse): Role[] {
+  return [user.role, ...user.additionalRoles.filter(r => r !== user.role)]
+}
+
+export function hasRole(user: UserResponse, role: Role): boolean {
+  return user.role === role || user.additionalRoles.includes(role)
 }
 
 export interface LoginRequest {
@@ -159,6 +169,8 @@ export interface InviteResponse {
   status: InvitationStatus
   expiresAt: string
   createdAt: string
+  acceptLink?: string
+  clinicName?: string
 }
 
 export interface AcceptInviteRequest {
@@ -173,6 +185,65 @@ export interface ConditionResponse {
   id: string
   name: string
   description: string | null
+}
+
+// ── Appointments ───────────────────────────────────────────────────────────────
+export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
+
+/** ISO day-of-week names Java uses (DayOfWeek.name()) */
+export type DayOfWeek = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
+
+export interface SlotResponse {
+  id: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  clinicId: string
+  clinicName: string
+  dayOfWeek: DayOfWeek
+  startTime: string   // "HH:mm:ss"
+  endTime: string     // "HH:mm:ss"
+  slotDurationMinutes: number
+}
+
+export interface CreateSlotRequest {
+  therapistId: string
+  clinicId: string
+  dayOfWeek: DayOfWeek
+  startTime: string   // "HH:mm"
+  endTime: string     // "HH:mm"
+  slotDurationMinutes: number
+}
+
+export interface AppointmentResponse {
+  id: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  clinicId: string
+  clinicName: string
+  appointmentDate: string   // "YYYY-MM-DD"
+  startTime: string         // "HH:mm:ss"
+  endTime: string           // "HH:mm:ss"
+  status: AppointmentStatus
+  notes: string | null
+  bookedBy: string
+  createdAt: string
+}
+
+export interface BookAppointmentRequest {
+  patientId: string
+  therapistId: string
+  appointmentDate: string   // "YYYY-MM-DD"
+  startTime: string         // "HH:mm"
+  notes?: string
+}
+
+export interface UpdateAppointmentStatusRequest {
+  status: AppointmentStatus
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { authApi } from '../api/auth'
 import { tokenStorage } from '../api/client'
-import type { UserResponse, LoginRequest, RegisterRequest } from '../types'
+import { usersApi } from '../api/users'
+import type { UserResponse, Role, LoginRequest, RegisterRequest } from '../types'
+import { allRoles } from '../types'
 
 // ── DEV bypass mock user ───────────────────────────────────────────────────────
 const DEV_MOCK_USER: UserResponse = {
@@ -15,21 +17,38 @@ const DEV_MOCK_USER: UserResponse = {
   dateOfBirth: null,
   gender: null,
   role: 'BUSINESS_OWNER',
+  additionalRoles: ['PARENT'],   // dev mock holds both so the switcher is visible
   isActive: true,
   createdAt: new Date().toISOString(),
 }
-const BYPASS_AUTH = true
+const BYPASS_AUTH = false
 
 interface AuthContextValue {
   user: UserResponse | null
+  activeRole: Role | null
   isLoading: boolean
   isAuthenticated: boolean
+  switchRole: (role: Role) => void
+  addRole: (role: Role) => Promise<void>
+  removeRole: (role: Role) => Promise<void>
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+/** Persist active role per user so a page refresh keeps the last chosen role. */
+function storedActiveRole(user: UserResponse): Role {
+  const key = `activeRole_${user.id}`
+  const stored = localStorage.getItem(key) as Role | null
+  const roles = allRoles(user)
+  return stored && roles.includes(stored) ? stored : user.role
+}
+
+function persistActiveRole(userId: string, role: Role) {
+  localStorage.setItem(`activeRole_${userId}`, role)
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(() => {
@@ -41,9 +60,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null
     }
   })
-  const [isLoading, setIsLoading] = useState(!BYPASS_AUTH && !!tokenStorage.getAccess() && !localStorage.getItem('user'))
 
-  // Hydrate user from /me on mount if we have a token but no stored user
+  const [activeRole, setActiveRoleState] = useState<Role | null>(() => {
+    const u = BYPASS_AUTH ? DEV_MOCK_USER : (() => {
+      try {
+        const s = localStorage.getItem('user')
+        return s ? (JSON.parse(s) as UserResponse) : null
+      } catch { return null }
+    })()
+    return u ? storedActiveRole(u) : null
+  })
+
+  const [isLoading, setIsLoading] = useState(
+    !BYPASS_AUTH && !!tokenStorage.getAccess() && !localStorage.getItem('user')
+  )
+
   useEffect(() => {
     const token = tokenStorage.getAccess()
     if (token && !user) {
@@ -51,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((u) => {
           setUser(u)
           localStorage.setItem('user', JSON.stringify(u))
+          setActiveRoleState(storedActiveRole(u))
         })
         .catch(() => tokenStorage.clear())
         .finally(() => setIsLoading(false))
@@ -59,11 +91,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const switchRole = (role: Role) => {
+    if (!user || !allRoles(user).includes(role)) return
+    setActiveRoleState(role)
+    persistActiveRole(user.id, role)
+  }
+
+  const addRole = async (role: Role) => {
+    const updated = await usersApi.addRole(role)
+    setUser(updated)
+    localStorage.setItem('user', JSON.stringify(updated))
+  }
+
+  const removeRole = async (role: Role) => {
+    const updated = await usersApi.removeRole(role)
+    setUser(updated)
+    localStorage.setItem('user', JSON.stringify(updated))
+    if (activeRole === role) {
+      setActiveRoleState(updated.role)
+      persistActiveRole(updated.id, updated.role)
+    }
+  }
+
   const login = async (data: LoginRequest) => {
     const res = await authApi.login(data)
     tokenStorage.set(res.accessToken, res.refreshToken)
     localStorage.setItem('user', JSON.stringify(res.user))
     setUser(res.user)
+    setActiveRoleState(storedActiveRole(res.user))
   }
 
   const register = async (data: RegisterRequest) => {
@@ -71,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenStorage.set(res.accessToken, res.refreshToken)
     localStorage.setItem('user', JSON.stringify(res.user))
     setUser(res.user)
+    setActiveRoleState(res.user.role)
   }
 
   const logout = async () => {
@@ -80,10 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     tokenStorage.clear()
     setUser(null)
+    setActiveRoleState(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user, activeRole, isLoading, isAuthenticated: !!user,
+      switchRole, addRole, removeRole, login, register, logout,
+    }}>
       {children}
     </AuthContext.Provider>
   )

@@ -7,12 +7,24 @@ import { clinicsApi } from '../../api/clinics'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { TIMEZONES } from '../../lib/timezones'
 import type { CreateClinicRequest } from '../../types'
+
+// Build grouped options for the timezone select
+const TIMEZONE_GROUPS = Array.from(
+  TIMEZONES.reduce((map, tz) => {
+    if (!map.has(tz.region)) map.set(tz.region, [])
+    map.get(tz.region)!.push({ value: tz.value, label: tz.label })
+    return map
+  }, new Map<string, { value: string; label: string }[]>()),
+  ([group, options]) => ({ group, options })
+)
 
 export default function ClinicsPage() {
   const [showModal, setShowModal] = useState(false)
@@ -24,7 +36,11 @@ export default function ClinicsPage() {
     queryFn: clinicsApi.list,
   })
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateClinicRequest>()
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateClinicRequest>({
+    defaultValues: {
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+  })
 
   const createMutation = useMutation({
     mutationFn: clinicsApi.create,
@@ -99,7 +115,12 @@ export default function ClinicsPage() {
           <Input label="Email" type="email" placeholder="clinic@example.com" {...register('email')} />
           <Input label="Phone" placeholder="+1 555 0123" {...register('phone')} />
           <Input label="Address" placeholder="123 Main St, City" {...register('address')} />
-          <Input label="Timezone" placeholder="UTC" {...register('timezone')} />
+          <Select
+            label="Timezone"
+            placeholder="Select timezone…"
+            options={TIMEZONE_GROUPS}
+            {...register('timezone')}
+          />
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => { setShowModal(false); reset() }}>Cancel</Button>
             <Button type="submit" loading={isSubmitting || createMutation.isPending}>Create</Button>
