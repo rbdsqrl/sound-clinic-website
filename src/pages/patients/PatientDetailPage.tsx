@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
-import { createPortal } from 'react-dom'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, ChevronDown, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, Circle, XCircle } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -39,7 +38,6 @@ import type {
   AvailableTherapistResponse,
   TherapySessionResponse,
   TherapySessionStatus,
-  DayOfWeek,
 } from '../../types'
 
 // ── Stage config ───────────────────────────────────────────────────────────────
@@ -64,175 +62,161 @@ const STAGE_LABELS: Record<PatientStage, string> = {
   DISCHARGED:        'Discharged',
 }
 
-// ── Stage Stepper ──────────────────────────────────────────────────────────────
+// ── Stage Progress Bar (read-only) ────────────────────────────────────────────
 
-function StageStepper({
-  current,
-  canChange,
-  onChangeStage,
-  isSaving,
-}: {
-  current: PatientStage
-  canChange: boolean
-  onChangeStage: (s: PatientStage) => void
-  isSaving: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
-  const btnRef = useRef<HTMLDivElement>(null)
+function StageProgress({ current }: { current: PatientStage }) {
   const currentIdx = STAGES.indexOf(current)
-
-  useEffect(() => {
-    if (open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setDropdownPos({
-        top: rect.bottom + 6,
-        right: window.innerWidth - rect.right,
-      })
-    }
-  }, [open])
-
-  // Close on scroll/resize
-  useEffect(() => {
-    if (!open) return
-    const close = () => setOpen(false)
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
-    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
-  }, [open])
-
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
-            Patient Journey
-          </p>
-          <p className="text-sm font-semibold mt-0.5" style={{ color: colors.accent }}>
-            {STAGE_LABELS[current]}
-          </p>
-        </div>
-        {canChange && (
-          <div ref={btnRef}>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setOpen(v => !v)}
-              loading={isSaving}
-            >
-              Change Stage <ChevronDown size={13} />
-            </Button>
-            {open && createPortal(
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                <div
-                  className="fixed z-50 w-52 rounded-xl overflow-hidden py-1 shadow-xl"
-                  style={{
-                    top: dropdownPos.top,
-                    right: dropdownPos.right,
-                    background: surface.card,
-                    border: `1px solid ${border.card}`,
-                  }}
-                >
-                  {STAGES.map((stage, idx) => (
-                    <button
-                      key={stage}
-                      disabled={stage === current}
-                      onClick={() => { setOpen(false); onChangeStage(stage) }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors disabled:opacity-40"
-                      style={{
-                        color: stage === current ? colors.accent : colors.text.primary,
-                        background: stage === current ? accentAlpha(0.08) : 'transparent',
-                      }}
-                      onMouseEnter={e => {
-                        if (stage !== current)
-                          (e.currentTarget as HTMLElement).style.background = accentAlpha(0.06)
-                      }}
-                      onMouseLeave={e => {
-                        if (stage !== current)
-                          (e.currentTarget as HTMLElement).style.background = 'transparent'
-                      }}
-                    >
-                      <span
-                        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                        style={{
-                          background: idx < currentIdx
-                            ? accentAlpha(0.20)
-                            : idx === currentIdx
-                            ? colors.accent
-                            : 'transparent',
-                          border: idx >= currentIdx && idx !== currentIdx
-                            ? `1.5px solid ${border.divider}`
-                            : 'none',
-                          color: idx === currentIdx ? '#fff' : colors.accent,
-                        }}
-                      >
-                        {idx + 1}
-                      </span>
-                      {STAGE_LABELS[stage]}
-                    </button>
-                  ))}
-                </div>
-              </>,
-              document.body
+    <div className="flex items-center overflow-x-auto pb-1 gap-0">
+      {STAGES.map((stage, idx) => {
+        const isPast    = idx < currentIdx
+        const isCurrent = idx === currentIdx
+        return (
+          <div key={stage} className="flex items-center flex-shrink-0">
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-all"
+                style={{
+                  background: isCurrent ? colors.accent : isPast ? accentAlpha(0.25) : surface.filterStrip,
+                  color: isCurrent ? '#fff' : isPast ? colors.accent : colors.text.dim,
+                  border: !isCurrent && !isPast ? `1.5px solid ${border.divider}` : 'none',
+                  boxShadow: isCurrent ? `0 0 0 3px ${accentAlpha(0.18)}` : 'none',
+                }}
+              >
+                {isPast ? '✓' : idx + 1}
+              </div>
+              <span
+                className="text-[9px] font-medium text-center whitespace-nowrap max-w-[60px] leading-tight"
+                style={{ color: isCurrent ? colors.accent : isPast ? colors.text.muted : colors.text.dim }}
+              >
+                {STAGE_LABELS[stage]}
+              </span>
+            </div>
+            {idx < STAGES.length - 1 && (
+              <div
+                className="h-0.5 w-6 sm:w-10 flex-shrink-0 -mt-4 mx-0.5"
+                style={{ background: isPast ? accentAlpha(0.35) : border.divider }}
+              />
             )}
           </div>
-        )}
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Journey Card (next action prompt) ─────────────────────────────────────────
+
+function JourneyCard({
+  patient,
+  subscriptions,
+  enrollments,
+  canManage,
+  onAddSubscription,
+  onSetupSchedule,
+  onRecordPayment,
+}: {
+  patient: { stage: PatientStage; firstName: string; lastName: string }
+  subscriptions: import('../../types').SubscriptionResponse[]
+  enrollments: import('../../types').EnrollmentResponse[]
+  canManage: boolean
+  onAddSubscription: () => void
+  onSetupSchedule: () => void
+  onRecordPayment: (sub: import('../../types').SubscriptionResponse) => void
+}) {
+  const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
+  const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
+  const isDischarged        = patient.stage === 'DISCHARGED'
+
+  // Determine which step we're on
+  let step: 'subscription' | 'schedule' | 'payment' | 'active' | 'done' = 'done'
+  if (isDischarged) {
+    step = 'done'
+  } else if (!activeSubscription) {
+    step = 'subscription'
+  } else if (!activeEnrollment) {
+    step = 'schedule'
+  } else if (activeSubscription.paymentStatus !== 'PAID') {
+    step = 'payment'
+  } else {
+    step = 'active'
+  }
+
+  const config = {
+    subscription: {
+      icon: <BookOpen size={20} style={{ color: colors.accent }} />,
+      title: 'Set up a therapy plan',
+      description: 'Choose a program and the number of sessions to create the patient\'s plan.',
+      cta: 'Add Subscription',
+      action: onAddSubscription,
+      accent: colors.accent,
+    },
+    schedule: {
+      icon: <CalendarDays size={20} style={{ color: palette.purple.text }} />,
+      title: 'Schedule sessions',
+      description: 'Pick a start date and time slot. The system will find an available therapist.',
+      cta: 'Set up Schedule',
+      action: onSetupSchedule,
+      accent: palette.purple.text,
+    },
+    payment: {
+      icon: <CreditCard size={20} style={{ color: palette.green.text }} />,
+      title: 'Confirm payment',
+      description: `${activeSubscription?.programName ?? 'Subscription'} — record the payment to activate therapy sessions.`,
+      cta: 'Record Payment',
+      action: () => activeSubscription && onRecordPayment(activeSubscription),
+      accent: palette.green.text,
+    },
+    active: {
+      icon: <CheckCircle2 size={20} style={{ color: palette.green.text }} />,
+      title: 'Therapy is active',
+      description: `${activeEnrollment?.sessionsCompleted ?? 0} of ${activeEnrollment?.totalSessions ?? 0} sessions completed · ${activeSubscription?.programName ?? ''}`,
+      cta: null,
+      action: null,
+      accent: palette.green.text,
+    },
+    done: {
+      icon: <CheckCircle2 size={20} style={{ color: colors.text.dim }} />,
+      title: 'Patient discharged',
+      description: 'This patient\'s therapy journey is complete.',
+      cta: null,
+      action: null,
+      accent: colors.text.dim,
+    },
+  }[step]
+
+  return (
+    <div
+      className="rounded-2xl p-4 flex items-start gap-4"
+      style={{
+        background: step === 'active' || step === 'done'
+          ? surface.filterStrip
+          : accentAlpha(0.05),
+        border: `1px solid ${step === 'active' || step === 'done' ? border.divider : accentAlpha(0.15)}`,
+      }}
+    >
+      <div
+        className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: accentAlpha(0.08) }}
+      >
+        {config.icon}
       </div>
-
-      {/* Horizontal stepper */}
-      <div className="flex items-center overflow-x-auto pb-1 gap-0">
-        {STAGES.map((stage, idx) => {
-          const isPast    = idx < currentIdx
-          const isCurrent = idx === currentIdx
-          const isFuture  = idx > currentIdx
-
-          return (
-            <div key={stage} className="flex items-center flex-shrink-0">
-              {/* Step */}
-              <div className="flex flex-col items-center gap-1.5">
-                <div
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all"
-                  style={{
-                    background: isCurrent
-                      ? colors.accent
-                      : isPast
-                      ? accentAlpha(0.25)
-                      : surface.filterStrip,
-                    color: isCurrent
-                      ? '#fff'
-                      : isPast
-                      ? colors.accent
-                      : colors.text.dim,
-                    border: isFuture ? `1.5px solid ${border.divider}` : 'none',
-                    boxShadow: isCurrent ? `0 0 0 3px ${accentAlpha(0.18)}` : 'none',
-                  }}
-                >
-                  {isPast ? '✓' : idx + 1}
-                </div>
-                <span
-                  className="text-[10px] font-medium text-center whitespace-nowrap max-w-[72px] leading-tight"
-                  style={{
-                    color: isCurrent ? colors.accent : isPast ? colors.text.muted : colors.text.dim,
-                  }}
-                >
-                  {STAGE_LABELS[stage]}
-                </span>
-              </div>
-
-              {/* Connector line */}
-              {idx < STAGES.length - 1 && (
-                <div
-                  className="h-0.5 w-8 sm:w-12 flex-shrink-0 -mt-4 mx-1"
-                  style={{
-                    background: idx < currentIdx ? accentAlpha(0.35) : border.divider,
-                  }}
-                />
-              )}
-            </div>
-          )
-        })}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{config.title}</p>
+        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{config.description}</p>
       </div>
+      {config.cta && canManage && (
+        <button
+          onClick={config.action ?? undefined}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: accentAlpha(0.10), color: colors.accent }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.18)}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
+        >
+          <Sparkles size={12} />
+          {config.cta}
+        </button>
+      )}
     </div>
   )
 }
@@ -590,15 +574,6 @@ const SESSION_DURATION_OPTIONS = [
   { value: 90,  label: '90 min' },
 ]
 
-const DAY_OPTIONS: { value: DayOfWeek; label: string }[] = [
-  { value: 'MONDAY',    label: 'Monday' },
-  { value: 'TUESDAY',   label: 'Tuesday' },
-  { value: 'WEDNESDAY', label: 'Wednesday' },
-  { value: 'THURSDAY',  label: 'Thursday' },
-  { value: 'FRIDAY',    label: 'Friday' },
-  { value: 'SATURDAY',  label: 'Saturday' },
-  { value: 'SUNDAY',    label: 'Sunday' },
-]
 
 function sessionStatusIcon(status: TherapySessionStatus) {
   if (status === 'COMPLETED') return <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
@@ -623,11 +598,10 @@ function EnrollmentModal({
 
   // Step 1 fields
   const [subscriptionId, setSubscriptionId]     = useState(
-    subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')?.id ?? ''
+    subscriptions.find(s => s.status === 'ACTIVE')?.id ?? ''
   )
   const [duration, setDuration]                 = useState<number>(45)
   const [startDate, setStartDate]               = useState('')
-  const [dayOfWeek, setDayOfWeek]               = useState<DayOfWeek | ''>('')
   const [startTime, setStartTime]               = useState('')
   const [step, setStep]                         = useState<1 | 2>(1)
   const [availableTherapists, setAvailableTherapists] = useState<AvailableTherapistResponse[]>([])
@@ -645,7 +619,6 @@ function EnrollmentModal({
     const e: Record<string, string> = {}
     if (!subscriptionId) e.sub = 'Select a subscription'
     if (!startDate) e.date = 'Select a start date'
-    if (!dayOfWeek) e.day = 'Select a day'
     if (!startTime) e.time = 'Select a time'
     setStep1Errors(e)
     return Object.keys(e).length === 0
@@ -656,7 +629,6 @@ function EnrollmentModal({
     setFindingTherapists(true)
     try {
       const therapists = await enrollmentsApi.getAvailableTherapists({
-        dayOfWeek: dayOfWeek as DayOfWeek,
         startTime,
         durationMinutes: duration,
         startDate,
@@ -678,12 +650,11 @@ function EnrollmentModal({
       therapistId: selectedTherapistId,
       sessionDurationMinutes: duration,
       startDate,
-      dayOfWeek: dayOfWeek as DayOfWeek,
       startTime,
     })
   }
 
-  const paidSubs = subscriptions.filter(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+  const paidSubs = subscriptions.filter(s => s.status === 'ACTIVE')
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
@@ -743,21 +714,11 @@ function EnrollmentModal({
               </select>
             </div>
 
-            {/* Start date + Day row */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="form-label">Start Date</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
-                {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
-              </div>
-              <div>
-                <label className="form-label">Day of Week</label>
-                <select value={dayOfWeek} onChange={e => setDayOfWeek(e.target.value as DayOfWeek)} className="form-input w-full">
-                  <option value="">Select day…</option>
-                  {DAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                {step1Errors.day && <p className="form-error">{step1Errors.day}</p>}
-              </div>
+            {/* Start date */}
+            <div>
+              <label className="form-label">Start Date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+              {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
             </div>
 
             {/* Time */}
@@ -789,7 +750,7 @@ function EnrollmentModal({
               <div className="rounded-xl p-4 text-center" style={{ background: surface.filterStrip }}>
                 <p className="text-sm font-medium mb-1" style={{ color: colors.text.heading }}>No therapists available</p>
                 <p className="text-xs" style={{ color: colors.text.muted }}>
-                  No therapist has a slot covering {dayOfWeek?.toLowerCase()} at {startTime} for {duration} min, or all are on leave.
+                  No therapist has a slot covering {startTime} for {duration} min on {startDate}, or all are on leave.
                 </p>
               </div>
             ) : (
@@ -974,7 +935,7 @@ export default function PatientDetailPage() {
   const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canCreateEnrollment = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canUpdateSession    = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
-  const hasPaidSubscription = subscriptions.some(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+  const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
 
   // Shared remove-button style (hover via event handlers)
   const removeBtn = (onClick: () => void) => (
@@ -1002,13 +963,13 @@ export default function PatientDetailPage() {
   })
 
   return (
-    <div className="flex h-full min-h-0" style={{ minHeight: 'calc(100vh - 0px)' }}>
+    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 flex min-h-screen">
 
       {/* ── Left sidebar (desktop only) ──────────────────────────────────────── */}
       <aside
-        className="hidden lg:flex flex-col w-64 flex-shrink-0 sticky top-0 overflow-y-auto"
+        className="hidden lg:flex flex-col w-64 flex-shrink-0 sticky top-0 self-start overflow-y-auto"
         style={{
-          height: '100vh',
+          maxHeight: '100vh',
           background: surface.sidebar,
           borderRight: `1px solid ${border.sidebar}`,
         }}
@@ -1094,7 +1055,7 @@ export default function PatientDetailPage() {
       </aside>
 
       {/* ── Right panel ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      <div className="flex-1 min-w-0">
         <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
 
           {/* Mobile back link (hidden on lg) */}
@@ -1127,13 +1088,8 @@ export default function PatientDetailPage() {
               </div>
             </div>
 
-            {/* Stage stepper embedded in the header card */}
-            <StageStepper
-              current={patient.stage}
-              canChange={canChangeStage}
-              onChangeStage={(stage) => stageMutation.mutate(stage)}
-              isSaving={stageMutation.isPending}
-            />
+            {/* Read-only stage progress */}
+            <StageProgress current={patient.stage} />
           </Card>
 
           {/* ── Tab strip ────────────────────────────────────────────────────── */}
@@ -1153,6 +1109,15 @@ export default function PatientDetailPage() {
           {/* ── Overview tab ─────────────────────────────────────────────────── */}
           {activeTab === 'Overview' && (
             <div className="space-y-4">
+              <JourneyCard
+                patient={patient}
+                subscriptions={subscriptions}
+                enrollments={enrollments}
+                canManage={canManageSubs || canCreateEnrollment}
+                onAddSubscription={() => setSubModal(true)}
+                onSetupSchedule={() => setEnrollModal(true)}
+                onRecordPayment={(sub) => setPaymentTarget(sub)}
+              />
               <Card>
                 <CardHeader title="Patient Info" />
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
@@ -1411,7 +1376,7 @@ export default function PatientDetailPage() {
                   title="Enrollments"
                   subtitle={`${enrollments.length} enrollment${enrollments.length !== 1 ? 's' : ''}`}
                   action={
-                    canCreateEnrollment && hasPaidSubscription ? (
+                    canCreateEnrollment && hasActiveSubscription ? (
                       <Button size="sm" onClick={() => setEnrollModal(true)}>
                         <Plus size={14} /> Enroll
                       </Button>
@@ -1419,13 +1384,13 @@ export default function PatientDetailPage() {
                   }
                 />
 
-                {!hasPaidSubscription && enrollments.length === 0 && (
+                {!hasActiveSubscription && enrollments.length === 0 && (
                   <p className="text-sm" style={{ color: colors.text.dim }}>
-                    A fully paid subscription is required before creating an enrollment.
+                    An active subscription is required before creating an enrollment.
                   </p>
                 )}
 
-                {hasPaidSubscription && enrollments.length === 0 && (
+                {hasActiveSubscription && enrollments.length === 0 && (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No enrollments yet. Click Enroll to book sessions.</p>
                 )}
 
@@ -1462,7 +1427,7 @@ export default function PatientDetailPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                               {[
                                 [<CalendarDays size={11} />, `Starts ${enroll.startDate}`],
-                                [<Clock size={11} />, `${enroll.dayOfWeek.slice(0,3)} ${enroll.startTime.slice(0,5)} · ${enroll.sessionDurationMinutes}min`],
+                                [<Clock size={11} />, `${enroll.startTime.slice(0,5)} · ${enroll.sessionDurationMinutes}min`],
                                 [<CheckCircle2 size={11} />, `${enroll.sessionsCompleted} / ${enroll.totalSessions} done`],
                               ].map(([icon, text], i) => (
                                 <div key={i} className="flex items-center gap-1.5">

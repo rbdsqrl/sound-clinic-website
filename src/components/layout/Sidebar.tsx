@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useCalendarBadge } from '../../hooks/useCalendarBadge'
+import { useInquiryBadge } from '../../hooks/useInquiryBadge'
 import { allRoles } from '../../types'
 import type { Role } from '../../types'
 import { clsx } from '../../lib/clsx'
@@ -91,7 +92,8 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const currentRole      = activeRole ?? user?.role ?? 'BUSINESS_OWNER'
   const navItems         = NAV_BY_ROLE[currentRole] ?? NAV_BY_ROLE.BUSINESS_OWNER
   const hasMultipleRoles = roles.length > 1
-  const calendarBadge    = useCalendarBadge()
+  const calendarBadge  = useCalendarBadge()
+  const inquiryBadge   = useInquiryBadge()
 
   return (
     <aside className="flex h-screen w-64 flex-col flex-shrink-0" style={styles.sidebar}>
@@ -156,7 +158,10 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* ── Nav ── */}
       <nav className="flex-1 space-y-0.5 px-3 overflow-y-auto pb-4">
         {navItems.map(({ to, label, icon: Icon }) => {
-          const showBadge = to === '/calendar' && calendarBadge > 0
+          const badgeCount =
+            to === '/calendar'  ? calendarBadge :
+            to === '/inquiries' ? inquiryBadge  : 0
+          const showBadge = badgeCount > 0
           return (
             <NavLink
               key={to}
@@ -173,12 +178,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                   <Icon size={17} />
                   <span className="flex-1 tracking-wide">{label}</span>
 
-                  {/* Badge: today's event count — hidden when route is active */}
+                  {/* Badge: event / new-item count — hidden when route is active */}
                   {showBadge && !isActive && (
                     <span
                       className="text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0"
                       style={{ background: colors.accent, color: '#fff' }}>
-                      {calendarBadge > 9 ? '9+' : calendarBadge}
+                      {badgeCount > 9 ? '9+' : badgeCount}
                     </span>
                   )}
 

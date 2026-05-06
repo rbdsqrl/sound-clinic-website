@@ -267,18 +267,18 @@ function About() {
   return (
     <section
       className="px-6 py-20 sm:px-10"
-      style={{ background: 'rgba(79,182,178,0.04)' }}
+      style={{ background: 'linear-gradient(135deg, #FFF7F4 0%, #F5F0FF 100%)' }}
     >
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-col items-center gap-10 lg:flex-row lg:gap-16">
           {/* Avatar */}
           <div className="flex-shrink-0">
             <div
-              className="flex h-40 w-40 items-center justify-center rounded-3xl text-5xl font-bold"
+              className="flex h-44 w-44 items-center justify-center rounded-3xl text-6xl font-bold shadow-lg"
               style={{
-                background: `linear-gradient(135deg, rgba(79,182,178,0.15) 0%, rgba(167,216,240,0.20) 100%)`,
-                border: `2px solid rgba(79,182,178,0.25)`,
-                color: colors.accent,
+                background: 'linear-gradient(135deg, #F4EDFF 0%, #EBF4FF 100%)',
+                border: '2px solid rgba(152,100,220,0.20)',
+                color: '#9864DC',
               }}
             >
               SD
@@ -288,21 +288,22 @@ function About() {
           {/* Content */}
           <div className="text-center lg:text-left">
             <span
-              className="inline-block rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-widest"
-              style={{ background: accentAlpha(0.10), color: colors.accent }}
+              className="inline-block rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest"
+              style={{
+                background: 'rgba(152,100,220,0.10)',
+                color: '#7A4DB8',
+                border: '1px solid rgba(152,100,220,0.18)',
+              }}
             >
               Meet the Expert
             </span>
-            <h2 className="mt-4 text-3xl font-bold sm:text-4xl" style={{ color: colors.text.heading }}>
+            <h2 className="mt-4 text-3xl font-bold sm:text-4xl" style={{ color: '#2A2040' }}>
               Dr. Suravi Dash
             </h2>
-            <p
-              className="mt-1 font-medium"
-              style={{ color: colors.accent }}
-            >
-              Sr. Audiologist & Speech Therapist · AVT Specialist · Cochlear Implant Expert
+            <p className="mt-1.5 font-medium" style={{ color: '#7A4DB8' }}>
+              Sr. Audiologist &amp; Speech Therapist · AVT Specialist · Cochlear Implant Expert
             </p>
-            <p className="mt-4 text-base leading-relaxed" style={{ color: colors.text.muted }}>
+            <p className="mt-4 text-base leading-relaxed" style={{ color: '#5A4E6A' }}>
               With over 13 years of experience across leading hospitals and organisations in major Indian cities,
               Dr. Dash provides comprehensive audiological management programmes, diagnostic evaluations,
               and rehabilitative services — combining clinical precision with genuine compassion.
@@ -312,11 +313,11 @@ function About() {
               {['13+ Years Experience', 'AVT Specialist', 'Cochlear Implant Expert', 'Diagnostic Audiologist'].map(tag => (
                 <span
                   key={tag}
-                  className="rounded-full px-3 py-1 text-xs font-medium"
+                  className="rounded-full px-4 py-1.5 text-xs font-semibold"
                   style={{
-                    background: accentAlpha(0.08),
-                    color: colors.accent,
-                    border: `1px solid ${accentAlpha(0.18)}`,
+                    background: 'rgba(152,100,220,0.09)',
+                    color: '#6E40A8',
+                    border: '1px solid rgba(152,100,220,0.22)',
                   }}
                 >
                   {tag}
@@ -671,7 +672,7 @@ function InquiryForm() {
 
 export default function LandingPage() {
   return (
-    <div className="force-light" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className="force-light" style={{ fontFamily: 'Inter, sans-serif', background: '#FFFFFF' }}>
       <Navbar />
       <Hero />
       <Services />
