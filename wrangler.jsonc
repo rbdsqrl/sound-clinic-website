@@ -1,0 +1,7 @@
+{
+  "name": "sound-clinic-ui",
+  "compatibility_date": "2024-05-06",
+  "assets": {
+    "directory": "./dist" // Change to "./build" if not using Vite
+  }
+}
