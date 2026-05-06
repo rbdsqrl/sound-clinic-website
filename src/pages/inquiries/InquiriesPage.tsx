@@ -186,9 +186,10 @@ function ConvertModal({
   const [linkedRole,        setLinkedRole]         = useState<'PARENT' | 'PATIENT'>('PARENT')
 
   // Success state — show invite link after conversion
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
-  const [patientName, setPatientName] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [inviteLink,   setInviteLink]   = useState<string | null>(null)
+  const [patientName,  setPatientName]  = useState('')
+  const [convertedId,  setConvertedId]  = useState('')
+  const [copied,       setCopied]       = useState(false)
 
   const { data: clinics = [] } = useQuery({
     queryKey: ['clinics'],
@@ -207,7 +208,9 @@ function ConvertModal({
     }),
     onSuccess: data => {
       qc.invalidateQueries({ queryKey: ['inquiries'] })
+      qc.invalidateQueries({ queryKey: ['inquiries', 'NEW'] })
       setPatientName(data.patientName)
+      setConvertedId(data.patientId)
       if (data.linkedUserInviteLink) {
         setInviteLink(data.linkedUserInviteLink)
       } else {
@@ -246,7 +249,7 @@ function ConvertModal({
                 {patientName} converted successfully
               </p>
               <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
-                Share this link with the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} so they can set up their account.
+                Share this link with the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} so they can create their account.
                 The link expires in 72 hours.
               </p>
             </div>
@@ -267,7 +270,7 @@ function ConvertModal({
             </p>
           </div>
           <div className="px-6 pb-6">
-            <Button className="w-full" onClick={() => onConverted('')}>
+            <Button className="w-full" onClick={() => { onClose(); onConverted(convertedId) }}>
               Done
             </Button>
           </div>
@@ -331,10 +334,10 @@ function ConvertModal({
                 </div>
                 <div>
                   <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                    Also invite the enquiry submitter?
+                    Link a Parent / Guardian
                   </p>
                   <p className="text-xs" style={{ color: colors.text.muted }}>
-                    Send a login invite and auto-link them to this patient
+                    Send an invite and auto-link them to this patient record
                   </p>
                 </div>
               </div>
@@ -380,7 +383,7 @@ function ConvertModal({
           <div className="rounded-xl p-3 text-xs" style={{ background: accentAlpha(0.08), color: colors.text.muted }}>
             <strong style={{ color: colors.text.primary }}>What happens: </strong>
             The inquiry is marked <em>Converted</em>, a patient profile is created at stage <em>Inquiry Converted</em>
-            {linkUser && <>, and an invite link is generated for the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} — they are auto-linked when they accept</>}.
+            {linkUser && <>, and an invite link is generated for the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} to set up their account — they are auto-linked when they accept</>}.
           </div>
         </div>
 

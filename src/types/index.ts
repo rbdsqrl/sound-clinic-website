@@ -426,7 +426,6 @@ export interface CreateEnrollmentRequest {
   therapistId: string
   sessionDurationMinutes: number
   startDate: string        // "YYYY-MM-DD"
-  dayOfWeek: DayOfWeek
   startTime: string        // "HH:mm"
 }
 
@@ -439,7 +438,6 @@ export interface AvailableTherapistResponse {
 }
 
 export interface AvailableTherapistsQuery {
-  dayOfWeek: DayOfWeek
   startTime: string        // "HH:mm"
   durationMinutes: number
   startDate: string        // "YYYY-MM-DD"

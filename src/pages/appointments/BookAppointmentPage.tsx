@@ -92,16 +92,27 @@ export default function BookAppointmentPage() {
         .filter(a => a.therapistId === selectedTherapistId && a.status !== 'CANCELLED')
         .map(a => `${a.appointmentDate}|${a.startTime.slice(0, 5)}`)
     )
+    const now        = new Date()
+    const todayStr   = format(now, 'yyyy-MM-dd')
+    const nowMinutes = now.getHours() * 60 + now.getMinutes()
+
     const result: Record<string, string[]> = {}
     weekDays.forEach(day => {
       const dateStr  = format(day, 'yyyy-MM-dd')
-      if (isBefore(startOfDay(day), startOfDay(new Date()))) return
+      if (isBefore(startOfDay(day), startOfDay(now))) return
       const javaDow  = JS_DOW_TO_JAVA[day.getDay()]
       const daySlots = slots.filter(s => s.dayOfWeek === javaDow)
+      const isToday  = dateStr === todayStr
       const times: string[] = []
       daySlots.forEach(s => {
         generateTimes(s).forEach(t => {
-          if (!bookedKeys.has(`${dateStr}|${t}`)) times.push(t)
+          if (bookedKeys.has(`${dateStr}|${t}`)) return
+          // For today, skip time slots that have already passed
+          if (isToday) {
+            const [h, m] = t.split(':').map(Number)
+            if (h * 60 + m <= nowMinutes) return
+          }
+          times.push(t)
         })
       })
       if (times.length > 0) result[dateStr] = [...new Set(times)].sort()
