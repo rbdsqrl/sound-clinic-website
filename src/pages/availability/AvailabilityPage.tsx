@@ -11,7 +11,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { useToast } from '../../hooks/useToast'
-import { colors, styles, border, surface, palette, paletteStyle, rgba, RAW } from '../../theme'
+import { colors, styles, border, surface, palette, paletteStyle, rgba, borderAlpha } from '../../theme'
 import type { CreateSlotRequest, DayOfWeek, SlotResponse, ClinicResponse, UserResponse } from '../../types'
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -30,11 +30,11 @@ const DURATION_STYLE: Record<string, React.CSSProperties> = {
 const durationColor = (mins: number): React.CSSProperties =>
   DURATION_STYLE[String(mins)] ?? paletteStyle('slate', 0.08)
 
-// Shared select style for the Add Slot modal
+// Shared select style for the Add Slot modal — uses CSS vars so it adapts to light/dark
 const SELECT_STYLE: React.CSSProperties = {
-  background:   'rgba(6, 13, 26, 0.8)',
-  border:       `1px solid ${rgba(RAW.white, 0.07)}`,
-  color:        colors.text.primary,
+  background:   'var(--form-bg)',
+  border:       '1px solid var(--form-border)',
+  color:        'var(--form-text)',
   borderRadius: 8,
   padding:      '8px 12px',
   width:        '100%',
@@ -53,8 +53,8 @@ export default function AvailabilityPage() {
     queryKey: ['slots', filterTherapistId],
     queryFn: () => slotsApi.list(filterTherapistId || undefined),
   })
-  const { data: clinics }    = useQuery({ queryKey: ['clinics'],                 queryFn: clinicsApi.list })
-  const { data: therapists } = useQuery({ queryKey: ['users-search-therapist'],  queryFn: () => usersApi.search('', 'THERAPIST') })
+  const { data: clinics }    = useQuery({ queryKey: ['clinics'],      queryFn: clinicsApi.list })
+  const { data: therapists } = useQuery({ queryKey: ['therapists'],   queryFn: () => usersApi.listTherapists() })
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => slotsApi.delete(id),
@@ -136,7 +136,7 @@ export default function AvailabilityPage() {
             return (
               <Card key={therapistId} padding={false}>
                 {/* Therapist header */}
-                <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${border.dividerDark}` }}>
+                <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
                   <div
                     className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
                     style={{ background: rgba(palette.teal.raw, 0.10), color: palette.teal.text }}
@@ -159,7 +159,7 @@ export default function AvailabilityPage() {
                 {/* Days grid */}
                 <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {activeDays.map(day => (
-                    <div key={day} className="rounded-xl p-3" style={{ background: surface.sidebarFooter, border: border.darkSub }}>
+                    <div key={day} className="rounded-xl p-3" style={{ background: surface.sidebarFooter, border: border.card }}>
                       <p className="text-xs font-semibold mb-2" style={{ color: colors.text.muted }}>{DAY_LABELS[day]}</p>
                       <div className="space-y-1.5">
                         {byDay[day].map(slot => (
@@ -240,7 +240,11 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
           <label className="form-label">Therapist</label>
           <select style={SELECT_STYLE} {...register('therapistId', { required: 'Required' })}>
             <option value="">Select therapist…</option>
-            {therapists.map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+            {therapists.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.firstName} {t.lastName}{t.role === 'DOCTOR' ? ' (Doctor)' : ''}
+              </option>
+            ))}
           </select>
           {errors.therapistId && <p className="form-error">{errors.therapistId.message}</p>}
         </div>

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
-import { Menu, Ear } from 'lucide-react'
-import { colors, styles, surface, gradient } from '../../theme'
+import { Menu } from 'lucide-react'
+import { colors, styles, surface, gradient, LOGO_SRC } from '../../theme'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -41,12 +41,7 @@ export default function AppLayout() {
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-lg"
-              style={{ background: gradient.logo }}
-            >
-              <Ear size={14} className="text-white" />
-            </div>
+            <img src={LOGO_SRC} alt="SimpleHearing" className="h-8 w-auto brand-logo" />
             <span className="text-sm font-semibold" style={{ color: colors.textLight.primary }}>SimpleHearing</span>
           </div>
         </header>

@@ -10,6 +10,12 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+// ── Brand assets ──────────────────────────────────────────────────────────────
+
+/** Single source of truth for the brand logo path.
+ *  Import this constant anywhere you need the logo — never hardcode the path. */
+export const LOGO_SRC = '/src/assets/logo.png'
+
 // ── CSS-variable reference helpers ────────────────────────────────────────────
 
 /** Returns a CSS var reference, e.g. `var(--color-accent)` */
@@ -69,8 +75,9 @@ export const colors = {
   /** Role dot colours — static, not mode-dependent */
   role: {
     BUSINESS_OWNER: '#E0A840',   // warm amber
+    OFFICE_ADMIN:   '#2B80C8',   // blue
     THERAPIST:      '#9864DC',   // soft purple
-    DOCTOR:         '#4FB6B2',   // teal (matches accent)
+    DOCTOR:         '#2B80C8',   // blue (matches accent)
     PARENT:         '#DC64A0',   // soft pink
     ADMIN:          '#D96060',   // coral-red
     PATIENT:        '#6B8499',   // slate

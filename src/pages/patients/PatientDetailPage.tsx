@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, ChevronDown, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, Circle, XCircle } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
+import { programsApi } from '../../api/programs'
+import { subscriptionsApi } from '../../api/subscriptions'
+import { enrollmentsApi } from '../../api/enrollments'
+import { therapySessionsApi } from '../../api/therapySessions'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -16,51 +21,892 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../contexts/AuthContext'
+import { colors, border, surface, accentAlpha, paletteStyle, styles, palette } from '../../theme'
 import { format } from 'date-fns'
-import type { AddConditionRequest, AssignTherapistRequest, LinkParentRequest, UserResponse } from '../../types'
+import type {
+  AddConditionRequest,
+  AssignTherapistRequest,
+  LinkParentRequest,
+  UserResponse,
+  PatientStage,
+  SubscriptionResponse,
+  CreateSubscriptionRequest,
+  UpdatePaymentRequest,
+  SubscriptionPaymentStatus,
+  EnrollmentResponse,
+  CreateEnrollmentRequest,
+  AvailableTherapistResponse,
+  TherapySessionResponse,
+  TherapySessionStatus,
+  DayOfWeek,
+} from '../../types'
+
+// ── Stage config ───────────────────────────────────────────────────────────────
+
+const STAGES: PatientStage[] = [
+  'INQUIRY_CONVERTED',
+  'PRE_ASSESSMENT',
+  'ASSESSMENT_DONE',
+  'ENROLLMENT',
+  'ENROLLED',
+  'THERAPY_ACTIVE',
+  'DISCHARGED',
+]
+
+const STAGE_LABELS: Record<PatientStage, string> = {
+  INQUIRY_CONVERTED: 'Inquiry',
+  PRE_ASSESSMENT:    'Pre-Assessment',
+  ASSESSMENT_DONE:   'Assessment Done',
+  ENROLLMENT:        'Enrollment',
+  ENROLLED:          'Enrolled',
+  THERAPY_ACTIVE:    'Therapy Active',
+  DISCHARGED:        'Discharged',
+}
+
+// ── Stage Stepper ──────────────────────────────────────────────────────────────
+
+function StageStepper({
+  current,
+  canChange,
+  onChangeStage,
+  isSaving,
+}: {
+  current: PatientStage
+  canChange: boolean
+  onChangeStage: (s: PatientStage) => void
+  isSaving: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
+  const btnRef = useRef<HTMLDivElement>(null)
+  const currentIdx = STAGES.indexOf(current)
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setDropdownPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [open])
+
+  // Close on scroll/resize
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
+  }, [open])
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
+            Patient Journey
+          </p>
+          <p className="text-sm font-semibold mt-0.5" style={{ color: colors.accent }}>
+            {STAGE_LABELS[current]}
+          </p>
+        </div>
+        {canChange && (
+          <div ref={btnRef}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setOpen(v => !v)}
+              loading={isSaving}
+            >
+              Change Stage <ChevronDown size={13} />
+            </Button>
+            {open && createPortal(
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+                <div
+                  className="fixed z-50 w-52 rounded-xl overflow-hidden py-1 shadow-xl"
+                  style={{
+                    top: dropdownPos.top,
+                    right: dropdownPos.right,
+                    background: surface.card,
+                    border: `1px solid ${border.card}`,
+                  }}
+                >
+                  {STAGES.map((stage, idx) => (
+                    <button
+                      key={stage}
+                      disabled={stage === current}
+                      onClick={() => { setOpen(false); onChangeStage(stage) }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors disabled:opacity-40"
+                      style={{
+                        color: stage === current ? colors.accent : colors.text.primary,
+                        background: stage === current ? accentAlpha(0.08) : 'transparent',
+                      }}
+                      onMouseEnter={e => {
+                        if (stage !== current)
+                          (e.currentTarget as HTMLElement).style.background = accentAlpha(0.06)
+                      }}
+                      onMouseLeave={e => {
+                        if (stage !== current)
+                          (e.currentTarget as HTMLElement).style.background = 'transparent'
+                      }}
+                    >
+                      <span
+                        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                        style={{
+                          background: idx < currentIdx
+                            ? accentAlpha(0.20)
+                            : idx === currentIdx
+                            ? colors.accent
+                            : 'transparent',
+                          border: idx >= currentIdx && idx !== currentIdx
+                            ? `1.5px solid ${border.divider}`
+                            : 'none',
+                          color: idx === currentIdx ? '#fff' : colors.accent,
+                        }}
+                      >
+                        {idx + 1}
+                      </span>
+                      {STAGE_LABELS[stage]}
+                    </button>
+                  ))}
+                </div>
+              </>,
+              document.body
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Horizontal stepper */}
+      <div className="flex items-center overflow-x-auto pb-1 gap-0">
+        {STAGES.map((stage, idx) => {
+          const isPast    = idx < currentIdx
+          const isCurrent = idx === currentIdx
+          const isFuture  = idx > currentIdx
+
+          return (
+            <div key={stage} className="flex items-center flex-shrink-0">
+              {/* Step */}
+              <div className="flex flex-col items-center gap-1.5">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all"
+                  style={{
+                    background: isCurrent
+                      ? colors.accent
+                      : isPast
+                      ? accentAlpha(0.25)
+                      : surface.filterStrip,
+                    color: isCurrent
+                      ? '#fff'
+                      : isPast
+                      ? colors.accent
+                      : colors.text.dim,
+                    border: isFuture ? `1.5px solid ${border.divider}` : 'none',
+                    boxShadow: isCurrent ? `0 0 0 3px ${accentAlpha(0.18)}` : 'none',
+                  }}
+                >
+                  {isPast ? '✓' : idx + 1}
+                </div>
+                <span
+                  className="text-[10px] font-medium text-center whitespace-nowrap max-w-[72px] leading-tight"
+                  style={{
+                    color: isCurrent ? colors.accent : isPast ? colors.text.muted : colors.text.dim,
+                  }}
+                >
+                  {STAGE_LABELS[stage]}
+                </span>
+              </div>
+
+              {/* Connector line */}
+              {idx < STAGES.length - 1 && (
+                <div
+                  className="h-0.5 w-8 sm:w-12 flex-shrink-0 -mt-4 mx-1"
+                  style={{
+                    background: idx < currentIdx ? accentAlpha(0.35) : border.divider,
+                  }}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Subscription helpers ───────────────────────────────────────────────────────
+
+function paymentStatusStyle(s: SubscriptionPaymentStatus): React.CSSProperties {
+  if (s === 'PAID')    return paletteStyle('teal',   0.12, 0)
+  if (s === 'PARTIAL') return paletteStyle('blue',   0.12, 0)
+  return                      paletteStyle('yellow', 0.14, 0)
+}
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
+
+// ── CreateSubscriptionModal ────────────────────────────────────────────────────
+
+function CreateSubscriptionModal({
+  patientId,
+  onClose,
+  onCreated,
+}: {
+  patientId: string
+  onClose: () => void
+  onCreated: (sub: SubscriptionResponse) => void
+}) {
+  const { toast } = useToast()
+  const [programId, setProgramId] = useState('')
+  const [numSessions, setNumSessions] = useState('')
+  const [notes, setNotes] = useState('')
+  const [errors, setErrors] = useState<{ programId?: string; numSessions?: string }>({})
+
+  const { data: programs = [], isLoading: loadingPrograms } = useQuery({
+    queryKey: ['programs', 'active'],
+    queryFn: () => programsApi.listActive(),
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const createMut = useMutation({
+    mutationFn: (data: CreateSubscriptionRequest) => subscriptionsApi.create(data),
+    onSuccess: (sub) => { onCreated(sub) },
+    onError: () => toast('Failed to create subscription', 'error'),
+  })
+
+  const selectedProgram = programs.find(p => p.id === programId)
+  const sessions = parseInt(numSessions) || 0
+  const previewTotal = selectedProgram ? formatINR(selectedProgram.perSessionCost * sessions) : null
+
+  const validate = () => {
+    const e: typeof errors = {}
+    if (!programId) e.programId = 'Select a program'
+    const n = parseInt(numSessions)
+    if (!numSessions || isNaN(n) || n < 1) e.numSessions = 'Enter at least 1 session'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault()
+    if (!validate()) return
+    createMut.mutate({ patientId, programId, numSessions: parseInt(numSessions), notes: notes || undefined })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>Add Subscription</h2>
+          <button onClick={onClose} className="p-2.5 rounded-lg transition-colors" style={{ color: colors.text.muted }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Program select */}
+          <div>
+            <label className="form-label">Program</label>
+            <select
+              value={programId}
+              onChange={e => setProgramId(e.target.value)}
+              disabled={loadingPrograms}
+              className="form-input w-full"
+            >
+              <option value="">Select a program…</option>
+              {programs.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {formatINR(p.perSessionCost)}/session
+                </option>
+              ))}
+            </select>
+            {errors.programId && <p className="form-error">{errors.programId}</p>}
+          </div>
+
+          {/* Sessions */}
+          <div>
+            <label className="form-label">Number of Sessions</label>
+            <input
+              type="number"
+              min="1"
+              value={numSessions}
+              onChange={e => setNumSessions(e.target.value)}
+              placeholder="12"
+              className="form-input w-full"
+            />
+            {errors.numSessions && <p className="form-error">{errors.numSessions}</p>}
+          </div>
+
+          {/* Preview total */}
+          {previewTotal && sessions > 0 && (
+            <div className="rounded-xl p-3 flex items-center justify-between" style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.15)}` }}>
+              <span className="text-xs" style={{ color: colors.text.muted }}>Estimated total (before discount)</span>
+              <span className="text-sm font-bold" style={{ color: colors.accent }}>{previewTotal}</span>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="form-label">Notes (optional)</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Any special instructions…"
+              className="form-input w-full resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Cancel</button>
+            <button type="submit" disabled={createMut.isPending} className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50" style={styles.buttonPrimary}>
+              {createMut.isPending ? 'Creating…' : 'Create Subscription'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── RecordPaymentModal ─────────────────────────────────────────────────────────
+
+function RecordPaymentModal({
+  subscription,
+  onClose,
+  onSaved,
+}: {
+  subscription: SubscriptionResponse
+  onClose: () => void
+  onSaved: (sub: SubscriptionResponse) => void
+}) {
+  const { toast } = useToast()
+  const [discount, setDiscount] = useState(String(subscription.discountPercent))
+  const [amountPaid, setAmountPaid] = useState(String(subscription.amountPaid))
+  const [paymentNotes, setPaymentNotes] = useState(subscription.paymentNotes ?? '')
+  const [errors, setErrors] = useState<{ discount?: string; amount?: string }>({})
+
+  const discountVal = parseFloat(discount) || 0
+  const total = subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100)
+
+  const saveMut = useMutation({
+    mutationFn: (data: UpdatePaymentRequest) => subscriptionsApi.recordPayment(subscription.id, data),
+    onSuccess: (sub) => { onSaved(sub) },
+    onError: () => toast('Failed to record payment', 'error'),
+  })
+
+  const validate = () => {
+    const e: typeof errors = {}
+    const d = parseFloat(discount)
+    if (isNaN(d) || d < 0 || d > 100) e.discount = 'Discount must be between 0 and 100'
+    const a = parseFloat(amountPaid)
+    if (isNaN(a) || a < 0) e.amount = 'Enter a valid amount'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault()
+    if (!validate()) return
+    saveMut.mutate({
+      discountPercent: parseFloat(discount),
+      amountPaid: parseFloat(amountPaid),
+      paymentNotes: paymentNotes || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>Record Payment</h2>
+          <button onClick={onClose} className="p-2.5 rounded-lg transition-colors" style={{ color: colors.text.muted }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-sm mb-4" style={{ color: colors.text.muted }}>
+          {subscription.programName} · {subscription.numSessions} sessions
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            {/* Discount */}
+            <div>
+              <label className="form-label">Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={discount}
+                onChange={e => setDiscount(e.target.value)}
+                placeholder="0"
+                className="form-input w-full"
+              />
+              {errors.discount && <p className="form-error">{errors.discount}</p>}
+            </div>
+
+            {/* Amount paid */}
+            <div>
+              <label className="form-label">Amount Paid (₹)</label>
+              <div className="relative">
+                <IndianRupee size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.muted }} />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={amountPaid}
+                  onChange={e => setAmountPaid(e.target.value)}
+                  placeholder="0"
+                  className="form-input w-full pl-8"
+                />
+              </div>
+              {errors.amount && <p className="form-error">{errors.amount}</p>}
+            </div>
+          </div>
+
+          {/* Live total preview */}
+          <div className="rounded-xl p-3 flex items-center justify-between" style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.15)}` }}>
+            <div>
+              <p className="text-xs" style={{ color: colors.text.muted }}>Total due after discount</p>
+              <p className="text-sm font-bold mt-0.5" style={{ color: colors.accent }}>{formatINR(Math.max(0, total))}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs" style={{ color: colors.text.muted }}>Remaining</p>
+              <p className="text-sm font-bold mt-0.5" style={{ color: parseFloat(amountPaid) >= total ? palette.teal.text : colors.status.warning }}>
+                {formatINR(Math.max(0, total - (parseFloat(amountPaid) || 0)))}
+              </p>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="form-label">Payment Notes (optional)</label>
+            <textarea
+              value={paymentNotes}
+              onChange={e => setPaymentNotes(e.target.value)}
+              rows={2}
+              placeholder="e.g. Paid via UPI, receipt #123…"
+              className="form-input w-full resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Cancel</button>
+            <button type="submit" disabled={saveMut.isPending} className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50" style={styles.buttonPrimary}>
+              {saveMut.isPending ? 'Saving…' : 'Save Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── SessionList (lazy-loaded per enrollment) ───────────────────────────────────
+
+function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpdate: boolean }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['sessions', 'enrollment', enrollmentId],
+    queryFn: () => therapySessionsApi.byEnrollment(enrollmentId),
+    staleTime: 60 * 1000,
+  })
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TherapySessionStatus }) =>
+      therapySessionsApi.updateStatus(id, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      qc.invalidateQueries({ queryKey: ['enrollments'] })
+      toast('Session updated', 'success')
+    },
+    onError: () => toast('Failed to update session', 'error'),
+  })
+
+  if (isLoading) return (
+    <div className="p-4 flex justify-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+      <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: `${colors.accent}30`, borderTopColor: colors.accent }} />
+    </div>
+  )
+
+  return (
+    <div style={{ borderTop: `1px solid ${border.divider}` }}>
+      <div className="divide-y" style={{ borderColor: border.divider }}>
+        {sessions.map(s => (
+          <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+            {sessionStatusIcon(s.status)}
+            <span className="text-xs w-5 text-center flex-shrink-0" style={{ color: colors.text.dim }}>{s.sessionNumber}</span>
+            <span className="text-xs flex-1" style={{ color: s.status === 'SCHEDULED' ? colors.text.primary : colors.text.muted }}>
+              {s.sessionDate}
+              <span className="ml-2" style={{ color: colors.text.dim }}>{s.startTime.slice(0,5)}</span>
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={
+                s.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
+                : s.status === 'CANCELLED' || s.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
+                : paletteStyle('blue', 0.10, 0)
+              }>
+              {s.status.replace('_', ' ')}
+            </span>
+            {canUpdate && s.status === 'SCHEDULED' && (
+              <select
+                className="text-xs rounded-lg px-2 py-1 border-0 outline-none cursor-pointer"
+                style={{ background: surface.filterStrip, color: colors.text.muted, fontSize: 11 }}
+                value=""
+                onChange={e => {
+                  if (e.target.value) updateMut.mutate({ id: s.id, status: e.target.value as TherapySessionStatus })
+                }}
+              >
+                <option value="">Mark as…</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="NO_SHOW">No Show</option>
+              </select>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Session status helpers ─────────────────────────────────────────────────────
+
+const SESSION_DURATION_OPTIONS = [
+  { value: 30,  label: '30 min' },
+  { value: 45,  label: '45 min' },
+  { value: 60,  label: '60 min' },
+  { value: 90,  label: '90 min' },
+]
+
+const DAY_OPTIONS: { value: DayOfWeek; label: string }[] = [
+  { value: 'MONDAY',    label: 'Monday' },
+  { value: 'TUESDAY',   label: 'Tuesday' },
+  { value: 'WEDNESDAY', label: 'Wednesday' },
+  { value: 'THURSDAY',  label: 'Thursday' },
+  { value: 'FRIDAY',    label: 'Friday' },
+  { value: 'SATURDAY',  label: 'Saturday' },
+  { value: 'SUNDAY',    label: 'Sunday' },
+]
+
+function sessionStatusIcon(status: TherapySessionStatus) {
+  if (status === 'COMPLETED') return <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={13} style={{ color: '#dc2626' }} />
+  return <Circle size={13} style={{ color: '#6b7280' }} />
+}
+
+// ── EnrollmentModal ────────────────────────────────────────────────────────────
+
+function EnrollmentModal({
+  subscriptions,
+  patientId,
+  onClose,
+  onCreated,
+}: {
+  subscriptions: SubscriptionResponse[]
+  patientId: string
+  onClose: () => void
+  onCreated: (enrollment: EnrollmentResponse) => void
+}) {
+  const { toast } = useToast()
+
+  // Step 1 fields
+  const [subscriptionId, setSubscriptionId]     = useState(
+    subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')?.id ?? ''
+  )
+  const [duration, setDuration]                 = useState<number>(45)
+  const [startDate, setStartDate]               = useState('')
+  const [dayOfWeek, setDayOfWeek]               = useState<DayOfWeek | ''>('')
+  const [startTime, setStartTime]               = useState('')
+  const [step, setStep]                         = useState<1 | 2>(1)
+  const [availableTherapists, setAvailableTherapists] = useState<AvailableTherapistResponse[]>([])
+  const [selectedTherapistId, setSelectedTherapistId] = useState('')
+  const [findingTherapists, setFindingTherapists]     = useState(false)
+  const [step1Errors, setStep1Errors]           = useState<Record<string, string>>({})
+
+  const createMut = useMutation({
+    mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
+    onSuccess: (enrollment) => { onCreated(enrollment) },
+    onError: () => toast('Failed to create enrollment', 'error'),
+  })
+
+  const validateStep1 = () => {
+    const e: Record<string, string> = {}
+    if (!subscriptionId) e.sub = 'Select a subscription'
+    if (!startDate) e.date = 'Select a start date'
+    if (!dayOfWeek) e.day = 'Select a day'
+    if (!startTime) e.time = 'Select a time'
+    setStep1Errors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleFindTherapists = async () => {
+    if (!validateStep1()) return
+    setFindingTherapists(true)
+    try {
+      const therapists = await enrollmentsApi.getAvailableTherapists({
+        dayOfWeek: dayOfWeek as DayOfWeek,
+        startTime,
+        durationMinutes: duration,
+        startDate,
+      })
+      setAvailableTherapists(therapists)
+      setStep(2)
+    } catch {
+      toast('Failed to fetch available therapists', 'error')
+    } finally {
+      setFindingTherapists(false)
+    }
+  }
+
+  const handleConfirm = () => {
+    if (!selectedTherapistId) { toast('Select a therapist', 'error'); return }
+    createMut.mutate({
+      subscriptionId,
+      patientId,
+      therapistId: selectedTherapistId,
+      sessionDurationMinutes: duration,
+      startDate,
+      dayOfWeek: dayOfWeek as DayOfWeek,
+      startTime,
+    })
+  }
+
+  const paidSubs = subscriptions.filter(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            {step === 2 && (
+              <button onClick={() => setStep(1)} className="p-1.5 rounded-lg" style={{ color: colors.text.muted }}>
+                <ChevronRight size={14} className="rotate-180" />
+              </button>
+            )}
+            <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>
+              {step === 1 ? 'New Enrollment' : 'Select Therapist'}
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-2.5 rounded-lg transition-colors" style={{ color: colors.text.muted }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex gap-1.5 mb-5 mt-1">
+          {[1, 2].map(n => (
+            <div key={n} className="h-1 flex-1 rounded-full transition-all"
+              style={{ background: n <= step ? colors.accent : border.divider }} />
+          ))}
+        </div>
+
+        {/* ── Step 1: Slot details ── */}
+        {step === 1 && (
+          <div className="flex flex-col gap-4">
+            {/* Subscription select */}
+            <div>
+              <label className="form-label">Subscription</label>
+              <select value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} className="form-input w-full">
+                <option value="">Select subscription…</option>
+                {paidSubs.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.programName} · {s.numSessions} sessions
+                  </option>
+                ))}
+              </select>
+              {step1Errors.sub && <p className="form-error">{step1Errors.sub}</p>}
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="form-label">Session Duration</label>
+              <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="form-input w-full">
+                {SESSION_DURATION_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Start date + Day row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Start Date</label>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
+              </div>
+              <div>
+                <label className="form-label">Day of Week</label>
+                <select value={dayOfWeek} onChange={e => setDayOfWeek(e.target.value as DayOfWeek)} className="form-input w-full">
+                  <option value="">Select day…</option>
+                  {DAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {step1Errors.day && <p className="form-error">{step1Errors.day}</p>}
+              </div>
+            </div>
+
+            {/* Time */}
+            <div>
+              <label className="form-label">Start Time</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="form-input w-full" />
+              {step1Errors.time && <p className="form-error">{step1Errors.time}</p>}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Cancel</button>
+              <button
+                type="button"
+                onClick={handleFindTherapists}
+                disabled={findingTherapists}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                style={styles.buttonPrimary}
+              >
+                {findingTherapists ? 'Searching…' : 'Find Therapists →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Choose therapist ── */}
+        {step === 2 && (
+          <div className="flex flex-col gap-4">
+            {availableTherapists.length === 0 ? (
+              <div className="rounded-xl p-4 text-center" style={{ background: surface.filterStrip }}>
+                <p className="text-sm font-medium mb-1" style={{ color: colors.text.heading }}>No therapists available</p>
+                <p className="text-xs" style={{ color: colors.text.muted }}>
+                  No therapist has a slot covering {dayOfWeek?.toLowerCase()} at {startTime} for {duration} min, or all are on leave.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availableTherapists.map(t => {
+                  const selected = selectedTherapistId === t.userId
+                  return (
+                    <button
+                      key={t.userId}
+                      type="button"
+                      onClick={() => setSelectedTherapistId(t.userId)}
+                      className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all"
+                      style={{
+                        background: selected ? accentAlpha(0.10) : surface.filterStrip,
+                        border: `1px solid ${selected ? colors.accent : 'transparent'}`,
+                      }}
+                    >
+                      <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{ background: accentAlpha(0.15), color: colors.accent }}>
+                        {t.firstName[0]}{t.lastName[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
+                        <p className="text-xs truncate" style={{ color: colors.text.muted }}>{t.clinicName}</p>
+                      </div>
+                      {selected && <CheckCircle2 size={16} className="ml-auto flex-shrink-0" style={{ color: colors.accent }} />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setStep(1)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Back</button>
+              {availableTherapists.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={!selectedTherapistId || createMut.isPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                  style={styles.buttonPrimary}
+                >
+                  {createMut.isPending ? 'Enrolling…' : 'Confirm Enrollment'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Tab config ─────────────────────────────────────────────────────────────────
+
+const TABS = ['Overview', 'Clinical', 'Therapy'] as const
+type Tab = typeof TABS[number]
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { toasts, toast, dismiss } = useToast()
+  const { user, activeRole } = useAuth()
   const queryClient = useQueryClient()
 
-  const [conditionModal, setConditionModal] = useState(false)
-  const [parentModal, setParentModal] = useState(false)
-  const [therapistModal, setTherapistModal] = useState(false)
+  const [conditionModal,   setConditionModal]   = useState(false)
+  const [parentModal,      setParentModal]      = useState(false)
+  const [therapistModal,   setTherapistModal]   = useState(false)
+  const [subModal,         setSubModal]         = useState(false)
+  const [paymentTarget,    setPaymentTarget]    = useState<SubscriptionResponse | null>(null)
+  const [enrollModal,      setEnrollModal]      = useState(false)
+  const [expandedEnroll,   setExpandedEnroll]   = useState<string | null>(null)
+  const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
+  const [sidebarSearch,    setSidebarSearch]    = useState('')
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
     queryFn: () => patientsApi.get(id!),
     enabled: !!id,
   })
-
   const { data: conditions } = useQuery({ queryKey: ['conditions'], queryFn: conditionsApi.list })
-  const { data: clinics } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
+  const { data: clinics }    = useQuery({ queryKey: ['clinics'],    queryFn: clinicsApi.list })
+
+  // Sidebar patient list
+  const { data: allPatients = [] } = useQuery({
+    queryKey: ['patients'],
+    queryFn: patientsApi.list,
+    staleTime: 2 * 60 * 1000,
+  })
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['patients', id] })
 
-  // Condition form
+  // Stage mutation
+  const stageMutation = useMutation({
+    mutationFn: (stage: PatientStage) => patientsApi.updateStage(id!, stage),
+    onSuccess: () => { refresh(); toast('Stage updated', 'success') },
+    onError:   () => toast('Failed to update stage', 'error'),
+  })
+
+  // Condition mutations
   const conditionForm = useForm<AddConditionRequest>()
   const addConditionMutation = useMutation({
     mutationFn: (d: AddConditionRequest) => patientsApi.addCondition(id!, d),
     onSuccess: () => { refresh(); toast('Condition added', 'success'); setConditionModal(false); conditionForm.reset() },
-    onError: () => toast('Failed to add condition', 'error'),
+    onError:   () => toast('Failed to add condition', 'error'),
   })
   const removeConditionMutation = useMutation({
     mutationFn: (conditionId: string) => patientsApi.removeCondition(id!, conditionId),
     onSuccess: () => { refresh(); toast('Condition removed', 'success') },
   })
 
-  // Parent search picker
+  // Parent mutations
   const [selectedParent, setSelectedParent] = useState<UserResponse | null>(null)
   const linkParentMutation = useMutation({
     mutationFn: (d: LinkParentRequest) => patientsApi.linkParent(id!, d),
-    onSuccess: () => {
-      refresh()
-      toast('Parent linked', 'success')
-      setParentModal(false)
-      setSelectedParent(null)
-    },
+    onSuccess: () => { refresh(); toast('Parent linked', 'success'); setParentModal(false); setSelectedParent(null) },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast(msg ?? 'Failed to link parent', 'error')
@@ -71,16 +917,11 @@ export default function PatientDetailPage() {
     onSuccess: () => { refresh(); toast('Parent unlinked', 'success') },
   })
 
-  // Therapist search picker
+  // Therapist mutations
   const [selectedTherapist, setSelectedTherapist] = useState<UserResponse | null>(null)
   const assignTherapistMutation = useMutation({
     mutationFn: (d: AssignTherapistRequest) => patientsApi.assignTherapist(id!, d),
-    onSuccess: () => {
-      refresh()
-      toast('Therapist assigned', 'success')
-      setTherapistModal(false)
-      setSelectedTherapist(null)
-    },
+    onSuccess: () => { refresh(); toast('Therapist assigned', 'success'); setTherapistModal(false); setSelectedTherapist(null) },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast(msg ?? 'Failed to assign therapist', 'error')
@@ -91,215 +932,699 @@ export default function PatientDetailPage() {
     onSuccess: () => { refresh(); toast('Therapist unassigned', 'success') },
   })
 
+  // Subscriptions query + mutations
+  const { data: subscriptions = [], refetch: refetchSubs } = useQuery({
+    queryKey: ['subscriptions', id],
+    queryFn: () => subscriptionsApi.listForPatient(id!),
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const cancelSubMutation = useMutation({
+    mutationFn: (subId: string) => subscriptionsApi.cancel(subId),
+    onSuccess: () => { refetchSubs(); toast('Subscription cancelled', 'success') },
+    onError: () => toast('Failed to cancel subscription', 'error'),
+  })
+
+  // Enrollments query + mutations
+  const { data: enrollments = [], refetch: refetchEnrollments } = useQuery({
+    queryKey: ['enrollments', id],
+    queryFn: () => enrollmentsApi.listForPatient(id!),
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const cancelEnrollmentMutation = useMutation({
+    mutationFn: (enrollId: string) => enrollmentsApi.cancel(enrollId),
+    onSuccess: () => { refetchEnrollments(); toast('Enrollment cancelled', 'success') },
+    onError: () => toast('Failed to cancel enrollment', 'error'),
+  })
+
   if (isLoading) return <PageLoader />
-  if (!patient) return <div className="text-slate-500">Patient not found</div>
+  if (!patient)  return <p className="text-sm" style={{ color: colors.text.muted }}>Patient not found</p>
 
   const conditionOptions = (conditions ?? [])
     .filter((c) => !patient.conditions.some((pc) => pc.id === c.id))
     .map((c) => ({ value: c.id, label: c.name }))
-
   const clinicName = clinics?.find((c) => c.id === patient.clinicId)?.name ?? '—'
 
+  const currentRole = activeRole ?? user?.role
+  const canChangeStage      = ['BUSINESS_OWNER', 'ADMIN', 'DOCTOR'].includes(currentRole ?? '')
+  const canManageSubs       = ['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')
+  const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canCreateEnrollment = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canUpdateSession    = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const hasPaidSubscription = subscriptions.some(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+
+  // Shared remove-button style (hover via event handlers)
+  const removeBtn = (onClick: () => void) => (
+    <button
+      onClick={onClick}
+      className="ml-2 rounded-lg p-1.5 transition-colors flex-shrink-0"
+      style={{ color: colors.text.dim }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.color = colors.status.danger
+        ;(e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.color = colors.text.dim
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      <X size={14} />
+    </button>
+  )
+
+  // Filtered sidebar patient list
+  const filteredPatients = allPatients.filter(p => {
+    const q = sidebarSearch.toLowerCase()
+    return !q || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
+  })
+
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary-600">
-          <ArrowLeft size={14} /> Back to patients
-        </Link>
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-full bg-primary-100 text-primary-700 font-bold text-base flex items-center justify-center flex-shrink-0">
-            {patient.firstName[0]}{patient.lastName[0]}
+    <div className="flex h-full min-h-0" style={{ minHeight: 'calc(100vh - 0px)' }}>
+
+      {/* ── Left sidebar (desktop only) ──────────────────────────────────────── */}
+      <aside
+        className="hidden lg:flex flex-col w-64 flex-shrink-0 sticky top-0 overflow-y-auto"
+        style={{
+          height: '100vh',
+          background: surface.sidebar,
+          borderRight: `1px solid ${border.sidebar}`,
+        }}
+      >
+        {/* Sidebar header */}
+        <div className="flex items-center justify-between px-4 pt-5 pb-3 flex-shrink-0">
+          <span className="text-sm font-semibold" style={{ color: colors.text.heading }}>Patients</span>
+          <span
+            className="text-xs font-medium px-2 py-0.5 rounded-full"
+            style={{ background: accentAlpha(0.10), color: colors.accent }}
+          >
+            {allPatients.length}
+          </span>
+        </div>
+
+        {/* Search */}
+        <div className="px-3 pb-3 flex-shrink-0">
+          <input
+            className="form-input w-full"
+            placeholder="Search patients…"
+            value={sidebarSearch}
+            onChange={e => setSidebarSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Patient list */}
+        <div className="flex-1 overflow-y-auto px-2 pb-4">
+          {filteredPatients.map(p => {
+            const isActive = p.id === id
+            return (
+              <Link
+                key={p.id}
+                to={`/patients/${p.id}`}
+                className="flex items-center gap-3 rounded-xl px-2 py-2.5 mb-0.5 transition-colors"
+                style={isActive
+                  ? { background: accentAlpha(0.10), border: `1px solid ${accentAlpha(0.20)}` }
+                  : { border: '1px solid transparent' }
+                }
+                onMouseEnter={e => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05)
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+                }}
+              >
+                {/* Avatar */}
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={isActive
+                    ? { background: accentAlpha(0.20), color: colors.accent }
+                    : { background: accentAlpha(0.08), color: colors.accent }
+                  }
+                >
+                  {p.firstName[0]}{p.lastName[0]}
+                </div>
+
+                {/* Name + stage */}
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="text-sm font-medium truncate"
+                    style={{ color: isActive ? colors.accent : colors.text.primary }}
+                  >
+                    {p.firstName} {p.lastName}
+                  </p>
+                  <span
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                    style={isActive
+                      ? { background: accentAlpha(0.15), color: colors.accent }
+                      : { background: accentAlpha(0.06), color: colors.text.dim }
+                    }
+                  >
+                    {STAGE_LABELS[p.stage]}
+                  </span>
+                </div>
+              </Link>
+            )
+          })}
+
+          {filteredPatients.length === 0 && (
+            <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No patients found</p>
+          )}
+        </div>
+      </aside>
+
+      {/* ── Right panel ──────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
+
+          {/* Mobile back link (hidden on lg) */}
+          <div className="lg:hidden">
+            <Link
+              to="/patients"
+              className="inline-flex items-center gap-1 text-sm transition-colors"
+              style={{ color: colors.text.muted }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+            >
+              <ArrowLeft size={14} /> Patients
+            </Link>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{patient.firstName} {patient.lastName}</h1>
-            <p className="text-sm text-slate-500">{clinicName}</p>
+
+          {/* ── Page header (always visible) ─────────────────────────────────── */}
+          <Card>
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="h-10 w-10 rounded-full font-bold text-base flex items-center justify-center flex-shrink-0"
+                style={{ background: accentAlpha(0.10), color: colors.accent }}
+              >
+                {patient.firstName[0]}{patient.lastName[0]}
+              </div>
+              <div>
+                <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
+                  {patient.firstName} {patient.lastName}
+                </h1>
+                <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
+              </div>
+            </div>
+
+            {/* Stage stepper embedded in the header card */}
+            <StageStepper
+              current={patient.stage}
+              canChange={canChangeStage}
+              onChangeStage={(stage) => stageMutation.mutate(stage)}
+              isSaving={stageMutation.isPending}
+            />
+          </Card>
+
+          {/* ── Tab strip ────────────────────────────────────────────────────── */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
+            {TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className="flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-all"
+                style={activeTab === tab ? styles.filterTabActive : styles.filterTabInactive}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
+
+          {/* ── Overview tab ─────────────────────────────────────────────────── */}
+          {activeTab === 'Overview' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader title="Patient Info" />
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+                  {[
+                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                    ['Gender', patient.gender?.toLowerCase()],
+                    ['Clinic', clinicName],
+                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                  ].map(([label, value]) => (
+                    <div key={label as string}>
+                      <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                      <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
+                        {value || <span style={{ color: colors.text.dim }}>—</span>}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {patient.notes && (
+                  <div
+                    className="mt-4 rounded-xl p-3 text-sm"
+                    style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  >
+                    {patient.notes}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* ── Clinical tab ─────────────────────────────────────────────────── */}
+          {activeTab === 'Clinical' && (
+            <div className="space-y-4">
+              {/* Conditions */}
+              <Card>
+                <CardHeader
+                  title="Conditions"
+                  subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
+                  action={<Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button>}
+                />
+                {!patient.conditions.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {patient.conditions.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between rounded-xl px-4 py-3"
+                        style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Heart size={16} style={{ color: '#3b82f6' }} />
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
+                            {c.diagnosedAt && (
+                              <p className="text-xs" style={{ color: colors.text.muted }}>
+                                Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
+                              </p>
+                            )}
+                            {c.notes && <p className="text-xs italic" style={{ color: colors.text.muted }}>{c.notes}</p>}
+                          </div>
+                        </div>
+                        {removeBtn(() => removeConditionMutation.mutate(c.id))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Divider */}
+              <div style={{ borderTop: `1px solid ${border.divider}` }} />
+
+              {/* Parents */}
+              <Card>
+                <CardHeader
+                  title="Parents / Guardians"
+                  subtitle={`${patient.parents.length} linked`}
+                  action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
+                />
+                {!patient.parents.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {patient.parents.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between rounded-xl px-4 py-3"
+                        style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Users size={16} style={{ color: '#16a34a' }} />
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                            <p className="text-xs" style={{ color: colors.text.muted }}>{p.email}</p>
+                          </div>
+                        </div>
+                        {removeBtn(() => unlinkParentMutation.mutate(p.id))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Divider */}
+              <div style={{ borderTop: `1px solid ${border.divider}` }} />
+
+              {/* Therapists */}
+              <Card>
+                <CardHeader
+                  title="Assigned Therapists"
+                  subtitle={`${patient.therapists.length} assigned`}
+                  action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
+                />
+                {!patient.therapists.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {patient.therapists.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between rounded-xl px-4 py-3"
+                        style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <UserCheck size={16} style={{ color: '#7c3aed' }} />
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
+                            <p className="text-xs" style={{ color: colors.text.muted }}>
+                              Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                        </div>
+                        {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* ── Therapy tab ──────────────────────────────────────────────────── */}
+          {activeTab === 'Therapy' && (
+            <div className="space-y-4">
+              {/* Subscriptions */}
+              <Card>
+                <CardHeader
+                  title="Subscriptions"
+                  subtitle={`${subscriptions.length} subscription${subscriptions.length !== 1 ? 's' : ''}`}
+                  action={
+                    canManageSubs ? (
+                      <Button size="sm" onClick={() => setSubModal(true)}>
+                        <Plus size={14} /> Add
+                      </Button>
+                    ) : undefined
+                  }
+                />
+                {subscriptions.length === 0 ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No subscriptions yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {subscriptions.map(sub => {
+                      const isCancelled = sub.status === 'CANCELLED'
+                      return (
+                        <div
+                          key={sub.id}
+                          className="rounded-xl p-4"
+                          style={{
+                            background: isCancelled ? surface.filterStrip : accentAlpha(0.05),
+                            border: `1px solid ${isCancelled ? border.divider : accentAlpha(0.15)}`,
+                            opacity: isCancelled ? 0.7 : 1,
+                          }}
+                        >
+                          {/* Top row */}
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <BookOpen size={15} style={{ color: colors.accent, flexShrink: 0 }} />
+                              <p className="text-sm font-semibold truncate" style={{ color: colors.text.heading }}>
+                                {sub.programName}
+                              </p>
+                            </div>
+                            <span
+                              className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                              style={paymentStatusStyle(sub.paymentStatus)}
+                            >
+                              {sub.paymentStatus}
+                            </span>
+                          </div>
+
+                          {/* Stats row */}
+                          <div className="grid grid-cols-3 gap-2 mb-3">
+                            {[
+                              ['Sessions',  `${sub.numSessions}`],
+                              ['Rate',      formatINR(sub.perSessionCost)],
+                              ['Total Due', formatINR(sub.totalAmount)],
+                            ].map(([label, value]) => (
+                              <div key={label}>
+                                <p className="text-[10px] uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</p>
+                                <p className="text-xs font-semibold mt-0.5" style={{ color: colors.text.primary }}>{value}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Discount + paid */}
+                          {(sub.discountPercent > 0 || sub.amountPaid > 0) && (
+                            <div className="flex gap-4 mb-3 text-xs" style={{ color: colors.text.muted }}>
+                              {sub.discountPercent > 0 && <span>Discount: {sub.discountPercent}%</span>}
+                              {sub.amountPaid > 0 && <span>Paid: {formatINR(sub.amountPaid)}</span>}
+                            </div>
+                          )}
+
+                          {/* Payment notes */}
+                          {sub.paymentNotes && (
+                            <p className="text-xs italic mb-3" style={{ color: colors.text.muted }}>{sub.paymentNotes}</p>
+                          )}
+
+                          {/* Actions */}
+                          {!isCancelled && (
+                            <div className="flex gap-2 pt-2 border-t" style={{ borderColor: border.divider }}>
+                              {canRecordPayment && sub.paymentStatus !== 'PAID' && (
+                                <button
+                                  onClick={() => setPaymentTarget(sub)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                  style={{ color: colors.accent, background: accentAlpha(0.08) }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.14)}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+                                >
+                                  <IndianRupee size={11} />
+                                  Record Payment
+                                </button>
+                              )}
+                              {canManageSubs && (
+                                <button
+                                  onClick={() => cancelSubMutation.mutate(sub.id)}
+                                  disabled={cancelSubMutation.isPending}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                  style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                >
+                                  <Ban size={11} />
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              {/* Enrollments */}
+              <Card>
+                <CardHeader
+                  title="Enrollments"
+                  subtitle={`${enrollments.length} enrollment${enrollments.length !== 1 ? 's' : ''}`}
+                  action={
+                    canCreateEnrollment && hasPaidSubscription ? (
+                      <Button size="sm" onClick={() => setEnrollModal(true)}>
+                        <Plus size={14} /> Enroll
+                      </Button>
+                    ) : undefined
+                  }
+                />
+
+                {!hasPaidSubscription && enrollments.length === 0 && (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>
+                    A fully paid subscription is required before creating an enrollment.
+                  </p>
+                )}
+
+                {hasPaidSubscription && enrollments.length === 0 && (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No enrollments yet. Click Enroll to book sessions.</p>
+                )}
+
+                {enrollments.length > 0 && (
+                  <div className="space-y-3">
+                    {enrollments.map(enroll => {
+                      const isCancelled = enroll.status === 'CANCELLED'
+                      const isExpanded  = expandedEnroll === enroll.id
+
+                      return (
+                        <div
+                          key={enroll.id}
+                          className="rounded-xl overflow-hidden"
+                          style={{
+                            border: `1px solid ${isCancelled ? border.divider : accentAlpha(0.18)}`,
+                            opacity: isCancelled ? 0.65 : 1,
+                          }}
+                        >
+                          {/* Enrollment summary row */}
+                          <div className="p-4" style={{ background: isCancelled ? surface.filterStrip : accentAlpha(0.04) }}>
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{enroll.programName}</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                                  {enroll.therapistFirstName} {enroll.therapistLastName}
+                                </p>
+                              </div>
+                              <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                style={isCancelled ? paletteStyle('slate', 0.12, 0) : paletteStyle('teal', 0.12, 0)}>
+                                {enroll.status}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                [<CalendarDays size={11} />, `Starts ${enroll.startDate}`],
+                                [<Clock size={11} />, `${enroll.dayOfWeek.slice(0,3)} ${enroll.startTime.slice(0,5)} · ${enroll.sessionDurationMinutes}min`],
+                                [<CheckCircle2 size={11} />, `${enroll.sessionsCompleted} / ${enroll.totalSessions} done`],
+                              ].map(([icon, text], i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                  <span style={{ color: colors.text.dim }}>{icon}</span>
+                                  <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Actions */}
+                            {!isCancelled && (
+                              <div className="flex items-center gap-2 mt-3 pt-3 border-t" style={{ borderColor: border.divider }}>
+                                <button
+                                  onClick={() => setExpandedEnroll(isExpanded ? null : enroll.id)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                >
+                                  {isExpanded ? 'Hide sessions' : `View sessions (${enroll.totalSessions})`}
+                                </button>
+                                {canManageSubs && (
+                                  <button
+                                    onClick={() => cancelEnrollmentMutation.mutate(enroll.id)}
+                                    disabled={cancelEnrollmentMutation.isPending}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                    style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                  >
+                                    <Ban size={11} /> Cancel
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Expandable session list */}
+                          {isExpanded && (
+                            <SessionList
+                              enrollmentId={enroll.id}
+                              canUpdate={canUpdateSession}
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* ── Modals ───────────────────────────────────────────────────────── */}
+          <Modal open={conditionModal} onClose={() => { setConditionModal(false); conditionForm.reset() }} title="Add Condition">
+            <form onSubmit={conditionForm.handleSubmit((d) => addConditionMutation.mutate(d))} className="space-y-4">
+              <Select label="Condition" placeholder="Select condition…" options={conditionOptions}
+                {...conditionForm.register('conditionId', { required: 'Required' })} />
+              <Input label="Diagnosed on" type="date" {...conditionForm.register('diagnosedAt')} />
+              <div>
+                <label className="form-label">Notes</label>
+                <textarea className="form-input resize-none min-h-[80px]" {...conditionForm.register('notes')} />
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => { setConditionModal(false); conditionForm.reset() }}>Cancel</Button>
+                <Button type="submit" loading={addConditionMutation.isPending}>Add</Button>
+              </div>
+            </form>
+          </Modal>
+
+          <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
+            <div className="space-y-4">
+              <UserSearchPicker
+                role="PARENT"
+                selected={selectedParent}
+                onSelect={setSelectedParent}
+                onClear={() => setSelectedParent(null)}
+                label="Search parent by email"
+                placeholder="e.g. jane@example.com"
+              />
+              {!selectedParent && (
+                <p className="text-xs" style={{ color: colors.text.dim }}>
+                  The person must already have an account with the <strong>Parent</strong> role in your organisation.
+                </p>
+              )}
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
+                <Button
+                  disabled={!selectedParent}
+                  loading={linkParentMutation.isPending}
+                  onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
+                >
+                  Link Parent
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
+            <div className="space-y-4">
+              <UserSearchPicker
+                role="THERAPIST"
+                selected={selectedTherapist}
+                onSelect={setSelectedTherapist}
+                onClear={() => setSelectedTherapist(null)}
+                label="Search therapist by email"
+                placeholder="e.g. john@clinic.com"
+              />
+              {!selectedTherapist && (
+                <p className="text-xs" style={{ color: colors.text.dim }}>
+                  The person must already have an account with the <strong>Therapist</strong> role in your organisation.
+                </p>
+              )}
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); setSelectedTherapist(null) }}>Cancel</Button>
+                <Button
+                  disabled={!selectedTherapist}
+                  loading={assignTherapistMutation.isPending}
+                  onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
+                >
+                  Assign Therapist
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Enrollment modal */}
+          {enrollModal && (
+            <EnrollmentModal
+              subscriptions={subscriptions}
+              patientId={id!}
+              onClose={() => setEnrollModal(false)}
+              onCreated={() => {
+                refetchEnrollments()
+                refetchSubs()
+                toast('Enrollment created — sessions generated', 'success')
+                setEnrollModal(false)
+              }}
+            />
+          )}
+
+          {/* Create subscription modal */}
+          {subModal && (
+            <CreateSubscriptionModal
+              patientId={id!}
+              onClose={() => setSubModal(false)}
+              onCreated={() => { refetchSubs(); toast('Subscription created', 'success'); setSubModal(false) }}
+            />
+          )}
+
+          {/* Record payment modal */}
+          {paymentTarget && (
+            <RecordPaymentModal
+              subscription={paymentTarget}
+              onClose={() => setPaymentTarget(null)}
+              onSaved={() => { refetchSubs(); toast('Payment recorded', 'success'); setPaymentTarget(null) }}
+            />
+          )}
+
+          <ToastContainer toasts={toasts} onDismiss={dismiss} />
         </div>
       </div>
-
-      {/* Basic info */}
-      <Card>
-        <CardHeader title="Patient Info" />
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-          {[
-            ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
-            ['Gender', patient.gender?.toLowerCase()],
-            ['Clinic', clinicName],
-            ['Status', patient.isActive ? 'Active' : 'Inactive'],
-          ].map(([label, value]) => (
-            <div key={label as string}>
-              <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</dt>
-              <dd className="mt-1 text-sm text-slate-700 capitalize">{value || <span className="text-slate-400">—</span>}</dd>
-            </div>
-          ))}
-        </dl>
-        {patient.notes && (
-          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">{patient.notes}</div>
-        )}
-      </Card>
-
-      {/* Conditions */}
-      <Card>
-        <CardHeader
-          title="Conditions"
-          subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
-          action={<Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button>}
-        />
-        {!patient.conditions.length ? (
-          <p className="text-sm text-slate-400">No conditions recorded.</p>
-        ) : (
-          <div className="space-y-2">
-            {patient.conditions.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-xl bg-blue-50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Heart size={16} className="text-blue-500" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{c.name}</p>
-                    {c.diagnosedAt && <p className="text-xs text-slate-500">Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}</p>}
-                    {c.notes && <p className="text-xs text-slate-500 italic">{c.notes}</p>}
-                  </div>
-                </div>
-                <button onClick={() => removeConditionMutation.mutate(c.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Parents */}
-      <Card>
-        <CardHeader
-          title="Parents / Guardians"
-          subtitle={`${patient.parents.length} linked`}
-          action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
-        />
-        {!patient.parents.length ? (
-          <p className="text-sm text-slate-400">No parents linked.</p>
-        ) : (
-          <div className="space-y-2">
-            {patient.parents.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Users size={16} className="text-green-500" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{p.firstName} {p.lastName}</p>
-                    <p className="text-xs text-slate-500">{p.email}</p>
-                  </div>
-                </div>
-                <button onClick={() => unlinkParentMutation.mutate(p.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Therapists */}
-      <Card>
-        <CardHeader
-          title="Assigned Therapists"
-          subtitle={`${patient.therapists.length} assigned`}
-          action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
-        />
-        {!patient.therapists.length ? (
-          <p className="text-sm text-slate-400">No therapists assigned.</p>
-        ) : (
-          <div className="space-y-2">
-            {patient.therapists.map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-xl bg-purple-50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <UserCheck size={16} className="text-purple-500" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{t.firstName} {t.lastName}</p>
-                    <p className="text-xs text-slate-500">Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}</p>
-                  </div>
-                </div>
-                <button onClick={() => unassignTherapistMutation.mutate(t.id)} className="ml-2 rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Modals */}
-      <Modal open={conditionModal} onClose={() => { setConditionModal(false); conditionForm.reset() }} title="Add Condition">
-        <form onSubmit={conditionForm.handleSubmit((d) => addConditionMutation.mutate(d))} className="space-y-4">
-          <Select label="Condition" placeholder="Select condition…" options={conditionOptions}
-            {...conditionForm.register('conditionId', { required: 'Required' })} />
-          <Input label="Diagnosed on" type="date" {...conditionForm.register('diagnosedAt')} />
-          <div>
-            <label className="form-label">Notes</label>
-            <textarea className="form-input resize-none min-h-[80px]" {...conditionForm.register('notes')} />
-          </div>
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setConditionModal(false); conditionForm.reset() }}>Cancel</Button>
-            <Button type="submit" loading={addConditionMutation.isPending}>Add</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
-        <div className="space-y-4">
-          <UserSearchPicker
-            role="PARENT"
-            selected={selectedParent}
-            onSelect={setSelectedParent}
-            onClear={() => setSelectedParent(null)}
-            label="Search parent by email"
-            placeholder="e.g. jane@example.com"
-          />
-          {!selectedParent && (
-            <p className="text-xs text-slate-400">
-              The person must already have an account with the <strong>Parent</strong> role in your organisation.
-            </p>
-          )}
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
-            <Button
-              disabled={!selectedParent}
-              loading={linkParentMutation.isPending}
-              onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
-            >
-              Link Parent
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
-        <div className="space-y-4">
-          <UserSearchPicker
-            role="THERAPIST"
-            selected={selectedTherapist}
-            onSelect={setSelectedTherapist}
-            onClear={() => setSelectedTherapist(null)}
-            label="Search therapist by email"
-            placeholder="e.g. john@clinic.com"
-          />
-          {!selectedTherapist && (
-            <p className="text-xs text-slate-400">
-              The person must already have an account with the <strong>Therapist</strong> role in your organisation.
-            </p>
-          )}
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); setSelectedTherapist(null) }}>Cancel</Button>
-            <Button
-              disabled={!selectedTherapist}
-              loading={assignTherapistMutation.isPending}
-              onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
-            >
-              Assign Therapist
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

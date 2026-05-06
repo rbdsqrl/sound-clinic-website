@@ -7,10 +7,10 @@ import { StatCard } from '../components/ui/Card'
 import { PageLoader } from '../components/ui/Spinner'
 import { useAuth } from '../contexts/AuthContext'
 import { roleBadge } from '../components/ui/Badge'
-import { colors, styles, border, palette, rgba } from '../theme'
+import { colors, styles, border, palette, rgba, surface } from '../theme'
 import { format } from 'date-fns'
 
-const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)' }
+const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
 
 export default function DashboardPage() {
@@ -28,7 +28,7 @@ export default function DashboardPage() {
 
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
   const sectionHeader: React.CSSProperties = {
-    borderBottom: `1px solid ${border.dividerDark}`,
+    borderBottom: `1px solid ${border.divider}`,
   }
 
   // ── Parent dashboard ──────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ export default function DashboardPage() {
                   key={child.id}
                   to={`/patients/${child.id}`}
                   className="flex items-center gap-4 px-6 py-3 transition-colors"
-                  style={i < myChildren.length - 1 ? { borderBottom: `1px solid ${border.dividerDark}` } : {}}
+                  style={i < myChildren.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
                   onMouseEnter={ROW_HOVER_IN}
                   onMouseLeave={ROW_HOVER_OUT}
                 >
@@ -126,7 +126,7 @@ export default function DashboardPage() {
                 key={p.id}
                 to={`/patients/${p.id}`}
                 className="flex items-center gap-3 px-4 py-3 transition-colors"
-                style={i < Math.min(patients.length, 5) - 1 ? { borderBottom: `1px solid ${border.dividerDark}` } : {}}
+                style={i < Math.min(patients.length, 5) - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
                 onMouseEnter={ROW_HOVER_IN}
                 onMouseLeave={ROW_HOVER_OUT}
               >
@@ -154,7 +154,7 @@ export default function DashboardPage() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: `1px solid ${border.dividerDark}` }}>
+                <tr style={{ borderBottom: `1px solid ${border.divider}` }}>
                   {['Name', 'Clinic', 'Conditions', 'Therapists'].map(h => (
                     <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
                       {h}
@@ -166,7 +166,7 @@ export default function DashboardPage() {
                 {patients.slice(0, 5).map((p, i) => (
                   <tr
                     key={p.id}
-                    style={i < Math.min(patients.length, 5) - 1 ? { borderBottom: `1px solid ${border.dividerDark}` } : {}}
+                    style={i < Math.min(patients.length, 5) - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
                     onMouseEnter={ROW_HOVER_IN}
                     onMouseLeave={ROW_HOVER_OUT}
                     className="transition-colors cursor-pointer"

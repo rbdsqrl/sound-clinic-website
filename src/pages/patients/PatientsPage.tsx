@@ -15,13 +15,49 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { Badge } from '../../components/ui/Badge'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
-import type { CreatePatientRequest, Gender } from '../../types'
+import { colors, border, surface, styles, accentAlpha, paletteStyle } from '../../theme'
+import type { CreatePatientRequest, Gender, PatientStage } from '../../types'
 import { format } from 'date-fns'
 
+// ── Stage badge ────────────────────────────────────────────────────────────────
+
+const STAGE_LABEL: Record<PatientStage, string> = {
+  INQUIRY_CONVERTED: 'Inquiry',
+  PRE_ASSESSMENT:    'Pre-Assessment',
+  ASSESSMENT_DONE:   'Assessment Done',
+  ENROLLMENT:        'Enrollment',
+  ENROLLED:          'Enrolled',
+  THERAPY_ACTIVE:    'Therapy Active',
+  DISCHARGED:        'Discharged',
+}
+
+const STAGE_PALETTE: Record<PatientStage, Parameters<typeof paletteStyle>[0]> = {
+  INQUIRY_CONVERTED: 'blue',
+  PRE_ASSESSMENT:    'yellow',
+  ASSESSMENT_DONE:   'purple',
+  ENROLLMENT:        'yellow',
+  ENROLLED:          'blue',
+  THERAPY_ACTIVE:    'green',
+  DISCHARGED:        'slate',
+}
+
+function StageBadge({ stage }: { stage: PatientStage }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+      style={paletteStyle(STAGE_PALETTE[stage], 0.12)}
+    >
+      {STAGE_LABEL[stage]}
+    </span>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 const GENDERS: { value: Gender; label: string }[] = [
-  { value: 'MALE', label: 'Male' },
+  { value: 'MALE',   label: 'Male'   },
   { value: 'FEMALE', label: 'Female' },
-  { value: 'OTHER', label: 'Other' },
+  { value: 'OTHER',  label: 'Other'  },
 ]
 
 export default function PatientsPage() {
@@ -54,8 +90,10 @@ export default function PatientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Patients</h1>
-          <p className="mt-1 text-sm text-slate-500">{patients?.length ?? 0} patient{patients?.length !== 1 ? 's' : ''} registered</p>
+          <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Patients</h1>
+          <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>
+            {patients?.length ?? 0} patient{patients?.length !== 1 ? 's' : ''} registered
+          </p>
         </div>
         <Button onClick={() => setShowModal(true)}><Plus size={16} /> Add Patient</Button>
       </div>
@@ -75,23 +113,31 @@ export default function PatientsPage() {
           <div className="space-y-3 sm:hidden">
             {patients.map((p) => (
               <Link key={p.id} to={`/patients/${p.id}`}>
-                <Card className="active:bg-slate-50">
+                <Card>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-10 w-10 flex-shrink-0 rounded-full bg-primary-100 text-primary-700 font-semibold text-sm flex items-center justify-center">
+                      <div
+                        className="h-10 w-10 flex-shrink-0 rounded-full font-semibold text-sm flex items-center justify-center"
+                        style={{ background: accentAlpha(0.10), color: colors.accent }}
+                      >
                         {p.firstName[0]}{p.lastName[0]}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-800 truncate">{p.firstName} {p.lastName}</p>
-                        <p className="text-xs text-slate-500 truncate">{clinicMap[p.clinicId] ?? '—'}</p>
+                        <p className="font-medium truncate" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                        <p className="text-xs truncate" style={{ color: colors.text.muted }}>{clinicMap[p.clinicId] ?? '—'}</p>
                       </div>
                     </div>
-                    <ChevronRight size={16} className="flex-shrink-0 text-slate-400" />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <StageBadge stage={p.stage} />
+                      <ChevronRight size={16} style={{ color: colors.text.dim }} />
+                    </div>
                   </div>
                   {(p.conditions.length > 0 || p.dateOfBirth) && (
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       {p.dateOfBirth && (
-                        <span className="text-xs text-slate-400">{format(new Date(p.dateOfBirth), 'MMM d, yyyy')}</span>
+                        <span className="text-xs" style={{ color: colors.text.dim }}>
+                          {format(new Date(p.dateOfBirth), 'MMM d, yyyy')}
+                        </span>
                       )}
                       {p.conditions.slice(0, 2).map((c) => (
                         <Badge key={c.id} variant="blue">{c.name}</Badge>
@@ -108,37 +154,53 @@ export default function PatientsPage() {
           <Card padding={false} className="hidden sm:block">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <thead style={{ background: surface.sidebarFooter, borderBottom: `1px solid ${border.divider}` }}>
                   <tr>
-                    <th className="px-6 py-3 text-left">Patient</th>
-                    <th className="px-6 py-3 text-left">Clinic</th>
-                    <th className="px-6 py-3 text-left">Conditions</th>
-                    <th className="px-6 py-3 text-left">Therapists</th>
-                    <th className="px-6 py-3 text-left">DOB</th>
-                    <th className="px-6 py-3" />
+                    {['Patient', 'Clinic', 'Stage', 'Conditions', 'Therapists', 'DOB', ''].map((h) => (
+                      <th
+                        key={h}
+                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                        style={{ color: colors.text.dim }}
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {patients.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
+                <tbody>
+                  {patients.map((p, i) => (
+                    <tr
+                      key={p.id}
+                      style={{ borderBottom: i < patients.length - 1 ? `1px solid ${border.divider}` : undefined }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                    >
                       <td className="px-6 py-4">
-                        <p className="font-medium text-slate-800">{p.firstName} {p.lastName}</p>
-                        {p.gender && <p className="text-xs text-slate-400 capitalize">{p.gender.toLowerCase()}</p>}
+                        <p className="font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                        {p.gender && (
+                          <p className="text-xs capitalize" style={{ color: colors.text.dim }}>{p.gender.toLowerCase()}</p>
+                        )}
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{clinicMap[p.clinicId] ?? '—'}</td>
+                      <td className="px-6 py-4" style={{ color: colors.text.muted }}>{clinicMap[p.clinicId] ?? '—'}</td>
+                      <td className="px-6 py-4"><StageBadge stage={p.stage} /></td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
-                          {p.conditions.length === 0 ? <span className="text-slate-400">—</span>
+                          {p.conditions.length === 0
+                            ? <span style={{ color: colors.text.dim }}>—</span>
                             : p.conditions.slice(0, 2).map((c) => <Badge key={c.id} variant="blue">{c.name}</Badge>)}
                           {p.conditions.length > 2 && <Badge variant="slate">+{p.conditions.length - 2}</Badge>}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{p.therapists.length}</td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-6 py-4" style={{ color: colors.text.muted }}>{p.therapists.length}</td>
+                      <td className="px-6 py-4" style={{ color: colors.text.muted }}>
                         {p.dateOfBirth ? format(new Date(p.dateOfBirth), 'MMM d, yyyy') : '—'}
                       </td>
                       <td className="px-6 py-4">
-                        <Link to={`/patients/${p.id}`} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline">
+                        <Link
+                          to={`/patients/${p.id}`}
+                          className="inline-flex items-center gap-1 text-xs transition-colors"
+                          style={{ color: colors.accent }}
+                        >
                           View <ChevronRight size={12} />
                         </Link>
                       </td>

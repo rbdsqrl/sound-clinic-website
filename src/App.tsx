@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import AppLayout from './components/layout/AppLayout'
 
+import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/auth/LoginPage'
-import RegisterPage from './pages/auth/RegisterPage'
 import AcceptInvitePage from './pages/auth/AcceptInvitePage'
 import DashboardPage from './pages/DashboardPage'
 import OrganisationPage from './pages/OrganisationPage'
@@ -13,9 +14,13 @@ import PatientsPage from './pages/patients/PatientsPage'
 import PatientDetailPage from './pages/patients/PatientDetailPage'
 import MyChildrenPage from './pages/patients/MyChildrenPage'
 import InvitationsPage from './pages/InvitationsPage'
-import AppointmentsPage from './pages/appointments/AppointmentsPage'
-import BookAppointmentPage from './pages/appointments/BookAppointmentPage'
 import AvailabilityPage from './pages/availability/AvailabilityPage'
+import TherapistsPage from './pages/therapists/TherapistsPage'
+import CalendarPage from './pages/calendar/CalendarPage'
+import MyLeavePage from './pages/leave/MyLeavePage'
+import LeaveManagementPage from './pages/leave/LeaveManagementPage'
+import InquiriesPage from './pages/inquiries/InquiriesPage'
+import ProgramsPage from './pages/programs/ProgramsPage'
 
 // ── DEV BYPASS ────────────────────────────────────────────────────────────────
 // Set to true to skip authentication entirely during development.
@@ -29,7 +34,7 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 }
 
 function PublicRoute({ children }: { children: JSX.Element }) {
-  if (BYPASS_AUTH) return children   // just render — no redirect loop
+  if (BYPASS_AUTH) return children
   const { isAuthenticated, isLoading } = useAuth()
   if (isLoading) return null
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : children
@@ -44,39 +49,46 @@ function Spinner() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Public */}
-      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-      <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      {/* Landing — always public, no auth redirect */}
+      <Route path="/" element={<LandingPage />} />
+
+      {/* Auth */}
+      <Route path="/login"         element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
-      {/* Protected */}
+      {/* Protected app */}
       <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/organisation" element={<OrganisationPage />} />
-        <Route path="/clinics" element={<ClinicsPage />} />
-        <Route path="/clinics/:id" element={<ClinicDetailPage />} />
-        <Route path="/patients" element={<PatientsPage />} />
-        <Route path="/patients/:id" element={<PatientDetailPage />} />
-        <Route path="/my-children" element={<MyChildrenPage />} />
-        <Route path="/invitations" element={<InvitationsPage />} />
-        <Route path="/appointments" element={<AppointmentsPage />} />
-        <Route path="/appointments/book" element={<BookAppointmentPage />} />
+        <Route path="/dashboard"        element={<DashboardPage />} />
+        <Route path="/organisation"     element={<OrganisationPage />} />
+        <Route path="/clinics"          element={<ClinicsPage />} />
+        <Route path="/clinics/:id"      element={<ClinicDetailPage />} />
+        <Route path="/patients"         element={<PatientsPage />} />
+        <Route path="/patients/:id"     element={<PatientDetailPage />} />
+        <Route path="/my-children"      element={<MyChildrenPage />} />
+        <Route path="/invitations"  element={<InvitationsPage />} />
+        <Route path="/calendar"     element={<CalendarPage />} />
         <Route path="/availability" element={<AvailabilityPage />} />
+        <Route path="/therapists"       element={<TherapistsPage />} />
+        <Route path="/my-leave"         element={<MyLeavePage />} />
+        <Route path="/leave-management" element={<LeaveManagementPage />} />
+        <Route path="/inquiries"        element={<InquiriesPage />} />
+        <Route path="/programs"         element={<ProgramsPage />} />
       </Route>
 
       {/* Fallback */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

@@ -14,9 +14,9 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { TIMEZONES } from '../../lib/timezones'
+import { colors, border, surface, styles, accentAlpha } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
 
-// Build grouped options for the timezone select
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
     if (!map.has(tz.region)) map.set(tz.region, [])
@@ -37,9 +37,7 @@ export default function ClinicsPage() {
   })
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateClinicRequest>({
-    defaultValues: {
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
+    defaultValues: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
   })
 
   const createMutation = useMutation({
@@ -59,8 +57,10 @@ export default function ClinicsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Clinics</h1>
-          <p className="mt-1 text-sm text-slate-500">{clinics?.length ?? 0} clinic{clinics?.length !== 1 ? 's' : ''} in your organisation</p>
+          <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Clinics</h1>
+          <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>
+            {clinics?.length ?? 0} clinic{clinics?.length !== 1 ? 's' : ''} in your organisation
+          </p>
         </div>
         <Button onClick={() => setShowModal(true)}>
           <Plus size={16} /> New Clinic
@@ -80,29 +80,39 @@ export default function ClinicsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clinics.map((clinic) => (
             <Link key={clinic.id} to={`/clinics/${clinic.id}`}>
-              <Card className="group cursor-pointer hover:shadow-md transition-shadow">
+              <div
+                className="rounded-2xl p-5 cursor-pointer transition-all"
+                style={styles.card}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px var(--color-accent), 0 4px 16px ${accentAlpha(0.12)}`}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = (styles.card as React.CSSProperties).boxShadow as string ?? ''}
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-xl bg-primary-50 p-2.5 text-primary-600">
+                    <div className="rounded-xl p-2.5" style={{ background: accentAlpha(0.10), color: colors.accent }}>
                       <Building2 size={20} />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-800 group-hover:text-primary-600">{clinic.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{clinic.email ?? 'No email'}</p>
+                      <p className="font-semibold" style={{ color: colors.text.primary }}>{clinic.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{clinic.email ?? 'No email'}</p>
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-slate-400 group-hover:text-primary-600 mt-1" />
+                  <ChevronRight size={16} style={{ color: colors.text.dim }} />
                 </div>
                 {clinic.address && (
-                  <p className="mt-3 text-xs text-slate-500 truncate">{clinic.address}</p>
+                  <p className="mt-3 text-xs truncate" style={{ color: colors.text.muted }}>{clinic.address}</p>
                 )}
                 <div className="mt-3 flex items-center gap-2">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${clinic.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  <span
+                    className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                    style={clinic.isActive
+                      ? { background: 'rgba(16,185,129,0.10)', color: '#059669' }
+                      : { background: 'rgba(239,68,68,0.10)',  color: '#dc2626' }}
+                  >
                     {clinic.isActive ? 'Active' : 'Inactive'}
                   </span>
-                  <span className="text-xs text-slate-400">{clinic.timezone}</span>
+                  <span className="text-xs" style={{ color: colors.text.dim }}>{clinic.timezone}</span>
                 </div>
-              </Card>
+              </div>
             </Link>
           ))}
         </div>
@@ -115,12 +125,7 @@ export default function ClinicsPage() {
           <Input label="Email" type="email" placeholder="clinic@example.com" {...register('email')} />
           <Input label="Phone" placeholder="+1 555 0123" {...register('phone')} />
           <Input label="Address" placeholder="123 Main St, City" {...register('address')} />
-          <Select
-            label="Timezone"
-            placeholder="Select timezone…"
-            options={TIMEZONE_GROUPS}
-            {...register('timezone')}
-          />
+          <Select label="Timezone" placeholder="Select timezone…" options={TIMEZONE_GROUPS} {...register('timezone')} />
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => { setShowModal(false); reset() }}>Cancel</Button>
             <Button type="submit" loading={isSubmitting || createMutation.isPending}>Create</Button>

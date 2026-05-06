@@ -83,7 +83,7 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Tab filter */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: surface.filterStrip, border: border.darker }}>
+      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: surface.filterStrip, border: border.card }}>
         {(['upcoming','past','all'] as FilterTab[]).map(t => (
           <button
             key={t}
@@ -121,7 +121,7 @@ export default function AppointmentsPage() {
                 <p className="text-sm font-semibold" style={{ color: colors.text.muted }}>
                   {format(parseISO(date), 'EEEE, MMMM d, yyyy')}
                 </p>
-                <div className="flex-1 h-px" style={{ background: border.dividerDark }} />
+                <div className="flex-1 h-px" style={{ background: border.divider }} />
               </div>
 
               {/* Appointment cards */}

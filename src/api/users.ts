@@ -5,6 +5,18 @@ export const usersApi = {
   me: () =>
     client.get<ApiResponse<UserResponse>>('/users/me').then((r) => r.data.data),
 
+  /**
+   * All THERAPIST and DOCTOR users in the org.
+   * Pass clinicId to scope to a single clinic.
+   * Only callable by BUSINESS_OWNER / ADMIN.
+   */
+  listTherapists: (clinicId?: string) =>
+    client
+      .get<ApiResponse<UserResponse[]>>('/users/therapists', {
+        params: clinicId ? { clinicId } : {},
+      })
+      .then((r) => r.data.data),
+
   /** Search users by partial email within the caller's organisation. */
   search: (email: string, role?: Role) =>
     client

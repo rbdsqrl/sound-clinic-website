@@ -15,7 +15,7 @@ export default {
       colors: {
         // ── Primary accent — soft teal ───────────────────────────────────────
         primary: {
-          50:  '#f0fafa',
+          50:  '#c8c098',
           100: '#d4f2f0',
           200: '#a8e5e2',
           300: '#7dd7d3',
@@ -28,9 +28,9 @@ export default {
         },
         // ── Neutral surface scale (both modes) ──────────────────────────────
         surface: {
-          50:  '#F9FBFC',
-          100: '#EFF4F7',
-          200: '#DDE8EF',
+          50:  '#b8b691',
+          100: '#a8e8d6',
+          200: '#89a7b9',
           700: '#18202E',
           800: '#141E30',
           900: '#0E1625',

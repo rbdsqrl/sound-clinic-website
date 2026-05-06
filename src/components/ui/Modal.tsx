@@ -39,13 +39,13 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
       >
         {/* Mobile drag handle */}
         <div className="flex justify-center pt-2.5 pb-0 sm:hidden flex-shrink-0">
-          <div className="h-1 w-10 rounded-full" style={{ background: border.dragHandle }} />
+          <div className="h-1 w-10 rounded-full" style={{ background: border.drag }} />
         </div>
 
         {/* Header */}
         <div
           className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: `1px solid ${border.dividerDark}` }}
+          style={{ borderBottom: `1px solid ${border.divider}` }}
         >
           <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
           <button

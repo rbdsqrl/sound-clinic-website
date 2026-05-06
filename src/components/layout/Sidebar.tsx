@@ -1,50 +1,66 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Stethoscope, Users, Mail,
-  LogOut, Ear, Baby, X, CalendarDays, CalendarClock,
+  LogOut, Baby, X, CalendarDays,
+  Sun, Moon, UserRound, CalendarOff, Inbox, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
+import { useCalendarBadge } from '../../hooks/useCalendarBadge'
 import { allRoles } from '../../types'
 import type { Role } from '../../types'
 import { clsx } from '../../lib/clsx'
-import { colors, styles, surface, border, gradient, shadow, rgba, RAW } from '../../theme'
+import { colors, styles, surface, border, shadow, dangerAlpha, LOGO_SRC } from '../../theme'
 
 const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.ElementType }[]> = {
   BUSINESS_OWNER: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/organisation', label: 'Organisation', icon: Building2 },
-    { to: '/clinics',      label: 'Clinics',      icon: Stethoscope },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/availability', label: 'Availability', icon: CalendarClock },
-    { to: '/appointments', label: 'Appointments', icon: CalendarDays },
-    { to: '/invitations',  label: 'Add Members',  icon: Mail },
+    { to: '/dashboard',        label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/inquiries',        label: 'Inquiries',      icon: Inbox },
+    { to: '/organisation',     label: 'Organisation',   icon: Building2 },
+    { to: '/clinics',          label: 'Clinics',        icon: Stethoscope },
+    { to: '/therapists',       label: 'Therapists',     icon: UserRound },
+    { to: '/patients',         label: 'Patients',       icon: Users },
+    { to: '/programs',         label: 'Programs',       icon: BookOpen },
+    { to: '/calendar',         label: 'Calendar',       icon: CalendarDays },
+    { to: '/leave-management', label: 'Leave Requests', icon: CalendarOff },
+    { to: '/invitations',      label: 'Add Members',    icon: Mail },
+  ],
+  OFFICE_ADMIN: [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/inquiries', label: 'Inquiries', icon: Inbox },
+    { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
   ],
   THERAPIST: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/clinics',      label: 'Clinics',      icon: Stethoscope },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/appointments', label: 'Appointments', icon: CalendarDays },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
+    { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
+    { to: '/my-leave',  label: 'My Leave',  icon: CalendarOff },
   ],
   DOCTOR: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/clinics',      label: 'Clinics',      icon: Stethoscope },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/appointments', label: 'Appointments', icon: CalendarDays },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
+    { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
+    { to: '/my-leave',  label: 'My Leave',  icon: CalendarOff },
   ],
   PARENT: [
-    { to: '/dashboard',         label: 'Dashboard',        icon: LayoutDashboard },
-    { to: '/my-children',       label: 'My Children',      icon: Baby },
-    { to: '/appointments',      label: 'Appointments',     icon: CalendarDays },
-    { to: '/appointments/book', label: 'Book Appointment', icon: CalendarClock },
+    { to: '/dashboard',   label: 'Dashboard',  icon: LayoutDashboard },
+    { to: '/my-children', label: 'My Children', icon: Baby },
+    { to: '/calendar',    label: 'Calendar',   icon: CalendarDays },
   ],
   ADMIN: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/organisation', label: 'Organisation', icon: Building2 },
-    { to: '/clinics',      label: 'Clinics',      icon: Stethoscope },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/availability', label: 'Availability', icon: CalendarClock },
-    { to: '/appointments', label: 'Appointments', icon: CalendarDays },
-    { to: '/invitations',  label: 'Add Members',  icon: Mail },
+    { to: '/dashboard',        label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/inquiries',        label: 'Inquiries',      icon: Inbox },
+    { to: '/organisation',     label: 'Organisation',   icon: Building2 },
+    { to: '/clinics',          label: 'Clinics',        icon: Stethoscope },
+    { to: '/therapists',       label: 'Therapists',     icon: UserRound },
+    { to: '/patients',         label: 'Patients',       icon: Users },
+    { to: '/programs',         label: 'Programs',       icon: BookOpen },
+    { to: '/calendar',         label: 'Calendar',       icon: CalendarDays },
+    { to: '/leave-management', label: 'Leave Requests', icon: CalendarOff },
+    { to: '/invitations',      label: 'Add Members',    icon: Mail },
   ],
   PATIENT: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -53,6 +69,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
 
 const ROLE_LABELS: Record<Role, string> = {
   BUSINESS_OWNER: 'Business Owner',
+  OFFICE_ADMIN:   'Office Admin',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
   PARENT:         'Parent',
@@ -60,20 +77,21 @@ const ROLE_LABELS: Record<Role, string> = {
   PATIENT:        'Patient',
 }
 
-// All role dot colours live in theme.ts → colors.role
 const ROLE_COLORS = colors.role
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const { user, activeRole, switchRole, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
   const handleLogout = async () => { await logout(); navigate('/login') }
   const handleNavClick = () => onClose?.()
 
-  const roles       = user ? allRoles(user) : []
-  const currentRole = activeRole ?? user?.role ?? 'BUSINESS_OWNER'
-  const navItems    = NAV_BY_ROLE[currentRole] ?? NAV_BY_ROLE.BUSINESS_OWNER
+  const roles            = user ? allRoles(user) : []
+  const currentRole      = activeRole ?? user?.role ?? 'BUSINESS_OWNER'
+  const navItems         = NAV_BY_ROLE[currentRole] ?? NAV_BY_ROLE.BUSINESS_OWNER
   const hasMultipleRoles = roles.length > 1
+  const calendarBadge    = useCalendarBadge()
 
   return (
     <aside className="flex h-screen w-64 flex-col flex-shrink-0" style={styles.sidebar}>
@@ -81,9 +99,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* ── Logo ── */}
       <div className="flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={styles.logoBadge}>
-            <Ear size={18} className="text-white" />
-          </div>
+          <img src={LOGO_SRC} alt="SimpleHearing" className="h-9 w-auto brand-logo" />
           <div>
             <span className="text-sm font-semibold tracking-tight" style={{ color: colors.textLight.primary }}>
               SimpleHearing
@@ -93,6 +109,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
           </div>
         </div>
+
         {onClose && (
           <button
             onClick={onClose}
@@ -138,35 +155,69 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* ── Nav ── */}
       <nav className="flex-1 space-y-0.5 px-3 overflow-y-auto pb-4">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={handleNavClick}
-            className={({ isActive }) =>
-              clsx('flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                isActive ? 'nav-active' : 'nav-inactive')
-            }
-            style={({ isActive }) => isActive ? styles.navActive : styles.navInactive}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon size={17} />
-                <span className="flex-1 tracking-wide">{label}</span>
-                {isActive && (
-                  <span
-                    className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-                    style={{ background: colors.accent, boxShadow: shadow.navDot }}
-                  />
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {navItems.map(({ to, label, icon: Icon }) => {
+          const showBadge = to === '/calendar' && calendarBadge > 0
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={handleNavClick}
+              className={({ isActive }) =>
+                clsx('flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                  isActive ? 'nav-active' : 'nav-inactive')
+              }
+              style={({ isActive }) => isActive ? styles.navActive : styles.navInactive}
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon size={17} />
+                  <span className="flex-1 tracking-wide">{label}</span>
+
+                  {/* Badge: today's event count — hidden when route is active */}
+                  {showBadge && !isActive && (
+                    <span
+                      className="text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0"
+                      style={{ background: colors.accent, color: '#fff' }}>
+                      {calendarBadge > 9 ? '9+' : calendarBadge}
+                    </span>
+                  )}
+
+                  {isActive && (
+                    <span
+                      className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                      style={{ background: colors.accent, boxShadow: shadow.navDot }}
+                    />
+                  )}
+                </>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
 
+      {/* ── Theme toggle ── */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150"
+          style={styles.navInactive}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = styles.navActive.background as string
+            ;(e.currentTarget as HTMLElement).style.color = colors.accent
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent'
+            ;(e.currentTarget as HTMLElement).style.color = styles.navInactive.color as string
+          }}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          <span className="tracking-wide">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+      </div>
+
       {/* ── User footer ── */}
-      <div className="p-3" style={{ borderTop: border.light }}>
+      <div className="p-3" style={{ borderTop: `1px solid ${border.sidebar}` }}>
         <div className="rounded-xl p-3" style={{ background: surface.sidebarFooter }}>
           <div className="flex items-center gap-2.5 mb-0.5">
             <div className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0" style={styles.avatar}>
@@ -190,7 +241,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             style={{ color: colors.textLight.muted }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.color = colors.status.error
-              ;(e.currentTarget as HTMLElement).style.background = rgba(RAW.danger, 0.06)
+              ;(e.currentTarget as HTMLElement).style.background = dangerAlpha(0.06)
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLElement).style.color = colors.textLight.muted

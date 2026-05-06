@@ -17,9 +17,12 @@ import { format } from 'date-fns'
 import type { InviteRequest, InviteResponse, Role } from '../types'
 
 const INVITABLE_ROLES: { value: Role; label: string }[] = [
-  { value: 'BUSINESS_OWNER', label: 'Business Owner' },
+  { value: 'ADMIN',          label: 'Admin' },
+  { value: 'OFFICE_ADMIN',   label: 'Office Admin' },
+  { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },
   { value: 'PARENT',         label: 'Parent' },
+  { value: 'BUSINESS_OWNER', label: 'Business Owner' },
 ]
 
 function CopyLinkBox({ link }: { link: string }) {
@@ -69,7 +72,7 @@ export default function InvitationsPage() {
 
   const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm<InviteRequest>()
   const selectedRole = watch('role') as Role | undefined
-  const needsClinic = selectedRole === 'THERAPIST' || selectedRole === 'PARENT'
+  const needsClinic = selectedRole === 'THERAPIST' || selectedRole === 'DOCTOR' || selectedRole === 'PARENT'
 
   const mutation = useMutation({
     mutationFn: invitationsApi.send,

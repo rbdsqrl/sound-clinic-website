@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { colors, border } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
 
 export default function ClinicDetailPage() {
@@ -43,16 +44,22 @@ export default function ClinicDetailPage() {
   }
 
   if (isLoading) return <PageLoader />
-  if (!clinic) return <div className="text-slate-500">Clinic not found</div>
+  if (!clinic) return <p className="text-sm" style={{ color: colors.text.muted }}>Clinic not found</p>
 
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/clinics" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary-600">
+        <Link
+          to="/clinics"
+          className="mb-4 inline-flex items-center gap-1 text-sm transition-colors"
+          style={{ color: colors.text.muted }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+        >
           <ArrowLeft size={14} /> Back to clinics
         </Link>
-        <h1 className="text-2xl font-bold text-slate-800">{clinic.name}</h1>
-        <p className="mt-1 text-sm text-slate-500">Clinic details and settings</p>
+        <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>{clinic.name}</h1>
+        <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>Clinic details and settings</p>
       </div>
 
       <Card>
@@ -74,17 +81,19 @@ export default function ClinicDetailPage() {
               ['Status', clinic.isActive ? 'Active' : 'Inactive'],
             ].map(([label, value]) => (
               <div key={label as string}>
-                <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</dt>
-                <dd className="mt-1 text-sm text-slate-700">{value || <span className="text-slate-400">—</span>}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                <dd className="mt-1 text-sm" style={{ color: colors.text.primary }}>
+                  {value || <span style={{ color: colors.text.dim }}>—</span>}
+                </dd>
               </div>
             ))}
           </dl>
         ) : (
           <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="Name" {...register('name')} />
-              <Input label="Email" type="email" {...register('email')} />
-              <Input label="Phone" {...register('phone')} />
+              <Input label="Name"     {...register('name')} />
+              <Input label="Email"    type="email" {...register('email')} />
+              <Input label="Phone"    {...register('phone')} />
               <Input label="Timezone" {...register('timezone')} />
             </div>
             <Input label="Address" {...register('address')} />

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Ear } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { colors, styles, shadow, gradient, rgba, RAW } from '../../theme'
+import { colors, styles, shadow, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
 import type { LoginRequest } from '../../types'
 
 export default function LoginPage() {
@@ -29,15 +28,13 @@ export default function LoginPage() {
   return (
     <div
       className="flex min-h-screen items-center justify-center px-4"
-      style={{
-        background: `radial-gradient(ellipse 80% 60% at 50% -10%, ${rgba(RAW.accent, 0.08)} 0%, #ffffff 60%)`,
-      }}
+      style={{ background: gradient.loginBg }}
     >
       {/* Subtle grid overlay */}
       <div
         className="pointer-events-none fixed inset-0"
         style={{
-          backgroundImage: 'linear-gradient(rgba(200,200,200,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(200,200,200,0.2) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(180,200,220,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(180,200,220,0.15) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
         }}
       />
@@ -45,15 +42,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 flex flex-col items-center">
-          <div
-            className="flex h-16 w-16 items-center justify-center rounded-2xl mb-5"
-            style={{
-              background: gradient.primaryButton,
-              boxShadow: `${shadow.glowLg}, 0 0 80px ${rgba(RAW.accent, 0.10)}`,
-            }}
-          >
-            <Ear size={30} className="text-white" />
-          </div>
+          <img src={LOGO_SRC} alt="SimpleHearing" className="h-20 w-auto mb-5 brand-logo" />
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: colors.text.heading }}>
             SimpleHearing
           </h1>
@@ -63,22 +52,13 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div
-          className="p-8"
-          style={{
-            background: 'rgba(10, 22, 40, 0.8)',
-            border: `1px solid ${rgba(RAW.white, 0.07)}`,
-            borderRadius: '20px',
-            backdropFilter: 'blur(20px)',
-            boxShadow: `0 0 60px ${rgba(RAW.accent, 0.05)}`,
-          }}
-        >
+        <div className="glass-card p-8">
           {error && (
             <div
               className="mb-5 rounded-lg px-4 py-3 text-sm"
               style={{
-                background: rgba(RAW.danger, 0.08),
-                border:     `1px solid ${rgba(RAW.danger, 0.20)}`,
+                background: dangerAlpha(0.08),
+                border:     `1px solid ${dangerAlpha(0.20)}`,
                 color:      colors.status.danger,
               }}
             >
@@ -109,9 +89,11 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center text-sm" style={{ color: colors.text.dim }}>
-            New organisation?{' '}
-            <Link to="/register" className="font-medium transition-colors" style={{ color: colors.accent }}>
-              Register here
+            <Link to="/" className="transition-colors" style={{ color: colors.text.dim }}
+              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = colors.accent}
+              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+            >
+              ← Back to website
             </Link>
           </p>
         </div>

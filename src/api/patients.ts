@@ -6,6 +6,7 @@ import type {
   AddConditionRequest,
   LinkParentRequest,
   AssignTherapistRequest,
+  PatientStage,
 } from '../types'
 
 export const patientsApi = {
@@ -23,6 +24,9 @@ export const patientsApi = {
 
   update: (id: string, data: Partial<CreatePatientRequest>) =>
     client.patch<ApiResponse<PatientResponse>>(`/patients/${id}`, data).then((r) => r.data.data),
+
+  updateStage: (id: string, stage: PatientStage) =>
+    client.patch<ApiResponse<PatientResponse>>(`/patients/${id}/stage`, { stage }).then((r) => r.data.data),
 
   // Conditions
   addCondition: (id: string, data: AddConditionRequest) =>

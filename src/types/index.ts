@@ -1,7 +1,129 @@
 // ── Enums ──────────────────────────────────────────────────────────────────────
-export type Role = 'ADMIN' | 'BUSINESS_OWNER' | 'THERAPIST' | 'DOCTOR' | 'PATIENT' | 'PARENT'
+export type Role = 'ADMIN' | 'OFFICE_ADMIN' | 'BUSINESS_OWNER' | 'THERAPIST' | 'DOCTOR' | 'PATIENT' | 'PARENT'
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED'
+export type InquiryStatus =
+  | 'NEW'
+  | 'ATTEMPTED_CONTACT'
+  | 'CONTACTED'
+  | 'CONSULTATION_SCHEDULED'
+  | 'VISITED'
+  | 'CONVERTED'
+  | 'DISCONTINUED'
+  | 'DROPPED'
+export type PreferredTime = 'MORNING' | 'AFTERNOON' | 'EVENING'
+export type PatientStage =
+  | 'INQUIRY_CONVERTED'
+  | 'PRE_ASSESSMENT'
+  | 'ASSESSMENT_DONE'
+  | 'ENROLLMENT'
+  | 'ENROLLED'
+  | 'THERAPY_ACTIVE'
+  | 'DISCHARGED'
+
+// ── Inquiry ────────────────────────────────────────────────────────────────────
+export interface InquiryResponse {
+  id: string
+  orgId: string | null
+  name: string
+  email: string | null
+  phone: string
+  reason: string | null
+  preferredTime: PreferredTime | null
+  status: InquiryStatus
+  adminNotes: string | null
+  appointmentDate: string | null
+  appointmentNotes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateInquiryRequest {
+  name: string
+  email?: string
+  phone: string
+  reason?: string
+  preferredTime?: PreferredTime
+  orgId?: string
+}
+
+export interface UpdateInquiryRequest {
+  status?: InquiryStatus
+  adminNotes?: string
+  appointmentDate?: string        // ISO string — set appointment
+  appointmentNotes?: string
+  clearAppointment?: boolean      // explicitly clear appointment
+}
+
+export type InquiryLogType =
+  | 'CALL'
+  | 'EMAIL'
+  | 'WHATSAPP'
+  | 'NOTE'
+  | 'APPOINTMENT_SCHEDULED'
+  | 'APPOINTMENT_CANCELLED'
+  | 'STATUS_CHANGED'
+  | 'CONVERTED'
+
+export interface InquiryLogResponse {
+  id: string
+  inquiryId: string
+  logType: InquiryLogType
+  notes: string | null
+  createdBy: string | null
+  createdByName: string | null
+  createdAt: string
+}
+
+export interface CreateInquiryLogRequest {
+  logType: InquiryLogType
+  notes?: string
+}
+
+export interface ConvertInquiryRequest {
+  firstName: string
+  lastName: string
+  clinicId: string
+  linkedUserEmail?: string
+  linkedUserFirstName?: string
+  linkedUserLastName?: string
+  linkedUserRole?: 'PARENT' | 'PATIENT'
+}
+
+export interface ConvertInquiryResponse {
+  patientId: string
+  patientName: string
+  linkedUserInviteLink?: string | null
+}
+
+export interface InquiryAnalyticsResponse {
+  totalCount: number
+  convertedCount: number
+  conversionRate: number          // e.g. 23.5 (%)
+  avgResponseTimeHours: number | null
+  overdueCount: number
+  readyToConvertCount: number
+  countByStatus: Partial<Record<InquiryStatus, number>>
+}
+
+export type InquiryActionOutcome =
+  | 'NO_ANSWER'
+  | 'SPOKE_NO_PROGRESS'
+  | 'APPOINTMENT_BOOKED'
+  | 'REMINDER_SENT'
+  | 'VISITED'
+  | 'NO_SHOW'
+  | 'CANCELLED'
+  | 'SCHEDULE_FOLLOWUP'
+  | 'DROPPED'
+  | 'REOPEN'
+
+export interface NextActionRequest {
+  outcome: InquiryActionOutcome
+  notes?: string
+  appointmentDate?: string    // ISO — required for APPOINTMENT_BOOKED / SCHEDULE_FOLLOWUP
+  appointmentNotes?: string
+}
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 export interface UserResponse {
@@ -125,6 +247,7 @@ export interface PatientResponse {
   dateOfBirth: string | null
   gender: Gender | null
   notes: string | null
+  stage: PatientStage
   isActive: boolean
   createdAt: string
   conditions: ConditionSummary[]
@@ -244,6 +367,165 @@ export interface BookAppointmentRequest {
 
 export interface UpdateAppointmentStatusRequest {
   status: AppointmentStatus
+}
+
+// ── Leave ──────────────────────────────────────────────────────────────────────
+export type LeaveType   = 'FULL_DAY' | 'HALF_DAY'
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface LeaveResponse {
+  id: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  leaveDate: string        // "YYYY-MM-DD"
+  leaveType: LeaveType
+  reason: string | null
+  status: LeaveStatus
+  reviewedBy: string | null
+  reviewedByFirstName: string | null
+  reviewedByLastName: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
+
+export interface CreateLeaveRequest {
+  leaveDate: string        // "YYYY-MM-DD"
+  leaveType: LeaveType
+  reason?: string
+}
+
+export interface ReviewLeaveRequest {
+  status: 'APPROVED' | 'REJECTED'
+}
+
+// ── Enrollments ────────────────────────────────────────────────────────────────
+export type EnrollmentStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+
+export interface EnrollmentResponse {
+  id: string
+  subscriptionId: string
+  patientId: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  programName: string
+  sessionDurationMinutes: number
+  startDate: string        // "YYYY-MM-DD"
+  dayOfWeek: DayOfWeek
+  startTime: string        // "HH:mm:ss"
+  status: EnrollmentStatus
+  sessionsCompleted: number
+  totalSessions: number
+  createdAt: string
+}
+
+export interface CreateEnrollmentRequest {
+  subscriptionId: string
+  patientId: string
+  therapistId: string
+  sessionDurationMinutes: number
+  startDate: string        // "YYYY-MM-DD"
+  dayOfWeek: DayOfWeek
+  startTime: string        // "HH:mm"
+}
+
+export interface AvailableTherapistResponse {
+  userId: string
+  firstName: string
+  lastName: string
+  clinicId: string
+  clinicName: string
+}
+
+export interface AvailableTherapistsQuery {
+  dayOfWeek: DayOfWeek
+  startTime: string        // "HH:mm"
+  durationMinutes: number
+  startDate: string        // "YYYY-MM-DD"
+}
+
+// ── Therapy Sessions ───────────────────────────────────────────────────────────
+export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
+
+export interface TherapySessionResponse {
+  id: string
+  enrollmentId: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  programName: string
+  sessionNumber: number
+  totalSessions: number
+  sessionDate: string      // "YYYY-MM-DD"
+  startTime: string        // "HH:mm:ss"
+  endTime: string          // "HH:mm:ss"
+  status: TherapySessionStatus
+  notes: string | null
+  completedAt: string | null
+}
+
+export interface UpdateSessionStatusRequest {
+  status: TherapySessionStatus
+  notes?: string
+}
+
+// ── Subscriptions ──────────────────────────────────────────────────────────────
+export type SubscriptionPaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID'
+export type SubscriptionStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+
+export interface SubscriptionResponse {
+  id: string
+  patientId: string
+  programId: string
+  programName: string
+  numSessions: number
+  perSessionCost: number
+  discountPercent: number
+  amountPaid: number
+  totalAmount: number
+  paymentStatus: SubscriptionPaymentStatus
+  status: SubscriptionStatus
+  paymentNotes: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export interface CreateSubscriptionRequest {
+  patientId: string
+  programId: string
+  numSessions: number
+  notes?: string
+}
+
+export interface UpdatePaymentRequest {
+  discountPercent: number
+  amountPaid: number
+  paymentNotes?: string
+}
+
+// ── Programs ───────────────────────────────────────────────────────────────────
+export interface ProgramResponse {
+  id: string
+  orgId: string
+  name: string
+  perSessionCost: number
+  isActive: boolean
+  createdAt: string
+}
+
+export interface CreateProgramRequest {
+  name: string
+  perSessionCost: number
+}
+
+export interface UpdateProgramRequest {
+  name?: string
+  perSessionCost?: number
+  isActive?: boolean
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────
