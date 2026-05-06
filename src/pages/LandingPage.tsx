@@ -148,7 +148,7 @@ function Hero() {
           style={{ color: colors.text.heading }}
         >
           A Seamless Journey to{' '}
-          <span style={{ color: colors.accent }}>Better Hearing</span>
+          <span style={{ color: colors.accent }}>Better Hearing!</span>
         </h1>
 
         <p
