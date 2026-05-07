@@ -7,6 +7,13 @@ export const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+/** Unauthenticated client for public endpoints (e.g. inquiry submission).
+ *  Uses the same base URL as `client` but carries no auth interceptors. */
+export const publicClient = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+})
+
 // ── Token storage ──────────────────────────────────────────────────────────────
 export const tokenStorage = {
   getAccess: () => localStorage.getItem('access_token'),

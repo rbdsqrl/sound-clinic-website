@@ -13,13 +13,12 @@ import type {
   InquiryStatus,
 } from '../types'
 
-// Public submit uses a plain axios call without the auth header
-import axios from 'axios'
+import { publicClient } from './client'
 
 export const inquiriesApi = {
   /** Submit an inquiry from the public landing page (no auth) */
   submit: (data: CreateInquiryRequest) =>
-    axios.post<ApiResponse<InquiryResponse>>('/api/v1/inquiries', data).then(r => r.data.data),
+    publicClient.post<ApiResponse<InquiryResponse>>('/inquiries', data).then(r => r.data.data),
 
   /** List inquiries — OFFICE_ADMIN / ADMIN / BUSINESS_OWNER */
   list: (status?: InquiryStatus) =>
