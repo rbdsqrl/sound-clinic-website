@@ -12,9 +12,14 @@
 
 // ── Brand assets ──────────────────────────────────────────────────────────────
 
-/** Single source of truth for the brand logo path.
+// Vite rewrites this import at build time → hashed URL in dist/assets/.
+// Never use a raw string path like '/src/assets/logo.png' — it works in dev
+// but breaks in production because the file is moved and renamed by the bundler.
+import logoSrc from './assets/logo.png'
+
+/** Single source of truth for the brand logo URL.
  *  Import this constant anywhere you need the logo — never hardcode the path. */
-export const LOGO_SRC = '/src/assets/logo.png'
+export const LOGO_SRC = logoSrc
 
 // ── CSS-variable reference helpers ────────────────────────────────────────────
 
