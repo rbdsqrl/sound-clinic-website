@@ -105,79 +105,81 @@
 }
 
 /* ── Dark mode overrides ──────────────────────────────────────────────────── */
+/* Inspired by the Vivienne palette: deep plum (#320a28), burgundy (#511730), */
+/* terracotta (#8e443d), warm amber (#e08e45), and peachy cream (#facfad).    */
 .dark {
-  /* Accent: brighter, more saturated — pops against dark backgrounds */
-  --color-accent:          #5AAAE8;
-  --color-accent-raw:      90, 170, 232;
-  --color-cta:             #F0948E;
-  --color-cta-raw:         240, 148, 142;
-  --color-cta-end:         #CC7068;
-  --color-secondary:       #90C8E8;
-  --color-secondary-raw:   144, 200, 232;
+  /* Accent: warm amber — inspired by #e08e45, toned down for UI legibility   */
+  --color-accent:          #C8813A;
+  --color-accent-raw:      200, 129, 58;
+  --color-cta:             #D47068;
+  --color-cta-raw:         212, 112, 104;
+  --color-cta-end:         #B85850;
+  --color-secondary:       #E0A870;
+  --color-secondary-raw:   224, 168, 112;
 
-  /* Text: clear hierarchy — heading near-white, primary very readable */
-  --text-heading:          #E0E8F0;        /* bright enough to lead the eye            */
-  --text-primary:          #B4C2D0;        /* comfortable body text                    */
-  --text-muted:            #748292;        /* secondary / labels — clearly readable    */
-  --text-dim:              #526070;        /* placeholders / metadata — visible        */
-  --text-link:             #5AAAE8;
-  --text-sidebar-primary:  #E0E8F0;
-  --text-sidebar-label:    #B4C2D0;
-  --text-sidebar-muted:    #748292;
+  /* Text: warm cream hierarchy — inspired by #facfad down to #8e443d         */
+  --text-heading:          #EDD8C8;        /* warm peachy cream heading        */
+  --text-primary:          #C8A090;        /* warm dusty rose body text        */
+  --text-muted:            #8A6860;        /* warm mid-tone label              */
+  --text-dim:              #5E4840;        /* warm dim / placeholders          */
+  --text-link:             #C8813A;
+  --text-sidebar-primary:  #EDD8C8;
+  --text-sidebar-label:    #C8A090;
+  --text-sidebar-muted:    #8A6860;
 
-  /* Surfaces: warm charcoal — mellow backgrounds, kept from previous */
-  --surface-app:           #1C1E26;
-  --surface-card:          #23252E;
-  --surface-card-raw:      35, 37, 46;
-  --surface-sidebar:       #191B22;
-  --surface-overlay:       rgba(8, 8, 14, 0.60);
-  --surface-mobile-overlay: rgba(22, 24, 32, 0.78);
-  --surface-mobile-header: rgba(25, 27, 34, 0.96);
-  --surface-footer:        rgba(255, 255, 255, 0.04);
-  --surface-filter-strip:  rgba(255, 255, 255, 0.05);
-  --surface-row-hover:     rgba(255, 255, 255, 0.04);
+  /* Surfaces: deep plum-tinted darks — inspired by #320a28 / #511730         */
+  --surface-app:           #1C1419;        /* very dark warm plum-charcoal     */
+  --surface-card:          #251C22;        /* slightly lighter warm card       */
+  --surface-card-raw:      37, 28, 34;
+  --surface-sidebar:       #180E14;        /* deep rich sidebar                */
+  --surface-overlay:       rgba(8, 4, 6, 0.68);
+  --surface-mobile-overlay: rgba(24, 14, 20, 0.84);
+  --surface-mobile-header: rgba(24, 14, 20, 0.97);
+  --surface-footer:        rgba(255, 220, 190, 0.04);
+  --surface-filter-strip:  rgba(255, 210, 180, 0.05);
+  --surface-row-hover:     rgba(255, 200, 160, 0.05);
 
-  /* Borders: clearly visible without being loud */
-  --border-card:           1px solid rgba(255, 255, 255, 0.09);
-  --border-divider:        rgba(255, 255, 255, 0.09);
-  --border-sidebar:        rgba(90, 170, 232, 0.16);
-  --border-medium:         1px solid rgba(255, 255, 255, 0.12);
-  --border-drag:           rgba(255, 255, 255, 0.14);
-  --border-raw:            255, 255, 255;
+  /* Borders: warm rose-white tint                                             */
+  --border-card:           1px solid rgba(255, 210, 185, 0.09);
+  --border-divider:        rgba(255, 210, 185, 0.08);
+  --border-sidebar:        rgba(200, 129, 58, 0.20);
+  --border-medium:         1px solid rgba(255, 210, 185, 0.13);
+  --border-drag:           rgba(255, 210, 185, 0.15);
+  --border-raw:            255, 210, 185;
 
-  /* Shadows: subtle depth */
-  --shadow-card:           0 2px 10px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.05);
-  --shadow-glow:           0 0 20px rgba(90, 170, 232, 0.16);
-  --shadow-glow-sm:        0 0 10px rgba(90, 170, 232, 0.10);
-  --shadow-glow-lg:        0 0 40px rgba(90, 170, 232, 0.20);
-  --shadow-button-cta:     0 2px 10px rgba(240, 148, 142, 0.22);
-  --shadow-button-accent:  0 2px 10px rgba(90, 170, 232, 0.20);
-  --shadow-logo:           0 4px 16px rgba(90, 170, 232, 0.24);
-  --shadow-nav-active:     0 2px 8px rgba(90, 170, 232, 0.10);
-  --shadow-modal:          0 8px 32px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.06);
-  --shadow-nav-dot:        0 0 6px rgba(90, 170, 232, 0.70);
+  /* Shadows: warm amber glow, deeper blacks                                   */
+  --shadow-card:           0 2px 12px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,190,140,0.05);
+  --shadow-glow:           0 0 20px rgba(200, 129, 58, 0.20);
+  --shadow-glow-sm:        0 0 10px rgba(200, 129, 58, 0.14);
+  --shadow-glow-lg:        0 0 40px rgba(200, 129, 58, 0.24);
+  --shadow-button-cta:     0 2px 10px rgba(212, 112, 104, 0.28);
+  --shadow-button-accent:  0 2px 10px rgba(200, 129, 58, 0.28);
+  --shadow-logo:           0 4px 16px rgba(200, 129, 58, 0.32);
+  --shadow-nav-active:     0 2px 8px rgba(200, 129, 58, 0.14);
+  --shadow-modal:          0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,190,140,0.08);
+  --shadow-nav-dot:        0 0 6px rgba(200, 129, 58, 0.80);
 
   --card-backdrop:         blur(14px);
   --modal-backdrop:        blur(8px);
   --header-backdrop:       blur(12px);
   --sidebar-backdrop:      blur(20px);
 
-  --gradient-button-cta:   linear-gradient(135deg, #F0948E 0%, #CC7068 100%);
-  --gradient-button-accent: linear-gradient(135deg, #5AAAE8 0%, #3A84C8 100%);
-  --gradient-logo:         linear-gradient(135deg, #5AAAE8 0%, #84C4F4 100%);
-  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(90,170,232,0.09) 0%, #1C1E26 60%);
-  --gradient-summary:      linear-gradient(135deg, #5AAAE8, #84C4F4);
+  --gradient-button-cta:   linear-gradient(135deg, #D47068 0%, #B85850 100%);
+  --gradient-button-accent: linear-gradient(135deg, #C8813A 0%, #A86228 100%);
+  --gradient-logo:         linear-gradient(135deg, #C8813A 0%, #E0A860 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(200,129,58,0.12) 0%, #1C1419 60%);
+  --gradient-summary:      linear-gradient(135deg, #C8813A, #E0A860);
 
-  /* Forms: warm opaque bg, text and labels clearly legible */
-  --form-bg:               #1E2028;
-  --form-border:           rgba(255, 255, 255, 0.10);
-  --form-text:             #B4C2D0;
-  --form-placeholder:      #526070;
-  --form-label:            #748292;
-  --form-error:            #F08888;
+  /* Forms: warm dark bg, cream text                                           */
+  --form-bg:               #201520;
+  --form-border:           rgba(255, 210, 185, 0.11);
+  --form-text:             #C8A090;
+  --form-placeholder:      #5E4840;
+  --form-label:            #8A6860;
+  --form-error:            #E08070;
 
-  --scrollbar-thumb:       #2E3444;
-  --scrollbar-thumb-hover: #3C4458;
+  --scrollbar-thumb:       #3A2830;
+  --scrollbar-thumb-hover: #4E3840;
 }
 
 /* ── Force light mode (public landing page) ───────────────────────────────── */
