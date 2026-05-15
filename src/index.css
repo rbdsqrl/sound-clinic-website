@@ -33,10 +33,10 @@
   --text-sidebar-muted:    #4A5F7A;
 
   /* ── Surfaces ───────────────────────────────────────────────────────────── */
-  --surface-app:           #F6F9FD;         /* Soft cool light background                */
+  --surface-app:           #FFFFFF;         /* Bright white app background               */
   --surface-card:          #FFFFFF;
   --surface-card-raw:      255, 255, 255;
-  --surface-sidebar:       #FAFBFD;        /* Subtle warm tint                          */
+  --surface-sidebar:       #FAFCFF;        /* Near-white sidebar                        */
   --surface-overlay:       rgba(30, 55, 80, 0.45);
   --surface-mobile-overlay: rgba(232, 238, 246, 0.90);
   --surface-mobile-header: rgba(255, 255, 255, 0.97);
@@ -196,7 +196,7 @@
   --text-muted:            #4A5F7A;
   --text-dim:              #7A8FA0;
   --text-link:             #2B80C8;
-  --surface-app:           #F6F9FD;
+  --surface-app:           #FFFFFF;
   --surface-card:          #FFFFFF;
   --surface-card-raw:      255, 255, 255;
   --border-card:           1px solid rgba(0, 0, 0, 0.07);
@@ -228,8 +228,15 @@
   body {
     @apply font-sans antialiased;
     background-color: var(--surface-app);
+    background-image: radial-gradient(circle, rgba(43, 128, 200, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
     color: var(--text-primary);
     transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  html.dark body {
+    background-image: radial-gradient(circle, rgba(121, 183, 255, 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 
   ::-webkit-scrollbar              { width: 4px; height: 4px; }
