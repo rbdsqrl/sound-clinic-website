@@ -90,11 +90,6 @@ function LeaveCard({ leave, onCancel, cancelling }: {
 
 // ── Apply Leave Modal ──────────────────────────────────────────────────────────
 
-const SELECT_STYLE: React.CSSProperties = {
-  background: 'var(--form-bg)', border: '1px solid var(--form-border)',
-  color: 'var(--form-text)', borderRadius: 8, padding: '8px 12px',
-  width: '100%', fontSize: 14, appearance: 'none', outline: 'none',
-}
 
 function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast()
@@ -118,7 +113,7 @@ function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () =
 
         <div className="space-y-1">
           <label className="form-label">Leave Type</label>
-          <select style={SELECT_STYLE} {...register('leaveType', { required: 'Required' })}>
+          <select className="form-input w-full" {...register('leaveType', { required: 'Required' })}>
             <option value="">Select type…</option>
             <option value="FULL_DAY">Full Day</option>
             <option value="HALF_DAY">Half Day</option>

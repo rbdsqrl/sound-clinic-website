@@ -32,17 +32,6 @@ const durationColor = (mins: number): React.CSSProperties =>
   DURATION_STYLE[String(mins)] ?? paletteStyle('slate', 0.08)
 
 // Shared select style for the Add Slot modal — uses CSS vars so it adapts to light/dark
-const SELECT_STYLE: React.CSSProperties = {
-  background:   'var(--form-bg)',
-  border:       '1px solid var(--form-border)',
-  color:        'var(--form-text)',
-  borderRadius: 8,
-  padding:      '8px 12px',
-  width:        '100%',
-  fontSize:     14,
-  appearance:   'none',
-  outline:      'none',
-}
 
 export default function AvailabilityPage() {
   const qc = useQueryClient()
@@ -239,7 +228,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1">
           <label className="form-label">Therapist</label>
-          <select style={SELECT_STYLE} {...register('therapistId', { required: 'Required' })}>
+          <select className="form-input w-full" {...register('therapistId', { required: 'Required' })}>
             <option value="">Select therapist…</option>
             {therapists.map(t => (
               <option key={t.id} value={t.id}>
@@ -252,7 +241,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
 
         <div className="space-y-1">
           <label className="form-label">Clinic</label>
-          <select style={SELECT_STYLE} {...register('clinicId', { required: 'Required' })}>
+          <select className="form-input w-full" {...register('clinicId', { required: 'Required' })}>
             <option value="">Select clinic…</option>
             {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -261,7 +250,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
 
         <div className="space-y-1">
           <label className="form-label">Day of Week</label>
-          <select style={SELECT_STYLE} {...register('dayOfWeek', { required: 'Required' })}>
+          <select className="form-input w-full" {...register('dayOfWeek', { required: 'Required' })}>
             <option value="">Select day…</option>
             {DAYS.map(d => <option key={d} value={d}>{DAY_LABELS[d]}</option>)}
           </select>
@@ -281,7 +270,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
 
         <div className="space-y-1">
           <label className="form-label">Session duration (minutes)</label>
-          <select style={SELECT_STYLE} {...register('slotDurationMinutes', { required: 'Required' })}>
+          <select className="form-input w-full" {...register('slotDurationMinutes', { required: 'Required' })}>
             <option value="30">30 minutes</option>
             <option value="45">45 minutes</option>
             <option value="60">60 minutes</option>

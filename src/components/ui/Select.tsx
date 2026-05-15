@@ -1,5 +1,7 @@
 import { forwardRef, SelectHTMLAttributes } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { clsx } from '../../lib/clsx'
+import { colors } from '../../theme'
 
 export interface SelectOption {
   value: string
@@ -29,26 +31,37 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1">
         {label && <label htmlFor={inputId} className="form-label">{label}</label>}
-        <select
-          ref={ref}
-          id={inputId}
-          className={clsx('form-input', error && 'border-red-400 focus:border-red-500 focus:ring-red-500', className)}
-          {...props}
-        >
-          {placeholder && <option value="">{placeholder}</option>}
-          {isGrouped(options)
-            ? options.map((g) => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.options.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </optgroup>
-              ))
-            : options.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))
-          }
-        </select>
+        <div className="relative select-icon-wrapper">
+          <select
+            ref={ref}
+            id={inputId}
+            className={clsx(
+              'form-input pr-9 cursor-pointer',
+              error && 'border-red-400 focus:border-red-500',
+              className
+            )}
+            {...props}
+          >
+            {placeholder && <option value="">{placeholder}</option>}
+            {isGrouped(options)
+              ? options.map((g) => (
+                  <optgroup key={g.group} label={g.group}>
+                    {g.options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
+                ))
+              : options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))
+            }
+          </select>
+          <ChevronDown
+            size={15}
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+            style={{ color: colors.text.muted }}
+          />
+        </div>
         {error && <p className="form-error">{error}</p>}
       </div>
     )
