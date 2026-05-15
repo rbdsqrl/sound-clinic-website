@@ -275,10 +275,15 @@ export default function BookAppointmentPage() {
                           <button
                             key={time}
                             onClick={() => { setSelectedDate(dateStr); setSelectedTime(time); setStep('confirm') }}
-                            className="w-full rounded-lg py-1.5 text-xs font-medium transition-all"
-                            style={isSelected ? styles.filterTabActive : styles.filterTabInactive}
-                            onMouseEnter={e => !isSelected && ((e.currentTarget as HTMLElement).style.background = accentAlpha(0.06))}
-                            onMouseLeave={e => !isSelected && ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+                            className="w-full rounded-xl py-2 text-xs font-semibold transition-all"
+                            style={{
+                              background: isSelected ? colors.accent : accentAlpha(0.07),
+                              color: isSelected ? '#fff' : colors.text.primary,
+                              border: `1px solid ${isSelected ? colors.accent : 'transparent'}`,
+                              boxShadow: isSelected ? `0 2px 8px ${accentAlpha(0.30)}` : 'none',
+                            }}
+                            onMouseEnter={e => !isSelected && ((e.currentTarget as HTMLElement).style.background = accentAlpha(0.13))}
+                            onMouseLeave={e => !isSelected && ((e.currentTarget as HTMLElement).style.background = accentAlpha(0.07))}
                           >
                             {time}
                           </button>

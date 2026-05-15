@@ -19,6 +19,7 @@ import { Badge } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, palette } from '../../theme'
@@ -865,11 +866,12 @@ function EnrollmentModal({
             </div>
 
             {/* Time */}
-            <div>
-              <label className="form-label">Start Time</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="form-input w-full" />
-              {step1Errors.time && <p className="form-error">{step1Errors.time}</p>}
-            </div>
+            <TimePicker
+              label="Start Time"
+              value={startTime}
+              onChange={setStartTime}
+              error={step1Errors.time}
+            />
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Cancel</button>

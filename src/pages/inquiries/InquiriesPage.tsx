@@ -699,11 +699,12 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 mt-1">
                     {TIME_SLOTS.map(slot => (
                       <button key={slot.value} onClick={() => setSelectedTime(slot.value)}
-                        className="text-xs rounded-lg py-1.5 text-center transition-colors"
+                        className="text-xs rounded-full py-1.5 px-1 text-center font-medium transition-all"
                         style={{
-                          background: selectedTime === slot.value ? colors.accent : surface.rowHover,
+                          background: selectedTime === slot.value ? colors.accent : accentAlpha(0.06),
                           color: selectedTime === slot.value ? '#fff' : colors.text.primary,
-                          border: `1px solid ${selectedTime === slot.value ? colors.accent : border.card}`,
+                          border: `1px solid ${selectedTime === slot.value ? colors.accent : 'transparent'}`,
+                          boxShadow: selectedTime === slot.value ? `0 2px 8px ${accentAlpha(0.35)}` : 'none',
                         }}>
                         {slot.label}
                       </button>

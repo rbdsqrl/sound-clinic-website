@@ -357,11 +357,12 @@ export function ActionModal({
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                     {TIME_SLOTS.map(slot => (
                       <button key={slot.value} onClick={() => setApptTime(slot.value)}
-                        className="text-xs rounded-lg py-1.5 text-center transition-colors"
+                        className="text-xs rounded-full py-1.5 px-1 text-center font-medium transition-all"
                         style={{
-                          background: apptTime === slot.value ? colors.accent : surface.card,
+                          background: apptTime === slot.value ? colors.accent : accentAlpha(0.06),
                           color: apptTime === slot.value ? '#fff' : colors.text.primary,
-                          border: `1px solid ${apptTime === slot.value ? colors.accent : border.card}`,
+                          border: `1px solid ${apptTime === slot.value ? colors.accent : 'transparent'}`,
+                          boxShadow: apptTime === slot.value ? `0 2px 8px ${accentAlpha(0.35)}` : 'none',
                         }}>
                         {slot.label}
                       </button>

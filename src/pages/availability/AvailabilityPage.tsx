@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, Plus, Trash2, ChevronDown } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { slotsApi } from '../../api/appointments'
 import { clinicsApi } from '../../api/clinics'
 import { usersApi } from '../../api/users'
@@ -10,6 +10,7 @@ import { Card } from '../../components/ui/Card'
 import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { colors, styles, border, surface, palette, paletteStyle, rgba, borderAlpha } from '../../theme'
 import type { CreateSlotRequest, DayOfWeek, SlotResponse, ClinicResponse, UserResponse } from '../../types'
@@ -214,7 +215,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
 }) {
   const { toast } = useToast()
   type FormValues = Omit<CreateSlotRequest, 'slotDurationMinutes'> & { slotDurationMinutes: string }
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>()
+  const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm<FormValues>()
 
   const createMut = useMutation({
     mutationFn: (data: CreateSlotRequest) => slotsApi.create(data),
@@ -268,8 +269,14 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Start time" type="time" error={errors.startTime?.message} {...register('startTime', { required: 'Required' })} />
-          <Input label="End time"   type="time" error={errors.endTime?.message}   {...register('endTime',   { required: 'Required' })} />
+          <Controller control={control} name="startTime" rules={{ required: 'Required' }}
+            render={({ field }) => (
+              <TimePicker label="Start time" value={field.value ?? ''} onChange={field.onChange} error={errors.startTime?.message} />
+            )} />
+          <Controller control={control} name="endTime" rules={{ required: 'Required' }}
+            render={({ field }) => (
+              <TimePicker label="End time" value={field.value ?? ''} onChange={field.onChange} error={errors.endTime?.message} />
+            )} />
         </div>
 
         <div className="space-y-1">
