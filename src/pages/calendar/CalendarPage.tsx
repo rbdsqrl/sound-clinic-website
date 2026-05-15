@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2,
+  Activity, CheckCircle2, Zap,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
@@ -17,6 +17,7 @@ import { hasRole } from '../../types'
 import { inquiriesApi } from '../../api/inquiries'
 import { leavesApi } from '../../api/leaves'
 import { therapySessionsApi } from '../../api/therapySessions'
+import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus } from '../../types'
@@ -371,12 +372,13 @@ const SESSION_STATUS_OPTIONS: { value: TherapySessionStatus; label: string }[] =
 ]
 
 function EventDetailDrawer({
-  event, onClose, canGoToInquiries, canUpdateSession,
+  event, onClose, canGoToInquiries, canUpdateSession, onLogOutcome,
 }: {
   event: CalendarEvent
   onClose: () => void
   canGoToInquiries: boolean
   canUpdateSession: boolean
+  onLogOutcome?: (inquiry: InquiryResponse) => void
 }) {
   const navigate  = useNavigate()
   const qc        = useQueryClient()
@@ -557,7 +559,15 @@ function EventDetailDrawer({
 
         {/* Footer */}
         {canGoToInquiries && isConsultation && (
-          <div className="p-5 border-t flex-shrink-0" style={{ borderColor: border.divider }}>
+          <div className="p-5 border-t flex-shrink-0 flex flex-col gap-2" style={{ borderColor: border.divider }}>
+            {onLogOutcome && hasNextAction(rawInquiry.status) && (
+              <button
+                onClick={() => { onClose(); onLogOutcome(rawInquiry) }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                style={{ background: colors.accent, color: '#fff' }}>
+                <Zap size={14} /> Log Outcome
+              </button>
+            )}
             <button
               onClick={() => { onClose(); navigate('/inquiries') }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -729,11 +739,14 @@ function ProgramSessionsPlaceholder() {
 type ViewMode = 'month' | 'week'
 
 export default function CalendarPage() {
-  const { user }  = useAuth()
-  const [view,     setView]     = useState<ViewMode>('month')
-  const [current,  setCurrent]  = useState(new Date())
-  const [selected, setSelected] = useState<CalendarEvent | null>(null)
+  const { user, activeRole }  = useAuth()
+  const navigate = useNavigate()
+  const [view,         setView]         = useState<ViewMode>('month')
+  const [current,      setCurrent]      = useState(new Date())
+  const [selected,     setSelected]     = useState<CalendarEvent | null>(null)
+  const [actionTarget, setActionTarget] = useState<InquiryResponse | null>(null)
 
+  const currentRole = activeRole ?? user?.role
   const canSeeInquiries  = !!user && (
     hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN')
   )
@@ -743,7 +756,8 @@ export default function CalendarPage() {
     hasRole(user, 'THERAPIST') || hasRole(user, 'DOCTOR') ||
     hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER')
   )
-  const canGoToInquiries = canSeeInquiries
+  const canHandleOutcomes = canSeeInquiries
+  const canGoToInquiries  = canSeeInquiries
 
   // ── Browser notification state ─────────────────────────────────────────────
   const supportsNotif = typeof window !== 'undefined' && 'Notification' in window
@@ -862,7 +876,7 @@ export default function CalendarPage() {
       {/* Page header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.primary }}>Calendar</h1>
+          <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.heading }}>Calendar</h1>
           <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
             {canSeeInquiries
               ? 'Consultation appointments and staff leave.'
@@ -990,6 +1004,19 @@ export default function CalendarPage() {
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
           canUpdateSession={canUpdateSession}
+          onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
+        />
+      )}
+
+      {/* Inquiry action modal — log outcome directly from calendar */}
+      {actionTarget && (
+        <ActionModal
+          inquiry={actionTarget}
+          onClose={() => setActionTarget(null)}
+          onRequestConvert={() => {
+            setActionTarget(null)
+            navigate('/inquiries')
+          }}
         />
       )}
     </div>

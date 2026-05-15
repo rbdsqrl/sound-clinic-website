@@ -38,6 +38,7 @@ Vite proxies `/api/*` → `http://localhost:8080` (backend must be running).
 ```
 src/
 ├── App.tsx                          # Root: routes, providers, auth guards
+├── index.css                        # Global CSS styles and Tailwind directives
 ├── main.tsx                         # ReactDOM.createRoot entry point
 ├── theme.ts                         # All design tokens (colors, spacing, styles) + LOGO_SRC
 │
@@ -48,22 +49,30 @@ src/
 │   └── index.ts                     # All TypeScript types, interfaces, enums
 │
 ├── api/                             # One file per backend resource
-│   ├── client.ts                    # Axios instance with auth interceptors
-│   ├── auth.ts                      # login, refresh, logout
-│   ├── clinics.ts                   # list, get, create, update clinic
-│   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
 │   ├── appointments.ts              # slots + appointments (list, book, update status)
-│   ├── users.ts                     # me, listTherapists, search
-│   ├── organisation.ts              # get, update org
+│   ├── auth.ts                      # login, refresh, logout
+│   ├── client.ts                    # Axios instance with auth interceptors
+│   ├── clinics.ts                   # list, get, create, update clinic
+│   ├── conditions.ts                # list conditions (lookup)
+│   ├── enrollments.ts               # enrollment management
+│   ├── inquiries.ts                 # inquiry management
 │   ├── invitations.ts               # invite, list, accept
 │   ├── leaves.ts                    # apply, list, review, cancel leave
-│   └── conditions.ts                # list conditions (lookup)
+│   ├── organisation.ts              # get, update org
+│   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
+│   ├── programs.ts                  # program management
+│   ├── public.ts                    # public API endpoints
+│   ├── subscriptions.ts             # subscription management
+│   ├── therapySessions.ts           # therapy session management
+│   └── users.ts                     # me, listTherapists, search
 │
 ├── contexts/
 │   ├── AuthContext.tsx               # useAuth: user, isAuthenticated, login, logout, switchRole
 │   └── ThemeContext.tsx              # useTheme: theme ('light'|'dark'), toggleTheme
 │
 ├── hooks/
+│   ├── useCalendarBadge.ts          # Calendar badge hook
+│   ├── useInquiryBadge.ts           # Inquiry badge hook
 │   └── useToast.ts                  # Toast notifications: toast(message, variant)
 │
 ├── lib/
@@ -87,38 +96,50 @@ src/
 │       └── UserSearchPicker.tsx     # Async user search-and-select input
 │
 └── pages/
-    ├── LandingPage.tsx              # Public marketing page — always light mode (force-light class)
     ├── DashboardPage.tsx            # Role-scoped summary cards + recent data
-    ├── OrganisationPage.tsx         # View/edit org profile (BUSINESS_OWNER, ADMIN)
     ├── InvitationsPage.tsx          # Invite by email+role; list sent invites
+    ├── LandingPage.tsx              # Public marketing page — always light mode (force-light class)
+    ├── OrganisationPage.tsx         # View/edit org profile (BUSINESS_OWNER, ADMIN)
+    │
+    ├── appointments/
+    │   ├── AppointmentsPage.tsx     # List appointments (role-scoped view)
+    │   └── BookAppointmentPage.tsx  # Book new appointment (PARENT / BUSINESS_OWNER)
     │
     ├── auth/
+    │   ├── AcceptInvitePage.tsx     # Accept invite token → set name + password
     │   ├── LoginPage.tsx            # Email + password login form
-    │   ├── RegisterPage.tsx         # New org registration (file exists but route removed — white-label app)
-    │   └── AcceptInvitePage.tsx     # Accept invite token → set name + password
-    │
-    ├── clinics/
-    │   ├── ClinicsPage.tsx          # List clinics with create modal
-    │   └── ClinicDetailPage.tsx     # View/edit single clinic
-    │
-    ├── patients/
-    │   ├── PatientsPage.tsx         # List + filter patients
-    │   ├── PatientDetailPage.tsx    # View patient + manage conditions/parents/therapists
-    │   └── MyChildrenPage.tsx       # PARENT role: their linked children
-    │
-    ├── therapists/
-    │   └── TherapistsPage.tsx       # List therapists/doctors; filter by clinic + search
+    │   └── RegisterPage.tsx         # New org registration (file exists but route removed — white-label app)
     │
     ├── availability/
     │   └── AvailabilityPage.tsx     # Manage recurring weekly slots (file exists, route removed from nav)
     │
-    ├── leave/
-    │   ├── MyLeavePage.tsx          # THERAPIST/DOCTOR: apply + view own leave requests
-    │   └── LeaveManagementPage.tsx  # BUSINESS_OWNER/ADMIN: review + approve/reject leave requests
+    ├── calendar/
+    │   └── CalendarPage.tsx         # Calendar view for appointments and schedules
     │
-    └── appointments/
-        ├── AppointmentsPage.tsx     # List appointments (role-scoped view)
-        └── BookAppointmentPage.tsx  # Book new appointment (PARENT / BUSINESS_OWNER)
+    ├── clinics/
+    │   ├── ClinicDetailPage.tsx     # View/edit single clinic
+    │   └── ClinicsPage.tsx          # List clinics with create modal
+    │
+    ├── inquiries/
+    │   ├── ActionModal.tsx          # Modal for inquiry actions
+    │   ├── CalendarView.tsx         # Calendar view for inquiries
+    │   ├── InquiriesPage.tsx        # List and manage inquiries
+    │   └── MiniCalendar.tsx         # Mini calendar component
+    │
+    ├── leave/
+    │   ├── LeaveManagementPage.tsx  # BUSINESS_OWNER/ADMIN: review + approve/reject leave requests
+    │   └── MyLeavePage.tsx          # THERAPIST/DOCTOR: apply + view own leave requests
+    │
+    ├── patients/
+    │   ├── MyChildrenPage.tsx       # PARENT role: their linked children
+    │   ├── PatientDetailPage.tsx    # View patient + manage conditions/parents/therapists
+    │   └── PatientsPage.tsx         # List + filter patients
+    │
+    ├── programs/
+    │   └── ProgramsPage.tsx         # Manage programs
+    │
+    └── therapists/
+        └── TherapistsPage.tsx       # List therapists/doctors; filter by clinic + search
 ```
 
 ---
@@ -138,12 +159,13 @@ src/
 /patients/:id       → PatientDetailPage      │ all wrapped in PrivateRoute → AppLayout
 /my-children        → MyChildrenPage         │
 /invitations        → InvitationsPage        │
-/appointments       → AppointmentsPage       │
-/appointments/book  → BookAppointmentPage    │
+/calendar           → CalendarPage           │
 /availability       → AvailabilityPage       │
 /therapists         → TherapistsPage         │
 /my-leave           → MyLeavePage            │
-/leave-management   → LeaveManagementPage   ┘
+/leave-management   → LeaveManagementPage   │
+/inquiries          → InquiriesPage          │
+/programs           → ProgramsPage           ┘
 
 *                   → redirect to /
 ```
@@ -156,13 +178,16 @@ src/
 
 ```
 BUSINESS_OWNER / ADMIN:
-  Dashboard, Organisation, Clinics, Therapists, Patients, Appointments, Leave Requests, Add Members
+  Dashboard, Inquiries, Organisation, Clinics, Therapists, Patients, Programs, Calendar, Leave Requests, Add Members
+
+OFFICE_ADMIN:
+  Dashboard, Inquiries, Patients, Calendar
 
 THERAPIST / DOCTOR:
-  Dashboard, Clinics, Patients, Appointments, My Leave
+  Dashboard, Clinics, Patients, Calendar, My Leave
 
 PARENT:
-  Dashboard, My Children, Appointments, Book Appointment
+  Dashboard, My Children, Calendar
 
 PATIENT:
   Dashboard
@@ -174,85 +199,13 @@ Dark/Light mode toggle lives at the **bottom** of the sidebar as a full-width na
 
 ## Types (`src/types/index.ts`)
 
-All API contracts live here. Keep in sync with backend DTOs.
-
-| Export                             | Description                                              |
-|------------------------------------|----------------------------------------------------------|
-| `Role`                             | Union type of all user roles                             |
-| `Gender`                           | `'MALE' \| 'FEMALE' \| 'OTHER'`                         |
-| `InvitationStatus`                 | `'PENDING' \| 'ACCEPTED' \| 'EXPIRED' \| 'CANCELLED'`   |
-| `AppointmentStatus`                | `'PENDING' \| 'CONFIRMED' \| 'CANCELLED' \| 'COMPLETED'`|
-| `DayOfWeek`                        | `'MONDAY' \| ... \| 'SUNDAY'`                            |
-| `LeaveType`                        | `'FULL_DAY' \| 'HALF_DAY'`                               |
-| `LeaveStatus`                      | `'PENDING' \| 'APPROVED' \| 'REJECTED'`                 |
-| `UserResponse`                     | Logged-in user / therapist profile                       |
-| `LoginRequest / LoginResponse`     | Auth payloads                                            |
-| `OrganisationResponse`             | Org profile                                              |
-| `UpdateOrganisationRequest`        | Org update payload                                       |
-| `ClinicResponse`                   | Clinic DTO                                               |
-| `CreateClinicRequest`              | Clinic creation payload                                  |
-| `PatientResponse`                  | Patient with embedded conditions, parents, therapists    |
-| `CreatePatientRequest`             | Patient creation payload                                 |
-| `SlotResponse`                     | Recurring availability slot                              |
-| `CreateSlotRequest`                | Slot creation payload                                    |
-| `AppointmentResponse`              | Appointment with enriched names                          |
-| `BookAppointmentRequest`           | Appointment booking payload                              |
-| `UpdateAppointmentStatusRequest`   | Status change payload                                    |
-| `LeaveResponse`                    | Leave request with therapist + reviewer names            |
-| `CreateLeaveRequest`               | Apply for leave payload                                  |
-| `ReviewLeaveRequest`               | Approve/reject payload: `{ status: 'APPROVED' \| 'REJECTED' }` |
-| `InviteRequest / InviteResponse`   | Invitation payloads                                      |
-| `AcceptInviteRequest`              | Accept invite payload                                    |
-| `ConditionResponse`                | Condition lookup item                                    |
-| `ApiResponse<T>`                   | Universal backend wrapper                                |
-| `allRoles(user)`                   | Returns primary + additional roles array                 |
-| `hasRole(user, role)`              | Checks if user holds a specific role                     |
-
----
-
-## Theme System (`src/theme.ts`)
-
-**All colours, styles, and brand assets live in `theme.ts`. Never hardcode hex values or asset paths in components.**
-
-| Export              | Description                                                        |
-|---------------------|--------------------------------------------------------------------|
-| `LOGO_SRC`          | Brand logo path — import this instead of hardcoding the path       |
-| `colors`            | Text, status, role, accent colours — reads CSS vars                |
-| `surface`           | Background surfaces (card, sidebar, hover states)                  |
-| `border`            | Border colours (card, divider, sidebar)                            |
-| `shadow`            | Box shadows (glow, nav dot)                                        |
-| `gradient`          | Gradient strings (login background, logo badge, buttons)           |
-| `palette`           | Named colour palettes: `blue`, `purple`, `green`, `yellow`, `slate`|
-| `styles`            | Composed style objects: `card`, `sidebar`, `navActive`, `navInactive`, `button*`, `emptyIcon`, `avatar`, `slotBadge`, `filterTabActive`, `filterTabInactive` |
-| `rgba(raw, a)`      | Compose `rgba(r,g,b, alpha)` from a raw CSS var string             |
-| `accentAlpha(a)`    | Accent colour at given opacity                                      |
-| `dangerAlpha(a)`    | Danger colour at given opacity                                      |
-| `borderAlpha(a)`    | Border colour at given opacity                                      |
-| `paletteStyle(name, a)` | Returns `{background, color}` style for a palette name         |
-
-### Brand colour
-
-The accent colour is **Brand Blue (`#2B80C8`)** — not teal. All CSS variable names still read from `--color-accent` / `--color-accent-raw`.
-
-### Light / Dark Mode
-- Toggled by adding/removing `.dark` class on `<html>`
-- CSS custom properties defined in `index.css` under `:root` (light) and `.dark`
-- `ThemeContext` persists preference to `localStorage`
-- Theme toggle is a nav-row at the bottom of the Sidebar
-
-### Landing page — always light
-- `LandingPage.tsx` wraps its root `<div>` in `className="force-light"`
-- `force-light` is defined in `index.css` and re-pins all CSS vars to light-mode values
-- This ensures the public marketing page is unaffected by the user's dark/light preference
-
-### CSS Classes (defined in `index.css`)
-- `form-input` — styled text/select input
-- `form-label` — field label
-- `form-error` — red validation message
-- `glass-card` — frosted-glass auth card
-- `nav-active` / `nav-inactive` — sidebar nav link states
-- `force-light` — overrides all CSS vars to light-mode values (used on LandingPage)
-- `brand-logo` — applies `filter: brightness(0) invert(1) opacity(0.9)` in dark mode for white logo tint
+Key types and enums (see file for full list):
+- `Role`: User roles (BUSINESS_OWNER, ADMIN, THERAPIST, etc.)
+- `PatientResponse`: Patient with conditions, parents, therapists
+- `InquiryStatus`: Lead status enum
+- `AppointmentStatus`: Booking states
+- `ApiResponse<T>`: Backend response wrapper
+- `allRoles(user)`, `hasRole(user, role)`: Role utilities
 
 ---
 
@@ -330,7 +283,335 @@ const mut = useMutation({
 
 ---
 
+## Project Workflow
+
+### Authentication & Session Flow
+
+1. **User Navigates to `/login`**
+   - `LoginPage.tsx` renders login form
+   - User enters email + password
+
+2. **Login Request**
+   - `authApi.login({ email, password })` calls `/auth/login`
+   - Backend returns `{ accessToken, refreshToken, user }`
+   - Tokens stored in localStorage via `tokenStorage` (in `client.ts`)
+   - User object stored in AuthContext + localStorage
+
+3. **Automatic Auth Restoration**
+   - On app load, `AuthProvider` checks for stored `accessToken`
+   - If token exists and user data is missing, calls `authApi.me()` to restore user
+   - User is loaded and AuthContext is populated
+   - `isLoading` flag prevents routes from rendering until auth check completes
+
+4. **Protected Routes**
+   - All routes inside `<PrivateRoute>` require `isAuthenticated = true`
+   - If token expires (401), axios interceptor automatically:
+     - Calls refresh token endpoint
+     - Retries the original request with new token
+     - If refresh fails, clears auth and redirects to `/login`
+
+5. **Role-Based Access**
+   - Each route is accessible based on user's `role` + `additionalRoles`
+   - `useAuth()` hook provides `activeRole` for role-based UI
+   - Use `switchRole(role)` to switch between multiple roles
+   - Sidebar navigation is scoped by role via `NAV_BY_ROLE` mapping
+
+6. **Logout**
+   - `authApi.logout(refreshToken)` invalidates refresh token on server
+   - Clear AuthContext, localStorage, and redirect to `/login`
+
+### Data Flow Pattern
+
+```
+User Action (e.g., click "Create Patient")
+      ↓
+Component calls useMutation(mutationFn: () => patientsApi.create(data))
+      ↓
+API call sent with Authorization header (Bearer token from localStorage)
+      ↓
+Backend processes request, returns data or error
+      ↓
+On Success:
+  - Component receives response data
+  - Invalidate affected query keys via qc.invalidateQueries
+  - Show success toast
+  - UI automatically re-fetches and re-renders via TanStack Query
+  - User sees updated list/table
+      ↓
+On Error (if 401):
+  - Axios interceptor attempts token refresh
+  - If successful, retries original request
+  - If refresh fails, clears session and redirects to /login
+  - Component shows error toast
+```
+
+### Role-Scoped Visibility
+
+- **Backend enforces authorization** — API returns only data the user has permission to see
+- **Frontend optimizes UX** — Sidebar and page features only render if `hasRole(user, requiredRole)`
+- **Pages are never hidden** — If a user somehow navigates to a protected page without the role, they'll see a filtered/limited view or empty state, not a 403 error
+
+---
+
 ## Adding a New Page
+
+1. Create `src/pages/<feature>/<FeatureName>Page.tsx`
+2. Add types to `src/types/index.ts`
+3. Add API calls to `src/api/<feature>.ts`
+4. Register route in `App.tsx` inside the `<PrivateRoute><AppLayout />` block
+5. Add nav entry to `NAV_BY_ROLE` in `Sidebar.tsx` for the appropriate roles
+6. Update this file's routing table and sidebar table
+
+---
+
+## Responsive Design
+
+**All screens must work on mobile (≥ 320px), tablet (≥ 768px), and desktop (≥ 1024px). Design mobile-first.**
+
+### Breakpoints (Tailwind standard)
+
+| Prefix | Min-width | Typical target          |
+|--------|-----------|-------------------------|
+| _(none)_ | 0px     | Mobile — base styles    |
+| `sm:`  | 640px     | Large phones / landscape|
+| `md:`  | 768px     | Tablets                 |
+| `lg:`  | 1024px    | Desktop / laptop        |
+| `xl:`  | 1280px    | Wide desktop            |
+
+Always write base styles for mobile, then override at larger breakpoints:
+```tsx
+// ✅ correct — mobile-first
+<div className="p-3 md:p-6 text-sm md:text-base">
+
+// ❌ wrong — desktop-first causes mobile breakage
+<div className="p-6 max-md:p-3">
+```
+
+---
+
+### Layout Shell (`AppLayout.tsx` + `Sidebar.tsx`)
+
+The shell already handles mobile:
+- **Mobile (< lg):** A top header bar is shown with a hamburger menu; sidebar slides in as a drawer overlay.
+- **Desktop (≥ lg):** Sidebar is always visible on the left; no top header.
+
+**Rule:** Never add left padding or margin to page content to "avoid the sidebar" — `AppLayout` handles the offset via its flex/grid structure. Page components only need to worry about their own inner padding.
+
+---
+
+### Page Layout Rules
+
+#### Padding / max-width
+
+```tsx
+// Standard page wrapper
+<div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+```
+
+Never use fixed `px-8` at the top level — it overflows on narrow screens.
+
+#### Page header (title + action button)
+
+```tsx
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+  <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>Page Title</h1>
+  <button ...>Primary Action</button>
+</div>
+```
+
+---
+
+### Grids and Stat Cards
+
+```tsx
+// Analytics / stat cards — 2 cols on mobile, 4 on desktop
+<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+
+// General card grid
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+---
+
+### Tables → Cards on Mobile
+
+**Tables must never overflow on mobile.** Use one of two patterns:
+
+#### Pattern A — Hide columns on small screens
+
+```tsx
+<div className="overflow-x-auto rounded-xl" style={styles.card}>
+  <table className="w-full text-sm">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th className="hidden md:table-cell">Phone</th>   {/* hide on mobile */}
+        <th className="hidden lg:table-cell">Reason</th>  {/* hide below desktop */}
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <p>John Smith</p>
+          <p className="md:hidden text-xs text-muted">+91 98765 43210</p> {/* show inline on mobile */}
+        </td>
+        <td className="hidden md:table-cell">+91 98765 43210</td>
+        ...
+      </tr>
+    </tbody>
+  </table>
+</div>
+```
+
+#### Pattern B — Full card list on mobile, table on desktop (preferred for data-heavy screens)
+
+```tsx
+{/* Mobile card list */}
+<div className="flex flex-col gap-3 md:hidden">
+  {items.map(item => (
+    <div key={item.id} className="rounded-xl p-4" style={styles.card}>
+      <div className="flex justify-between items-start">
+        <p className="font-semibold">{item.name}</p>
+        <StatusBadge status={item.status} />
+      </div>
+      <p className="text-sm mt-1" style={{ color: colors.text.muted }}>{item.phone}</p>
+      <p className="text-sm" style={{ color: colors.text.muted }}>{item.reason}</p>
+    </div>
+  ))}
+</div>
+
+{/* Desktop table */}
+<div className="hidden md:block overflow-x-auto rounded-xl" style={styles.card}>
+  <table>...</table>
+</div>
+```
+
+---
+
+### Filter Tabs
+
+Wrap filter tabs in a horizontally scrollable container — never let them wrap or overflow the page:
+
+```tsx
+<div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
+  {TABS.map(tab => (
+    <button key={tab.key} className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-sm"
+      style={activeTab === tab.key ? styles.filterTabActive : styles.filterTabInactive}>
+      {tab.label}
+    </button>
+  ))}
+</div>
+```
+
+The `-mx-4 px-4` trick extends the scroll area to the page edges on mobile without clipping the shadow.
+
+---
+
+### Modals
+
+```tsx
+// Modal inner container — full screen on mobile, sized on desktop
+<div className="relative w-full mx-4 sm:mx-auto sm:max-w-lg rounded-2xl p-5 md:p-6"
+  style={styles.card}>
+```
+
+- On mobile: near-full-width with `mx-4` margin
+- On desktop: fixed max-width centered
+- Scrollable content: wrap the body in `<div className="overflow-y-auto max-h-[70vh] md:max-h-[80vh]">`
+- Never use `max-w-lg` without `w-full` — it won't constrain on mobile
+
+---
+
+### Forms inside Modals / Pages
+
+```tsx
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  <Input label="First Name" ... />
+  <Input label="Last Name" ... />
+  <div className="sm:col-span-2">
+    <Input label="Reason" ... />
+  </div>
+</div>
+```
+
+---
+
+### Touch Targets
+
+All interactive elements must have a minimum tap target of **44 × 44px** on mobile:
+- Buttons: use `min-h-[44px]` or `py-3` for primary actions
+- Icon-only buttons: use `p-2.5` or `p-3` (never `p-1` alone on mobile)
+- Row action buttons: pad to at least `px-3 py-2`
+
+---
+
+### Typography Scale
+
+```tsx
+// Page title
+<h1 className="text-lg md:text-xl lg:text-2xl font-bold">
+
+// Section heading
+<h2 className="text-base md:text-lg font-semibold">
+
+// Body
+<p className="text-sm md:text-base">
+
+// Meta / muted
+<p className="text-xs md:text-sm">
+```
+
+---
+
+### Calendar & Complex Views
+
+Complex views (calendar, timeline, charts) should:
+- Show a simplified version on mobile (e.g., list view instead of month grid)
+- Or wrap in `overflow-x-auto` with a `min-w-[600px]` inner container
+- Provide a view toggle: `List` as the default on mobile, `Calendar` for tablet+
+
+```tsx
+// Only show calendar on md+; show list on mobile
+<div className="block md:hidden">
+  <UpcomingList inquiries={upcoming} />
+</div>
+<div className="hidden md:block">
+  <CalendarView inquiries={inquiries} onSelect={setSelected} />
+</div>
+```
+
+---
+
+### Sidebar pipeline cards / analytics chips
+
+Horizontal scroll on mobile, grid on desktop:
+
+```tsx
+<div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 lg:grid-cols-6">
+  {STAGES.map(stage => (
+    <button key={stage.key} className="flex-shrink-0 w-36 md:w-auto ...">
+      ...
+    </button>
+  ))}
+</div>
+```
+
+---
+
+### Checklist for Every New Screen
+
+Before marking a screen done, verify:
+
+- [ ] No horizontal scroll at 375px viewport width (iPhone SE)
+- [ ] All buttons meet 44px touch target
+- [ ] Tables either use Pattern A (hidden columns) or Pattern B (card list)
+- [ ] Page header stacks vertically on mobile
+- [ ] Modals are full-width on mobile with visible close button
+- [ ] Filter tabs scroll horizontally without wrapping
+- [ ] Empty states and loading spinners are centered and visible on all widths
+- [ ] Text does not overflow its container (use `truncate` or `break-words` as appropriate)
 
 1. Create `src/pages/<feature>/<FeatureName>Page.tsx`
 2. Add types to `src/types/index.ts`

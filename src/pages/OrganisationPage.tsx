@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { PageLoader } from '../components/ui/Spinner'
 import { ToastContainer } from '../components/ui/Toast'
 import { useToast } from '../hooks/useToast'
+import { colors } from '../theme'
 import type { UpdateOrganisationRequest } from '../types'
 
 export default function OrganisationPage() {
@@ -43,8 +44,8 @@ export default function OrganisationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Organisation</h1>
-        <p className="mt-1 text-sm text-slate-500">Your organisation profile and settings</p>
+        <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Organisation</h1>
+        <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>Your organisation profile and settings</p>
       </div>
 
       <Card>
@@ -69,8 +70,8 @@ export default function OrganisationPage() {
               ['Address', org?.address],
             ].map(([label, value]) => (
               <div key={label as string}>
-                <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</dt>
-                <dd className="mt-1 text-sm text-slate-700">{value || <span className="text-slate-400">—</span>}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                <dd className="mt-1 text-sm" style={{ color: colors.text.primary }}>{value || <span style={{ color: colors.text.dim }}>—</span>}</dd>
               </div>
             ))}
           </dl>
@@ -97,15 +98,15 @@ export default function OrganisationPage() {
         <CardHeader title="Deployment Info" />
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">Organisation ID</dt>
-            <dd className="mt-1 font-mono text-xs text-slate-600 break-all">{org?.id}</dd>
+            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Organisation ID</dt>
+            <dd className="mt-1 font-mono text-xs break-all" style={{ color: colors.text.muted }}>{org?.id}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">Slug</dt>
-            <dd className="mt-1 font-mono text-sm text-slate-600">{org?.slug}</dd>
+            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Slug</dt>
+            <dd className="mt-1 font-mono text-sm" style={{ color: colors.text.muted }}>{org?.slug}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">Status</dt>
+            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Status</dt>
             <dd className="mt-1">
               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${org?.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                 {org?.isActive ? 'Active' : 'Inactive'}

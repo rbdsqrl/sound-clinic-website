@@ -16,7 +16,7 @@ import { MiniCalendar } from './MiniCalendar'
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type OutcomeOption = {
-  id: InquiryActionOutcome
+  id: InquiryActionOutcome | 'CONVERT'
   label: string
   description: string
   icon: React.ElementType
@@ -121,13 +121,6 @@ const STATE_CONFIG: Partial<Record<InquiryStatus, StateConfig>> = {
         palette: 'blue',
       },
       {
-        id: 'VISITED',
-        label: 'Patient visited',
-        description: 'Patient attended the consultation',
-        icon: CheckCircle2,
-        palette: 'green',
-      },
-      {
         id: 'NO_SHOW',
         label: 'No show',
         description: 'Patient did not attend',
@@ -140,6 +133,14 @@ const STATE_CONFIG: Partial<Record<InquiryStatus, StateConfig>> = {
         description: 'Patient cancelled the appointment',
         icon: XCircle,
         palette: 'red',
+      },
+      {
+        id: 'CONVERT',
+        label: 'Convert to patient',
+        description: 'Patient attended — create their record and assign a plan',
+        icon: UserCheck,
+        palette: 'green',
+        isConvert: true,
       },
     ],
   },
@@ -155,6 +156,14 @@ const STATE_CONFIG: Partial<Record<InquiryStatus, StateConfig>> = {
         icon: CalendarDays,
         palette: 'blue',
         requiresAppointment: true,
+      },
+      {
+        id: 'CONVERT',
+        label: 'Convert to patient',
+        description: 'Create their patient record and assign a plan',
+        icon: UserCheck,
+        palette: 'green',
+        isConvert: true,
       },
       {
         id: 'DROPPED',
@@ -210,10 +219,12 @@ export function ActionModal({
   inquiry,
   onClose,
   onConverted,
+  onRequestConvert,
 }: {
   inquiry: InquiryResponse
   onClose: () => void
   onConverted?: (patientId: string) => void
+  onRequestConvert?: () => void
 }) {
   const qc        = useQueryClient()
   const navigate  = useNavigate()
@@ -221,7 +232,7 @@ export function ActionModal({
 
   const config = STATE_CONFIG[inquiry.status]
 
-  const [selected,     setSelected]     = useState<InquiryActionOutcome | null>(null)
+  const [selected,     setSelected]     = useState<InquiryActionOutcome | 'CONVERT' | null>(null)
   const [notes,        setNotes]        = useState('')
   const [apptDate,     setApptDate]     = useState<Date | null>(null)
   const [apptTime,     setApptTime]     = useState<string | null>(null)
@@ -240,7 +251,7 @@ export function ActionModal({
         ).toISOString()
       }
       return inquiriesApi.nextAction(inquiry.id, {
-        outcome: selected!,
+        outcome: selected! as InquiryActionOutcome,
         notes: notes || undefined,
         appointmentDate,
         appointmentNotes: apptNotes || undefined,
@@ -379,10 +390,18 @@ export function ActionModal({
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button
-              onClick={() => mutation.mutate()}
+              onClick={() => {
+                if (isConvert) {
+                  onRequestConvert?.()
+                  onClose()
+                } else {
+                  mutation.mutate()
+                }
+              }}
               loading={mutation.isPending}
               disabled={!canSubmit}>
-              Save <ArrowRight size={14} className="ml-1" />
+              {isConvert ? 'Convert to Patient' : 'Save'}
+              <ArrowRight size={14} className="ml-1" />
             </Button>
           </div>
         </div>

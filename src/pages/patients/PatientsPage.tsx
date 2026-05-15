@@ -160,7 +160,7 @@ export default function PatientsPage() {
                       <th
                         key={h}
                         className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider"
-                        style={{ color: colors.text.dim }}
+                        style={{ color: colors.text.muted }}
                       >
                         {h}
                       </th>

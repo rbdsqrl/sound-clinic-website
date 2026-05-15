@@ -22,21 +22,21 @@
   --color-secondary-raw:   167, 216, 240;
 
   /* ── Text ───────────────────────────────────────────────────────────────── */
-  --text-heading:          #253545;       /* Page headings                            */
-  --text-primary:          #374B5F;       /* Body text, card titles                   */
-  --text-muted:            #6B8499;       /* Labels, secondary                        */
-  --text-dim:              #9DB4C6;       /* Descriptions, placeholders               */
+  --text-heading:          #1A2A3A;       /* Page headings                            */
+  --text-primary:          #2A3D4F;       /* Body text, card titles                   */
+  --text-muted:            #4A5F7A;       /* Labels, secondary                        */
+  --text-dim:              #7A8FA0;       /* Descriptions, placeholders               */
   --text-link:             #2B80C8;       /* Hyperlinks                               */
   /* Sidebar / light-surface text (same as dark text in light mode) */
-  --text-sidebar-primary:  #253545;
-  --text-sidebar-label:    #374B5F;
-  --text-sidebar-muted:    #7A9BB0;
+  --text-sidebar-primary:  #1A2A3A;
+  --text-sidebar-label:    #2A3D4F;
+  --text-sidebar-muted:    #4A5F7A;
 
   /* ── Surfaces ───────────────────────────────────────────────────────────── */
-  --surface-app:           #E8EEF6;         /* Cool blue-steel app background           */
+  --surface-app:           #F6F9FD;         /* Soft cool light background                */
   --surface-card:          #FFFFFF;
   --surface-card-raw:      255, 255, 255;
-  --surface-sidebar:       #FFFFFF;
+  --surface-sidebar:       #FAFBFD;        /* Subtle warm tint                          */
   --surface-overlay:       rgba(30, 55, 80, 0.45);
   --surface-mobile-overlay: rgba(232, 238, 246, 0.90);
   --surface-mobile-header: rgba(255, 255, 255, 0.97);
@@ -108,78 +108,78 @@
 /* Inspired by the Vivienne palette: deep plum (#320a28), burgundy (#511730), */
 /* terracotta (#8e443d), warm amber (#e08e45), and peachy cream (#facfad).    */
 .dark {
-  /* Accent: warm amber — inspired by #e08e45, toned down for UI legibility   */
-  --color-accent:          #C8813A;
-  --color-accent-raw:      200, 129, 58;
-  --color-cta:             #D47068;
-  --color-cta-raw:         212, 112, 104;
-  --color-cta-end:         #B85850;
-  --color-secondary:       #E0A870;
-  --color-secondary-raw:   224, 168, 112;
+  /* Accent and CTA — cooler blue / electric highlights */
+  --color-accent:          #79B7FF;
+  --color-accent-raw:      121, 183, 255;
+  --color-cta:             #8BD8FF;
+  --color-cta-raw:         139, 216, 255;
+  --color-cta-end:         #3E79F1;
+  --color-secondary:       #9BDFFF;
+  --color-secondary-raw:   155, 223, 255;
 
-  /* Text: warm cream hierarchy — inspired by #facfad down to #8e443d         */
-  --text-heading:          #EDD8C8;        /* warm peachy cream heading        */
-  --text-primary:          #C8A090;        /* warm dusty rose body text        */
-  --text-muted:            #8A6860;        /* warm mid-tone label              */
-  --text-dim:              #5E4840;        /* warm dim / placeholders          */
-  --text-link:             #C8813A;
-  --text-sidebar-primary:  #EDD8C8;
-  --text-sidebar-label:    #C8A090;
-  --text-sidebar-muted:    #8A6860;
+  /* Text — crisp pale blue / white hierarchy */
+  --text-heading:          #FFFFFF;        /* bright headline text             */
+  --text-primary:          #F0F4FF;        /* body text                        */
+  --text-muted:            #C0D4F0;        /* secondary labels                 */
+  --text-dim:              #8FA5C0;        /* placeholder / subtle text        */
+  --text-link:             #79B7FF;
+  --text-sidebar-primary:  #FFFFFF;
+  --text-sidebar-label:    #F0F4FF;
+  --text-sidebar-muted:    #C0D4F0;
 
-  /* Surfaces: deep plum-tinted darks — inspired by #320a28 / #511730         */
-  --surface-app:           #1C1419;        /* very dark warm plum-charcoal     */
-  --surface-card:          #251C22;        /* slightly lighter warm card       */
-  --surface-card-raw:      37, 28, 34;
-  --surface-sidebar:       #180E14;        /* deep rich sidebar                */
-  --surface-overlay:       rgba(8, 4, 6, 0.68);
-  --surface-mobile-overlay: rgba(24, 14, 20, 0.84);
-  --surface-mobile-header: rgba(24, 14, 20, 0.97);
-  --surface-footer:        rgba(255, 220, 190, 0.04);
-  --surface-filter-strip:  rgba(255, 210, 180, 0.05);
-  --surface-row-hover:     rgba(255, 200, 160, 0.05);
+  /* Surfaces — bluish-black canvas with soft glass touches */
+  --surface-app:           #050C18;        /* deeper midnight for contrast     */
+  --surface-card:          #0E1D37;        /* refined deep card surface        */
+  --surface-card-raw:      14, 29, 55;
+  --surface-sidebar:       #081220;        /* elegant navy sidebar             */
+  --surface-overlay:       rgba(5, 12, 25, 0.94);
+  --surface-mobile-overlay: rgba(6, 12, 26, 0.97);
+  --surface-mobile-header: rgba(8, 14, 28, 0.98);
+  --surface-footer:        rgba(121, 183, 255, 0.08);
+  --surface-filter-strip:  rgba(121, 183, 255, 0.14);
+  --surface-row-hover:     rgba(121, 183, 255, 0.14);
 
-  /* Borders: warm rose-white tint                                             */
-  --border-card:           1px solid rgba(255, 210, 185, 0.09);
-  --border-divider:        rgba(255, 210, 185, 0.08);
-  --border-sidebar:        rgba(200, 129, 58, 0.20);
-  --border-medium:         1px solid rgba(255, 210, 185, 0.13);
-  --border-drag:           rgba(255, 210, 185, 0.15);
-  --border-raw:            255, 210, 185;
+  /* Borders — crisp icy separation */
+  --border-card:           1px solid rgba(255, 255, 255, 0.12);
+  --border-divider:        rgba(121, 183, 255, 0.20);
+  --border-sidebar:        rgba(121, 183, 255, 0.20);
+  --border-medium:         1px solid rgba(255, 255, 255, 0.16);
+  --border-drag:           rgba(255, 255, 255, 0.18);
+  --border-raw:            255, 255, 255;
 
-  /* Shadows: warm amber glow, deeper blacks                                   */
-  --shadow-card:           0 2px 12px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,190,140,0.05);
-  --shadow-glow:           0 0 20px rgba(200, 129, 58, 0.20);
-  --shadow-glow-sm:        0 0 10px rgba(200, 129, 58, 0.14);
-  --shadow-glow-lg:        0 0 40px rgba(200, 129, 58, 0.24);
-  --shadow-button-cta:     0 2px 10px rgba(212, 112, 104, 0.28);
-  --shadow-button-accent:  0 2px 10px rgba(200, 129, 58, 0.28);
-  --shadow-logo:           0 4px 16px rgba(200, 129, 58, 0.32);
-  --shadow-nav-active:     0 2px 8px rgba(200, 129, 58, 0.14);
-  --shadow-modal:          0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,190,140,0.08);
-  --shadow-nav-dot:        0 0 6px rgba(200, 129, 58, 0.80);
+  /* Shadows — cool glow with depth */
+  --shadow-card:           0 2px 28px rgba(0,0,0,0.60), 0 0 0 1px rgba(121, 183, 255, 0.06);
+  --shadow-glow:           0 0 24px rgba(121, 183, 255, 0.24);
+  --shadow-glow-sm:        0 0 12px rgba(121, 183, 255, 0.16);
+  --shadow-glow-lg:        0 0 52px rgba(121, 183, 255, 0.28);
+  --shadow-button-cta:     0 2px 14px rgba(139, 216, 255, 0.36);
+  --shadow-button-accent:  0 2px 14px rgba(121, 183, 255, 0.32);
+  --shadow-logo:           0 4px 20px rgba(121, 183, 255, 0.30);
+  --shadow-nav-active:     0 2px 12px rgba(121, 183, 255, 0.18);
+  --shadow-modal:          0 8px 42px rgba(0,0,0,0.68), 0 0 0 1px rgba(255,255,255,0.12);
+  --shadow-nav-dot:        0 0 10px rgba(121, 183, 255, 0.92);
 
-  --card-backdrop:         blur(14px);
-  --modal-backdrop:        blur(8px);
-  --header-backdrop:       blur(12px);
-  --sidebar-backdrop:      blur(20px);
+  --card-backdrop:         blur(18px);
+  --modal-backdrop:        blur(12px);
+  --header-backdrop:       blur(16px);
+  --sidebar-backdrop:      blur(28px);
 
-  --gradient-button-cta:   linear-gradient(135deg, #D47068 0%, #B85850 100%);
-  --gradient-button-accent: linear-gradient(135deg, #C8813A 0%, #A86228 100%);
-  --gradient-logo:         linear-gradient(135deg, #C8813A 0%, #E0A860 100%);
-  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(200,129,58,0.12) 0%, #1C1419 60%);
-  --gradient-summary:      linear-gradient(135deg, #C8813A, #E0A860);
+  --gradient-button-cta:   linear-gradient(135deg, #8BD8FF 0%, #3E79F1 100%);
+  --gradient-button-accent: linear-gradient(135deg, #79B7FF 0%, #2A6BE0 100%);
+  --gradient-logo:         linear-gradient(135deg, #79B7FF 0%, #A4D8FF 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(121,183,255,0.22) 0%, #040A16 60%);
+  --gradient-summary:      linear-gradient(135deg, #79B7FF, #9EE5FF);
 
-  /* Forms: warm dark bg, cream text                                           */
-  --form-bg:               #201520;
-  --form-border:           rgba(255, 210, 185, 0.11);
-  --form-text:             #C8A090;
-  --form-placeholder:      #5E4840;
-  --form-label:            #8A6860;
-  --form-error:            #E08070;
+  /* Forms — cool glass with luminous text */
+  --form-bg:               #0B1831;
+  --form-border:           rgba(255, 255, 255, 0.14);
+  --form-text:             #F0F4FF;
+  --form-placeholder:      #95AFE0;
+  --form-label:            #C0D4F0;
+  --form-error:            #FF9CB3;
 
-  --scrollbar-thumb:       #3A2830;
-  --scrollbar-thumb-hover: #4E3840;
+  --scrollbar-thumb:       #2F567F;
+  --scrollbar-thumb-hover: #3F6B9A;
 }
 
 /* ── Force light mode (public landing page) ───────────────────────────────── */
@@ -191,12 +191,12 @@
   --color-cta:             #F28C8C;
   --color-cta-raw:         242, 140, 140;
   --color-cta-end:         #D97070;
-  --text-heading:          #253545;
-  --text-primary:          #374B5F;
-  --text-muted:            #6B8499;
-  --text-dim:              #9DB4C6;
+  --text-heading:          #1A2A3A;
+  --text-primary:          #2A3D4F;
+  --text-muted:            #4A5F7A;
+  --text-dim:              #7A8FA0;
   --text-link:             #2B80C8;
-  --surface-app:           #E8EEF6;
+  --surface-app:           #F6F9FD;
   --surface-card:          #FFFFFF;
   --surface-card-raw:      255, 255, 255;
   --border-card:           1px solid rgba(0, 0, 0, 0.07);

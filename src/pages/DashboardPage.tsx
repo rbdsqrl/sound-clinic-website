@@ -156,7 +156,7 @@ export default function DashboardPage() {
               <thead>
                 <tr style={{ borderBottom: `1px solid ${border.divider}` }}>
                   {['Name', 'Clinic', 'Conditions', 'Therapists'].map(h => (
-                    <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
+                    <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.muted }}>
                       {h}
                     </th>
                   ))}

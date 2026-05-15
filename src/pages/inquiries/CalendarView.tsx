@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, CalendarDays, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, Clock, Zap } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -43,26 +43,50 @@ function formatTime(iso: string): string {
 // ── Event chip ─────────────────────────────────────────────────────────────────
 
 function EventChip({
-  inquiry, onClick, compact = false,
-}: { inquiry: InquiryResponse; onClick: () => void; compact?: boolean }) {
+  inquiry, onClick, onAction, compact = false,
+}: {
+  inquiry: InquiryResponse
+  onClick: () => void
+  onAction?: () => void
+  compact?: boolean
+}) {
   const ps = eventStyle(inquiry.status)
+  const showAction = !!onAction && inquiry.status === 'CONSULTATION_SCHEDULED'
+
   return (
-    <button onClick={e => { e.stopPropagation(); onClick() }}
-      className="w-full text-left rounded-md px-2 py-1 truncate transition-opacity hover:opacity-80"
-      style={{ ...ps, fontSize: compact ? 10 : 11, fontWeight: 600 }}>
-      <span className="truncate">{inquiry.name}</span>
-      {!compact && inquiry.appointmentDate && (
-        <span className="ml-1 opacity-70 font-normal">{formatTime(inquiry.appointmentDate)}</span>
+    <div className="w-full flex items-center gap-0.5">
+      <button
+        onClick={e => { e.stopPropagation(); onClick() }}
+        className="flex-1 min-w-0 text-left rounded-md px-2 py-1 truncate transition-opacity hover:opacity-80"
+        style={{ ...ps, fontSize: compact ? 10 : 11, fontWeight: 600 }}>
+        <span className="truncate">{inquiry.name}</span>
+        {!compact && inquiry.appointmentDate && (
+          <span className="ml-1 opacity-70 font-normal">{formatTime(inquiry.appointmentDate)}</span>
+        )}
+      </button>
+      {showAction && (
+        <button
+          onClick={e => { e.stopPropagation(); onAction() }}
+          title="Log outcome"
+          className="flex-shrink-0 rounded p-0.5 transition-colors hover:opacity-80"
+          style={{ color: ps.color }}>
+          <Zap size={compact ? 9 : 11} />
+        </button>
       )}
-    </button>
+    </div>
   )
 }
 
 // ── Month View ─────────────────────────────────────────────────────────────────
 
 function MonthView({
-  current, inquiries, onSelect,
-}: { current: Date; inquiries: InquiryResponse[]; onSelect: (i: InquiryResponse) => void }) {
+  current, inquiries, onSelect, onAction,
+}: {
+  current: Date
+  inquiries: InquiryResponse[]
+  onSelect: (i: InquiryResponse) => void
+  onAction?: (i: InquiryResponse) => void
+}) {
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(current), { weekStartsOn: 1 }),
     end:   endOfWeek(endOfMonth(current),     { weekStartsOn: 1 }),
@@ -112,7 +136,8 @@ function MonthView({
               {/* Events */}
               <div className="flex flex-col gap-0.5 flex-1 overflow-hidden">
                 {events.slice(0, 3).map(inq => (
-                  <EventChip key={inq.id} inquiry={inq} onClick={() => onSelect(inq)} compact />
+                  <EventChip key={inq.id} inquiry={inq} onClick={() => onSelect(inq)}
+                    onAction={onAction ? () => onAction(inq) : undefined} compact />
                 ))}
                 {events.length > 3 && (
                   <p className="text-xs pl-1" style={{ color: colors.text.muted }}>
@@ -131,8 +156,13 @@ function MonthView({
 // ── Week View ──────────────────────────────────────────────────────────────────
 
 function WeekView({
-  current, inquiries, onSelect,
-}: { current: Date; inquiries: InquiryResponse[]; onSelect: (i: InquiryResponse) => void }) {
+  current, inquiries, onSelect, onAction,
+}: {
+  current: Date
+  inquiries: InquiryResponse[]
+  onSelect: (i: InquiryResponse) => void
+  onAction?: (i: InquiryResponse) => void
+}) {
   const weekStart_ = weekStart(current, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart_, i))
 
@@ -191,7 +221,8 @@ function WeekView({
                 <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-1"
                   style={{ borderColor: border.divider }}>
                   {events.map(inq => (
-                    <EventChip key={inq.id} inquiry={inq} onClick={() => onSelect(inq)} />
+                    <EventChip key={inq.id} inquiry={inq} onClick={() => onSelect(inq)}
+                      onAction={onAction ? () => onAction(inq) : undefined} />
                   ))}
                 </div>
               )
@@ -206,8 +237,12 @@ function WeekView({
 // ── Upcoming sidebar ───────────────────────────────────────────────────────────
 
 function UpcomingSidebar({
-  inquiries, onSelect,
-}: { inquiries: InquiryResponse[]; onSelect: (i: InquiryResponse) => void }) {
+  inquiries, onSelect, onAction,
+}: {
+  inquiries: InquiryResponse[]
+  onSelect: (i: InquiryResponse) => void
+  onAction?: (i: InquiryResponse) => void
+}) {
   const now = new Date()
   const upcoming = inquiries
     .filter(i => i.appointmentDate && parseISO(i.appointmentDate) >= now)
@@ -224,24 +259,42 @@ function UpcomingSidebar({
         <p className="text-sm" style={{ color: colors.text.muted }}>No upcoming appointments</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {upcoming.map(inq => (
-            <button key={inq.id} onClick={() => onSelect(inq)}
-              className="text-left rounded-xl p-2.5 transition-colors w-full"
-              style={{ background: surface.rowHover }}
-              onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.08))}
-              onMouseLeave={e => (e.currentTarget.style.background = surface.rowHover)}>
-              <p className="text-xs font-semibold truncate" style={{ color: colors.text.primary }}>
-                {inq.name}
-              </p>
-              <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
-                <CalendarDays size={10} />
-                {format(parseISO(inq.appointmentDate!), 'd MMM, h:mm a')}
-              </p>
-              {inq.reason && (
-                <p className="text-xs truncate mt-0.5" style={{ color: colors.text.muted }}>{inq.reason}</p>
-              )}
-            </button>
-          ))}
+          {upcoming.map(inq => {
+            const canAct = !!onAction && inq.status === 'CONSULTATION_SCHEDULED'
+            return (
+              <div key={inq.id} className="rounded-xl overflow-hidden" style={{ background: surface.rowHover }}>
+                <button onClick={() => onSelect(inq)}
+                  className="text-left p-2.5 transition-colors w-full"
+                  onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.08))}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  <p className="text-xs font-semibold truncate" style={{ color: colors.text.primary }}>
+                    {inq.name}
+                  </p>
+                  <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
+                    <CalendarDays size={10} />
+                    {format(parseISO(inq.appointmentDate!), 'd MMM, h:mm a')}
+                  </p>
+                  {inq.reason && (
+                    <p className="text-xs truncate mt-0.5" style={{ color: colors.text.muted }}>{inq.reason}</p>
+                  )}
+                </button>
+                {canAct && (
+                  <button
+                    onClick={() => onAction!(inq)}
+                    className="w-full flex items-center justify-center gap-1 py-1.5 text-xs font-semibold transition-colors border-t"
+                    style={{
+                      borderColor: border.divider,
+                      color: colors.accent,
+                      background: accentAlpha(0.06),
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.14))}
+                    onMouseLeave={e => (e.currentTarget.style.background = accentAlpha(0.06))}>
+                    <Zap size={11} /> Log Outcome
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -253,9 +306,11 @@ function UpcomingSidebar({
 export function CalendarView({
   inquiries,
   onSelect,
+  onAction,
 }: {
   inquiries: InquiryResponse[]
   onSelect: (i: InquiryResponse) => void
+  onAction?: (i: InquiryResponse) => void
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [current,  setCurrent]  = useState(new Date())
@@ -333,9 +388,9 @@ export function CalendarView({
         <div className="flex-1 overflow-x-auto overflow-y-hidden flex flex-col">
           <div className="min-w-[420px] flex flex-col flex-1">
             {viewMode === 'month' ? (
-              <MonthView current={current} inquiries={withAppts} onSelect={onSelect} />
+              <MonthView current={current} inquiries={withAppts} onSelect={onSelect} onAction={onAction} />
             ) : (
-              <WeekView current={current} inquiries={withAppts} onSelect={onSelect} />
+              <WeekView current={current} inquiries={withAppts} onSelect={onSelect} onAction={onAction} />
             )}
           </div>
         </div>
@@ -343,7 +398,7 @@ export function CalendarView({
         {/* Upcoming sidebar — only in month view */}
         {viewMode === 'month' && (
           <div className="hidden lg:block p-4 border-l" style={{ borderColor: border.divider }}>
-            <UpcomingSidebar inquiries={withAppts} onSelect={onSelect} />
+            <UpcomingSidebar inquiries={withAppts} onSelect={onSelect} onAction={onAction} />
           </div>
         )}
       </div>

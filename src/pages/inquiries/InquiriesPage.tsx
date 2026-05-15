@@ -5,11 +5,13 @@ import {
   Inbox, Phone, Mail, Clock, CheckCircle2, XCircle, RefreshCw,
   ChevronRight, ChevronLeft, CalendarDays, X, Trash2,
   PhoneCall, MessageCircle, AtSign, FileText, UserCheck,
-  ArrowRightCircle, Zap, List, Users,
+  ArrowRightCircle, Zap, List, Users, BarChart2,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { inquiriesApi } from '../../api/inquiries'
 import { clinicsApi } from '../../api/clinics'
+import { programsApi } from '../../api/programs'
+import { subscriptionsApi } from '../../api/subscriptions'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
@@ -191,9 +193,36 @@ function ConvertModal({
   const [convertedId,  setConvertedId]  = useState('')
   const [copied,       setCopied]       = useState(false)
 
+  // Subscription plan step
+  const [showSubscription,  setShowSubscription]  = useState(false)
+  const [selectedProgramId, setSelectedProgramId] = useState('')
+  const [numSessions,       setNumSessions]       = useState(8)
+
   const { data: clinics = [] } = useQuery({
     queryKey: ['clinics'],
     queryFn: () => clinicsApi.list(),
+  })
+
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs-active'],
+    queryFn: () => programsApi.listActive(),
+  })
+
+  const selectedProgram = programs.find(p => p.id === selectedProgramId)
+  const totalCost = selectedProgram ? selectedProgram.perSessionCost * numSessions : 0
+
+  const subscriptionMutation = useMutation({
+    mutationFn: () => subscriptionsApi.create({
+      patientId: convertedId,
+      programId: selectedProgramId,
+      numSessions,
+    }),
+    onSuccess: () => {
+      toast('Plan assigned', 'success')
+      onClose()
+      onConverted(convertedId)
+    },
+    onError: () => toast('Failed to assign plan', 'error'),
   })
 
   const convertMutation = useMutation({
@@ -215,7 +244,7 @@ function ConvertModal({
         setInviteLink(data.linkedUserInviteLink)
       } else {
         toast(`${data.patientName} created as a patient`, 'success')
-        onConverted(data.patientId)
+        setShowSubscription(true)
       }
     },
     onError: () => toast('Conversion failed', 'error'),
@@ -232,7 +261,87 @@ function ConvertModal({
     })
   }
 
-  // ── Success state — show invite link ──────────────────────────────────────
+  // ── Step 2: Subscription plan assignment ─────────────────────────────────
+  if (showSubscription) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+        <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]"
+          style={{ background: surface.card, border: `1px solid ${border.card}` }}>
+          <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: border.divider }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: colors.accent }}>
+                Step 2 of 2
+              </p>
+              <h3 className="font-semibold text-base" style={{ color: colors.text.primary }}>
+                Assign a Subscription Plan
+              </h3>
+              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                {patientName} · Can also be done later from the patient profile
+              </p>
+            </div>
+          </div>
+
+          <div className="p-5 flex flex-col gap-4">
+            {programs.length === 0 ? (
+              <p className="text-sm text-center py-4" style={{ color: colors.text.muted }}>
+                No active programs found. You can assign a plan later from the patient profile.
+              </p>
+            ) : (<>
+              <div>
+                <label className="form-label">Program</label>
+                <select className="form-input w-full" value={selectedProgramId}
+                  onChange={e => setSelectedProgramId(e.target.value)}>
+                  <option value="">Select a program…</option>
+                  {programs.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — ₹{p.perSessionCost.toLocaleString()}/session
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Number of Sessions</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="form-input w-full"
+                  value={numSessions}
+                  onChange={e => setNumSessions(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+              </div>
+
+              {selectedProgram && (
+                <div className="rounded-xl p-3 flex items-center justify-between"
+                  style={{ background: accentAlpha(0.08), border: `1px solid ${accentAlpha(0.2)}` }}>
+                  <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Total cost</span>
+                  <span className="text-lg font-bold" style={{ color: colors.accent }}>
+                    ₹{totalCost.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </>)}
+          </div>
+
+          <div className="flex justify-end gap-2 p-5 pt-0">
+            <Button variant="ghost" onClick={() => { onClose(); onConverted(convertedId) }}>
+              Skip for now
+            </Button>
+            {programs.length > 0 && (
+              <Button
+                onClick={() => subscriptionMutation.mutate()}
+                loading={subscriptionMutation.isPending}
+                disabled={!selectedProgramId || numSessions < 1}>
+                Assign Plan
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Step 1b: Invite link ──────────────────────────────────────────────────
   if (inviteLink) {
     const fullLink = `${window.location.origin}${inviteLink}`
     return (
@@ -270,8 +379,8 @@ function ConvertModal({
             </p>
           </div>
           <div className="px-6 pb-6">
-            <Button className="w-full" onClick={() => { onClose(); onConverted(convertedId) }}>
-              Done
+            <Button className="w-full" onClick={() => { setInviteLink(null); setShowSubscription(true) }}>
+              Next: Assign Plan
             </Button>
           </div>
         </div>
@@ -688,10 +797,16 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
 
 export default function InquiriesPage() {
   const navigate = useNavigate()
+  const { user }  = useAuth()
+
+  const canHandleOutcomes = user && ['BUSINESS_OWNER', 'DOCTOR'].includes(user.role)
+
+  const [mainTab,       setMainTab]       = useState<'list' | 'analytics'>('list')
   const [pageView,      setPageView]      = useState<'list' | 'calendar'>('list')
   const [activeTab,     setActiveTab]     = useState<InquiryStatus | 'ALL'>('ALL')
   const [selected,      setSelected]      = useState<InquiryResponse | null>(null)
   const [actionTarget,  setActionTarget]  = useState<InquiryResponse | null>(null)
+  const [convertTarget, setConvertTarget] = useState<InquiryResponse | null>(null)
 
   const { data: inquiries, isLoading } = useQuery({
     queryKey: ['inquiries'],
@@ -722,13 +837,45 @@ export default function InquiriesPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.primary }}>Inquiries</h1>
+          <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.heading }}>Inquiries</h1>
           <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
             Manage consultation requests from the public website.
           </p>
         </div>
-        {/* List / Calendar toggle */}
+        {/* Main tab toggle: Inquiries | Analytics */}
         <div className="flex rounded-xl overflow-hidden border flex-shrink-0 self-start"
+          style={{ borderColor: border.card }}>
+          <button onClick={() => setMainTab('list')}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
+            style={mainTab === 'list' ? styles.filterTabActive : styles.filterTabInactive}>
+            <List size={14} />Inquiries
+          </button>
+          <button onClick={() => setMainTab('analytics')}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
+            style={mainTab === 'analytics' ? styles.filterTabActive : styles.filterTabInactive}>
+            <BarChart2 size={14} />Analytics
+          </button>
+        </div>
+      </div>
+
+      {/* ── Inquiries tab ──────────────────────────────────────────── */}
+      {mainTab === 'list' && (<>
+
+      {/* Filter tabs + List / Calendar toggle on same row */}
+      <div className="flex items-center gap-3">
+        <div className="flex gap-1 overflow-x-auto pb-1 flex-1">
+          {TABS.map(t => (
+            <button key={t.value} onClick={() => setActiveTab(t.value)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors"
+              style={activeTab === t.value ? styles.filterTabActive : styles.filterTabInactive}>
+              {t.label}
+              <span className="ml-1.5 opacity-60">
+                {t.value === 'ALL' ? all.length : (counts[t.value as InquiryStatus] ?? 0)}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-xl overflow-hidden border flex-shrink-0"
           style={{ borderColor: border.card }}>
           <button onClick={() => setPageView('list')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
@@ -743,15 +890,150 @@ export default function InquiriesPage() {
         </div>
       </div>
 
-      {/* ── Analytics metric cards ──────────────────────────────────── */}
+      {/* Calendar view */}
+      {pageView === 'calendar' && (
+        <CalendarView
+          inquiries={all}
+          onSelect={setSelected}
+          onAction={canHandleOutcomes ? setActionTarget : undefined}
+        />
+      )}
+
+      {/* Table */}
+      {pageView === 'list' && (
+        <Card padding={false}>
+          {displayed.length === 0 ? (
+            <div className="flex flex-col items-center py-16 gap-2">
+              <Inbox size={32} style={{ color: colors.text.muted }} />
+              <p className="text-sm" style={{ color: colors.text.muted }}>No inquiries found</p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop header */}
+              <div className="hidden md:grid grid-cols-[2fr_1fr_2.5fr_1.5fr_1.5fr_44px] gap-5 px-5 py-3 border-b"
+                style={{ borderColor: border.divider, background: surface.rowHover }}>
+                {['Name', 'Phone', 'Reason', 'Status', 'Next Action', ''].map(h => (
+                  <span key={h} className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: colors.text.muted }}>{h}</span>
+                ))}
+              </div>
+
+              {displayed.map((inq, idx) => (
+                <div key={inq.id}
+                  className="w-full transition-colors"
+                  style={{ borderBottom: idx < displayed.length - 1 ? `1px solid ${border.divider}` : 'none' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = surface.rowHover)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+
+                  {/* Desktop */}
+                  <div className="hidden md:grid grid-cols-[2fr_1fr_2.5fr_1.5fr_1.5fr_44px] gap-5 items-center px-5 py-4">
+                    {/* Name */}
+                    <button className="flex items-center gap-2.5 text-left min-w-0" onClick={() => setSelected(inq)}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{ background: accentAlpha(0.15), color: colors.accent }}>
+                        {inq.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
+                        {inq.appointmentDate && (
+                          <p className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
+                            <CalendarDays size={10} />
+                            {format(parseISO(inq.appointmentDate), 'd MMM, h:mm a')}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                    {/* Phone */}
+                    <button className="flex items-center gap-1.5 text-sm text-left min-w-0" style={{ color: colors.text.muted }}
+                      onClick={() => setSelected(inq)}>
+                      <Phone size={12} className="flex-shrink-0" />
+                      <span className="truncate">{inq.phone}</span>
+                    </button>
+                    {/* Reason */}
+                    <button className="text-sm truncate text-left min-w-0" style={{ color: colors.text.muted }}
+                      onClick={() => setSelected(inq)}>
+                      {inq.reason ?? <span style={{ color: colors.text.dim }}>—</span>}
+                    </button>
+                    {/* Status */}
+                    <button className="flex items-center" onClick={() => setSelected(inq)}>
+                      <StatusBadge status={inq.status} />
+                    </button>
+                    {/* Next Action */}
+                    <div className="flex items-center">
+                      {hasNextAction(inq.status) ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); setActionTarget(inq) }}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 whitespace-nowrap transition-all"
+                          style={{
+                            background: accentAlpha(0.1),
+                            color: colors.accent,
+                            border: `1px solid ${accentAlpha(0.25)}`,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.2))}
+                          onMouseLeave={e => (e.currentTarget.style.background = accentAlpha(0.1))}>
+                          <Zap size={11} />
+                          {getActionLabel(inq.status)}
+                        </button>
+                      ) : (
+                        <span className="text-sm" style={{ color: colors.text.dim }}>—</span>
+                      )}
+                    </div>
+                    {/* Detail chevron */}
+                    <button className="flex items-center justify-center w-full h-full" onClick={() => setSelected(inq)}>
+                      <ChevronRight size={15} style={{ color: colors.text.muted }} />
+                    </button>
+                  </div>
+
+                  {/* Mobile */}
+                  <div className="md:hidden px-4 py-3">
+                    <button className="w-full text-left" onClick={() => setSelected(inq)}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                          style={{ background: accentAlpha(0.15), color: colors.accent }}>
+                          {inq.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
+                            <StatusBadge status={inq.status} />
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                            {inq.phone} · {format(parseISO(inq.createdAt), 'd MMM yyyy')}
+                          </p>
+                          {inq.reason && (
+                            <p className="text-xs truncate mt-0.5" style={{ color: colors.text.muted }}>{inq.reason}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                    {hasNextAction(inq.status) && (
+                      <button
+                        onClick={() => setActionTarget(inq)}
+                        className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5"
+                        style={{ background: accentAlpha(0.1), color: colors.accent, border: `1px solid ${accentAlpha(0.25)}` }}>
+                        <Zap size={11} />{getActionLabel(inq.status)}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </Card>
+      )}
+
+      </>)} {/* end inquiries tab */}
+
+      {/* ── Analytics tab ──────────────────────────────────────────── */}
+      {mainTab === 'analytics' && (<>
+
+      {/* Metric cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Total */}
         <div className="rounded-2xl p-4" style={styles.card}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.text.muted }}>Total</p>
           <p className="text-3xl font-bold" style={{ color: colors.text.primary }}>{analytics?.totalCount ?? '—'}</p>
         </div>
 
-        {/* Conversion rate */}
         <div className="rounded-2xl p-4" style={styles.card}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.text.muted }}>Conversion</p>
           <p className="text-3xl font-bold" style={{ color: colors.status.success }}>
@@ -764,7 +1046,6 @@ export default function InquiriesPage() {
           )}
         </div>
 
-        {/* Avg response time */}
         <div className="rounded-2xl p-4" style={styles.card}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.text.muted }}>Avg Response</p>
           <p className="text-3xl font-bold" style={{ color: colors.text.primary }}>
@@ -777,7 +1058,6 @@ export default function InquiriesPage() {
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>first contact</p>
         </div>
 
-        {/* Overdue */}
         <div className="rounded-2xl p-4" style={styles.card}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.text.muted }}>Overdue</p>
           <p className="text-3xl font-bold"
@@ -787,7 +1067,6 @@ export default function InquiriesPage() {
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>new &gt; 24 hrs</p>
         </div>
 
-        {/* Ready to convert */}
         <div className="rounded-2xl p-4" style={styles.card}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.text.muted }}>Ready to Convert</p>
           <p className="text-3xl font-bold"
@@ -798,15 +1077,7 @@ export default function InquiriesPage() {
         </div>
       </div>
 
-      {/* ── Calendar view ──────────────────────────────────────────── */}
-      {pageView === 'calendar' && (
-        <CalendarView inquiries={all} onSelect={setSelected} />
-      )}
-
-      {/* ── List view: funnel + pipeline + tabs + table ─────────────── */}
-      {pageView === 'list' && (<>
-
-      {/* ── Funnel drop-off chart ───────────────────────────────────── */}
+      {/* Funnel drop-off chart — clicking switches to Inquiries tab with filter applied */}
       <div className="rounded-2xl p-5" style={styles.card}>
         <h3 className="text-sm font-semibold mb-4" style={{ color: colors.text.primary }}>Patient Journey Funnel</h3>
         <div className="flex flex-col gap-2.5">
@@ -816,7 +1087,8 @@ export default function InquiriesPage() {
             const count = analytics?.countByStatus[s] ?? counts[s] ?? 0
             const pct   = funnelBase > 0 ? Math.round((count / funnelBase) * 100) : 0
             return (
-              <button key={s} onClick={() => setActiveTab(activeTab === s ? 'ALL' : s)}
+              <button key={s}
+                onClick={() => { setActiveTab(activeTab === s ? 'ALL' : s); setMainTab('list') }}
                 className="flex items-center gap-3 group text-left w-full" style={{ outline: 'none' }}>
                 <div className="flex items-center gap-1.5 w-28 sm:w-40 flex-shrink-0">
                   <Icon size={12} style={{ color: colors.text.muted }} />
@@ -843,14 +1115,15 @@ export default function InquiriesPage() {
         </div>
       </div>
 
-      {/* ── Journey pipeline clickable cards ────────────────────────── */}
+      {/* Journey pipeline cards — clicking switches to Inquiries tab with filter applied */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {JOURNEY_STATUSES.map(s => {
           const meta  = STATUS_META[s]
           const Icon  = meta.icon
           const count = counts[s] ?? 0
           return (
-            <button key={s} onClick={() => setActiveTab(activeTab === s ? 'ALL' : s)}
+            <button key={s}
+              onClick={() => { setActiveTab(activeTab === s ? 'ALL' : s); setMainTab('list') }}
               className="rounded-2xl p-3 text-left transition-all"
               style={{
                 ...styles.card,
@@ -869,142 +1142,7 @@ export default function InquiriesPage() {
         })}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
-        {TABS.map(t => (
-          <button key={t.value} onClick={() => setActiveTab(t.value)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors"
-            style={activeTab === t.value ? styles.filterTabActive : styles.filterTabInactive}>
-            {t.label}
-            <span className="ml-1.5 opacity-60">
-              {t.value === 'ALL' ? all.length : (counts[t.value as InquiryStatus] ?? 0)}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <Card padding={false}>
-        {displayed.length === 0 ? (
-          <div className="flex flex-col items-center py-16 gap-2">
-            <Inbox size={32} style={{ color: colors.text.muted }} />
-            <p className="text-sm" style={{ color: colors.text.muted }}>No inquiries found</p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop header — must use identical grid-cols to the data rows below */}
-            <div className="hidden md:grid grid-cols-[2fr_1fr_2.5fr_1.5fr_1.5fr_44px] gap-5 px-5 py-3 border-b"
-              style={{ borderColor: border.divider, background: surface.rowHover }}>
-              {['Name', 'Phone', 'Reason', 'Status', 'Next Action', ''].map(h => (
-                <span key={h} className="text-xs font-semibold uppercase tracking-wider"
-                  style={{ color: colors.text.muted }}>{h}</span>
-              ))}
-            </div>
-
-            {displayed.map((inq, idx) => (
-              <div key={inq.id}
-                className="w-full transition-colors"
-                style={{ borderBottom: idx < displayed.length - 1 ? `1px solid ${border.divider}` : 'none' }}
-                onMouseEnter={e => (e.currentTarget.style.background = surface.rowHover)}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-
-                {/* Desktop — grid-cols must match the header exactly */}
-                <div className="hidden md:grid grid-cols-[2fr_1fr_2.5fr_1.5fr_1.5fr_44px] gap-5 items-center px-5 py-4">
-                  {/* Name */}
-                  <button className="flex items-center gap-2.5 text-left min-w-0" onClick={() => setSelected(inq)}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                      style={{ background: accentAlpha(0.15), color: colors.accent }}>
-                      {inq.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
-                      {inq.appointmentDate && (
-                        <p className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
-                          <CalendarDays size={10} />
-                          {format(parseISO(inq.appointmentDate), 'd MMM, h:mm a')}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                  {/* Phone */}
-                  <button className="flex items-center gap-1.5 text-sm text-left min-w-0" style={{ color: colors.text.muted }}
-                    onClick={() => setSelected(inq)}>
-                    <Phone size={12} className="flex-shrink-0" />
-                    <span className="truncate">{inq.phone}</span>
-                  </button>
-                  {/* Reason */}
-                  <button className="text-sm truncate text-left min-w-0" style={{ color: colors.text.muted }}
-                    onClick={() => setSelected(inq)}>
-                    {inq.reason ?? <span style={{ color: colors.text.dim }}>—</span>}
-                  </button>
-                  {/* Status */}
-                  <button className="flex items-center" onClick={() => setSelected(inq)}>
-                    <StatusBadge status={inq.status} />
-                  </button>
-                  {/* Next Action */}
-                  <div className="flex items-center">
-                    {hasNextAction(inq.status) ? (
-                      <button
-                        onClick={e => { e.stopPropagation(); setActionTarget(inq) }}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 whitespace-nowrap transition-all"
-                        style={{
-                          background: accentAlpha(0.1),
-                          color: colors.accent,
-                          border: `1px solid ${accentAlpha(0.25)}`,
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.2))}
-                        onMouseLeave={e => (e.currentTarget.style.background = accentAlpha(0.1))}>
-                        <Zap size={11} />
-                        {getActionLabel(inq.status)}
-                      </button>
-                    ) : (
-                      <span className="text-sm" style={{ color: colors.text.dim }}>—</span>
-                    )}
-                  </div>
-                  {/* Detail chevron */}
-                  <button className="flex items-center justify-center w-full h-full" onClick={() => setSelected(inq)}>
-                    <ChevronRight size={15} style={{ color: colors.text.muted }} />
-                  </button>
-                </div>
-
-                {/* Mobile */}
-                <div className="md:hidden px-4 py-3">
-                  <button className="w-full text-left" onClick={() => setSelected(inq)}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                        style={{ background: accentAlpha(0.15), color: colors.accent }}>
-                        {inq.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
-                          <StatusBadge status={inq.status} />
-                        </div>
-                        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                          {inq.phone} · {format(parseISO(inq.createdAt), 'd MMM yyyy')}
-                        </p>
-                        {inq.reason && (
-                          <p className="text-xs truncate mt-0.5" style={{ color: colors.text.muted }}>{inq.reason}</p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                  {hasNextAction(inq.status) && (
-                    <button
-                      onClick={() => setActionTarget(inq)}
-                      className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5"
-                      style={{ background: accentAlpha(0.1), color: colors.accent, border: `1px solid ${accentAlpha(0.25)}` }}>
-                      <Zap size={11} />{getActionLabel(inq.status)}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-      </Card>
-
-      </>)} {/* end list view */}
+      </>)} {/* end analytics tab */}
 
       {selected && <InquiryModal inquiry={selected} onClose={() => setSelected(null)} />}
 
@@ -1014,6 +1152,22 @@ export default function InquiriesPage() {
           onClose={() => setActionTarget(null)}
           onConverted={patientId => {
             setActionTarget(null)
+            navigate(`/patients/${patientId}`)
+          }}
+          onRequestConvert={() => {
+            const target = actionTarget
+            setActionTarget(null)
+            setConvertTarget(target)
+          }}
+        />
+      )}
+
+      {convertTarget && (
+        <ConvertModal
+          inquiry={convertTarget}
+          onClose={() => setConvertTarget(null)}
+          onConverted={patientId => {
+            setConvertTarget(null)
             navigate(`/patients/${patientId}`)
           }}
         />

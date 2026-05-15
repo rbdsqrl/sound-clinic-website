@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -115,6 +115,7 @@ function JourneyCard({
   onAddSubscription,
   onSetupSchedule,
   onRecordPayment,
+  onPayNow,
 }: {
   patient: { stage: PatientStage; firstName: string; lastName: string }
   subscriptions: import('../../types').SubscriptionResponse[]
@@ -123,6 +124,7 @@ function JourneyCard({
   onAddSubscription: () => void
   onSetupSchedule: () => void
   onRecordPayment: (sub: import('../../types').SubscriptionResponse) => void
+  onPayNow?: (sub: import('../../types').SubscriptionResponse) => void
 }) {
   const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
   const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
@@ -215,6 +217,18 @@ function JourneyCard({
         >
           <Sparkles size={12} />
           {config.cta}
+        </button>
+      )}
+      {step === 'payment' && !canManage && onPayNow && activeSubscription && (
+        <button
+          onClick={() => onPayNow(activeSubscription)}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: palette.green.text + '1A', color: palette.green.text }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = palette.green.text + '30'}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = palette.green.text + '1A'}
+        >
+          <CreditCard size={12} />
+          Pay Now
         </button>
       )}
     </div>
@@ -495,6 +509,116 @@ function RecordPaymentModal({
   )
 }
 
+// ── MockRazorpayModal ──────────────────────────────────────────────────────────
+
+function MockRazorpayModal({
+  subscription,
+  onClose,
+  onSaved,
+}: {
+  subscription: SubscriptionResponse
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [step, setStep] = useState<'gateway' | 'success'>('gateway')
+  const [processing, setProcessing] = useState(false)
+
+  const handlePay = async () => {
+    setProcessing(true)
+    try {
+      await subscriptionsApi.recordPayment(subscription.id, {
+        discountPercent: 0,
+        amountPaid: subscription.totalAmount,
+        paymentNotes: 'Paid via Razorpay',
+      })
+    } catch {
+      // PARENT role doesn't have backend permission to call recordPayment directly;
+      // in production this would be handled by a Razorpay webhook. For demo, proceed.
+    }
+    setProcessing(false)
+    setStep('success')
+    onSaved()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
+      <div className="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6" style={styles.modal}>
+        {step === 'gateway' ? (
+          <>
+            {/* Mock gateway header */}
+            <div className="flex items-center gap-2.5 mb-6">
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: '#072654' }}>
+                <span className="text-white font-bold text-sm">R</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>Razorpay</p>
+                <p className="text-[11px]" style={{ color: colors.text.dim }}>Secure Payment Gateway</p>
+              </div>
+              <button onClick={onClose} className="p-2 rounded-lg" style={{ color: colors.text.muted }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Amount */}
+            <div className="text-center mb-6 py-4 rounded-2xl" style={{ background: accentAlpha(0.05), border: `1px solid ${accentAlpha(0.12)}` }}>
+              <p className="text-3xl font-bold" style={{ color: colors.text.heading }}>
+                {formatINR(subscription.totalAmount)}
+              </p>
+              <p className="text-sm mt-1 font-medium" style={{ color: colors.text.muted }}>{subscription.programName}</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>{subscription.numSessions} sessions</p>
+            </div>
+
+            {/* Mock payment method */}
+            <div className="mb-5">
+              <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>Payment Method</p>
+              <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+                style={{ background: surface.filterStrip, border: `1.5px solid ${colors.accent}` }}>
+                <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                  style={{ borderColor: colors.accent }}>
+                  <div className="w-2 h-2 rounded-full" style={{ background: colors.accent }} />
+                </div>
+                <span className="text-sm font-medium" style={{ color: colors.text.primary }}>UPI</span>
+                <span className="ml-auto text-xs" style={{ color: colors.text.dim }}>·····@upi</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePay}
+              disabled={processing}
+              className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity"
+              style={styles.buttonPrimary}
+            >
+              {processing ? 'Processing…' : `Pay ${formatINR(subscription.totalAmount)}`}
+            </button>
+
+            <p className="text-center text-[11px] mt-3" style={{ color: colors.text.dim }}>
+              Demo only — no real transaction occurs
+            </p>
+          </>
+        ) : (
+          <div className="flex flex-col items-center py-6 text-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+              style={{ background: '#4CAF5022', color: '#4CAF50' }}>
+              <ShieldCheck size={32} />
+            </div>
+            <h3 className="text-lg font-bold mb-1" style={{ color: colors.text.heading }}>Payment Successful!</h3>
+            <p className="text-sm" style={{ color: colors.text.muted }}>
+              {formatINR(subscription.totalAmount)} paid for {subscription.programName}
+            </p>
+            <p className="text-xs mt-1" style={{ color: colors.text.dim }}>Your therapy sessions are now active.</p>
+            <button onClick={onClose}
+              className="mt-6 px-8 py-2.5 rounded-xl text-sm font-semibold"
+              style={styles.buttonPrimary}>
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── SessionList (lazy-loaded per enrollment) ───────────────────────────────────
 
 function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpdate: boolean }) {
@@ -586,11 +710,13 @@ function sessionStatusIcon(status: TherapySessionStatus) {
 function EnrollmentModal({
   subscriptions,
   patientId,
+  preselectedSub,
   onClose,
   onCreated,
 }: {
   subscriptions: SubscriptionResponse[]
   patientId: string
+  preselectedSub?: SubscriptionResponse
   onClose: () => void
   onCreated: (enrollment: EnrollmentResponse) => void
 }) {
@@ -598,7 +724,7 @@ function EnrollmentModal({
 
   // Step 1 fields
   const [subscriptionId, setSubscriptionId]     = useState(
-    subscriptions.find(s => s.status === 'ACTIVE')?.id ?? ''
+    preselectedSub?.id ?? subscriptions.find(s => s.status === 'ACTIVE')?.id ?? ''
   )
   const [duration, setDuration]                 = useState<number>(45)
   const [startDate, setStartDate]               = useState('')
@@ -690,19 +816,36 @@ function EnrollmentModal({
         {/* ── Step 1: Slot details ── */}
         {step === 1 && (
           <div className="flex flex-col gap-4">
-            {/* Subscription select */}
-            <div>
-              <label className="form-label">Subscription</label>
-              <select value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} className="form-input w-full">
-                <option value="">Select subscription…</option>
-                {paidSubs.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.programName} · {s.numSessions} sessions
-                  </option>
-                ))}
-              </select>
-              {step1Errors.sub && <p className="form-error">{step1Errors.sub}</p>}
-            </div>
+            {/* Subscription — locked when pre-selected, dropdown otherwise */}
+            {preselectedSub ? (
+              <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+                style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.18)}` }}>
+                <BookOpen size={15} style={{ color: colors.accent, flexShrink: 0 }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                    {preselectedSub.programName}
+                  </p>
+                  <p className="text-xs" style={{ color: colors.text.muted }}>
+                    {preselectedSub.numSessions} sessions · {formatINR(preselectedSub.perSessionCost)}/session
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
+                  style={{ background: accentAlpha(0.12), color: colors.accent }}>Paid</span>
+              </div>
+            ) : (
+              <div>
+                <label className="form-label">Subscription</label>
+                <select value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} className="form-input w-full">
+                  <option value="">Select subscription…</option>
+                  {paidSubs.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.programName} · {s.numSessions} sessions
+                    </option>
+                  ))}
+                </select>
+                {step1Errors.sub && <p className="form-error">{step1Errors.sub}</p>}
+              </div>
+            )}
 
             {/* Duration */}
             <div>
@@ -822,7 +965,8 @@ export default function PatientDetailPage() {
   const [therapistModal,   setTherapistModal]   = useState(false)
   const [subModal,         setSubModal]         = useState(false)
   const [paymentTarget,    setPaymentTarget]    = useState<SubscriptionResponse | null>(null)
-  const [enrollModal,      setEnrollModal]      = useState(false)
+  const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
+  const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
   const [expandedEnroll,   setExpandedEnroll]   = useState<string | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [sidebarSearch,    setSidebarSearch]    = useState('')
@@ -930,6 +1074,7 @@ export default function PatientDetailPage() {
   const clinicName = clinics?.find((c) => c.id === patient.clinicId)?.name ?? '—'
 
   const currentRole = activeRole ?? user?.role
+  const isParent            = currentRole === 'PARENT'
   const canChangeStage      = ['BUSINESS_OWNER', 'ADMIN', 'DOCTOR'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')
   const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
@@ -1107,45 +1252,152 @@ export default function PatientDetailPage() {
           </div>
 
           {/* ── Overview tab ─────────────────────────────────────────────────── */}
-          {activeTab === 'Overview' && (
-            <div className="space-y-4">
-              <JourneyCard
-                patient={patient}
-                subscriptions={subscriptions}
-                enrollments={enrollments}
-                canManage={canManageSubs || canCreateEnrollment}
-                onAddSubscription={() => setSubModal(true)}
-                onSetupSchedule={() => setEnrollModal(true)}
-                onRecordPayment={(sub) => setPaymentTarget(sub)}
-              />
-              <Card>
-                <CardHeader title="Patient Info" />
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-                  {[
-                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
-                    ['Gender', patient.gender?.toLowerCase()],
-                    ['Clinic', clinicName],
-                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
-                  ].map(([label, value]) => (
-                    <div key={label as string}>
-                      <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
-                      <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
-                        {value || <span style={{ color: colors.text.dim }}>—</span>}
-                      </dd>
+          {activeTab === 'Overview' && (() => {
+            const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
+            const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
+            const unpaidSub          = subscriptions.find(s => s.status !== 'CANCELLED' && s.paymentStatus !== 'PAID')
+
+            return (
+              <div className="space-y-4">
+                <JourneyCard
+                  patient={patient}
+                  subscriptions={subscriptions}
+                  enrollments={enrollments}
+                  canManage={canManageSubs || canCreateEnrollment}
+                  onAddSubscription={() => setSubModal(true)}
+                  onSetupSchedule={() => {
+                    const paidSub = subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+                    if (paidSub) setEnrollForSub(paidSub)
+                  }}
+                  onRecordPayment={(sub) => setPaymentTarget(sub)}
+                  onPayNow={isParent ? (sub) => setMockPayTarget(sub) : undefined}
+                />
+
+                {/* ── Payment due card — shown to PARENT whenever any sub is unpaid ── */}
+                {isParent && unpaidSub && (
+                  <div className="rounded-2xl p-4 flex items-center gap-4"
+                    style={{
+                      background: 'rgba(234,179,8,0.06)',
+                      border: `1px solid rgba(234,179,8,0.25)`,
+                    }}>
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(234,179,8,0.12)' }}>
+                      <CreditCard size={18} style={{ color: '#b45309' }} />
                     </div>
-                  ))}
-                </dl>
-                {patient.notes && (
-                  <div
-                    className="mt-4 rounded-xl p-3 text-sm"
-                    style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                  >
-                    {patient.notes}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                        Payment due
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                        {unpaidSub.programName} · {formatINR(unpaidSub.totalAmount)}
+                        {unpaidSub.paymentStatus === 'PARTIAL' && unpaidSub.amountPaid > 0 && (
+                          <span className="ml-1.5">({formatINR(unpaidSub.amountPaid)} paid)</span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setMockPayTarget(unpaidSub)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold"
+                      style={styles.buttonPrimary}
+                    >
+                      <CreditCard size={12} /> Pay Now
+                    </button>
                   </div>
                 )}
-              </Card>
-            </div>
-          )}
+
+                {/* ── Active enrollment summary ──────────────────────────── */}
+                {activeEnrollment && (
+                  <Card>
+                    <CardHeader title="Active Enrollment" />
+                    <div className="space-y-3">
+                      {/* Program + therapist */}
+                      <div className="flex items-start gap-3">
+                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: accentAlpha(0.10) }}>
+                          <BookOpen size={16} style={{ color: colors.accent }} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                            {activeEnrollment.programName}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                            {activeEnrollment.therapistFirstName} {activeEnrollment.therapistLastName}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                          style={paletteStyle('teal', 0.12, 0)}>
+                          Active
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs" style={{ color: colors.text.muted }}>Sessions completed</span>
+                          <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+                            {activeEnrollment.sessionsCompleted} / {activeEnrollment.totalSessions}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: border.divider }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${activeEnrollment.totalSessions > 0
+                                ? Math.min(100, (activeEnrollment.sessionsCompleted / activeEnrollment.totalSessions) * 100)
+                                : 0}%`,
+                              background: colors.accent,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Meta info grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                        {[
+                          [<CalendarDays size={11} />, `Starts ${activeEnrollment.startDate}`],
+                          [<Clock size={11} />, `${activeEnrollment.startTime.slice(0, 5)} · ${activeEnrollment.sessionDurationMinutes} min`],
+                          [<CheckCircle2 size={11} />, `${activeEnrollment.totalSessions - activeEnrollment.sessionsCompleted} remaining`],
+                        ].map(([icon, text], i) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <span style={{ color: colors.text.dim }}>{icon}</span>
+                            <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Patient Info */}
+                <Card>
+                  <CardHeader title="Patient Info" />
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+                    {[
+                      ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                      ['Gender', patient.gender?.toLowerCase()],
+                      ['Clinic', clinicName],
+                      ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                    ].map(([label, value]) => (
+                      <div key={label as string}>
+                        <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                        <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
+                          {value || <span style={{ color: colors.text.dim }}>—</span>}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {patient.notes && (
+                    <div
+                      className="mt-4 rounded-xl p-3 text-sm"
+                      style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                    >
+                      {patient.notes}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )
+          })()}
 
           {/* ── Clinical tab ─────────────────────────────────────────────────── */}
           {activeTab === 'Clinical' && (
@@ -1334,35 +1586,67 @@ export default function PatientDetailPage() {
                           )}
 
                           {/* Actions */}
-                          {!isCancelled && (
-                            <div className="flex gap-2 pt-2 border-t" style={{ borderColor: border.divider }}>
-                              {canRecordPayment && sub.paymentStatus !== 'PAID' && (
-                                <button
-                                  onClick={() => setPaymentTarget(sub)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                                  style={{ color: colors.accent, background: accentAlpha(0.08) }}
-                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.14)}
-                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
-                                >
-                                  <IndianRupee size={11} />
-                                  Record Payment
-                                </button>
-                              )}
-                              {canManageSubs && (
-                                <button
-                                  onClick={() => cancelSubMutation.mutate(sub.id)}
-                                  disabled={cancelSubMutation.isPending}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                                  style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
-                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
-                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
-                                >
-                                  <Ban size={11} />
-                                  Cancel
-                                </button>
-                              )}
-                            </div>
-                          )}
+                          {!isCancelled && (() => {
+                            const alreadyEnrolled = enrollments.some(
+                              e => e.subscriptionId === sub.id && e.status === 'ACTIVE'
+                            )
+                            const canEnroll = canCreateEnrollment && sub.paymentStatus === 'PAID' && !alreadyEnrolled
+                            const showActions = canRecordPayment || canManageSubs || isParent || canEnroll
+                            if (!showActions) return null
+                            return (
+                              <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: border.divider }}>
+                                {canEnroll && (
+                                  <button
+                                    onClick={() => setEnrollForSub(sub)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                    style={{ color: '#fff', background: colors.accent }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                  >
+                                    <CalendarDays size={11} />
+                                    Enroll
+                                  </button>
+                                )}
+                                {canRecordPayment && sub.paymentStatus !== 'PAID' && (
+                                  <button
+                                    onClick={() => setPaymentTarget(sub)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                    style={{ color: colors.accent, background: accentAlpha(0.08) }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.14)}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+                                  >
+                                    <IndianRupee size={11} />
+                                    Record Payment
+                                  </button>
+                                )}
+                                {isParent && sub.paymentStatus !== 'PAID' && (
+                                  <button
+                                    onClick={() => setMockPayTarget(sub)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                    style={{ color: '#fff', background: colors.accent }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                  >
+                                    <CreditCard size={11} />
+                                    Pay Now
+                                  </button>
+                                )}
+                                {canManageSubs && (
+                                  <button
+                                    onClick={() => cancelSubMutation.mutate(sub.id)}
+                                    disabled={cancelSubMutation.isPending}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                    style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                  >
+                                    <Ban size={11} />
+                                    Cancel
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </div>
                       )
                     })}
@@ -1375,23 +1659,14 @@ export default function PatientDetailPage() {
                 <CardHeader
                   title="Enrollments"
                   subtitle={`${enrollments.length} enrollment${enrollments.length !== 1 ? 's' : ''}`}
-                  action={
-                    canCreateEnrollment && hasActiveSubscription ? (
-                      <Button size="sm" onClick={() => setEnrollModal(true)}>
-                        <Plus size={14} /> Enroll
-                      </Button>
-                    ) : undefined
-                  }
                 />
 
-                {!hasActiveSubscription && enrollments.length === 0 && (
+                {enrollments.length === 0 && (
                   <p className="text-sm" style={{ color: colors.text.dim }}>
-                    An active subscription is required before creating an enrollment.
+                    {hasActiveSubscription
+                      ? 'No enrollments yet. Click Enroll on a paid subscription above to schedule sessions.'
+                      : 'An active, paid subscription is required before creating an enrollment.'}
                   </p>
-                )}
-
-                {hasActiveSubscription && enrollments.length === 0 && (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>No enrollments yet. Click Enroll to book sessions.</p>
                 )}
 
                 {enrollments.length > 0 && (
@@ -1555,16 +1830,17 @@ export default function PatientDetailPage() {
           </Modal>
 
           {/* Enrollment modal */}
-          {enrollModal && (
+          {enrollForSub && (
             <EnrollmentModal
               subscriptions={subscriptions}
               patientId={id!}
-              onClose={() => setEnrollModal(false)}
+              preselectedSub={enrollForSub}
+              onClose={() => setEnrollForSub(null)}
               onCreated={() => {
                 refetchEnrollments()
                 refetchSubs()
                 toast('Enrollment created — sessions generated', 'success')
-                setEnrollModal(false)
+                setEnrollForSub(null)
               }}
             />
           )}
@@ -1578,12 +1854,21 @@ export default function PatientDetailPage() {
             />
           )}
 
-          {/* Record payment modal */}
+          {/* Record payment modal (staff) */}
           {paymentTarget && (
             <RecordPaymentModal
               subscription={paymentTarget}
               onClose={() => setPaymentTarget(null)}
               onSaved={() => { refetchSubs(); toast('Payment recorded', 'success'); setPaymentTarget(null) }}
+            />
+          )}
+
+          {/* Mock Razorpay modal (PARENT) */}
+          {mockPayTarget && (
+            <MockRazorpayModal
+              subscription={mockPayTarget}
+              onClose={() => setMockPayTarget(null)}
+              onSaved={() => { refetchSubs(); refetchEnrollments() }}
             />
           )}
 
