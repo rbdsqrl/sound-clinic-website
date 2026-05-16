@@ -463,12 +463,31 @@ export interface TherapySessionResponse {
   endTime: string          // "HH:mm:ss"
   status: TherapySessionStatus
   notes: string | null
+  feedback: string | null
+  progressReport: string | null
   completedAt: string | null
 }
 
 export interface UpdateSessionStatusRequest {
   status: TherapySessionStatus
   notes?: string
+}
+
+export interface UpdateSessionNotesRequest {
+  feedback?: string
+  progressReport?: string
+  notes?: string
+}
+
+export interface SessionAttachmentResponse {
+  id: string
+  sessionId: string
+  therapistId: string
+  fileName: string
+  fileUrl: string
+  contentType: string | null
+  fileSizeBytes: number
+  createdAt: string
 }
 
 // ── Subscriptions ──────────────────────────────────────────────────────────────
@@ -524,6 +543,73 @@ export interface UpdateProgramRequest {
   name?: string
   perSessionCost?: number
   isActive?: boolean
+}
+
+// ── Tasks ──────────────────────────────────────────────────────────────────────
+export type TaskStatus   = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH'
+
+export interface TaskResponse {
+  id: string
+  orgId: string
+  title: string
+  description: string | null
+  assignedTo: string
+  assignedToFirstName: string
+  assignedToLastName: string
+  assignedBy: string
+  assignedByFirstName: string
+  assignedByLastName: string
+  dueDate: string | null      // "YYYY-MM-DD"
+  priority: TaskPriority
+  status: TaskStatus
+  commentCount: number
+  attachmentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateTaskRequest {
+  title: string
+  description?: string
+  assignedTo: string
+  dueDate?: string            // "YYYY-MM-DD"
+  priority?: TaskPriority
+}
+
+export interface UpdateTaskRequest {
+  title?: string
+  description?: string
+  assignedTo?: string
+  dueDate?: string
+  priority?: TaskPriority
+}
+
+export interface UpdateTaskStatusRequest {
+  status: TaskStatus
+}
+
+export interface TaskCommentResponse {
+  id: string
+  taskId: string
+  authorId: string
+  authorFirstName: string
+  authorLastName: string
+  body: string
+  createdAt: string
+}
+
+export interface TaskAttachmentResponse {
+  id: string
+  taskId: string
+  uploadedBy: string
+  uploadedByFirstName: string
+  uploadedByLastName: string
+  fileName: string
+  fileUrl: string
+  contentType: string | null
+  fileSizeBytes: number
+  createdAt: string
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────

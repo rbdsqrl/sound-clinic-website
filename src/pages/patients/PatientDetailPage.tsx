@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -39,6 +39,7 @@ import type {
   AvailableTherapistResponse,
   TherapySessionResponse,
   TherapySessionStatus,
+  SessionAttachmentResponse,
 } from '../../types'
 
 // ── Stage config ───────────────────────────────────────────────────────────────
@@ -625,6 +626,7 @@ function MockRazorpayModal({
 function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpdate: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  const [notesSession, setNotesSession] = useState<TherapySessionResponse | null>(null)
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', 'enrollment', enrollmentId],
@@ -650,43 +652,251 @@ function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpd
   )
 
   return (
-    <div style={{ borderTop: `1px solid ${border.divider}` }}>
-      <div className="divide-y" style={{ borderColor: border.divider }}>
-        {sessions.map(s => (
-          <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-            {sessionStatusIcon(s.status)}
-            <span className="text-xs w-5 text-center flex-shrink-0" style={{ color: colors.text.dim }}>{s.sessionNumber}</span>
-            <span className="text-xs flex-1" style={{ color: s.status === 'SCHEDULED' ? colors.text.primary : colors.text.muted }}>
-              {s.sessionDate}
-              <span className="ml-2" style={{ color: colors.text.dim }}>{s.startTime.slice(0,5)}</span>
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-              style={
-                s.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-                : s.status === 'CANCELLED' || s.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
-                : paletteStyle('blue', 0.10, 0)
-              }>
-              {s.status.replace('_', ' ')}
-            </span>
-            {canUpdate && s.status === 'SCHEDULED' && (
-              <select
-                className="text-xs rounded-lg px-2 py-1 border-0 outline-none cursor-pointer"
-                style={{ background: surface.filterStrip, color: colors.text.muted, fontSize: 11 }}
-                value=""
-                onChange={e => {
-                  if (e.target.value) updateMut.mutate({ id: s.id, status: e.target.value as TherapySessionStatus })
+    <>
+      <div style={{ borderTop: `1px solid ${border.divider}` }}>
+        <div className="divide-y" style={{ borderColor: border.divider }}>
+          {sessions.map(s => (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+              {sessionStatusIcon(s.status)}
+              <span className="text-xs w-5 text-center flex-shrink-0" style={{ color: colors.text.dim }}>{s.sessionNumber}</span>
+              <span className="text-xs flex-1" style={{ color: s.status === 'SCHEDULED' ? colors.text.primary : colors.text.muted }}>
+                {s.sessionDate}
+                <span className="ml-2" style={{ color: colors.text.dim }}>{s.startTime.slice(0,5)}</span>
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                style={
+                  s.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
+                  : s.status === 'CANCELLED' || s.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
+                  : paletteStyle('blue', 0.10, 0)
+                }>
+                {s.status.replace('_', ' ')}
+              </span>
+              {canUpdate && s.status === 'SCHEDULED' && (
+                <select
+                  className="text-xs rounded-lg px-2 py-1 border-0 outline-none cursor-pointer"
+                  style={{ background: surface.filterStrip, color: colors.text.muted, fontSize: 11 }}
+                  value=""
+                  onChange={e => {
+                    if (e.target.value) updateMut.mutate({ id: s.id, status: e.target.value as TherapySessionStatus })
+                  }}
+                >
+                  <option value="">Mark as…</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="NO_SHOW">No Show</option>
+                </select>
+              )}
+              <button
+                onClick={() => setNotesSession(s)}
+                className="p-1.5 rounded-lg flex-shrink-0 transition-colors"
+                title="Session notes & attachments"
+                style={{
+                  color: (s.feedback || s.progressReport || s.notes) ? colors.accent : colors.text.dim,
+                  background: (s.feedback || s.progressReport || s.notes) ? accentAlpha(0.08) : 'transparent',
                 }}
               >
-                <option value="">Mark as…</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="NO_SHOW">No Show</option>
-              </select>
+                <ClipboardList size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {notesSession && (
+        <SessionNotesModal
+          session={notesSession}
+          canEdit={canUpdate}
+          enrollmentId={enrollmentId}
+          onClose={() => setNotesSession(null)}
+        />
+      )}
+    </>
+  )
+}
+
+// ── SessionNotesModal ──────────────────────────────────────────────────────────
+
+function SessionNotesModal({
+  session,
+  canEdit,
+  enrollmentId,
+  onClose,
+}: {
+  session: TherapySessionResponse
+  canEdit: boolean
+  enrollmentId: string
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+
+  const [feedback, setFeedback]             = useState(session.feedback ?? '')
+  const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
+  const [notes, setNotes]                   = useState(session.notes ?? '')
+
+  const { data: attachments = [], isLoading: attLoading } = useQuery({
+    queryKey: ['session-attachments', session.id],
+    queryFn: () => therapySessionsApi.listAttachments(session.id),
+  })
+
+  const notesMut = useMutation({
+    mutationFn: () => therapySessionsApi.updateNotes(session.id, { feedback, progressReport, notes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      toast('Notes saved', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to save notes', 'error'),
+  })
+
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => therapySessionsApi.uploadAttachment(session.id, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
+    onError: () => toast('Upload failed', 'error'),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (attachmentId: string) => therapySessionsApi.deleteAttachment(session.id, attachmentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
+    onError: () => toast('Delete failed', 'error'),
+  })
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return
+    Array.from(files).forEach(f => uploadMut.mutate(f))
+  }
+
+  return (
+    <Modal open title={`Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg">
+      {/* Session info strip */}
+      <div className="flex items-center gap-3 mb-5 p-3 rounded-xl" style={{ background: accentAlpha(0.05) }}>
+        <div className="flex-1">
+          <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{session.sessionDate}</p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            {session.startTime.slice(0, 5)} · {session.programName}
+          </p>
+        </div>
+        <span className="text-[10px] px-2 py-1 rounded-full font-medium"
+          style={
+            session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
+            : session.status === 'CANCELLED' || session.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
+            : paletteStyle('blue', 0.10, 0)
+          }>
+          {session.status.replace('_', ' ')}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {/* Feedback */}
+        <div>
+          <label className="form-label">Feedback</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={3}
+            placeholder={canEdit ? 'Add session feedback…' : 'No feedback recorded'}
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+            readOnly={!canEdit}
+          />
+        </div>
+
+        {/* Progress Report */}
+        <div>
+          <label className="form-label">Progress Report</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={3}
+            placeholder={canEdit ? 'Describe patient progress…' : 'No progress report recorded'}
+            value={progressReport}
+            onChange={e => setProgressReport(e.target.value)}
+            readOnly={!canEdit}
+          />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="form-label">Notes</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={2}
+            placeholder={canEdit ? 'Any additional notes…' : 'No notes recorded'}
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            readOnly={!canEdit}
+          />
+        </div>
+
+        {/* Attachments */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="form-label mb-0">Attachments</label>
+            {canEdit && (
+              <label className="cursor-pointer flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.accent, background: accentAlpha(0.08) }}>
+                {uploadMut.isPending
+                  ? <div className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                  : <Upload size={12} />}
+                Upload
+                <input
+                  type="file"
+                  accept="image/*,video/*,.pdf,.doc,.docx"
+                  multiple
+                  className="hidden"
+                  onChange={e => handleFiles(e.target.files)}
+                />
+              </label>
             )}
           </div>
-        ))}
+
+          {attLoading ? (
+            <div className="flex justify-center py-6">
+              <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: `${colors.accent}30`, borderTopColor: colors.accent }} />
+            </div>
+          ) : attachments.length === 0 ? (
+            <p className="text-xs text-center py-5" style={{ color: colors.text.dim }}>No attachments yet</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {attachments.map((att: SessionAttachmentResponse) => (
+                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card }}>
+                  {att.contentType?.startsWith('image/') ? (
+                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                      <img src={att.fileUrl} alt={att.fileName} className="w-full h-24 object-cover" />
+                    </a>
+                  ) : (
+                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer"
+                      className="w-full h-24 flex flex-col items-center justify-center gap-1.5 transition-colors"
+                      style={{ background: accentAlpha(0.04) }}>
+                      <FileText size={20} style={{ color: colors.accent }} />
+                      <p className="text-[10px] truncate px-2 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
+                    </a>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => deleteMut.mutate(att.id)}
+                      className="absolute top-1 right-1 p-1 rounded-full"
+                      style={{ background: 'rgba(0,0,0,0.55)', color: '#fff' }}
+                      title="Delete attachment"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Footer */}
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+        {canEdit && (
+          <Button variant="primary" loading={notesMut.isPending} onClick={() => notesMut.mutate()}>
+            Save Notes
+          </Button>
+        )}
+      </div>
+    </Modal>
   )
 }
 
@@ -1746,7 +1956,11 @@ export default function PatientDetailPage() {
                           {isExpanded && (
                             <SessionList
                               enrollmentId={enroll.id}
-                              canUpdate={canUpdateSession}
+                              canUpdate={
+                                (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
+                                  ? user?.id === enroll.therapistId
+                                  : canUpdateSession
+                              }
                             />
                           )}
                         </div>

@@ -372,12 +372,14 @@ const SESSION_STATUS_OPTIONS: { value: TherapySessionStatus; label: string }[] =
 ]
 
 function EventDetailDrawer({
-  event, onClose, canGoToInquiries, canUpdateSession, onLogOutcome,
+  event, onClose, canGoToInquiries, canUpdateSession, canManageAll, currentUserId, onLogOutcome,
 }: {
   event: CalendarEvent
   onClose: () => void
   canGoToInquiries: boolean
   canUpdateSession: boolean
+  canManageAll: boolean
+  currentUserId: string
   onLogOutcome?: (inquiry: InquiryResponse) => void
 }) {
   const navigate  = useNavigate()
@@ -505,8 +507,9 @@ function EventDetailDrawer({
                   </p>
                 </div>
               )}
-              {/* Status update — only for SCHEDULED sessions and authorised roles */}
-              {canUpdateSession && rawSession.status === 'SCHEDULED' && (
+              {/* Status update — assigned therapist only, or admin/owner */}
+              {canUpdateSession && rawSession.status === 'SCHEDULED'
+               && (canManageAll || rawSession.therapistId === currentUserId) && (
                 <>
                   <div style={{ height: 1, background: border.divider }} />
                   <div>
@@ -1004,6 +1007,8 @@ export default function CalendarPage() {
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
           canUpdateSession={canUpdateSession}
+          canManageAll={!!user && (hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER'))}
+          currentUserId={user?.id ?? ''}
           onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
         />
       )}

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users, Mail,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, UserRound, CalendarOff, Inbox, BookOpen,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ListTodo,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -23,6 +23,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/therapists',       label: 'Therapists',     icon: UserRound },
     { to: '/patients',         label: 'Patients',       icon: Users },
     { to: '/programs',         label: 'Programs',       icon: BookOpen },
+    { to: '/tasks',            label: 'Tasks',          icon: ListTodo },
     { to: '/calendar',         label: 'Calendar',       icon: CalendarDays },
     { to: '/leave-management', label: 'Leave Requests', icon: CalendarOff },
     { to: '/invitations',      label: 'Add Members',    icon: Mail },
@@ -31,12 +32,14 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/inquiries', label: 'Inquiries', icon: Inbox },
     { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
     { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
   ],
   THERAPIST: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
     { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
     { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
     { to: '/my-leave',  label: 'My Leave',  icon: CalendarOff },
   ],
@@ -44,6 +47,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
     { to: '/patients',  label: 'Patients',  icon: Users },
+    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
     { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
     { to: '/my-leave',  label: 'My Leave',  icon: CalendarOff },
   ],
@@ -60,6 +64,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/therapists',       label: 'Therapists',     icon: UserRound },
     { to: '/patients',         label: 'Patients',       icon: Users },
     { to: '/programs',         label: 'Programs',       icon: BookOpen },
+    { to: '/tasks',            label: 'Tasks',          icon: ListTodo },
     { to: '/calendar',         label: 'Calendar',       icon: CalendarDays },
     { to: '/leave-management', label: 'Leave Requests', icon: CalendarOff },
     { to: '/invitations',      label: 'Add Members',    icon: Mail },

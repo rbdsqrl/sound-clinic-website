@@ -3,6 +3,8 @@ import type {
   ApiResponse,
   TherapySessionResponse,
   UpdateSessionStatusRequest,
+  UpdateSessionNotesRequest,
+  SessionAttachmentResponse,
 } from '../types'
 
 export const therapySessionsApi = {
@@ -27,5 +29,35 @@ export const therapySessionsApi = {
     client.patch<ApiResponse<TherapySessionResponse>>(
       `/therapy-sessions/${id}/status`,
       data,
+    ).then(r => r.data.data),
+
+  /** Update session feedback, progress report, and notes */
+  updateNotes: (id: string, data: UpdateSessionNotesRequest) =>
+    client.patch<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/notes`,
+      data,
+    ).then(r => r.data.data),
+
+  /** List all attachments for a session */
+  listAttachments: (id: string) =>
+    client.get<ApiResponse<SessionAttachmentResponse[]>>(
+      `/therapy-sessions/${id}/attachments`,
+    ).then(r => r.data.data),
+
+  /** Upload a file attachment to a session */
+  uploadAttachment: (id: string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return client.post<ApiResponse<SessionAttachmentResponse>>(
+      `/therapy-sessions/${id}/attachments`,
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    ).then(r => r.data.data)
+  },
+
+  /** Delete a session attachment */
+  deleteAttachment: (sessionId: string, attachmentId: string) =>
+    client.delete<ApiResponse<void>>(
+      `/therapy-sessions/${sessionId}/attachments/${attachmentId}`,
     ).then(r => r.data.data),
 }
