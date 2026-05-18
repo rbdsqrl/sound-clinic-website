@@ -342,8 +342,7 @@ function UpcomingPanel({
   }
 
   return (
-    <div className="w-60 flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
-      style={{ maxHeight: '100%' }}>
+    <div className="w-60 flex flex-col flex-1 min-h-0 gap-3 overflow-y-auto">
       <p className="text-xs font-semibold uppercase tracking-wider flex-shrink-0"
         style={{ color: colors.text.muted }}>
         Upcoming
@@ -1002,7 +1001,7 @@ export default function CalendarPage() {
       )}
 
       {/* Calendar card */}
-      <div className="rounded-2xl overflow-hidden flex flex-col" style={{ ...styles.card, minHeight: 600 }}>
+      <div className="rounded-2xl overflow-hidden flex flex-col" style={{ ...styles.card, minHeight: 600, maxHeight: 'calc(100vh - 200px)' }}>
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b flex-shrink-0"
@@ -1051,9 +1050,9 @@ export default function CalendarPage() {
         {!hasAnyEvents ? (
           <ProgramSessionsPlaceholder />
         ) : (
-          <div className="flex flex-1 overflow-hidden gap-4 p-0">
+          <div className="flex flex-1 min-h-0 overflow-hidden gap-4 p-0">
             {/* Calendar grid — horizontal scroll on narrow screens */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden flex flex-col">
+            <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col">
               <div className="min-w-[420px] flex flex-col flex-1">
                 {view === 'month' ? (
                   <MonthView current={current} events={events} onSelect={setSelected} />
