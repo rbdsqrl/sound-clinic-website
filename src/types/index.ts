@@ -450,7 +450,7 @@ export interface AvailableTherapistsQuery {
 }
 
 // ── Therapy Sessions ───────────────────────────────────────────────────────────
-export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
+export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE'
 
 export interface TherapySessionResponse {
   id: string
@@ -483,6 +483,11 @@ export interface UpdateSessionNotesRequest {
   feedback?: string
   progressReport?: string
   notes?: string
+}
+
+export interface RescheduleSessionRequest {
+  newDate?: string           // "YYYY-MM-DD"
+  substituteTherapistId?: string
 }
 
 export interface SessionAttachmentResponse {

@@ -4,16 +4,18 @@ import type {
   TherapySessionResponse,
   UpdateSessionStatusRequest,
   UpdateSessionNotesRequest,
+  RescheduleSessionRequest,
   SessionAttachmentResponse,
 } from '../types'
 
 export const therapySessionsApi = {
-  /** List sessions — role-scoped on backend, optional date range + patient/therapist filters */
+  /** List sessions — role-scoped on backend, optional date range + patient/therapist/status filters */
   list: (params?: {
     patientId?: string
     therapistId?: string
     from?: string   // "YYYY-MM-DD"
     to?: string     // "YYYY-MM-DD"
+    status?: string
   }) =>
     client.get<ApiResponse<TherapySessionResponse[]>>('/therapy-sessions', { params })
       .then(r => r.data.data),
@@ -35,6 +37,13 @@ export const therapySessionsApi = {
   updateNotes: (id: string, data: UpdateSessionNotesRequest) =>
     client.patch<ApiResponse<TherapySessionResponse>>(
       `/therapy-sessions/${id}/notes`,
+      data,
+    ).then(r => r.data.data),
+
+  /** Reschedule a PENDING_RESCHEDULE session — set new date and/or substitute therapist */
+  reschedule: (id: string, data: RescheduleSessionRequest) =>
+    client.patch<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/reschedule`,
       data,
     ).then(r => r.data.data),
 
