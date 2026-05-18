@@ -7,6 +7,7 @@ import type {
   LinkParentRequest,
   AssignTherapistRequest,
   PatientStage,
+  UpcomingBirthdayResponse,
 } from '../types'
 
 export const patientsApi = {
@@ -15,6 +16,9 @@ export const patientsApi = {
 
   myChildren: () =>
     client.get<ApiResponse<PatientResponse[]>>('/patients/my-children').then((r) => r.data.data),
+
+  upcomingBirthdays: () =>
+    client.get<ApiResponse<UpcomingBirthdayResponse[]>>('/patients/upcoming-birthdays').then((r) => r.data.data),
 
   get: (id: string) =>
     client.get<ApiResponse<PatientResponse>>(`/patients/${id}`).then((r) => r.data.data),

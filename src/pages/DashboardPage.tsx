@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
@@ -18,7 +18,7 @@ import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ui/Toast'
-import type { TherapySessionResponse } from '../types'
+import type { TherapySessionResponse, UpcomingBirthdayResponse } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 
@@ -299,6 +299,83 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
   )
 }
 
+function dayLabel(days: number): string {
+  if (days === 0) return 'Today!'
+  if (days === 1) return 'Tomorrow'
+  return `in ${days} days`
+}
+
+function dayColor(days: number): string {
+  if (days === 0) return '#16a34a'
+  if (days <= 7)  return '#d97706'
+  return palette.purple.text
+}
+
+function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
+  if (birthdays.length === 0) return null
+
+  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+
+  return (
+    <div style={sectionCard}>
+      <div
+        className="px-4 sm:px-6 py-4 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${border.divider}` }}
+      >
+        <div className="flex items-center gap-2">
+          <Cake size={16} style={{ color: colors.accent }} />
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+            Upcoming Birthdays
+          </h2>
+          <span
+            className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}
+          >
+            {birthdays.length}
+          </span>
+        </div>
+        <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
+      </div>
+
+      <div>
+        {birthdays.map((b, i) => (
+          <Link
+            key={b.id}
+            to={`/patients/${b.id}`}
+            className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
+            style={i < birthdays.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+            onMouseEnter={ROW_HOVER_IN}
+            onMouseLeave={ROW_HOVER_OUT}
+          >
+            <div
+              className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
+              style={{ background: accentAlpha(0.10), color: colors.accent }}
+            >
+              {b.firstName[0]}{b.lastName[0]}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                {b.firstName} {b.lastName}
+              </p>
+              <p className="text-xs" style={{ color: colors.text.muted }}>
+                {format(new Date(b.dateOfBirth + 'T00:00:00'), 'MMMM d')}
+              </p>
+            </div>
+
+            <span
+              className="flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: dayColor(b.daysUntil) + '18', color: dayColor(b.daysUntil) }}
+            >
+              {dayLabel(b.daysUntil)}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
@@ -320,6 +397,13 @@ export default function DashboardPage() {
     queryFn: () => therapySessionsApi.list({ status: 'PENDING_RESCHEDULE' }),
     enabled: canReschedule,
     staleTime: 2 * 60 * 1000,
+  })
+
+  const { data: upcomingBirthdays = [] } = useQuery({
+    queryKey: ['upcoming-birthdays'],
+    queryFn: patientsApi.upcomingBirthdays,
+    enabled: isStaff,
+    staleTime: 60 * 60 * 1000,
   })
 
   const uniqueTherapistIds = new Set(patients?.flatMap(p => p.therapists).map(t => t.id) ?? [])
@@ -428,6 +512,8 @@ export default function DashboardPage() {
       )}
 
       <TodaySessions sessions={todaySessions} showTherapist={isOwnerOrAdmin} />
+
+      <UpcomingBirthdays birthdays={upcomingBirthdays} />
     </div>
   )
 }

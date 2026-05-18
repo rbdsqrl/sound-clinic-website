@@ -264,6 +264,14 @@ export interface CreatePatientRequest {
   notes?: string
 }
 
+export interface UpcomingBirthdayResponse {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  daysUntil: number
+}
+
 export interface AddConditionRequest {
   conditionId: string
   diagnosedAt?: string
@@ -471,6 +479,7 @@ export interface TherapySessionResponse {
   notes: string | null
   feedback: string | null
   progressReport: string | null
+  performanceScore: number | null  // 1–5
   completedAt: string | null
 }
 
@@ -483,6 +492,7 @@ export interface UpdateSessionNotesRequest {
   feedback?: string
   progressReport?: string
   notes?: string
+  performanceScore?: number  // 1–5
 }
 
 export interface RescheduleSessionRequest {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -621,7 +621,98 @@ function MockRazorpayModal({
   )
 }
 
-// ── SessionList (compact chip grid, lazy-loaded per enrollment) ────────────────
+// ── Session helpers ────────────────────────────────────────────────────────────
+
+const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
+
+function scoreColor(score: number): string {
+  if (score <= 2) return '#dc2626'
+  if (score === 3) return '#d97706'
+  return '#16a34a'
+}
+
+function ScoreSparkline({ sessions }: { sessions: TherapySessionResponse[] }) {
+  const scored = sessions
+    .filter(s => s.status === 'COMPLETED' && s.performanceScore != null)
+    .sort((a, b) => a.sessionNumber - b.sessionNumber)
+
+  if (scored.length === 0) return null
+
+  const W = 80
+  const H = 24
+  const barW = Math.min(8, (W - (scored.length - 1) * 2) / scored.length)
+  const gap  = scored.length > 1 ? (W - barW * scored.length) / (scored.length - 1) : 0
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="flex-shrink-0">
+      {scored.map((s, i) => {
+        const score = s.performanceScore!
+        const barH  = (score / 5) * (H - 2)
+        const x     = i * (barW + gap)
+        const y     = H - barH
+        return (
+          <rect
+            key={s.id}
+            x={x} y={y}
+            width={barW} height={barH}
+            rx={2}
+            fill={scoreColor(score)}
+            opacity={0.85}
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+function MiniDonut({ done, total }: { done: number; total: number }) {
+  const r    = 18
+  const circ = 2 * Math.PI * r
+  const dash = total > 0 ? (done / total) * circ : 0
+  return (
+    <svg width="44" height="44" viewBox="0 0 44 44" className="flex-shrink-0">
+      <circle cx="22" cy="22" r={r} fill="none" strokeWidth="4.5" stroke={border.divider} />
+      <circle
+        cx="22" cy="22" r={r}
+        fill="none" strokeWidth="4.5" strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ}`}
+        transform="rotate(-90 22 22)"
+        style={{ stroke: '#16a34a', transition: 'stroke-dasharray 0.35s ease' }}
+      />
+      <text x="22" y="27" textAnchor="middle" fontSize="9" fontWeight="700"
+        style={{ fill: colors.text.primary, fontFamily: 'inherit' }}>
+        {done}/{total}
+      </text>
+    </svg>
+  )
+}
+
+function sessionRowIcon(status: string) {
+  if (status === 'COMPLETED')
+    return <CheckCircle2 size={14} className="flex-shrink-0" style={{ color: '#16a34a' }} />
+  if (status === 'CANCELLED' || status === 'NO_SHOW')
+    return <XCircle size={14} className="flex-shrink-0" style={{ color: '#dc2626' }} />
+  if (status === 'PENDING_RESCHEDULE')
+    return <AlertTriangle size={14} className="flex-shrink-0" style={{ color: '#d97706' }} />
+  return <Circle size={14} className="flex-shrink-0" style={{ color: colors.text.dim }} />
+}
+
+function sessionRowStatusColor(status: string): string {
+  if (status === 'COMPLETED')              return '#16a34a'
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return '#dc2626'
+  if (status === 'PENDING_RESCHEDULE')     return '#d97706'
+  return colors.text.dim
+}
+
+function sessionRowStatusLabel(status: string): string {
+  if (status === 'NO_SHOW')            return 'No show'
+  if (status === 'PENDING_RESCHEDULE') return 'Rescheduling'
+  return status.charAt(0) + status.slice(1).toLowerCase()
+}
+
+// ── SessionList (row-based, lazy-loaded per enrollment) ───────────────────────
+
+const SESSION_PREVIEW = 5
 
 function SessionList({
   enrollmentId,
@@ -632,6 +723,8 @@ function SessionList({
   canUpdate: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
+  const [showAll, setShowAll] = useState(false)
+
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', 'enrollment', enrollmentId],
     queryFn: () => therapySessionsApi.byEnrollment(enrollmentId),
@@ -646,72 +739,119 @@ function SessionList({
   )
 
   const completed = sessions.filter(s => s.status === 'COMPLETED').length
+  const missed    = sessions.filter(s => s.status === 'NO_SHOW' || s.status === 'CANCELLED').length
+  const upcoming  = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE').length
   const total     = sessions.length
-  const pct       = total > 0 ? (completed / total) * 100 : 0
+  const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
+
+  const pastRows = sessions
+    .filter(s => s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE')
+    .sort((a, b) => b.sessionNumber - a.sessionNumber)
+
+  const upcomingRows = sessions
+    .filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
+    .sort((a, b) => a.sessionNumber - b.sessionNumber)
+
+  const shownPast     = showAll ? pastRows     : pastRows.slice(0, SESSION_PREVIEW)
+  const shownUpcoming = showAll ? upcomingRows : upcomingRows.slice(0, SESSION_PREVIEW)
+  const displayRows   = [...shownPast, ...shownUpcoming]
+
+  const hiddenCount = (pastRows.length - shownPast.length) + (upcomingRows.length - shownUpcoming.length)
 
   return (
-    <div className="px-4 pb-4 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-      {/* Progress bar */}
-      <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: '#16a34a' }} />
-        </div>
-        <span className="text-[10px] font-medium tabular-nums flex-shrink-0" style={{ color: colors.text.dim }}>
-          {completed}/{total} done
-        </span>
-      </div>
-
-      {/* Session chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {sessions.map(s => {
-          const isDone      = s.status === 'COMPLETED'
-          const isBad       = s.status === 'CANCELLED' || s.status === 'NO_SHOW'
-          const isScheduled = s.status === 'SCHEDULED'
-          const hasNotes    = !!(s.feedback || s.progressReport || s.notes)
-          return (
-            <div key={s.id} className="relative">
-              <button
-                title={`#${s.sessionNumber} · ${s.sessionDate} · ${s.status.replace(/_/g, ' ')}`}
-                onClick={() => canUpdate && onOpenNotes(s)}
-                className="w-8 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-opacity hover:opacity-75"
-                style={{
-                  background : isDone ? '#16a34a1a' : isBad ? '#dc26261a' : surface.filterStrip,
-                  color      : isDone ? '#16a34a'   : isBad ? '#dc2626'   : colors.text.dim,
-                  border     : isScheduled ? `1px dashed ${border.divider}` : '1px solid transparent',
-                  cursor     : canUpdate ? 'pointer' : 'default',
-                }}
-              >
-                {s.sessionNumber}
-              </button>
-              {hasNotes && canUpdate && (
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full pointer-events-none"
-                  style={{ background: colors.accent }} />
-              )}
+    <div style={{ borderTop: `1px solid ${border.divider}` }}>
+      {/* Stats header */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <MiniDonut done={completed} total={total} />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
+            <span className="text-xs font-medium" style={{ color: '#16a34a' }}>{completed} done</span>
+            {missed > 0 && (
+              <span className="text-xs font-medium" style={{ color: '#dc2626' }}>{missed} missed</span>
+            )}
+            <span className="text-xs" style={{ color: colors.text.dim }}>{upcoming} upcoming</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, background: '#16a34a' }}
+              />
             </div>
-          )
-        })}
+            <span className="text-[10px] font-semibold tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
+              {pct}%
+            </span>
+          </div>
+        </div>
+        <ScoreSparkline sessions={sessions} />
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-3 mt-3">
-        {[
-          { color: '#16a34a', label: 'Done' },
-          { color: colors.text.dim, label: 'Scheduled', dashed: true },
-          { color: '#dc2626', label: 'Cancelled' },
-        ].map(l => (
-          <span key={l.label} className="flex items-center gap-1 text-[10px]" style={{ color: colors.text.dim }}>
-            <span className="w-2.5 h-2.5 rounded-sm inline-block flex-shrink-0"
-              style={{ background: l.color + '33', border: l.dashed ? `1px dashed ${border.divider}` : `1px solid ${l.color}44` }} />
-            {l.label}
-          </span>
-        ))}
-        {canUpdate && (
-          <span className="flex items-center gap-1 text-[10px] ml-auto" style={{ color: colors.text.dim }}>
-            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: colors.accent }} />
-            Has notes
-          </span>
-        )}
-      </div>
+      {/* Session rows */}
+      {displayRows.length > 0 && (
+        <div style={{ borderTop: `1px solid ${border.divider}` }}>
+          {displayRows.map((s, i) => {
+            const hasNotes  = !!(s.feedback || s.progressReport || s.notes)
+            const clickable = canUpdate
+            return (
+              <div
+                key={s.id}
+                onClick={() => clickable && onOpenNotes(s)}
+                className="flex items-center gap-3 px-4 py-2.5 transition-colors"
+                style={{
+                  borderBottom: i < displayRows.length - 1 ? `1px solid ${border.divider}` : 'none',
+                  cursor: clickable ? 'pointer' : 'default',
+                }}
+                onMouseEnter={e => { if (clickable) (e.currentTarget as HTMLElement).style.background = surface.rowHover }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                {sessionRowIcon(s.status)}
+
+                <span className="text-xs font-medium w-8 flex-shrink-0 tabular-nums"
+                  style={{ color: colors.text.muted }}>
+                  #{s.sessionNumber}
+                </span>
+
+                <span className="text-xs flex-1 truncate" style={{ color: colors.text.muted }}>
+                  {format(new Date(s.sessionDate + 'T00:00:00'), 'EEE d MMM')}
+                </span>
+
+                <span className="text-[11px] font-medium flex-shrink-0"
+                  style={{ color: sessionRowStatusColor(s.status) }}>
+                  {sessionRowStatusLabel(s.status)}
+                </span>
+
+                {s.performanceScore != null && (
+                  <span
+                    className="text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0"
+                    style={{ background: scoreColor(s.performanceScore) + '20', color: scoreColor(s.performanceScore) }}
+                  >
+                    {s.performanceScore}
+                  </span>
+                )}
+
+                {hasNotes && (
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.accent }} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Show all / show less */}
+      {(hiddenCount > 0 || showAll) && (
+        <div className="px-4 py-2 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <button
+            onClick={() => setShowAll(v => !v)}
+            className="text-xs font-medium"
+            style={{ color: colors.accent }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+          >
+            {showAll ? 'Show less' : `Show all ${total} sessions`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -735,6 +875,7 @@ function SessionNotesModal({
   const [feedback, setFeedback]             = useState(session.feedback ?? '')
   const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
   const [notes, setNotes]                   = useState(session.notes ?? '')
+  const [score, setScore]                   = useState<number | null>(session.performanceScore ?? null)
 
   const { data: attachments = [], isLoading: attLoading } = useQuery({
     queryKey: ['session-attachments', session.id],
@@ -742,7 +883,10 @@ function SessionNotesModal({
   })
 
   const notesMut = useMutation({
-    mutationFn: () => therapySessionsApi.updateNotes(session.id, { feedback, progressReport, notes }),
+    mutationFn: () => therapySessionsApi.updateNotes(session.id, {
+      feedback, progressReport, notes,
+      ...(score !== null ? { performanceScore: score } : {}),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
       toast('Notes saved', 'success')
@@ -823,6 +967,36 @@ function SessionNotesModal({
             </div>
           </div>
         )}
+
+        {/* Performance Score */}
+        <div>
+          <label className="form-label">Performance Score</label>
+          <div className="flex gap-2">
+            {SCORE_LABELS.map((label, i) => {
+              const val = i + 1
+              const active = score === val
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => setScore(active ? null : val)}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-semibold transition-colors"
+                  style={{
+                    background: active ? scoreColor(val) + '22' : surface.filterStrip,
+                    color: active ? scoreColor(val) : colors.text.muted,
+                    border: `1.5px solid ${active ? scoreColor(val) : 'transparent'}`,
+                    opacity: !canEdit ? 0.6 : 1,
+                    cursor: canEdit ? 'pointer' : 'default',
+                  }}
+                >
+                  <span className="text-sm font-bold">{val}</span>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
         {/* Feedback */}
         <div>
@@ -1209,6 +1383,7 @@ export default function PatientDetailPage() {
   const { user, activeRole } = useAuth()
   const queryClient = useQueryClient()
 
+  const [editModal,        setEditModal]        = useState(false)
   const [conditionModal,   setConditionModal]   = useState(false)
   const [parentModal,      setParentModal]      = useState(false)
   const [therapistModal,   setTherapistModal]   = useState(false)
@@ -1330,7 +1505,22 @@ export default function PatientDetailPage() {
   const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canCreateEnrollment = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canUpdateSession    = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canEditDetails      = ['BUSINESS_OWNER', 'ADMIN', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
+
+  const editForm = useForm<{ firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }>()
+  const updatePatientMutation = useMutation({
+    mutationFn: (data: { firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }) =>
+      patientsApi.update(id!, {
+        firstName:   data.firstName   || undefined,
+        lastName:    data.lastName    || undefined,
+        dateOfBirth: data.dateOfBirth || undefined,
+        gender:      (data.gender as 'MALE' | 'FEMALE' | 'OTHER') || undefined,
+        notes:       data.notes       || undefined,
+      }),
+    onSuccess: () => { refresh(); toast('Patient details updated', 'success'); setEditModal(false) },
+    onError:   () => toast('Failed to update patient', 'error'),
+  })
 
   // Shared remove-button style (hover via event handlers)
   const removeBtn = (onClick: () => void) => (
@@ -1475,12 +1665,32 @@ export default function PatientDetailPage() {
               >
                 {patient.firstName[0]}{patient.lastName[0]}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
                   {patient.firstName} {patient.lastName}
                 </h1>
                 <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
               </div>
+              {canEditDetails && (
+                <button
+                  onClick={() => {
+                    editForm.reset({
+                      firstName:   patient.firstName,
+                      lastName:    patient.lastName,
+                      dateOfBirth: patient.dateOfBirth ?? '',
+                      gender:      patient.gender ?? '',
+                      notes:       patient.notes ?? '',
+                    })
+                    setEditModal(true)
+                  }}
+                  className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
             </div>
 
             {/* Read-only stage progress */}
@@ -1972,7 +2182,7 @@ export default function PatientDetailPage() {
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
                                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
                                 >
-                                  {isExpanded ? 'Hide progress' : 'Session progress'}
+                                  {isExpanded ? 'Hide sessions' : 'Sessions'}
                                 </button>
                                 {canManageSubs && (
                                   <button
@@ -2141,6 +2351,54 @@ export default function PatientDetailPage() {
               onSaved={() => { refetchSubs(); refetchEnrollments() }}
             />
           )}
+
+          {/* Edit patient details modal */}
+          <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Patient Details">
+            <form
+              onSubmit={editForm.handleSubmit((data) => updatePatientMutation.mutate(data))}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="First name"
+                  {...editForm.register('firstName', { required: 'Required' })}
+                  error={editForm.formState.errors.firstName?.message}
+                />
+                <Input
+                  label="Last name"
+                  {...editForm.register('lastName', { required: 'Required' })}
+                  error={editForm.formState.errors.lastName?.message}
+                />
+                <Input
+                  label="Date of birth"
+                  type="date"
+                  {...editForm.register('dateOfBirth')}
+                />
+                <Select
+                  label="Gender"
+                  placeholder="Select…"
+                  options={[
+                    { value: 'MALE',   label: 'Male' },
+                    { value: 'FEMALE', label: 'Female' },
+                    { value: 'OTHER',  label: 'Other' },
+                  ]}
+                  {...editForm.register('gender')}
+                />
+              </div>
+              <div>
+                <label className="form-label">Notes</label>
+                <textarea
+                  className="form-input resize-none min-h-[80px]"
+                  placeholder="Any additional notes…"
+                  {...editForm.register('notes')}
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => setEditModal(false)}>Cancel</Button>
+                <Button type="submit" loading={updatePatientMutation.isPending}>Save changes</Button>
+              </div>
+            </form>
+          </Modal>
 
           <ToastContainer toasts={toasts} onDismiss={dismiss} />
         </div>
