@@ -686,17 +686,19 @@ function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpd
                   <option value="NO_SHOW">No Show</option>
                 </select>
               )}
-              <button
-                onClick={() => setNotesSession(s)}
-                className="p-1.5 rounded-lg flex-shrink-0 transition-colors"
-                title="Session notes & attachments"
-                style={{
-                  color: (s.feedback || s.progressReport || s.notes) ? colors.accent : colors.text.dim,
-                  background: (s.feedback || s.progressReport || s.notes) ? accentAlpha(0.08) : 'transparent',
-                }}
-              >
-                <ClipboardList size={13} />
-              </button>
+              {canUpdate && (
+                <button
+                  onClick={() => setNotesSession(s)}
+                  className="p-1.5 rounded-lg flex-shrink-0 transition-colors"
+                  title="Session notes & attachments"
+                  style={{
+                    color: (s.feedback || s.progressReport || s.notes) ? colors.accent : colors.text.dim,
+                    background: (s.feedback || s.progressReport || s.notes) ? accentAlpha(0.08) : 'transparent',
+                  }}
+                >
+                  <ClipboardList size={13} />
+                </button>
+              )}
             </div>
           ))}
         </div>

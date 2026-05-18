@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap,
+  Activity, CheckCircle2, Zap, Save,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
@@ -20,7 +20,7 @@ import { therapySessionsApi } from '../../api/therapySessions'
 import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest } from '../../types'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
@@ -392,6 +392,9 @@ function EventDetailDrawer({
   const rawLeave       = event.raw as LeaveResponse
   const rawSession     = event.raw as TherapySessionResponse
 
+  const canAccessNotes = isSession && (canManageAll || rawSession.therapistId === currentUserId)
+  const [sessionNotes, setSessionNotes] = useState(isSession ? (rawSession.notes ?? '') : '')
+
   const updateSessionMut = useMutation({
     mutationFn: ({ status, notes }: { status: TherapySessionStatus; notes?: string }) =>
       therapySessionsApi.updateStatus(rawSession.id, { status, notes }),
@@ -399,6 +402,14 @@ function EventDetailDrawer({
       qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
       onClose()
+    },
+  })
+
+  const updateNotesMut = useMutation({
+    mutationFn: () => therapySessionsApi.updateNotes(rawSession.id, { notes: sessionNotes } as UpdateSessionNotesRequest),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
     },
   })
 
@@ -497,14 +508,17 @@ function EventDetailDrawer({
                 <CheckCircle2 size={11} />
                 {rawSession.status.replace(/_/g, ' ')}
               </div>
-              {rawSession.notes && (
+              {canAccessNotes && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-                    style={{ color: colors.text.muted }}>Notes</p>
-                  <p className="text-sm rounded-xl px-3 py-2.5"
-                    style={{ color: colors.text.primary, background: surface.rowHover }}>
-                    {rawSession.notes}
-                  </p>
+                    style={{ color: colors.text.muted }}>Session Notes</p>
+                  <textarea
+                    className="form-input w-full text-sm resize-none"
+                    rows={4}
+                    placeholder="Add session notes…"
+                    value={sessionNotes}
+                    onChange={e => setSessionNotes(e.target.value)}
+                  />
                 </div>
               )}
               {/* Status update — assigned therapist only, or admin/owner */}
@@ -561,22 +575,36 @@ function EventDetailDrawer({
         </div>
 
         {/* Footer */}
-        {canGoToInquiries && isConsultation && (
+        {((canGoToInquiries && isConsultation) || canAccessNotes) && (
           <div className="p-5 border-t flex-shrink-0 flex flex-col gap-2" style={{ borderColor: border.divider }}>
-            {onLogOutcome && hasNextAction(rawInquiry.status) && (
+            {canGoToInquiries && isConsultation && (
+              <>
+                {onLogOutcome && hasNextAction(rawInquiry.status) && (
+                  <button
+                    onClick={() => { onClose(); onLogOutcome(rawInquiry) }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    style={{ background: colors.accent, color: '#fff' }}>
+                    <Zap size={14} /> Log Outcome
+                  </button>
+                )}
+                <button
+                  onClick={() => { onClose(); navigate('/inquiries') }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                  style={{ background: accentAlpha(0.1), color: colors.accent }}>
+                  Go to Inquiries <ExternalLink size={14} />
+                </button>
+              </>
+            )}
+            {canAccessNotes && (
               <button
-                onClick={() => { onClose(); onLogOutcome(rawInquiry) }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                disabled={updateNotesMut.isPending}
+                onClick={() => updateNotesMut.mutate()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
                 style={{ background: colors.accent, color: '#fff' }}>
-                <Zap size={14} /> Log Outcome
+                <Save size={14} />
+                {updateNotesMut.isPending ? 'Saving…' : updateNotesMut.isSuccess ? 'Saved!' : 'Save Notes'}
               </button>
             )}
-            <button
-              onClick={() => { onClose(); navigate('/inquiries') }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-              style={{ background: accentAlpha(0.1), color: colors.accent }}>
-              Go to Inquiries <ExternalLink size={14} />
-            </button>
           </div>
         )}
       </div>
@@ -1003,6 +1031,7 @@ export default function CalendarPage() {
       {/* Event detail drawer */}
       {selected && (
         <EventDetailDrawer
+          key={selected.id}
           event={selected}
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
