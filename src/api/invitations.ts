@@ -8,6 +8,9 @@ export const invitationsApi = {
   send: (data: InviteRequest) =>
     client.post<ApiResponse<InviteResponse>>('/invitations', data).then((r) => r.data.data),
 
+  resend: (id: string) =>
+    client.post<ApiResponse<InviteResponse>>(`/invitations/${id}/resend`).then((r) => r.data.data),
+
   preview: (token: string) =>
     client.get<ApiResponse<InvitePreviewResponse>>('/invitations/preview', { params: { token } }).then((r) => r.data.data),
 

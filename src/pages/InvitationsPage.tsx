@@ -92,6 +92,18 @@ export default function InvitationsPage() {
     },
   })
 
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => invitationsApi.resend(id),
+    onSuccess: (res) => {
+      refetch()
+      setLinkModal(res)
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast(msg ?? 'Failed to regenerate link', 'error')
+    },
+  })
+
   const clinicOptions = (clinics ?? []).map((c) => ({ value: c.id, label: c.name }))
 
   return (
@@ -215,6 +227,15 @@ export default function InvitationsPage() {
                     >
                       <Link2 size={12} /> View link
                     </button>
+                  ) : inv.status === 'PENDING' ? (
+                    <button
+                      onClick={() => resendMutation.mutate(inv.id)}
+                      disabled={resendMutation.isPending}
+                      className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
+                      style={{ color: colors.accent }}
+                    >
+                      <Link2 size={12} /> Get link
+                    </button>
                   ) : (
                     <span className="text-xs" style={{ color: colors.text.dim }}>No link</span>
                   )}
@@ -261,6 +282,15 @@ export default function InvitationsPage() {
                               style={{ color: colors.accent }}
                             >
                               <Link2 size={13} /> View link
+                            </button>
+                          ) : inv.status === 'PENDING' ? (
+                            <button
+                              onClick={() => resendMutation.mutate(inv.id)}
+                              disabled={resendMutation.isPending}
+                              className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
+                              style={{ color: colors.accent }}
+                            >
+                              <Link2 size={13} /> Get link
                             </button>
                           ) : (
                             <span className="text-xs" style={{ color: colors.text.dim }}>—</span>
