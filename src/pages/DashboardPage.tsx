@@ -22,6 +22,7 @@ import { ToastContainer } from '../components/ui/Toast'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
+const PREVIEW = 3
 
 const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
@@ -49,6 +50,7 @@ function TodaySessions({
   showTherapist: boolean
   onSessionClick?: (s: TherapySessionResponse) => void
 }) {
+  const [showAll, setShowAll] = useState(false)
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
   const rowContent = (s: TherapySessionResponse) => (
@@ -91,60 +93,97 @@ function TodaySessions({
   const rowClass = 'flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left'
 
   return (
-    <div style={sectionCard}>
-      <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
-        style={{ borderBottom: `1px solid ${border.divider}` }}>
-        <div className="flex items-center gap-2">
-          <CalendarDays size={16} style={{ color: colors.accent }} />
-          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
-            Today's Sessions
-          </h2>
-          <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}>
-            {sessions.length}
-          </span>
+    <>
+      <div style={sectionCard}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <CalendarDays size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Today's Sessions
+            </h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {sessions.length}
+            </span>
+          </div>
+          <Link to="/calendar" className="text-xs transition-colors" style={{ color: colors.accent }}>
+            Open calendar →
+          </Link>
         </div>
-        <Link to="/calendar" className="text-xs transition-colors" style={{ color: colors.accent }}>
-          Open calendar →
-        </Link>
+
+        {sessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <CalendarDays size={28} style={{ color: colors.text.dim }} />
+            <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
+          </div>
+        ) : (
+          <div>
+            {sessions.slice(0, PREVIEW).map((s, i) => {
+              const dividerStyle = i < sessions.slice(0, PREVIEW).length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
+              return onSessionClick ? (
+                <button
+                  key={s.id}
+                  onClick={() => onSessionClick(s)}
+                  className={rowClass}
+                  style={dividerStyle}
+                  onMouseEnter={ROW_HOVER_IN}
+                  onMouseLeave={ROW_HOVER_OUT}
+                >
+                  {rowContent(s)}
+                </button>
+              ) : (
+                <Link
+                  key={s.id}
+                  to={`/patients/${s.patientId}`}
+                  className={rowClass}
+                  style={dividerStyle}
+                  onMouseEnter={ROW_HOVER_IN}
+                  onMouseLeave={ROW_HOVER_OUT}
+                >
+                  {rowContent(s)}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        {sessions.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button
+              onClick={() => setShowAll(true)}
+              className="text-xs font-medium"
+              style={{ color: colors.accent }}
+            >
+              View all {sessions.length} sessions
+            </button>
+          </div>
+        )}
       </div>
 
-      {sessions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-2">
-          <CalendarDays size={28} style={{ color: colors.text.dim }} />
-          <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
-        </div>
-      ) : (
-        <div>
-          {sessions.map((s, i) => {
-            const dividerStyle = i < sessions.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
-            return onSessionClick ? (
-              <button
-                key={s.id}
-                onClick={() => onSessionClick(s)}
-                className={rowClass}
-                style={dividerStyle}
-                onMouseEnter={ROW_HOVER_IN}
-                onMouseLeave={ROW_HOVER_OUT}
-              >
-                {rowContent(s)}
-              </button>
-            ) : (
-              <Link
-                key={s.id}
-                to={`/patients/${s.patientId}`}
-                className={rowClass}
-                style={dividerStyle}
-                onMouseEnter={ROW_HOVER_IN}
-                onMouseLeave={ROW_HOVER_OUT}
-              >
-                {rowContent(s)}
-              </Link>
-            )
-          })}
-        </div>
+      {showAll && (
+        <Modal open title={`Today's Sessions (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {sessions.map((s, i) => {
+              const dividerStyle = i < sessions.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
+              return onSessionClick ? (
+                <button key={s.id} onClick={() => { onSessionClick(s); setShowAll(false) }}
+                  className={rowClass} style={dividerStyle}
+                  onMouseEnter={ROW_HOVER_IN} onMouseLeave={ROW_HOVER_OUT}>
+                  {rowContent(s)}
+                </button>
+              ) : (
+                <Link key={s.id} to={`/patients/${s.patientId}`}
+                  className={rowClass} style={dividerStyle}
+                  onMouseEnter={ROW_HOVER_IN} onMouseLeave={ROW_HOVER_OUT}>
+                  {rowContent(s)}
+                </Link>
+              )
+            })}
+          </div>
+        </Modal>
       )}
-    </div>
+    </>
   )
 }
 
@@ -234,10 +273,56 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
   onRescheduled: () => void
 }) {
   const [selected, setSelected] = useState<TherapySessionResponse | null>(null)
+  const [showAll, setShowAll] = useState(false)
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
   if (sessions.length === 0) return null
+
+  const rescheduleRow = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
+    <div
+      key={s.id}
+      className="flex items-center gap-4 px-4 sm:px-6 py-3.5"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+    >
+      {/* Date */}
+      <div className="flex-shrink-0 w-20 sm:w-24">
+        <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
+          {format(new Date(s.sessionDate), 'MMM d')}
+        </p>
+        <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
+          {s.startTime.slice(0, 5)}
+        </p>
+      </div>
+
+      {/* Patient + program */}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
+          {s.patientFirstName} {s.patientLastName}
+        </p>
+        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+          {s.programName}
+          <span style={{ color: colors.text.dim }}>
+            {' · '}{s.therapistFirstName} {s.therapistLastName}
+          </span>
+        </p>
+      </div>
+
+      {/* Session count */}
+      <span className="text-xs flex-shrink-0 hidden sm:block" style={{ color: colors.text.dim }}>
+        #{s.sessionNumber}/{s.totalSessions}
+      </span>
+
+      {/* Action */}
+      <button
+        onClick={() => setSelected(s)}
+        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+        style={{ background: '#d9770618', color: '#d97706' }}
+      >
+        <RefreshCw size={12} /> Reschedule
+      </button>
+    </div>
+  )
 
   return (
     <>
@@ -258,52 +343,29 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
         </div>
 
         <div>
-          {sessions.map((s, i) => (
-            <div
-              key={s.id}
-              className="flex items-center gap-4 px-4 sm:px-6 py-3.5"
-              style={i < sessions.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
-            >
-              {/* Date */}
-              <div className="flex-shrink-0 w-20 sm:w-24">
-                <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
-                  {format(new Date(s.sessionDate), 'MMM d')}
-                </p>
-                <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
-                  {s.startTime.slice(0, 5)}
-                </p>
-              </div>
-
-              {/* Patient + program */}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
-                  {s.patientFirstName} {s.patientLastName}
-                </p>
-                <p className="text-xs truncate" style={{ color: colors.text.muted }}>
-                  {s.programName}
-                  <span style={{ color: colors.text.dim }}>
-                    {' · '}{s.therapistFirstName} {s.therapistLastName}
-                  </span>
-                </p>
-              </div>
-
-              {/* Session count */}
-              <span className="text-xs flex-shrink-0 hidden sm:block" style={{ color: colors.text.dim }}>
-                #{s.sessionNumber}/{s.totalSessions}
-              </span>
-
-              {/* Action */}
-              <button
-                onClick={() => setSelected(s)}
-                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={{ background: '#d9770618', color: '#d97706' }}
-              >
-                <RefreshCw size={12} /> Reschedule
-              </button>
-            </div>
-          ))}
+          {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
         </div>
+
+        {sessions.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button
+              onClick={() => setShowAll(true)}
+              className="text-xs font-medium"
+              style={{ color: '#d97706' }}
+            >
+              View all {sessions.length} sessions
+            </button>
+          </div>
+        )}
       </div>
+
+      {showAll && (
+        <Modal open title={`Needs Rescheduling (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {sessions.map((s, i) => rescheduleRow(s, i, sessions))}
+          </div>
+        </Modal>
+      )}
 
       {selected && (
         <RescheduleModal
@@ -337,67 +399,89 @@ function dayColor(days: number): string {
 }
 
 function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
+  const [showAll, setShowAll] = useState(false)
+
   if (birthdays.length === 0) return null
 
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
-  return (
-    <div style={sectionCard}>
+  const birthdayRow = (b: UpcomingBirthdayResponse, i: number, arr: UpcomingBirthdayResponse[]) => (
+    <Link
+      key={b.id}
+      to={`/patients/${b.id}`}
+      className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      onMouseEnter={ROW_HOVER_IN}
+      onMouseLeave={ROW_HOVER_OUT}
+    >
       <div
-        className="px-4 sm:px-6 py-4 flex items-center justify-between"
-        style={{ borderBottom: `1px solid ${border.divider}` }}
+        className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
+        style={{ background: accentAlpha(0.10), color: colors.accent }}
       >
-        <div className="flex items-center gap-2">
-          <Cake size={16} style={{ color: colors.accent }} />
-          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
-            Upcoming Birthdays
-          </h2>
-          <span
-            className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}
-          >
-            {birthdays.length}
-          </span>
-        </div>
-        <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
+        {b.firstName[0]}{b.lastName[0]}
       </div>
 
-      <div>
-        {birthdays.map((b, i) => (
-          <Link
-            key={b.id}
-            to={`/patients/${b.id}`}
-            className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
-            style={i < birthdays.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
-            onMouseEnter={ROW_HOVER_IN}
-            onMouseLeave={ROW_HOVER_OUT}
-          >
-            <div
-              className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
-              style={{ background: accentAlpha(0.10), color: colors.accent }}
-            >
-              {b.firstName[0]}{b.lastName[0]}
-            </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+          {b.firstName} {b.lastName}
+        </p>
+        <p className="text-xs" style={{ color: colors.text.muted }}>
+          {format(new Date(b.dateOfBirth + 'T00:00:00'), 'MMMM d')}
+        </p>
+      </div>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
-                {b.firstName} {b.lastName}
-              </p>
-              <p className="text-xs" style={{ color: colors.text.muted }}>
-                {format(new Date(b.dateOfBirth + 'T00:00:00'), 'MMMM d')}
-              </p>
-            </div>
+      <span
+        className="flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full"
+        style={{ background: dayColor(b.daysUntil) + '18', color: dayColor(b.daysUntil) }}
+      >
+        {dayLabel(b.daysUntil)}
+      </span>
+    </Link>
+  )
 
+  return (
+    <>
+      <div style={sectionCard}>
+        <div
+          className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}
+        >
+          <div className="flex items-center gap-2">
+            <Cake size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Upcoming Birthdays
+            </h2>
             <span
-              className="flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: dayColor(b.daysUntil) + '18', color: dayColor(b.daysUntil) }}
+              className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}
             >
-              {dayLabel(b.daysUntil)}
+              {birthdays.length}
             </span>
-          </Link>
-        ))}
+          </div>
+          <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
+        </div>
+
+        <div>
+          {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
+        </div>
+
+        {birthdays.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {birthdays.length} birthdays
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+
+      {showAll && (
+        <Modal open title={`Upcoming Birthdays (${birthdays.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {birthdays.map((b, i) => birthdayRow(b, i, birthdays))}
+          </div>
+        </Modal>
+      )}
+    </>
   )
 }
 
@@ -586,9 +670,9 @@ function dueDateLabel(dueDate: string | null): { label: string; color: string } 
   return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
 }
 
-const TASK_PREVIEW = 5
-
 function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
+  const [showAll, setShowAll] = useState(false)
+
   const active = tasks.filter(
     t => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
          t.assignees.some(a => a.id === userId)
@@ -596,85 +680,114 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
 
   if (active.length === 0) return null
 
-  const shown = active.slice(0, TASK_PREVIEW)
+  const shown = active.slice(0, PREVIEW)
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
-  return (
-    <div style={sectionCard}>
-      <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
-        style={{ borderBottom: `1px solid ${border.divider}` }}>
-        <div className="flex items-center gap-2">
-          <ListTodo size={16} style={{ color: colors.accent }} />
-          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>My Tasks</h2>
-          <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}>
-            {active.length}
-          </span>
+  const taskRow = (task: TaskResponse, i: number, arr: TaskResponse[]) => {
+    const due = dueDateLabel(task.dueDate)
+    return (
+      <Link
+        key={task.id}
+        to="/tasks"
+        className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
+        style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+        onMouseEnter={ROW_HOVER_IN}
+        onMouseLeave={ROW_HOVER_OUT}
+      >
+        {/* Priority dot */}
+        <div
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: priorityColor(task.priority) }}
+        />
+
+        {/* Title + assigner */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+            {task.title}
+          </p>
+          <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+            From {task.assignedByFirstName} {task.assignedByLastName}
+          </p>
         </div>
-        <Link to="/tasks" className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
-          View all <ChevronRight size={12} />
-        </Link>
-      </div>
 
-      <div>
-        {shown.map((task, i) => {
-          const due = dueDateLabel(task.dueDate)
-          return (
-            <Link
-              key={task.id}
-              to="/tasks"
-              className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
-              style={i < shown.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
-              onMouseEnter={ROW_HOVER_IN}
-              onMouseLeave={ROW_HOVER_OUT}
-            >
-              {/* Priority dot */}
-              <div
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: priorityColor(task.priority) }}
-              />
+        {/* Due date */}
+        {due && (
+          <span className="text-[10px] font-medium flex-shrink-0" style={{ color: due.color }}>
+            {due.label}
+          </span>
+        )}
 
-              {/* Title + assigner */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
-                  {task.title}
-                </p>
-                <p className="text-xs truncate" style={{ color: colors.text.muted }}>
-                  From {task.assignedByFirstName} {task.assignedByLastName}
-                </p>
-              </div>
+        {/* Status chip */}
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:block"
+          style={
+            task.status === 'IN_PROGRESS'
+              ? { background: accentAlpha(0.12), color: colors.accent }
+              : { background: surface.filterStrip, color: colors.text.muted }
+          }
+        >
+          {task.status === 'IN_PROGRESS' ? 'In progress' : 'Open'}
+        </span>
+      </Link>
+    )
+  }
 
-              {/* Due date */}
-              {due && (
-                <span className="text-[10px] font-medium flex-shrink-0" style={{ color: due.color }}>
-                  {due.label}
-                </span>
-              )}
+  const inProgress = active.filter(t => t.status === 'IN_PROGRESS')
+  const open = active.filter(t => t.status === 'OPEN')
+  const hasBothGroups = inProgress.length > 0 && open.length > 0
 
-              {/* Status chip */}
-              <span
-                className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:block"
-                style={
-                  task.status === 'IN_PROGRESS'
-                    ? { background: accentAlpha(0.12), color: colors.accent }
-                    : { background: surface.filterStrip, color: colors.text.muted }
-                }
-              >
-                {task.status === 'IN_PROGRESS' ? 'In progress' : 'Open'}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
-
-      {active.length > TASK_PREVIEW && (
-        <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
-          <Link to="/tasks" className="text-xs font-medium" style={{ color: colors.accent }}>
-            +{active.length - TASK_PREVIEW} more tasks
+  return (
+    <>
+      <div style={sectionCard}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <ListTodo size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>My Tasks</h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {active.length}
+            </span>
+          </div>
+          <Link to="/tasks" className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
+            View all <ChevronRight size={12} />
           </Link>
         </div>
+
+        <div>
+          {shown.map((task, i) => taskRow(task, i, shown))}
+        </div>
+
+        {active.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {active.length} tasks
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`My Tasks (${active.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {hasBothGroups && inProgress.length > 0 && (
+              <p className="px-4 sm:px-6 py-2 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: colors.text.dim, borderBottom: `1px solid ${border.divider}` }}>
+                In Progress
+              </p>
+            )}
+            {inProgress.map((task, i) => taskRow(task, i, inProgress))}
+            {hasBothGroups && open.length > 0 && (
+              <p className="px-4 sm:px-6 py-2 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: colors.text.dim, borderTop: inProgress.length > 0 ? `1px solid ${border.divider}` : undefined, borderBottom: `1px solid ${border.divider}` }}>
+                Open
+              </p>
+            )}
+            {open.map((task, i) => taskRow(task, i, open))}
+          </div>
+        </Modal>
       )}
-    </div>
+    </>
   )
 }
 
@@ -823,11 +936,32 @@ export default function DashboardPage() {
         />
       )}
 
-      <TodaySessions
-        sessions={todaySessions}
-        showTherapist={isOwnerOrAdmin}
-        onSessionClick={canUpdateSession ? setEditingSession : undefined}
-      />
+      {(() => {
+        const myActiveTasks = myTasksAll.filter(
+          t => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
+               t.assignees.some(a => a.id === (user?.id ?? ''))
+        )
+        const hasSidebar = upcomingBirthdays.length > 0 || myActiveTasks.length > 0
+
+        return (
+          <div className={hasSidebar ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 items-start' : ''}>
+            <div className={hasSidebar ? 'lg:col-span-2' : ''}>
+              <TodaySessions
+                sessions={todaySessions}
+                showTherapist={isOwnerOrAdmin}
+                onSessionClick={canUpdateSession ? setEditingSession : undefined}
+              />
+            </div>
+
+            {hasSidebar && (
+              <div className="flex flex-col gap-6">
+                <UpcomingBirthdays birthdays={upcomingBirthdays} />
+                <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {editingSession && (
         <SessionUpdateModal
@@ -835,10 +969,6 @@ export default function DashboardPage() {
           onClose={() => setEditingSession(null)}
         />
       )}
-
-      <UpcomingBirthdays birthdays={upcomingBirthdays} />
-
-      <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
     </div>
   )
 }

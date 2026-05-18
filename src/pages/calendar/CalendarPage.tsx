@@ -130,16 +130,26 @@ function allDayEventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] 
   return events.filter(e => e.isAllDay && e.date === key)
 }
 
-function upcomingEvents(events: CalendarEvent[], limit = 8): CalendarEvent[] {
+function upcomingEvents(events: CalendarEvent[], limit = 40): CalendarEvent[] {
   const todayKey = format(new Date(), 'yyyy-MM-dd')
   return events
     .filter(e => e.date >= todayKey)
     .sort((a, b) => {
       const dateComp = a.date.localeCompare(b.date)
       if (dateComp !== 0) return dateComp
+      // all-day first within same date, then by time
+      if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1
       return (a.time ?? '').localeCompare(b.time ?? '')
     })
     .slice(0, limit)
+}
+
+function upcomingDateLabel(dateKey: string): string {
+  const todayKey    = format(new Date(), 'yyyy-MM-dd')
+  const tomorrowKey = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  if (dateKey === todayKey)    return 'Today'
+  if (dateKey === tomorrowKey) return 'Tomorrow'
+  return format(parseISO(dateKey + 'T00:00:00'), 'EEE, d MMM')
 }
 
 // ── Event chip ────────────────────────────────────────────────────────────────
@@ -320,43 +330,78 @@ function UpcomingPanel({
 }: { events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void }) {
   const upcoming = upcomingEvents(events)
 
+  // Group into [{dateKey, events[]}] preserving sort order
+  const groups: { dateKey: string; label: string; items: CalendarEvent[] }[] = []
+  for (const ev of upcoming) {
+    const last = groups[groups.length - 1]
+    if (last && last.dateKey === ev.date) {
+      last.items.push(ev)
+    } else {
+      groups.push({ dateKey: ev.date, label: upcomingDateLabel(ev.date), items: [ev] })
+    }
+  }
+
   return (
-    <div className="w-60 flex-shrink-0 flex flex-col gap-3 border-l pl-4"
-      style={{ borderColor: border.divider }}>
-      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.muted }}>
+    <div className="w-60 flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
+      style={{ maxHeight: '100%' }}>
+      <p className="text-xs font-semibold uppercase tracking-wider flex-shrink-0"
+        style={{ color: colors.text.muted }}>
         Upcoming
       </p>
-      {upcoming.length === 0 ? (
+
+      {groups.length === 0 ? (
         <p className="text-sm" style={{ color: colors.text.muted }}>Nothing scheduled</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {upcoming.map(ev => {
-            const dot = kindDot(ev.kind, ev.status)
-            return (
-              <button key={ev.id} onClick={() => onSelect(ev)}
-                className="text-left rounded-xl p-2.5 w-full transition-colors group"
-                style={{ background: surface.rowHover }}
-                onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.07))}
-                onMouseLeave={e => (e.currentTarget.style.background = surface.rowHover)}>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: dot }} />
-                  <p className="text-xs font-semibold truncate flex-1" style={{ color: colors.text.primary }}>
-                    {ev.title}
-                  </p>
-                </div>
-                {ev.subtitle && (
-                  <p className="text-xs truncate mt-0.5 pl-4" style={{ color: colors.text.muted }}>
-                    {ev.subtitle}
-                  </p>
-                )}
-                <p className="text-xs mt-0.5 pl-4 flex items-center gap-1" style={{ color: dot }}>
-                  <CalendarDays size={9} />
-                  {format(parseISO(ev.date + 'T00:00:00'), 'd MMM')}
-                  {ev.time && <><Clock size={9} className="ml-1" />{ev.time}</>}
-                </p>
-              </button>
-            )
-          })}
+        <div className="flex flex-col gap-4">
+          {groups.map(group => (
+            <div key={group.dateKey}>
+              {/* Date header */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wide flex-shrink-0"
+                  style={{ color: group.label === 'Today' ? colors.accent : colors.text.muted }}>
+                  {group.label}
+                </span>
+                <div className="flex-1 h-px" style={{ background: border.divider }} />
+              </div>
+
+              {/* Event cards */}
+              <div className="flex flex-col gap-1.5">
+                {group.items.map(ev => {
+                  const dot = kindDot(ev.kind, ev.status)
+                  return (
+                    <button key={ev.id} onClick={() => onSelect(ev)}
+                      className="text-left rounded-xl p-2.5 w-full transition-colors"
+                      style={{ background: surface.rowHover }}
+                      onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.07))}
+                      onMouseLeave={e => (e.currentTarget.style.background = surface.rowHover)}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: dot }} />
+                        <p className="text-xs font-semibold truncate flex-1"
+                          style={{ color: colors.text.primary }}>
+                          {ev.title}
+                        </p>
+                      </div>
+                      {ev.subtitle && (
+                        <p className="text-xs truncate mt-0.5 pl-4" style={{ color: colors.text.muted }}>
+                          {ev.subtitle}
+                        </p>
+                      )}
+                      {!ev.isAllDay && ev.time && (
+                        <p className="text-xs mt-0.5 pl-4 flex items-center gap-1" style={{ color: dot }}>
+                          <Clock size={9} />{ev.time}
+                        </p>
+                      )}
+                      {ev.isAllDay && (
+                        <p className="text-xs mt-0.5 pl-4" style={{ color: dot, opacity: 0.75 }}>
+                          All day
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1020,7 +1065,8 @@ export default function CalendarPage() {
 
             {/* Upcoming sidebar — month view + lg+ only */}
             {view === 'month' && (
-              <div className="hidden lg:block p-4 border-l" style={{ borderColor: border.divider }}>
+              <div className="hidden lg:flex flex-col p-4 border-l overflow-hidden"
+                style={{ borderColor: border.divider }}>
                 <UpcomingPanel events={events} onSelect={setSelected} />
               </div>
             )}
