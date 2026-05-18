@@ -1490,6 +1490,20 @@ export default function PatientDetailPage() {
     onError: () => toast('Failed to cancel enrollment', 'error'),
   })
 
+  const editForm = useForm<{ firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }>()
+  const updatePatientMutation = useMutation({
+    mutationFn: (data: { firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }) =>
+      patientsApi.update(id!, {
+        firstName:   data.firstName   || undefined,
+        lastName:    data.lastName    || undefined,
+        dateOfBirth: data.dateOfBirth || undefined,
+        gender:      (data.gender as 'MALE' | 'FEMALE' | 'OTHER') || undefined,
+        notes:       data.notes       || undefined,
+      }),
+    onSuccess: () => { refresh(); toast('Patient details updated', 'success'); setEditModal(false) },
+    onError:   () => toast('Failed to update patient', 'error'),
+  })
+
   if (isLoading) return <PageLoader />
   if (!patient)  return <p className="text-sm" style={{ color: colors.text.muted }}>Patient not found</p>
 
@@ -1507,20 +1521,6 @@ export default function PatientDetailPage() {
   const canUpdateSession    = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canEditDetails      = ['BUSINESS_OWNER', 'ADMIN', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
-
-  const editForm = useForm<{ firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }>()
-  const updatePatientMutation = useMutation({
-    mutationFn: (data: { firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }) =>
-      patientsApi.update(id!, {
-        firstName:   data.firstName   || undefined,
-        lastName:    data.lastName    || undefined,
-        dateOfBirth: data.dateOfBirth || undefined,
-        gender:      (data.gender as 'MALE' | 'FEMALE' | 'OTHER') || undefined,
-        notes:       data.notes       || undefined,
-      }),
-    onSuccess: () => { refresh(); toast('Patient details updated', 'success'); setEditModal(false) },
-    onError:   () => toast('Failed to update patient', 'error'),
-  })
 
   // Shared remove-button style (hover via event handlers)
   const removeBtn = (onClick: () => void) => (
