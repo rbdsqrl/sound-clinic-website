@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
+import { tasksApi } from '../api/tasks'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
@@ -18,7 +19,7 @@ import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ui/Toast'
-import type { TherapySessionResponse, UpcomingBirthdayResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 
@@ -42,11 +43,52 @@ function statusColor(status: string): string {
 function TodaySessions({
   sessions,
   showTherapist,
+  onSessionClick,
 }: {
   sessions: TherapySessionResponse[]
   showTherapist: boolean
+  onSessionClick?: (s: TherapySessionResponse) => void
 }) {
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+
+  const rowContent = (s: TherapySessionResponse) => (
+    <>
+      <div className="flex-shrink-0">{sessionStatusIcon(s.status)}</div>
+
+      <div className="flex items-center gap-1 flex-shrink-0 w-24">
+        <Clock size={11} style={{ color: colors.text.dim }} />
+        <span className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
+          {s.startTime.slice(0, 5)} – {s.endTime.slice(0, 5)}
+        </span>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
+          {s.patientFirstName} {s.patientLastName}
+        </p>
+        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+          {s.programName}
+          {showTherapist && (
+            <span style={{ color: colors.text.dim }}>
+              {' · '}{s.therapistFirstName} {s.therapistLastName}
+            </span>
+          )}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
+          #{s.sessionNumber}/{s.totalSessions}
+        </span>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
+          {s.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+    </>
+  )
+
+  const rowClass = 'flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left'
 
   return (
     <div style={sectionCard}>
@@ -74,49 +116,32 @@ function TodaySessions({
         </div>
       ) : (
         <div>
-          {sessions.map((s, i) => (
-            <Link
-              key={s.id}
-              to={`/patients/${s.patientId}`}
-              className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
-              style={i < sessions.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
-              onMouseEnter={ROW_HOVER_IN}
-              onMouseLeave={ROW_HOVER_OUT}
-            >
-              <div className="flex-shrink-0">{sessionStatusIcon(s.status)}</div>
-
-              <div className="flex items-center gap-1 flex-shrink-0 w-24">
-                <Clock size={11} style={{ color: colors.text.dim }} />
-                <span className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
-                  {s.startTime.slice(0, 5)} – {s.endTime.slice(0, 5)}
-                </span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
-                  {s.patientFirstName} {s.patientLastName}
-                </p>
-                <p className="text-xs truncate" style={{ color: colors.text.muted }}>
-                  {s.programName}
-                  {showTherapist && (
-                    <span style={{ color: colors.text.dim }}>
-                      {' · '}{s.therapistFirstName} {s.therapistLastName}
-                    </span>
-                  )}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
-                  #{s.sessionNumber}/{s.totalSessions}
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
-                  {s.status.replace(/_/g, ' ')}
-                </span>
-              </div>
-            </Link>
-          ))}
+          {sessions.map((s, i) => {
+            const dividerStyle = i < sessions.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
+            return onSessionClick ? (
+              <button
+                key={s.id}
+                onClick={() => onSessionClick(s)}
+                className={rowClass}
+                style={dividerStyle}
+                onMouseEnter={ROW_HOVER_IN}
+                onMouseLeave={ROW_HOVER_OUT}
+              >
+                {rowContent(s)}
+              </button>
+            ) : (
+              <Link
+                key={s.id}
+                to={`/patients/${s.patientId}`}
+                className={rowClass}
+                style={dividerStyle}
+                onMouseEnter={ROW_HOVER_IN}
+                onMouseLeave={ROW_HOVER_OUT}
+              >
+                {rowContent(s)}
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
@@ -376,12 +401,292 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
   )
 }
 
+// ── Session update modal (therapist / doctor dashboard shortcut) ───────────────
+
+const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
+
+function scoreColor(score: number): string {
+  if (score <= 2) return '#dc2626'
+  if (score === 3) return '#d97706'
+  return '#16a34a'
+}
+
+function SessionUpdateModal({
+  session,
+  onClose,
+}: {
+  session: TherapySessionResponse
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+
+  const [feedback, setFeedback] = useState(session.feedback ?? '')
+  const [notes, setNotes]       = useState(session.notes ?? '')
+  const [score, setScore]       = useState<number | null>(session.performanceScore ?? null)
+
+  const notesMut = useMutation({
+    mutationFn: () => therapySessionsApi.updateNotes(session.id, {
+      feedback: feedback || undefined,
+      notes:    notes    || undefined,
+      ...(score !== null ? { performanceScore: score } : {}),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      toast('Session saved', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to save', 'error'),
+  })
+
+  const statusMut = useMutation({
+    mutationFn: (status: TherapySessionStatus) =>
+      therapySessionsApi.updateStatus(session.id, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      toast('Session updated', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to update session', 'error'),
+  })
+
+  const isScheduled = session.status === 'SCHEDULED'
+
+  return (
+    <Modal open title={`Session #${session.sessionNumber}`} onClose={onClose} size="lg">
+      {/* Info strip */}
+      <div className="flex items-center justify-between gap-3 mb-5 p-3 rounded-xl"
+        style={{ background: accentAlpha(0.05) }}>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+            {session.patientFirstName} {session.patientLastName}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            {session.startTime.slice(0, 5)} · {session.programName} · #{session.sessionNumber}/{session.totalSessions}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
+            style={{ background: statusColor(session.status) + '18', color: statusColor(session.status) }}>
+            {session.status.replace(/_/g, ' ')}
+          </span>
+          <Link
+            to={`/patients/${session.patientId}`}
+            className="text-[10px] font-medium px-2 py-1 rounded-full"
+            style={{ background: accentAlpha(0.10), color: colors.accent }}
+            onClick={onClose}
+          >
+            View patient →
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {/* Status buttons — only for scheduled sessions */}
+        {isScheduled && (
+          <div>
+            <p className="form-label">Mark session as</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
+                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
+                { value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  disabled={statusMut.isPending}
+                  onClick={() => statusMut.mutate(opt.value)}
+                  className="flex-1 text-xs font-semibold py-2.5 rounded-xl transition-opacity disabled:opacity-50"
+                  style={{ background: opt.color + '18', color: opt.color }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Performance score */}
+        <div>
+          <label className="form-label">Performance Score</label>
+          <div className="flex gap-2">
+            {SCORE_LABELS.map((label, i) => {
+              const val    = i + 1
+              const active = score === val
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setScore(active ? null : val)}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-semibold transition-colors"
+                  style={{
+                    background: active ? scoreColor(val) + '22' : surface.filterStrip,
+                    color:      active ? scoreColor(val) : colors.text.muted,
+                    border:     `1.5px solid ${active ? scoreColor(val) : 'transparent'}`,
+                  }}
+                >
+                  <span className="text-sm font-bold">{val}</span>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Feedback */}
+        <div>
+          <label className="form-label">Feedback</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={2}
+            placeholder="Add session feedback…"
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+          />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="form-label">Notes</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={2}
+            placeholder="Any additional notes…"
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-2 justify-end mt-5 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+        <Button variant="primary" loading={notesMut.isPending} onClick={() => notesMut.mutate()}>
+          Save
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+function priorityColor(p: TaskPriority): string {
+  if (p === 'HIGH')   return '#dc2626'
+  if (p === 'MEDIUM') return '#d97706'
+  return palette.blue.text
+}
+
+function dueDateLabel(dueDate: string | null): { label: string; color: string } | null {
+  if (!dueDate) return null
+  const due  = new Date(dueDate + 'T00:00:00')
+  const now  = new Date()
+  now.setHours(0, 0, 0, 0)
+  const diff = Math.round((due.getTime() - now.getTime()) / 86400000)
+  if (diff < 0)  return { label: `${Math.abs(diff)}d overdue`, color: '#dc2626' }
+  if (diff === 0) return { label: 'Due today',   color: '#d97706' }
+  if (diff === 1) return { label: 'Due tomorrow', color: '#d97706' }
+  return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
+}
+
+const TASK_PREVIEW = 5
+
+function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
+  const active = tasks.filter(
+    t => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
+         t.assignees.some(a => a.id === userId)
+  )
+
+  if (active.length === 0) return null
+
+  const shown = active.slice(0, TASK_PREVIEW)
+  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+
+  return (
+    <div style={sectionCard}>
+      <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <div className="flex items-center gap-2">
+          <ListTodo size={16} style={{ color: colors.accent }} />
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>My Tasks</h2>
+          <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}>
+            {active.length}
+          </span>
+        </div>
+        <Link to="/tasks" className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
+          View all <ChevronRight size={12} />
+        </Link>
+      </div>
+
+      <div>
+        {shown.map((task, i) => {
+          const due = dueDateLabel(task.dueDate)
+          return (
+            <Link
+              key={task.id}
+              to="/tasks"
+              className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
+              style={i < shown.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+              onMouseEnter={ROW_HOVER_IN}
+              onMouseLeave={ROW_HOVER_OUT}
+            >
+              {/* Priority dot */}
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: priorityColor(task.priority) }}
+              />
+
+              {/* Title + assigner */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                  {task.title}
+                </p>
+                <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+                  From {task.assignedByFirstName} {task.assignedByLastName}
+                </p>
+              </div>
+
+              {/* Due date */}
+              {due && (
+                <span className="text-[10px] font-medium flex-shrink-0" style={{ color: due.color }}>
+                  {due.label}
+                </span>
+              )}
+
+              {/* Status chip */}
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:block"
+                style={
+                  task.status === 'IN_PROGRESS'
+                    ? { background: accentAlpha(0.12), color: colors.accent }
+                    : { background: surface.filterStrip, color: colors.text.muted }
+                }
+              >
+                {task.status === 'IN_PROGRESS' ? 'In progress' : 'Open'}
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+
+      {active.length > TASK_PREVIEW && (
+        <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <Link to="/tasks" className="text-xs font-medium" style={{ color: colors.accent }}>
+            +{active.length - TASK_PREVIEW} more tasks
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
   const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'ADMIN'
   const canReschedule      = isOwnerOrAdmin || activeRole === 'OFFICE_ADMIN'
   const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR' || activeRole === 'OFFICE_ADMIN'
+  const canUpdateSession   = activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
+
+  const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
 
   const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
   const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients'],    queryFn: patientsApi.list,       enabled: isStaff })
@@ -404,6 +709,13 @@ export default function DashboardPage() {
     queryFn: patientsApi.upcomingBirthdays,
     enabled: isStaff,
     staleTime: 60 * 60 * 1000,
+  })
+
+  const { data: myTasksAll = [] } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: tasksApi.list,
+    enabled: isStaff,
+    staleTime: 2 * 60 * 1000,
   })
 
   const uniqueTherapistIds = new Set(patients?.flatMap(p => p.therapists).map(t => t.id) ?? [])
@@ -511,9 +823,22 @@ export default function DashboardPage() {
         />
       )}
 
-      <TodaySessions sessions={todaySessions} showTherapist={isOwnerOrAdmin} />
+      <TodaySessions
+        sessions={todaySessions}
+        showTherapist={isOwnerOrAdmin}
+        onSessionClick={canUpdateSession ? setEditingSession : undefined}
+      />
+
+      {editingSession && (
+        <SessionUpdateModal
+          session={editingSession}
+          onClose={() => setEditingSession(null)}
+        />
+      )}
 
       <UpcomingBirthdays birthdays={upcomingBirthdays} />
+
+      <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
     </div>
   )
 }
