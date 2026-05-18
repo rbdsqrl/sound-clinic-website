@@ -1,16 +1,16 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, CheckCircle2, Circle, Clock, MessageSquare, Paperclip,
   ChevronRight, MoreHorizontal, Trash2, X, Upload, FileText, Send,
-  ListTodo,
+  ListTodo, Search, Check, Users,
 } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
+import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
-import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
@@ -18,7 +18,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, dangerAlpha, warningAlpha } from '../../theme'
 import { format, isPast, parseISO, isToday } from 'date-fns'
 import type {
-  TaskResponse, TaskStatus, TaskPriority,
+  TaskResponse, TaskStatus, TaskPriority, TaskAssignee,
   TaskCommentResponse, TaskAttachmentResponse,
   UserResponse,
 } from '../../types'
@@ -30,6 +30,8 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'IN_PROGRESS', label: 'In Progress' },
   { status: 'COMPLETED',   label: 'Completed' },
 ]
+
+const PAGE_SIZE = 8
 
 function priorityStyle(p: TaskPriority) {
   if (p === 'HIGH')   return { color: 'var(--color-danger)',  dot: dangerAlpha(1) }
@@ -47,6 +49,205 @@ function dueDateLabel(d: string | null) {
 
 function initials(first: string, last: string) {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+}
+
+function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?: number }) {
+  const visible = assignees.slice(0, max)
+  const rest = assignees.length - visible.length
+  return (
+    <div className="flex items-center">
+      {visible.map((a, idx) => (
+        <span
+          key={a.id}
+          title={`${a.firstName} ${a.lastName}`}
+          className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border"
+          style={{
+            background: accentAlpha(0.12),
+            color: colors.accent,
+            borderColor: surface.card,
+            marginLeft: idx > 0 ? -4 : 0,
+            zIndex: visible.length - idx,
+            position: 'relative',
+          }}
+        >
+          {a.firstName[0]}{a.lastName[0]}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border ml-[-4px]"
+          style={{ background: accentAlpha(0.08), color: colors.text.dim, borderColor: surface.card }}>
+          +{rest}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── MemberPickerModal ──────────────────────────────────────────────────────────
+
+function MemberPickerModal({
+  selected,
+  onConfirm,
+  onClose,
+}: {
+  selected: UserResponse[]
+  onConfirm: (members: UserResponse[]) => void
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState('')
+  const [page, setPage]     = useState(0)
+  const [draft, setDraft]   = useState<UserResponse[]>(selected)
+
+  const { data: members = [], isLoading } = useQuery({
+    queryKey: ['org-members'],
+    queryFn: usersApi.listMembers,
+    staleTime: 60_000,
+  })
+
+  const filtered = members.filter(m =>
+    `${m.firstName} ${m.lastName}`.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const clampedPage = Math.min(page, totalPages - 1)
+  const visible = filtered.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE)
+
+  const isSelected = (m: UserResponse) => draft.some(d => d.id === m.id)
+  const toggle = (m: UserResponse) =>
+    setDraft(prev => isSelected(m) ? prev.filter(d => d.id !== m.id) : [...prev, m])
+
+  useEffect(() => setPage(0), [search])
+
+  return (
+    <Modal open title="Assign to members" onClose={onClose}>
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ color: colors.text.dim }} />
+        <input
+          className="form-input pl-8 w-full text-sm"
+          placeholder="Search by name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          autoFocus
+        />
+      </div>
+
+      {/* Selected chips */}
+      {draft.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3 pb-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
+          {draft.map(m => (
+            <span key={m.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+              style={{ background: accentAlpha(0.10), color: colors.accent }}>
+              {m.firstName} {m.lastName}
+              <button
+                type="button"
+                onClick={() => toggle(m)}
+                className="ml-0.5 rounded-full hover:opacity-70">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Member list */}
+      <div className="rounded-xl overflow-hidden" style={{ border: border.card, minHeight: 200 }}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+              style={{ color: colors.accent }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-2">
+            <Users size={24} style={{ color: colors.text.dim }} />
+            <p className="text-sm" style={{ color: colors.text.dim }}>No members found</p>
+          </div>
+        ) : (
+          visible.map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => toggle(m)}
+              className="w-full flex items-center gap-3 px-4 py-3 transition-colors text-left"
+              style={{
+                borderBottom: i < visible.length - 1 ? `1px solid ${border.divider}` : undefined,
+                background: isSelected(m) ? accentAlpha(0.06) : 'transparent',
+              }}
+              onMouseEnter={e => {
+                if (!isSelected(m)) (e.currentTarget as HTMLElement).style.background = surface.rowHover
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = isSelected(m) ? accentAlpha(0.06) : 'transparent'
+              }}
+            >
+              {/* Checkbox */}
+              <span className="flex-shrink-0 h-4 w-4 rounded flex items-center justify-center"
+                style={{
+                  border: isSelected(m) ? 'none' : `2px solid ${border.divider}`,
+                  background: isSelected(m) ? colors.accent : 'transparent',
+                }}>
+                {isSelected(m) && <Check size={10} style={{ color: '#fff' }} />}
+              </span>
+
+              {/* Avatar */}
+              <span className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
+                style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                {m.firstName[0]}{m.lastName[0]}
+              </span>
+
+              {/* Name + role */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                  {m.firstName} {m.lastName}
+                </p>
+                <p className="text-xs" style={{ color: colors.text.muted }}>
+                  {m.role.replace(/_/g, ' ')}
+                </p>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 text-xs" style={{ color: colors.text.muted }}>
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={clampedPage === 0}
+            className="px-3 py-1.5 rounded-lg font-medium disabled:opacity-40 transition-colors"
+            style={{ background: accentAlpha(0.08), color: colors.accent }}>
+            ← Prev
+          </button>
+          <span>Page {clampedPage + 1} of {totalPages}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={clampedPage >= totalPages - 1}
+            className="px-3 py-1.5 rounded-lg font-medium disabled:opacity-40 transition-colors"
+            style={{ background: accentAlpha(0.08), color: colors.accent }}>
+            Next →
+          </button>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <span className="text-sm" style={{ color: colors.text.muted }}>
+          {draft.length > 0 ? `${draft.length} member${draft.length > 1 ? 's' : ''} selected` : 'No one selected yet'}
+        </span>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={draft.length === 0}
+            onClick={() => { onConfirm(draft); onClose() }}>
+            Confirm{draft.length > 0 ? ` (${draft.length})` : ''}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 // ── TaskCard ───────────────────────────────────────────────────────────────────
@@ -110,19 +311,17 @@ function TaskCard({
         )}
       </div>
 
-      {/* Assignee + meta row */}
-      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-        {/* Assignee avatar */}
-        <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: accentAlpha(0.12), color: colors.accent }}>
-          {initials(task.assignedToFirstName, task.assignedToLastName)}
-        </span>
-        <span className="text-[11px] truncate" style={{ color: colors.text.muted }}>
-          {task.assignedToFirstName}
-        </span>
-
+      {/* Assignees + meta row */}
+      <div className="flex items-center gap-2 mt-2.5">
+        <AssigneeChips assignees={task.assignees} />
+        {task.assignees.length > 0 && (
+          <span className="text-[11px] truncate" style={{ color: colors.text.muted }}>
+            {task.assignees[0].firstName}
+            {task.assignees.length > 1 && ` +${task.assignees.length - 1} more`}
+          </span>
+        )}
         {due && (
-          <span className="ml-auto flex items-center gap-1 text-[10px] font-medium"
+          <span className="ml-auto flex items-center gap-1 text-[10px] font-medium flex-shrink-0"
             style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.dim }}>
             <Clock size={10} />
             {due.label}
@@ -152,37 +351,16 @@ function TaskCard({
 // ── KanbanColumn ───────────────────────────────────────────────────────────────
 
 function KanbanColumn({
-  status,
-  label,
-  tasks,
-  canManage,
-  isDragOver,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onCardDragStart,
-  onCardOpen,
-  onCardDelete,
-  onAddTask,
+  status, label, tasks, canManage, isDragOver,
+  onDragOver, onDragLeave, onDrop, onCardDragStart, onCardOpen, onCardDelete, onAddTask,
 }: {
-  status: TaskStatus
-  label: string
-  tasks: TaskResponse[]
-  canManage: boolean
-  isDragOver: boolean
-  onDragOver: (e: React.DragEvent) => void
-  onDragLeave: () => void
-  onDrop: (e: React.DragEvent) => void
+  status: TaskStatus; label: string; tasks: TaskResponse[]; canManage: boolean; isDragOver: boolean
+  onDragOver: (e: React.DragEvent) => void; onDragLeave: () => void; onDrop: (e: React.DragEvent) => void
   onCardDragStart: (e: React.DragEvent, task: TaskResponse) => void
-  onCardOpen: (task: TaskResponse) => void
-  onCardDelete: (task: TaskResponse) => void
-  onAddTask?: () => void
+  onCardOpen: (task: TaskResponse) => void; onCardDelete: (task: TaskResponse) => void; onAddTask?: () => void
 }) {
-  const colColor = status === 'OPEN'
-    ? 'var(--color-info)'
-    : status === 'IN_PROGRESS'
-    ? 'var(--color-warning)'
-    : 'var(--color-success)'
+  const colColor = status === 'OPEN' ? 'var(--color-info)'
+    : status === 'IN_PROGRESS' ? 'var(--color-warning)' : 'var(--color-success)'
 
   return (
     <div
@@ -191,44 +369,28 @@ function KanbanColumn({
         background: isDragOver ? accentAlpha(0.04) : surface.filterStrip,
         border: isDragOver ? `2px dashed ${colors.accent}` : `2px solid transparent`,
       }}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
     >
-      {/* Column header */}
       <div className="flex items-center justify-between px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full" style={{ background: colColor }} />
-          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.text.muted }}>
-            {label}
-          </span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.text.muted }}>{label}</span>
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-            style={{ background: accentAlpha(0.08), color: colors.accent }}>
-            {tasks.length}
-          </span>
+            style={{ background: accentAlpha(0.08), color: colors.accent }}>{tasks.length}</span>
         </div>
         {canManage && status === 'OPEN' && onAddTask && (
-          <button onClick={onAddTask}
-            className="p-1 rounded-lg transition-colors"
-            style={{ color: colors.text.dim }}
+          <button onClick={onAddTask} className="p-1 rounded-lg transition-colors" style={{ color: colors.text.dim }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}>
             <Plus size={14} />
           </button>
         )}
       </div>
-
-      {/* Cards */}
       <div className="flex flex-col gap-2 px-2 pb-3 flex-1">
         {tasks.map(t => (
-          <TaskCard
-            key={t.id}
-            task={t}
-            canManage={canManage}
-            onOpen={() => onCardOpen(t)}
-            onDelete={() => onCardDelete(t)}
-            onDragStart={e => onCardDragStart(e, t)}
-          />
+          <TaskCard key={t.id} task={t} canManage={canManage}
+            onOpen={() => onCardOpen(t)} onDelete={() => onCardDelete(t)}
+            onDragStart={e => onCardDragStart(e, t)} />
         ))}
         {tasks.length === 0 && (
           <div className="flex-1 flex items-center justify-center py-8">
@@ -243,17 +405,10 @@ function KanbanColumn({
 // ── TaskDetailModal ────────────────────────────────────────────────────────────
 
 function TaskDetailModal({
-  task,
-  canManage,
-  currentUserId,
-  onClose,
-  onStatusChange,
+  task, canManage, currentUserId, onClose, onStatusChange,
 }: {
-  task: TaskResponse
-  canManage: boolean
-  currentUserId: string
-  onClose: () => void
-  onStatusChange: (status: TaskStatus) => void
+  task: TaskResponse; canManage: boolean; currentUserId: string
+  onClose: () => void; onStatusChange: (status: TaskStatus) => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -264,7 +419,6 @@ function TaskDetailModal({
     queryKey: ['task-comments', task.id],
     queryFn: () => tasksApi.listComments(task.id),
   })
-
   const { data: attachments = [] } = useQuery({
     queryKey: ['task-attachments', task.id],
     queryFn: () => tasksApi.listAttachments(task.id),
@@ -279,7 +433,6 @@ function TaskDetailModal({
     },
     onError: () => toast('Failed to post comment', 'error'),
   })
-
   const deleteCommentMut = useMutation({
     mutationFn: (commentId: string) => tasksApi.deleteComment(task.id, commentId),
     onSuccess: () => {
@@ -288,7 +441,6 @@ function TaskDetailModal({
     },
     onError: () => toast('Failed to delete comment', 'error'),
   })
-
   const uploadMut = useMutation({
     mutationFn: (file: File) => tasksApi.uploadAttachment(task.id, file),
     onSuccess: () => {
@@ -297,7 +449,6 @@ function TaskDetailModal({
     },
     onError: () => toast('Upload failed', 'error'),
   })
-
   const deleteAttMut = useMutation({
     mutationFn: (attId: string) => tasksApi.deleteAttachment(task.id, attId),
     onSuccess: () => {
@@ -309,7 +460,7 @@ function TaskDetailModal({
 
   const due = dueDateLabel(task.dueDate)
   const pStyle = priorityStyle(task.priority)
-  const canEdit = canManage || task.assignedTo === currentUserId
+  const canEdit = canManage || task.assignees.some(a => a.id === currentUserId)
 
   const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
     { value: 'OPEN',        label: 'Open' },
@@ -321,51 +472,51 @@ function TaskDetailModal({
     <Modal open title={task.title} onClose={onClose} size="lg">
       {/* Meta strip */}
       <div className="flex flex-wrap gap-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
-        {/* Status */}
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
           {canEdit ? (
-            <select
-              className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
+            <select className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
               style={{ background: accentAlpha(0.06), color: colors.text.primary }}
-              value={task.status}
-              onChange={e => onStatusChange(e.target.value as TaskStatus)}
-            >
+              value={task.status} onChange={e => onStatusChange(e.target.value as TaskStatus)}>
               {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           ) : (
             <span className="text-xs px-2 py-1 rounded-lg font-medium"
               style={task.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-                   : task.status === 'IN_PROGRESS' ? paletteStyle('yellow', 0.12, 0)
-                   : paletteStyle('blue', 0.10, 0)}>
+                : task.status === 'IN_PROGRESS' ? paletteStyle('yellow', 0.12, 0)
+                : paletteStyle('blue', 0.10, 0)}>
               {task.status.replace('_', ' ')}
             </span>
           )}
         </div>
 
-        {/* Priority */}
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
-          <span className="text-xs font-medium px-2 py-1.5" style={{ color: pStyle.color }}>
-            ● {task.priority}
-          </span>
+          <span className="text-xs font-medium px-2 py-1.5" style={{ color: pStyle.color }}>● {task.priority}</span>
         </div>
 
-        {/* Assigned to */}
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Assigned to</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center"
-              style={{ background: accentAlpha(0.12), color: colors.accent }}>
-              {initials(task.assignedToFirstName, task.assignedToLastName)}
-            </span>
-            <span className="text-xs" style={{ color: colors.text.primary }}>
-              {task.assignedToFirstName} {task.assignedToLastName}
-            </span>
+          <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
+            Assigned to
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {task.assignees.map(a => (
+              <div key={a.id} className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                  {a.firstName[0]}{a.lastName[0]}
+                </span>
+                <span className="text-xs" style={{ color: colors.text.primary }}>
+                  {a.firstName} {a.lastName}
+                </span>
+              </div>
+            ))}
+            {task.assignees.length === 0 && (
+              <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
+            )}
           </div>
         </div>
 
-        {/* Due date */}
         {due && (
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
@@ -377,14 +528,12 @@ function TaskDetailModal({
         )}
       </div>
 
-      {/* Description */}
       {task.description && (
         <div className="mb-5">
           <p className="text-sm" style={{ color: colors.text.primary, whiteSpace: 'pre-wrap' }}>{task.description}</p>
         </div>
       )}
 
-      {/* Attachments */}
       {attachments.length > 0 && (
         <div className="mb-5">
           <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: colors.text.dim }}>Attachments</p>
@@ -416,7 +565,6 @@ function TaskDetailModal({
         </div>
       )}
 
-      {/* Comments */}
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
           Comments {comments.length > 0 && `(${comments.length})`}
@@ -455,39 +603,27 @@ function TaskDetailModal({
         )}
       </div>
 
-      {/* Composer */}
       <div className="flex gap-2 items-end pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <textarea
-          className="form-input flex-1 resize-none text-sm"
-          rows={2}
-          placeholder="Add a comment…"
-          value={commentText}
-          onChange={e => setCommentText(e.target.value)}
+        <textarea className="form-input flex-1 resize-none text-sm" rows={2} placeholder="Add a comment…"
+          value={commentText} onChange={e => setCommentText(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && commentText.trim()) {
-              e.preventDefault()
-              commentMut.mutate()
+              e.preventDefault(); commentMut.mutate()
             }
-          }}
-        />
+          }} />
         <div className="flex flex-col gap-1.5">
           <label className="cursor-pointer p-2 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: accentAlpha(0.06), color: colors.accent }}
-            title="Attach file">
+            style={{ background: accentAlpha(0.06), color: colors.accent }} title="Attach file">
             {uploadMut.isPending
               ? <div className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
               : <Upload size={15} />}
             <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" multiple className="hidden"
-              onChange={e => {
-                if (e.target.files) Array.from(e.target.files).forEach(f => uploadMut.mutate(f))
-              }} />
+              onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(f => uploadMut.mutate(f)) }} />
           </label>
-          <button
-            disabled={!commentText.trim() || commentMut.isPending}
+          <button disabled={!commentText.trim() || commentMut.isPending}
             onClick={() => commentMut.mutate()}
             className="p-2 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
-            style={styles.buttonPrimary}
-            title="Post comment (⌘+Enter)">
+            style={styles.buttonPrimary} title="Post comment (⌘+Enter)">
             {commentMut.isPending
               ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               : <Send size={15} />}
@@ -505,7 +641,8 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
   const { toast } = useToast()
   const [title, setTitle]             = useState('')
   const [description, setDescription] = useState('')
-  const [assignee, setAssignee]       = useState<UserResponse | null>(null)
+  const [assignees, setAssignees]     = useState<UserResponse[]>([])
+  const [showPicker, setShowPicker]   = useState(false)
   const [dueDate, setDueDate]         = useState('')
   const [priority, setPriority]       = useState<TaskPriority>('MEDIUM')
   const [errors, setErrors]           = useState<Record<string, string>>({})
@@ -514,7 +651,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => tasksApi.create({
       title: title.trim(),
       description: description.trim() || undefined,
-      assignedTo: assignee!.id,
+      assignedTo: assignees.map(a => a.id),
       dueDate: dueDate || undefined,
       priority,
     }),
@@ -528,66 +665,86 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
 
   const submit = () => {
     const e: Record<string, string> = {}
-    if (!title.trim()) e.title = 'Title is required'
-    if (!assignee)     e.assignee = 'Select an assignee'
+    if (!title.trim())      e.title    = 'Title is required'
+    if (assignees.length === 0) e.assignees = 'Assign to at least one person'
     setErrors(e)
     if (Object.keys(e).length === 0) createMut.mutate()
   }
 
   return (
-    <Modal open title="New Task" onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <Input
-          label="Title"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          error={errors.title}
-          placeholder="What needs to be done?"
+    <>
+      <Modal open title="New Task" onClose={onClose}>
+        <div className="flex flex-col gap-4">
+          <Input label="Title" value={title} onChange={e => setTitle(e.target.value)}
+            error={errors.title} placeholder="What needs to be done?" />
+          <div>
+            <label className="form-label">Description</label>
+            <textarea className="form-input w-full resize-none" rows={3}
+              placeholder="Optional details…" value={description}
+              onChange={e => setDescription(e.target.value)} />
+          </div>
+
+          {/* Assignee picker */}
+          <div>
+            <label className="form-label">Assign to</label>
+            {assignees.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {assignees.map(a => (
+                  <span key={a.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+                    style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                    {a.firstName} {a.lastName}
+                    <button type="button"
+                      onClick={() => setAssignees(prev => prev.filter(x => x.id !== a.id))}
+                      className="ml-0.5 hover:opacity-70">
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPicker(true)}
+              className="w-full text-left text-sm px-3 py-2.5 rounded-xl transition-colors"
+              style={{
+                border: `1px solid ${errors.assignees ? 'var(--color-danger)' : border.card}`,
+                color: assignees.length ? colors.text.primary : colors.text.dim,
+                background: 'transparent',
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = colors.accent}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = errors.assignees ? 'var(--color-danger)' : border.card}
+            >
+              {assignees.length > 0
+                ? `${assignees.length} member${assignees.length > 1 ? 's' : ''} selected — click to change`
+                : 'Choose members…'}
+            </button>
+            {errors.assignees && <p className="form-error mt-1">{errors.assignees}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Due Date" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            <Select label="Priority" value={priority} onChange={e => setPriority(e.target.value as TaskPriority)}
+              options={[
+                { value: 'LOW',    label: 'Low' },
+                { value: 'MEDIUM', label: 'Medium' },
+                { value: 'HIGH',   label: 'High' },
+              ]} />
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={createMut.isPending} onClick={submit}>Create Task</Button>
+        </div>
+      </Modal>
+
+      {showPicker && (
+        <MemberPickerModal
+          selected={assignees}
+          onConfirm={setAssignees}
+          onClose={() => setShowPicker(false)}
         />
-        <div>
-          <label className="form-label">Description</label>
-          <textarea
-            className="form-input w-full resize-none"
-            rows={3}
-            placeholder="Optional details…"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="form-label">Assign to</label>
-          <UserSearchPicker
-            selected={assignee}
-            onSelect={setAssignee}
-            onClear={() => setAssignee(null)}
-            placeholder="Search by name or email…"
-          />
-          {errors.assignee && <p className="form-error mt-1">{errors.assignee}</p>}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Due Date"
-            type="date"
-            value={dueDate}
-            onChange={e => setDueDate(e.target.value)}
-          />
-          <Select
-            label="Priority"
-            value={priority}
-            onChange={e => setPriority(e.target.value as TaskPriority)}
-            options={[
-              { value: 'LOW',    label: 'Low' },
-              { value: 'MEDIUM', label: 'Medium' },
-              { value: 'HIGH',   label: 'High' },
-            ]}
-          />
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" loading={createMut.isPending} onClick={submit}>Create Task</Button>
-      </div>
-    </Modal>
+      )}
+    </>
   )
 }
 
@@ -600,10 +757,10 @@ export default function TasksPage() {
 
   const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
 
-  const [showCreate, setShowCreate]         = useState(false)
-  const [selectedTask, setSelectedTask]     = useState<TaskResponse | null>(null)
-  const [mobileTab, setMobileTab]           = useState<TaskStatus>('OPEN')
-  const [dragOverCol, setDragOverCol]       = useState<TaskStatus | null>(null)
+  const [showCreate, setShowCreate]     = useState(false)
+  const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null)
+  const [mobileTab, setMobileTab]       = useState<TaskStatus>('OPEN')
+  const [dragOverCol, setDragOverCol]   = useState<TaskStatus | null>(null)
   const draggingId = useRef<string | null>(null)
 
   const { data: tasks = [], isLoading } = useQuery({
@@ -616,8 +773,7 @@ export default function TasksPage() {
       tasksApi.updateStatus(id, { status }),
     onSuccess: (updated) => {
       qc.setQueryData<TaskResponse[]>(['tasks'], prev =>
-        prev?.map(t => t.id === updated.id ? updated : t) ?? []
-      )
+        prev?.map(t => t.id === updated.id ? updated : t) ?? [])
       if (selectedTask?.id === updated.id) setSelectedTask(updated)
     },
     onError: () => toast('Failed to update task', 'error'),
@@ -633,26 +789,21 @@ export default function TasksPage() {
     onError: () => toast('Failed to delete task', 'error'),
   })
 
-  // DnD handlers
   const handleDragStart = (e: React.DragEvent, task: TaskResponse) => {
     draggingId.current = task.id
     e.dataTransfer.effectAllowed = 'move'
   }
-
   const handleDragOver = (e: React.DragEvent, status: TaskStatus) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOverCol(status)
   }
-
   const handleDrop = (e: React.DragEvent, status: TaskStatus) => {
     e.preventDefault()
     setDragOverCol(null)
     if (!draggingId.current) return
     const task = tasks.find(t => t.id === draggingId.current)
-    if (task && task.status !== status) {
-      statusMut.mutate({ id: task.id, status })
-    }
+    if (task && task.status !== status) statusMut.mutate({ id: task.id, status })
     draggingId.current = null
   }
 
@@ -668,7 +819,6 @@ export default function TasksPage() {
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
-      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-2">
           <ListTodo size={20} style={{ color: colors.accent }} />
@@ -687,15 +837,11 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* ── Desktop kanban board ── */}
+      {/* ── Desktop kanban ── */}
       <div className="hidden lg:grid grid-cols-3 gap-4">
         {COLUMNS.map(col => (
-          <KanbanColumn
-            key={col.status}
-            status={col.status}
-            label={col.label}
-            tasks={grouped[col.status] ?? []}
-            canManage={canManage}
+          <KanbanColumn key={col.status} status={col.status} label={col.label}
+            tasks={grouped[col.status] ?? []} canManage={canManage}
             isDragOver={dragOverCol === col.status}
             onDragOver={e => handleDragOver(e, col.status)}
             onDragLeave={() => setDragOverCol(null)}
@@ -703,25 +849,20 @@ export default function TasksPage() {
             onCardDragStart={handleDragStart}
             onCardOpen={setSelectedTask}
             onCardDelete={t => deleteMut.mutate(t.id)}
-            onAddTask={() => setShowCreate(true)}
-          />
+            onAddTask={() => setShowCreate(true)} />
         ))}
       </div>
 
-      {/* ── Mobile tab + list ── */}
+      {/* ── Mobile ── */}
       <div className="lg:hidden">
-        {/* Tab pills */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 mb-4">
           {COLUMNS.map(col => {
             const count = grouped[col.status]?.length ?? 0
             const active = mobileTab === col.status
             return (
-              <button
-                key={col.status}
-                onClick={() => setMobileTab(col.status)}
+              <button key={col.status} onClick={() => setMobileTab(col.status)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-                style={active ? styles.filterTabActive : styles.filterTabInactive}
-              >
+                style={active ? styles.filterTabActive : styles.filterTabInactive}>
                 {col.label}
                 <span className="text-[10px] font-bold px-1 py-0.5 rounded-full"
                   style={{ background: active ? 'rgba(255,255,255,0.25)' : accentAlpha(0.08), color: active ? '#fff' : colors.accent }}>
@@ -732,7 +873,6 @@ export default function TasksPage() {
           })}
         </div>
 
-        {/* Card list */}
         {mobileVisible.length === 0 ? (
           <div className="flex flex-col items-center py-12 gap-2">
             <CheckCircle2 size={32} style={{ color: colors.text.dim }} />
@@ -749,7 +889,7 @@ export default function TasksPage() {
                     <p className="text-sm font-semibold leading-snug" style={{ color: colors.text.primary }}>{task.title}</p>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       <span className="text-xs" style={{ color: colors.text.muted }}>
-                        {task.assignedToFirstName} {task.assignedToLastName}
+                        {task.assignees.map(a => a.firstName).join(', ') || 'Unassigned'}
                       </span>
                       {dueDateLabel(task.dueDate) && (
                         <span className="flex items-center gap-1 text-xs"
@@ -760,41 +900,29 @@ export default function TasksPage() {
                     </div>
                   </div>
                   <button onClick={() => setSelectedTask(task)}
-                    className="p-1.5 rounded-lg flex-shrink-0"
-                    style={{ color: colors.text.dim }}>
+                    className="p-1.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                     <ChevronRight size={16} />
                   </button>
                 </div>
-                {/* Quick status actions */}
-                {(canManage || task.assignedTo === user?.id) && (
+                {(canManage || task.assignees.some(a => a.id === user?.id)) && (
                   <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-                    {task.status === 'OPEN' && (
-                      <>
-                        <button onClick={() => statusMut.mutate({ id: task.id, status: 'IN_PROGRESS' })}
-                          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                          style={{ background: accentAlpha(0.08), color: colors.accent }}>
-                          Start
-                        </button>
-                        <button onClick={() => statusMut.mutate({ id: task.id, status: 'COMPLETED' })}
-                          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                          style={{ background: 'rgba(var(--color-success-raw),0.10)', color: 'var(--color-success)' }}>
-                          Done
-                        </button>
-                      </>
-                    )}
+                    {task.status === 'OPEN' && (<>
+                      <button onClick={() => statusMut.mutate({ id: task.id, status: 'IN_PROGRESS' })}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: accentAlpha(0.08), color: colors.accent }}>Start</button>
+                      <button onClick={() => statusMut.mutate({ id: task.id, status: 'COMPLETED' })}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: 'rgba(var(--color-success-raw),0.10)', color: 'var(--color-success)' }}>Done</button>
+                    </>)}
                     {task.status === 'IN_PROGRESS' && (
                       <button onClick={() => statusMut.mutate({ id: task.id, status: 'COMPLETED' })}
                         className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-                        style={{ background: 'rgba(var(--color-success-raw),0.10)', color: 'var(--color-success)' }}>
-                        Mark Done
-                      </button>
+                        style={{ background: 'rgba(var(--color-success-raw),0.10)', color: 'var(--color-success)' }}>Mark Done</button>
                     )}
                     {task.status === 'COMPLETED' && (
                       <button onClick={() => statusMut.mutate({ id: task.id, status: 'OPEN' })}
                         className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-                        style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
-                        Reopen
-                      </button>
+                        style={{ background: accentAlpha(0.06), color: colors.text.muted }}>Reopen</button>
                     )}
                   </div>
                 )}
@@ -804,16 +932,11 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Modals */}
       {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} />}
       {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          canManage={canManage}
-          currentUserId={user?.id ?? ''}
+        <TaskDetailModal task={selectedTask} canManage={canManage} currentUserId={user?.id ?? ''}
           onClose={() => setSelectedTask(null)}
-          onStatusChange={status => statusMut.mutate({ id: selectedTask.id, status })}
-        />
+          onStatusChange={status => statusMut.mutate({ id: selectedTask.id, status })} />
       )}
     </div>
   )

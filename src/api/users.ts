@@ -17,6 +17,11 @@ export const usersApi = {
       })
       .then((r) => r.data.data),
 
+  listMembers: () =>
+    client
+      .get<ApiResponse<UserResponse[]>>('/users/members')
+      .then((r) => r.data.data),
+
   /** Search users by partial email within the caller's organisation. */
   search: (email: string, role?: Role) =>
     client

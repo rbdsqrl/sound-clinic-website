@@ -560,14 +560,18 @@ export interface UpdateProgramRequest {
 export type TaskStatus   = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH'
 
+export interface TaskAssignee {
+  id: string
+  firstName: string
+  lastName: string
+}
+
 export interface TaskResponse {
   id: string
   orgId: string
   title: string
   description: string | null
-  assignedTo: string
-  assignedToFirstName: string
-  assignedToLastName: string
+  assignees: TaskAssignee[]
   assignedBy: string
   assignedByFirstName: string
   assignedByLastName: string
@@ -583,7 +587,7 @@ export interface TaskResponse {
 export interface CreateTaskRequest {
   title: string
   description?: string
-  assignedTo: string
+  assignedTo: string[]        // array of user IDs
   dueDate?: string            // "YYYY-MM-DD"
   priority?: TaskPriority
 }
@@ -591,7 +595,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string
   description?: string
-  assignedTo?: string
+  assignedTo?: string[]
   dueDate?: string
   priority?: TaskPriority
 }
