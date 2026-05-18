@@ -621,98 +621,98 @@ function MockRazorpayModal({
   )
 }
 
-// ── SessionList (lazy-loaded per enrollment) ───────────────────────────────────
+// ── SessionList (compact chip grid, lazy-loaded per enrollment) ────────────────
 
-function SessionList({ enrollmentId, canUpdate }: { enrollmentId: string; canUpdate: boolean }) {
-  const qc = useQueryClient()
-  const { toast } = useToast()
-  const [notesSession, setNotesSession] = useState<TherapySessionResponse | null>(null)
-
+function SessionList({
+  enrollmentId,
+  canUpdate,
+  onOpenNotes,
+}: {
+  enrollmentId: string
+  canUpdate: boolean
+  onOpenNotes: (s: TherapySessionResponse) => void
+}) {
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', 'enrollment', enrollmentId],
     queryFn: () => therapySessionsApi.byEnrollment(enrollmentId),
     staleTime: 60 * 1000,
   })
 
-  const updateMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TherapySessionStatus }) =>
-      therapySessionsApi.updateStatus(id, { status }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
-      qc.invalidateQueries({ queryKey: ['enrollments'] })
-      toast('Session updated', 'success')
-    },
-    onError: () => toast('Failed to update session', 'error'),
-  })
-
   if (isLoading) return (
-    <div className="p-4 flex justify-center" style={{ borderTop: `1px solid ${border.divider}` }}>
-      <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: `${colors.accent}30`, borderTopColor: colors.accent }} />
+    <div className="px-4 py-4 flex justify-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+      <div className="h-4 w-4 animate-spin rounded-full border-2"
+        style={{ borderColor: `${colors.accent}30`, borderTopColor: colors.accent }} />
     </div>
   )
 
+  const completed = sessions.filter(s => s.status === 'COMPLETED').length
+  const total     = sessions.length
+  const pct       = total > 0 ? (completed / total) * 100 : 0
+
   return (
-    <>
-      <div style={{ borderTop: `1px solid ${border.divider}` }}>
-        <div className="divide-y" style={{ borderColor: border.divider }}>
-          {sessions.map(s => (
-            <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-              {sessionStatusIcon(s.status)}
-              <span className="text-xs w-5 text-center flex-shrink-0" style={{ color: colors.text.dim }}>{s.sessionNumber}</span>
-              <span className="text-xs flex-1" style={{ color: s.status === 'SCHEDULED' ? colors.text.primary : colors.text.muted }}>
-                {s.sessionDate}
-                <span className="ml-2" style={{ color: colors.text.dim }}>{s.startTime.slice(0,5)}</span>
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                style={
-                  s.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-                  : s.status === 'CANCELLED' || s.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
-                  : paletteStyle('blue', 0.10, 0)
-                }>
-                {s.status.replace('_', ' ')}
-              </span>
-              {canUpdate && s.status === 'SCHEDULED' && (
-                <select
-                  className="text-xs rounded-lg px-2 py-1 border-0 outline-none cursor-pointer"
-                  style={{ background: surface.filterStrip, color: colors.text.muted, fontSize: 11 }}
-                  value=""
-                  onChange={e => {
-                    if (e.target.value) updateMut.mutate({ id: s.id, status: e.target.value as TherapySessionStatus })
-                  }}
-                >
-                  <option value="">Mark as…</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="CANCELLED">Cancelled</option>
-                  <option value="NO_SHOW">No Show</option>
-                </select>
-              )}
-              {canUpdate && (
-                <button
-                  onClick={() => setNotesSession(s)}
-                  className="p-1.5 rounded-lg flex-shrink-0 transition-colors"
-                  title="Session notes & attachments"
-                  style={{
-                    color: (s.feedback || s.progressReport || s.notes) ? colors.accent : colors.text.dim,
-                    background: (s.feedback || s.progressReport || s.notes) ? accentAlpha(0.08) : 'transparent',
-                  }}
-                >
-                  <ClipboardList size={13} />
-                </button>
-              )}
-            </div>
-          ))}
+    <div className="px-4 pb-4 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+      {/* Progress bar */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: '#16a34a' }} />
         </div>
+        <span className="text-[10px] font-medium tabular-nums flex-shrink-0" style={{ color: colors.text.dim }}>
+          {completed}/{total} done
+        </span>
       </div>
 
-      {notesSession && (
-        <SessionNotesModal
-          session={notesSession}
-          canEdit={canUpdate}
-          enrollmentId={enrollmentId}
-          onClose={() => setNotesSession(null)}
-        />
-      )}
-    </>
+      {/* Session chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {sessions.map(s => {
+          const isDone      = s.status === 'COMPLETED'
+          const isBad       = s.status === 'CANCELLED' || s.status === 'NO_SHOW'
+          const isScheduled = s.status === 'SCHEDULED'
+          const hasNotes    = !!(s.feedback || s.progressReport || s.notes)
+          return (
+            <div key={s.id} className="relative">
+              <button
+                title={`#${s.sessionNumber} · ${s.sessionDate} · ${s.status.replace(/_/g, ' ')}`}
+                onClick={() => canUpdate && onOpenNotes(s)}
+                className="w-8 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-opacity hover:opacity-75"
+                style={{
+                  background : isDone ? '#16a34a1a' : isBad ? '#dc26261a' : surface.filterStrip,
+                  color      : isDone ? '#16a34a'   : isBad ? '#dc2626'   : colors.text.dim,
+                  border     : isScheduled ? `1px dashed ${border.divider}` : '1px solid transparent',
+                  cursor     : canUpdate ? 'pointer' : 'default',
+                }}
+              >
+                {s.sessionNumber}
+              </button>
+              {hasNotes && canUpdate && (
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full pointer-events-none"
+                  style={{ background: colors.accent }} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-3">
+        {[
+          { color: '#16a34a', label: 'Done' },
+          { color: colors.text.dim, label: 'Scheduled', dashed: true },
+          { color: '#dc2626', label: 'Cancelled' },
+        ].map(l => (
+          <span key={l.label} className="flex items-center gap-1 text-[10px]" style={{ color: colors.text.dim }}>
+            <span className="w-2.5 h-2.5 rounded-sm inline-block flex-shrink-0"
+              style={{ background: l.color + '33', border: l.dashed ? `1px dashed ${border.divider}` : `1px solid ${l.color}44` }} />
+            {l.label}
+          </span>
+        ))}
+        {canUpdate && (
+          <span className="flex items-center gap-1 text-[10px] ml-auto" style={{ color: colors.text.dim }}>
+            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: colors.accent }} />
+            Has notes
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -749,6 +749,17 @@ function SessionNotesModal({
       onClose()
     },
     onError: () => toast('Failed to save notes', 'error'),
+  })
+
+  const statusMut = useMutation({
+    mutationFn: (status: TherapySessionStatus) => therapySessionsApi.updateStatus(session.id, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      qc.invalidateQueries({ queryKey: ['enrollments'] })
+      toast('Session updated', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to update session', 'error'),
   })
 
   const uploadMut = useMutation({
@@ -789,6 +800,30 @@ function SessionNotesModal({
       </div>
 
       <div className="flex flex-col gap-4">
+        {/* Status update — only for scheduled sessions */}
+        {canEdit && session.status === 'SCHEDULED' && (
+          <div>
+            <p className="form-label">Mark session as</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
+                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
+                { value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  disabled={statusMut.isPending}
+                  onClick={() => statusMut.mutate(opt.value)}
+                  className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
+                  style={{ background: opt.color + '18', color: opt.color }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Feedback */}
         <div>
           <label className="form-label">Feedback</label>
@@ -1182,6 +1217,7 @@ export default function PatientDetailPage() {
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
   const [expandedEnroll,   setExpandedEnroll]   = useState<string | null>(null)
+  const [notesState,       setNotesState]       = useState<{ session: TherapySessionResponse; enrollmentId: string; canEdit: boolean } | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [sidebarSearch,    setSidebarSearch]    = useState('')
 
@@ -1936,7 +1972,7 @@ export default function PatientDetailPage() {
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
                                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
                                 >
-                                  {isExpanded ? 'Hide sessions' : `View sessions (${enroll.totalSessions})`}
+                                  {isExpanded ? 'Hide progress' : 'Session progress'}
                                 </button>
                                 {canManageSubs && (
                                   <button
@@ -1954,7 +1990,7 @@ export default function PatientDetailPage() {
                             )}
                           </div>
 
-                          {/* Expandable session list */}
+                          {/* Expandable session progress */}
                           {isExpanded && (
                             <SessionList
                               enrollmentId={enroll.id}
@@ -1963,6 +1999,13 @@ export default function PatientDetailPage() {
                                   ? user?.id === enroll.therapistId
                                   : canUpdateSession
                               }
+                              onOpenNotes={(s) => setNotesState({
+                                session: s,
+                                enrollmentId: enroll.id,
+                                canEdit: (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
+                                  ? user?.id === enroll.therapistId
+                                  : canUpdateSession,
+                              })}
                             />
                           )}
                         </div>
@@ -1975,6 +2018,15 @@ export default function PatientDetailPage() {
           )}
 
           {/* ── Modals ───────────────────────────────────────────────────────── */}
+          {notesState && (
+            <SessionNotesModal
+              session={notesState.session}
+              canEdit={notesState.canEdit}
+              enrollmentId={notesState.enrollmentId}
+              onClose={() => setNotesState(null)}
+            />
+          )}
+
           <Modal open={conditionModal} onClose={() => { setConditionModal(false); conditionForm.reset() }} title="Add Condition">
             <form onSubmit={conditionForm.handleSubmit((d) => addConditionMutation.mutate(d))} className="space-y-4">
               <Select label="Condition" placeholder="Select condition…" options={conditionOptions}
