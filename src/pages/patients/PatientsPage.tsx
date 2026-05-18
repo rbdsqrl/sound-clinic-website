@@ -110,7 +110,7 @@ export default function PatientsPage() {
       ) : (
         <>
           {/* Card list — mobile */}
-          <div className="space-y-3 sm:hidden">
+          <div className="flex flex-col gap-4 sm:hidden">
             {patients.map((p) => (
               <Link key={p.id} to={`/patients/${p.id}`}>
                 <Card>

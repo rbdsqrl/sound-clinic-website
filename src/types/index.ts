@@ -303,6 +303,12 @@ export interface AcceptInviteRequest {
   password: string
 }
 
+export interface InvitePreviewResponse {
+  email: string
+  role: Role
+  orgName: string
+}
+
 // ── Condition ──────────────────────────────────────────────────────────────────
 export interface ConditionResponse {
   id: string
