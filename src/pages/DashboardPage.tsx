@@ -19,7 +19,7 @@ import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ui/Toast'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -268,6 +268,21 @@ function RescheduleModal({
   )
 }
 
+function rescheduleReasonBadge(reason: RescheduleReason | null | undefined) {
+  if (reason === 'PUBLIC_HOLIDAY') return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+      style={{ background: '#2563eb18', color: '#2563eb' }}>Holiday</span>
+  )
+  if (reason === 'PARENT_REQUEST') return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+      style={{ background: '#7c3aed18', color: '#7c3aed' }}>Parent request</span>
+  )
+  return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+      style={{ background: '#d9770618', color: '#d97706' }}>Therapist leave</span>
+  )
+}
+
 function PendingReschedulePanel({ sessions, onRescheduled }: {
   sessions: TherapySessionResponse[]
   onRescheduled: () => void
@@ -308,10 +323,13 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
         </p>
       </div>
 
-      {/* Session count */}
-      <span className="text-xs flex-shrink-0 hidden sm:block" style={{ color: colors.text.dim }}>
-        #{s.sessionNumber}/{s.totalSessions}
-      </span>
+      {/* Reason badge + session count */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
+          #{s.sessionNumber}/{s.totalSessions}
+        </span>
+        {rescheduleReasonBadge(s.rescheduleReason)}
+      </div>
 
       {/* Action */}
       <button
@@ -339,7 +357,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
               {sessions.length}
             </span>
           </div>
-          <p className="text-xs" style={{ color: colors.text.muted }}>Therapist on approved leave</p>
+          <p className="text-xs" style={{ color: colors.text.muted }}>Leave · Holiday · Parent request</p>
         </div>
 
         <div>

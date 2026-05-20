@@ -459,6 +459,7 @@ export interface AvailableTherapistsQuery {
 
 // ── Therapy Sessions ───────────────────────────────────────────────────────────
 export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE'
+export type RescheduleReason = 'THERAPIST_LEAVE' | 'PUBLIC_HOLIDAY' | 'PARENT_REQUEST'
 
 export interface TherapySessionResponse {
   id: string
@@ -481,6 +482,7 @@ export interface TherapySessionResponse {
   progressReport: string | null
   performanceScore: number | null  // 1–5
   completedAt: string | null
+  rescheduleReason: RescheduleReason | null
 }
 
 export interface UpdateSessionStatusRequest {
@@ -635,6 +637,20 @@ export interface TaskAttachmentResponse {
   contentType: string | null
   fileSizeBytes: number
   createdAt: string
+}
+
+// ── Public Holidays ────────────────────────────────────────────────────────────
+export interface PublicHolidayResponse {
+  id: string
+  orgId: string
+  holidayDate: string    // "YYYY-MM-DD"
+  name: string
+  sessionsAffected: number
+}
+
+export interface CreatePublicHolidayRequest {
+  holidayDate: string    // "YYYY-MM-DD"
+  name: string
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────

@@ -47,6 +47,12 @@ export const therapySessionsApi = {
       data,
     ).then(r => r.data.data),
 
+  /** Request reschedule of a SCHEDULED session (parent role) */
+  requestReschedule: (id: string) =>
+    client.post<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/reschedule-request`,
+    ).then(r => r.data.data),
+
   /** List all attachments for a session */
   listAttachments: (id: string) =>
     client.get<ApiResponse<SessionAttachmentResponse[]>>(
