@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Save,
+  Activity, CheckCircle2, Zap, Save, Sun,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
@@ -17,14 +17,15 @@ import { hasRole } from '../../types'
 import { inquiriesApi } from '../../api/inquiries'
 import { leavesApi } from '../../api/leaves'
 import { therapySessionsApi } from '../../api/therapySessions'
+import { publicHolidaysApi } from '../../api/publicHolidays'
 import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse } from '../../types'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
-type EventKind = 'consultation' | 'leave' | 'session'
+type EventKind = 'consultation' | 'leave' | 'session' | 'holiday'
 
 interface CalendarEvent {
   id: string
@@ -35,7 +36,7 @@ interface CalendarEvent {
   subtitle?: string
   status?: string
   isAllDay: boolean
-  raw: InquiryResponse | LeaveResponse | TherapySessionResponse
+  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse
 }
 
 // ── Visual config per kind ────────────────────────────────────────────────────
@@ -44,7 +45,11 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   if (kind === 'consultation') {
     return { background: '#2B80C818', color: '#2B80C8' }
   }
+  if (kind === 'holiday') {
+    return { background: '#F59E0B20', color: '#B45309' }
+  }
   if (kind === 'session') {
+    if (status === 'PENDING_RESCHEDULE') return { background: '#F59E0B18', color: '#B45309' }
     if (status === 'CANCELLED' || status === 'NO_SHOW') return { background: '#88888818', color: '#888' }
     return { background: `rgba(${palette.purple.raw}, 0.1)`, color: palette.purple.text }
   }
@@ -56,7 +61,9 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 
 function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#2B80C8'
+  if (kind === 'holiday')      return '#B45309'
   if (kind === 'session') {
+    if (status === 'PENDING_RESCHEDULE') return '#B45309'
     if (status === 'CANCELLED' || status === 'NO_SHOW') return '#888'
     return palette.purple.text
   }
@@ -107,6 +114,17 @@ function toSessionEvent(s: TherapySessionResponse): CalendarEvent {
     status: s.status,
     isAllDay: false,
     raw: s,
+  }
+}
+
+function toHolidayEvent(h: PublicHolidayResponse): CalendarEvent {
+  return {
+    id: `holiday-${h.id}`,
+    date: h.holidayDate,
+    kind: 'holiday',
+    title: h.name,
+    isAllDay: true,
+    raw: h,
   }
 }
 
@@ -175,8 +193,8 @@ function EventChip({
 // ── Month View ────────────────────────────────────────────────────────────────
 
 function MonthView({
-  current, events, onSelect,
-}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void }) {
+  current, events, onSelect, holidayDates,
+}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string> }) {
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(current), { weekStartsOn: 1 }),
     end:   endOfWeek(endOfMonth(current),     { weekStartsOn: 1 }),
@@ -193,16 +211,20 @@ function MonthView({
       </div>
       <div className="grid grid-cols-7 flex-1" style={{ gridAutoRows: '1fr' }}>
         {days.map((day, idx) => {
+          const dayKey     = format(day, 'yyyy-MM-dd')
           const dayEvents  = eventsOnDay(events, day)
           const inMonth    = isSameMonth(day, current)
           const todayDay   = isToday(day)
+          const isHoliday  = holidayDates.has(dayKey)
           const isLastRow  = idx >= days.length - 7
           const isLastCol  = (idx + 1) % 7 === 0
 
-          // Sort: all-day (leave) first, then timed (consultation)
-          const sorted = [...dayEvents].sort((a, b) =>
-            (b.isAllDay ? 1 : 0) - (a.isAllDay ? 1 : 0)
-          )
+          // Sort: holidays first, then other all-day, then timed
+          const sorted = [...dayEvents].sort((a, b) => {
+            if (a.kind === 'holiday' && b.kind !== 'holiday') return -1
+            if (b.kind === 'holiday' && a.kind !== 'holiday') return 1
+            return (b.isAllDay ? 1 : 0) - (a.isAllDay ? 1 : 0)
+          })
 
           return (
             <div key={day.toISOString()}
@@ -211,6 +233,7 @@ function MonthView({
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
                 opacity: inMonth ? 1 : 0.4,
+                background: isHoliday ? '#FEF3C720' : undefined,
               }}>
               <div className="flex justify-end mb-1">
                 <span className="text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full"
@@ -243,8 +266,8 @@ function MonthView({
 // ── Week View ─────────────────────────────────────────────────────────────────
 
 function WeekView({
-  current, events, onSelect,
-}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void }) {
+  current, events, onSelect, holidayDates,
+}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string> }) {
   const ws   = getWeekStart(current, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i))
   const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
@@ -257,21 +280,26 @@ function WeekView({
       <div className="grid sticky top-0 z-10 border-b"
         style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, background: surface.card }}>
         <div />
-        {days.map(day => (
-          <div key={day.toISOString()} className="py-2 text-center border-l"
-            style={{ borderColor: border.divider }}>
-            <p className="text-xs font-semibold" style={{ color: colors.text.muted }}>
-              {format(day, 'EEE')}
-            </p>
-            <div className="text-sm font-bold mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center"
-              style={{
-                background: isToday(day) ? colors.accent : 'transparent',
-                color: isToday(day) ? '#fff' : colors.text.primary,
-              }}>
-              {format(day, 'd')}
+        {days.map(day => {
+          const dayKey    = format(day, 'yyyy-MM-dd')
+          const isHoliday = holidayDates.has(dayKey)
+          return (
+            <div key={day.toISOString()} className="py-2 text-center border-l"
+              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : undefined }}>
+              <p className="text-xs font-semibold" style={{ color: isHoliday ? '#B45309' : colors.text.muted }}>
+                {format(day, 'EEE')}
+                {isHoliday && <Sun size={9} className="inline ml-1 opacity-80" />}
+              </p>
+              <div className="text-sm font-bold mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center"
+                style={{
+                  background: isToday(day) ? colors.accent : 'transparent',
+                  color: isToday(day) ? '#fff' : colors.text.primary,
+                }}>
+                {format(day, 'd')}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* All-day row (leaves) */}
@@ -432,6 +460,7 @@ function EventDetailDrawer({
 
   const isConsultation = event.kind === 'consultation'
   const isSession      = event.kind === 'session'
+  const isHolidayEv    = event.kind === 'holiday'
   const rawInquiry     = event.raw as InquiryResponse
   const rawLeave       = event.raw as LeaveResponse
   const rawSession     = event.raw as TherapySessionResponse
@@ -473,12 +502,12 @@ function EventDetailDrawer({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={s}>
-              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : <CalendarOff size={17} />}
+              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : <CalendarOff size={17} />}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
                 style={{ color: s.color as string }}>
-                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : 'Leave'}
+                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
                 {event.title}
@@ -593,8 +622,16 @@ function EventDetailDrawer({
             </>
           )}
 
+          {/* Holiday-specific */}
+          {isHolidayEv && (
+            <div className="rounded-xl px-3 py-3 text-sm"
+              style={{ background: '#FEF3C740', color: '#B45309', border: '1px solid #F59E0B40' }}>
+              No sessions are scheduled on this day. Any sessions that would have fallen here were automatically moved to the next available date.
+            </div>
+          )}
+
           {/* Leave-specific */}
-          {!isConsultation && !isSession && (
+          {!isConsultation && !isSession && !isHolidayEv && (
             <>
               <Row icon={<Users size={14} />}
                 label={`${rawLeave.therapistFirstName} ${rawLeave.therapistLastName}`} />
@@ -619,7 +656,7 @@ function EventDetailDrawer({
         </div>
 
         {/* Footer */}
-        {((canGoToInquiries && isConsultation) || canAccessNotes) && (
+        {!isHolidayEv && ((canGoToInquiries && isConsultation) || canAccessNotes) && (
           <div className="p-5 border-t flex-shrink-0 flex flex-col gap-2" style={{ borderColor: border.divider }}>
             {canGoToInquiries && isConsultation && (
               <>
@@ -877,7 +914,19 @@ export default function CalendarPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: publicHolidays = [] } = useQuery({
+    queryKey: ['public-holidays'],
+    queryFn:  publicHolidaysApi.list,
+    staleTime: 60 * 60 * 1000, // holidays rarely change; cache for 1 hour
+  })
+
   const isLoading = inquiriesLoading || leavesLoading || sessionsLoading
+
+  // ── Set of holiday date keys for fast lookup ───────────────────────────────
+  const holidayDates = useMemo(
+    () => new Set(publicHolidays.map(h => h.holidayDate)),
+    [publicHolidays]
+  )
 
   // ── Build unified event list ───────────────────────────────────────────────
   const events = useMemo<CalendarEvent[]>(() => {
@@ -891,8 +940,9 @@ export default function CalendarPage() {
       : leaves
     for (const l of leavesToShow) out.push(toLeaveEvent(l))
     for (const s of sessions) out.push(toSessionEvent(s))
+    for (const h of publicHolidays) out.push(toHolidayEvent(h))
     return out
-  }, [inquiries, leaves, sessions, canSeeInquiries])
+  }, [inquiries, leaves, sessions, publicHolidays, canSeeInquiries])
 
   // ── Browser notification effect ────────────────────────────────────────────
   // Fires every 60 s; notifies for timed events starting within 15 minutes.
@@ -987,6 +1037,12 @@ export default function CalendarPage() {
               Session
             </span>
           )}
+          {publicHolidays.length > 0 && (
+            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#B45309' }} />
+              Holiday
+            </span>
+          )}
         </div>
       </div>
 
@@ -1055,9 +1111,9 @@ export default function CalendarPage() {
             <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col">
               <div className="min-w-[420px] flex flex-col flex-1">
                 {view === 'month' ? (
-                  <MonthView current={current} events={events} onSelect={setSelected} />
+                  <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
                 ) : (
-                  <WeekView current={current} events={events} onSelect={setSelected} />
+                  <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
                 )}
               </div>
             </div>
