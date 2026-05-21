@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
+import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
@@ -19,13 +20,66 @@ import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ui/Toast'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
 
 const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
+
+const JS_TO_DOW: DayOfWeek[] = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY']
+const DOW_SHORT: Record<DayOfWeek, string> = {
+  MONDAY: 'M', TUESDAY: 'T', WEDNESDAY: 'W', THURSDAY: 'T', FRIDAY: 'F', SATURDAY: 'S', SUNDAY: 'S',
+}
+const DOW_ORDER: DayOfWeek[] = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY']
+
+function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string }) {
+  const availDays = new Set(slots.map(s => s.dayOfWeek))
+
+  const dateDow = date ? JS_TO_DOW[new Date(date + 'T00:00:00').getDay()] : null
+  const matchedSlots = dateDow ? slots.filter(s => s.dayOfWeek === dateDow) : []
+
+  return (
+    <div className="space-y-2">
+      {/* Weekly availability chip row */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs" style={{ color: colors.text.dim }}>Available:</span>
+        <div className="flex gap-1">
+          {DOW_ORDER.map(dow => {
+            const active = availDays.has(dow)
+            return (
+              <span key={dow}
+                className="h-6 w-6 rounded-full text-[10px] font-bold flex items-center justify-center"
+                style={{
+                  background: active ? (dateDow === dow ? '#16a34a18' : accentAlpha(0.12)) : '#f1f1f1',
+                  color: active ? (dateDow === dow ? '#16a34a' : colors.accent) : colors.text.dim,
+                  border: dateDow === dow ? `1.5px solid ${active ? '#16a34a' : '#f87171'}` : 'none',
+                }}>
+                {DOW_SHORT[dow]}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Date-specific feedback */}
+      {date && (
+        matchedSlots.length > 0 ? (
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#16a34a' }}>
+            <CheckCircle2 size={12} />
+            Available {matchedSlots.map(s => `${s.startTime.slice(0,5)}–${s.endTime.slice(0,5)}`).join(', ')}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#d97706' }}>
+            <AlertTriangle size={12} />
+            Not scheduled on {dateDow ? dateDow.charAt(0) + dateDow.slice(1).toLowerCase() + 's' : 'this day'}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
 
 function sessionStatusIcon(status: string) {
   if (status === 'COMPLETED') return <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
@@ -201,9 +255,20 @@ function RescheduleModal({
   const [newDate, setNewDate] = useState('')
   const [substituteId, setSubstituteId] = useState('')
   const { toast } = useToast()
+
   const { data: therapists = [] } = useQuery({
     queryKey: ['therapists'],
     queryFn: () => usersApi.listTherapists(),
+  })
+
+  // The active therapist is the substitute if chosen, otherwise the original
+  const activeTherapistId = substituteId || session.therapistId
+
+  const { data: slots = [] } = useQuery({
+    queryKey: ['therapist-slots', activeTherapistId],
+    queryFn: () => slotsApi.list(activeTherapistId),
+    enabled: !!activeTherapistId,
+    staleTime: 5 * 60 * 1000,
   })
 
   const therapistOptions = therapists
@@ -231,21 +296,13 @@ function RescheduleModal({
           <p>{session.programName} · Session #{session.sessionNumber}</p>
           <p>
             Original: {format(new Date(session.sessionDate), 'MMM d, yyyy')} at {session.startTime.slice(0, 5)}
-            {' · '}{session.therapistFirstName} {session.therapistLastName}
+            {' · '}Therapist {session.therapistFirstName} {session.therapistLastName}
           </p>
         </div>
 
         <p className="text-sm" style={{ color: colors.text.muted }}>
           Set a new date, assign a substitute therapist, or both.
         </p>
-
-        <Input
-          label="New date (optional)"
-          type="date"
-          value={newDate}
-          onChange={e => setNewDate(e.target.value)}
-          min={today}
-        />
 
         <Select
           label="Substitute therapist (optional)"
@@ -254,6 +311,26 @@ function RescheduleModal({
           value={substituteId}
           onChange={e => setSubstituteId(e.target.value)}
         />
+
+        <div className="space-y-2">
+          <Input
+            label="New date (optional)"
+            type="date"
+            value={newDate}
+            onChange={e => setNewDate(e.target.value)}
+            min={today}
+          />
+          {slots.length > 0 && (
+            <div className="px-1">
+              <AvailabilityHint slots={slots} date={newDate} />
+            </div>
+          )}
+          {slots.length === 0 && (
+            <p className="text-xs px-1" style={{ color: colors.text.dim }}>
+              No availability slots defined for this therapist.
+            </p>
+          )}
+        </div>
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -993,15 +1070,23 @@ export default function DashboardPage() {
   // ── Parent dashboard ──────────────────────────────────────────────────────
   if (isParentView) {
     return (
-      <div className="space-y-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>
-              Welcome back, {user?.firstName}
-            </h1>
-            {activeRole && roleBadge(activeRole)}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}
+          >
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
-          <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>Here's a summary for your children.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
+              {user?.firstName} {user?.lastName}
+            </span>
+            {activeRole && roleBadge(activeRole)}
+            <span className="text-xs" style={{ color: colors.text.dim }}>
+              {format(new Date(), 'EEE, d MMM yyyy')}
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1055,26 +1140,49 @@ export default function DashboardPage() {
   // ── Staff dashboard ───────────────────────────────────────────────────────
   const completedToday = todaySessions.filter(s => s.status === 'COMPLETED').length
 
+  // Quick-action links shown for owner/admin instead of empty stat cards
+  const ownerActions = [
+    { to: '/invitations',      icon: <UserPlus size={14} />,     label: 'Invite Staff' },
+    { to: '/patients',         icon: <Users size={14} />,        label: 'Patients' },
+    { to: '/calendar',         icon: <CalendarDays size={14} />, label: 'Calendar' },
+    { to: '/leave-management', icon: <ClipboardList size={14} />, label: 'Leave Requests' },
+  ]
+
   return (
-    <div className="space-y-8">
-      <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>
-            Welcome back, {user?.firstName}
-          </h1>
-          {activeRole && roleBadge(activeRole)}
+    <div className="space-y-6">
+      {/* Compact header — name + role + date on one line */}
+      <div className="flex items-center gap-3">
+        <div
+          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+          style={{ background: accentAlpha(0.12), color: colors.accent }}
+        >
+          {user?.firstName?.[0]}{user?.lastName?.[0]}
         </div>
-        <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>
-          {format(new Date(), 'EEEE, d MMMM yyyy')}
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
+            {user?.firstName} {user?.lastName}
+          </span>
+          {activeRole && roleBadge(activeRole)}
+          <span className="text-xs" style={{ color: colors.text.dim }}>
+            {format(new Date(), 'EEE, d MMM yyyy')}
+          </span>
+        </div>
       </div>
 
       {isOwnerOrAdmin ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Clinics"          value={clinics?.length ?? 0}        icon={<Building2 size={22} />}    color="teal" />
-          <StatCard label="Patients"         value={patients?.length ?? 0}       icon={<Users size={22} />}        color="blue" />
-          <StatCard label="Therapists"       value={uniqueTherapistIds.size}     icon={<Stethoscope size={22} />}  color="green" />
-          <StatCard label="Sessions Today"   value={todaySessions.length}        icon={<CalendarDays size={22} />} color="purple" />
+        /* Quick-action strip replaces the empty stat cards */
+        <div className="flex gap-2 flex-wrap">
+          {ownerActions.map(a => (
+            <Link
+              key={a.to}
+              to={a.to}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-opacity hover:opacity-75"
+              style={{ background: accentAlpha(0.08), color: colors.accent, border: `1px solid ${accentAlpha(0.15)}` }}
+            >
+              {a.icon}
+              {a.label}
+            </Link>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
