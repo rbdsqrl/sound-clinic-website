@@ -53,6 +53,24 @@ export const therapySessionsApi = {
       `/therapy-sessions/${id}/reschedule-request`,
     ).then(r => r.data.data),
 
+  /** Request cancellation of a SCHEDULED session (therapist/doctor) — requires admin approval */
+  requestCancellation: (id: string) =>
+    client.post<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/cancellation-request`,
+    ).then(r => r.data.data),
+
+  /** Approve a cancellation request — sets status to CANCELLED (admin/owner only) */
+  approveCancellation: (id: string) =>
+    client.post<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/approve-cancellation`,
+    ).then(r => r.data.data),
+
+  /** Reject a cancellation request — reverts to SCHEDULED (admin/owner only) */
+  rejectCancellation: (id: string) =>
+    client.post<ApiResponse<TherapySessionResponse>>(
+      `/therapy-sessions/${id}/reject-cancellation`,
+    ).then(r => r.data.data),
+
   /** List all attachments for a session */
   listAttachments: (id: string) =>
     client.get<ApiResponse<SessionAttachmentResponse[]>>(

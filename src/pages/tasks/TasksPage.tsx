@@ -16,6 +16,7 @@ import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, dangerAlpha, warningAlpha } from '../../theme'
+import { roleLabel } from '../../components/ui/Badge'
 import { format, isPast, parseISO, isToday } from 'date-fns'
 import type {
   TaskResponse, TaskStatus, TaskPriority, TaskAssignee,
@@ -202,7 +203,7 @@ function MemberPickerModal({
                   {m.firstName} {m.lastName}
                 </p>
                 <p className="text-xs" style={{ color: colors.text.muted }}>
-                  {m.role.replace(/_/g, ' ')}
+                  {roleLabel(m.role)}
                 </p>
               </div>
             </button>

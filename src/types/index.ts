@@ -458,7 +458,7 @@ export interface AvailableTherapistsQuery {
 }
 
 // ── Therapy Sessions ───────────────────────────────────────────────────────────
-export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE'
+export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE' | 'CANCELLATION_REQUESTED'
 export type RescheduleReason = 'THERAPIST_LEAVE' | 'PUBLIC_HOLIDAY' | 'PARENT_REQUEST'
 
 export interface TherapySessionResponse {

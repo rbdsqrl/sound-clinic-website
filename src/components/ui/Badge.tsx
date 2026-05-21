@@ -18,6 +18,11 @@ export function Badge({ children, variant = 'slate' }: BadgeProps) {
   )
 }
 
+export function roleLabel(role: string): string {
+  if (role === 'ADMIN') return 'Clinic Head'
+  return role.replace(/_/g, ' ')
+}
+
 export function roleBadge(role: string) {
   const map: Record<string, BadgeVariant> = {
     ADMIN:          'red',
@@ -27,7 +32,7 @@ export function roleBadge(role: string) {
     PARENT:         'green',
     PATIENT:        'yellow',
   }
-  return <Badge variant={map[role] ?? 'slate'}>{role.replace('_', ' ')}</Badge>
+  return <Badge variant={map[role] ?? 'slate'}>{roleLabel(role)}</Badge>
 }
 
 export function statusBadge(status: string) {

@@ -7,9 +7,9 @@ import {
   Activity, CheckCircle2, Zap, Save, Sun,
 } from 'lucide-react'
 import {
-  format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
+  format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  eachDayOfInterval, isSameMonth, isToday, addDays, addMinutes,
+  eachDayOfInterval, isSameMonth, isToday, addMinutes,
   startOfWeek as getWeekStart,
 } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
@@ -50,6 +50,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   }
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE') return { background: '#F59E0B18', color: '#B45309' }
+    if (status === 'CANCELLATION_REQUESTED') return { background: '#EF444418', color: '#dc2626' }
     if (status === 'CANCELLED' || status === 'NO_SHOW') return { background: '#88888818', color: '#888' }
     return { background: `rgba(${palette.purple.raw}, 0.1)`, color: palette.purple.text }
   }
@@ -64,6 +65,7 @@ function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'holiday')      return '#B45309'
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE') return '#B45309'
+    if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
     if (status === 'CANCELLED' || status === 'NO_SHOW') return '#888'
     return palette.purple.text
   }
@@ -334,10 +336,12 @@ function WeekView({
               </span>
             </div>
             {days.map(day => {
-              const timed = timedEventsAtHour(events, day, hour)
+              const timed    = timedEventsAtHour(events, day, hour)
+              const dayKeyH  = format(day, 'yyyy-MM-dd')
+              const isHolCol = holidayDates.has(dayKeyH)
               return (
                 <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5"
-                  style={{ borderColor: border.divider }}>
+                  style={{ borderColor: border.divider, background: isHolCol ? '#FFFBEB30' : undefined }}>
                   {timed.map(ev => (
                     <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
                   ))}
@@ -346,6 +350,124 @@ function WeekView({
             })}
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Day View ──────────────────────────────────────────────────────────────────
+
+function DayView({
+  current, events, onSelect, holidayDates,
+}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string> }) {
+  const dayKey    = format(current, 'yyyy-MM-dd')
+  const isHoliday = holidayDates.has(dayKey)
+  const HOURS     = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
+
+  const allDayEvs = allDayEventsOnDay(events, current)
+
+  return (
+    <div className="flex flex-col flex-1 overflow-auto">
+
+      {/* Day header */}
+      <div className="sticky top-0 z-10 flex items-stretch border-b flex-shrink-0"
+        style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C740' : surface.card }}>
+        <div className="w-16 flex-shrink-0" />
+        <div className="flex-1 py-3 text-center border-l" style={{ borderColor: border.divider }}>
+          <p className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: isHoliday ? '#B45309' : colors.text.muted }}>
+            {format(current, 'EEEE')}
+            {isHoliday && <Sun size={10} className="inline ml-1 opacity-80" />}
+          </p>
+          <div className="text-2xl font-bold mx-auto mt-1 w-11 h-11 rounded-full flex items-center justify-center"
+            style={{
+              background: isToday(current) ? colors.accent : 'transparent',
+              color: isToday(current) ? '#fff' : colors.text.primary,
+            }}>
+            {format(current, 'd')}
+          </div>
+          <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
+            {format(current, 'MMMM yyyy')}
+          </p>
+        </div>
+      </div>
+
+      {/* Holiday banner */}
+      {isHoliday && (() => {
+        const holiday = events.find(e => e.kind === 'holiday' && e.date === dayKey)
+        return holiday ? (
+          <button onClick={() => onSelect(holiday)}
+            className="flex items-center gap-2 px-4 py-2 w-full text-left flex-shrink-0 transition-opacity hover:opacity-80"
+            style={{ background: '#FEF3C760', borderBottom: `1px solid #F59E0B40` }}>
+            <Sun size={13} style={{ color: '#B45309' }} />
+            <span className="text-xs font-semibold" style={{ color: '#B45309' }}>
+              Public Holiday — {holiday.title}
+            </span>
+          </button>
+        ) : null
+      })()}
+
+      {/* All-day events */}
+      {allDayEvs.filter(e => e.kind !== 'holiday').length > 0 && (
+        <div className="flex border-b flex-shrink-0"
+          style={{ borderColor: border.divider, background: surface.card }}>
+          <div className="w-16 flex-shrink-0 px-2 pt-1.5 text-right">
+            <span className="text-[9px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+          </div>
+          <div className="flex-1 border-l p-2 flex flex-col gap-1 min-h-[32px]"
+            style={{ borderColor: border.divider }}>
+            {allDayEvs.filter(e => e.kind !== 'holiday').map(ev => (
+              <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hour rows */}
+      <div className="flex-1">
+        {HOURS.map(hour => {
+          const timed = timedEventsAtHour(events, current, hour)
+          return (
+            <div key={hour} className="flex border-b"
+              style={{ borderColor: border.divider, minHeight: 64,
+                       background: isHoliday ? '#FFFBEB30' : undefined }}>
+              {/* Time label */}
+              <div className="w-16 flex-shrink-0 px-3 pt-2 text-right">
+                <span className="text-xs tabular-nums" style={{ color: colors.text.muted }}>
+                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                </span>
+              </div>
+              {/* Events */}
+              <div className="flex-1 border-l p-2 flex flex-col gap-1.5"
+                style={{ borderColor: border.divider }}>
+                {timed.map(ev => {
+                  const s = kindStyle(ev.kind, ev.status)
+                  const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
+                  return (
+                    <button key={ev.id} onClick={() => onSelect(ev)}
+                      className="w-full text-left rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80"
+                      style={{ ...s, minHeight: 52 }}>
+                      <p className="text-xs font-semibold leading-tight">{ev.title}</p>
+                      <p className="text-[11px] mt-0.5 opacity-75">
+                        {ev.time}
+                        {rawSess && ` – ${rawSess.endTime.substring(0, 5)}`}
+                      </p>
+                      {ev.subtitle && (
+                        <p className="text-[11px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
+                      )}
+                      {rawSess?.status && rawSess.status !== 'SCHEDULED' && (
+                        <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'rgba(0,0,0,0.08)' }}>
+                          {rawSess.status.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -437,10 +559,16 @@ function UpcomingPanel({
 
 // ── Event detail drawer ───────────────────────────────────────────────────────
 
-const SESSION_STATUS_OPTIONS: { value: TherapySessionStatus; label: string }[] = [
+// Status options for admin/owner (can directly cancel)
+const SESSION_STATUS_OPTIONS_ADMIN: { value: TherapySessionStatus; label: string }[] = [
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'NO_SHOW',   label: 'No Show' },
   { value: 'CANCELLED', label: 'Cancelled' },
+]
+// Status options for therapists/doctors (cannot directly cancel)
+const SESSION_STATUS_OPTIONS_THERAPIST: { value: TherapySessionStatus; label: string }[] = [
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'NO_SHOW',   label: 'No Show' },
 ]
 
 function EventDetailDrawer({
@@ -471,6 +599,33 @@ function EventDetailDrawer({
   const updateSessionMut = useMutation({
     mutationFn: ({ status, notes }: { status: TherapySessionStatus; notes?: string }) =>
       therapySessionsApi.updateStatus(rawSession.id, { status, notes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+      onClose()
+    },
+  })
+
+  const requestCancellationMut = useMutation({
+    mutationFn: () => therapySessionsApi.requestCancellation(rawSession.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+      onClose()
+    },
+  })
+
+  const approveCancellationMut = useMutation({
+    mutationFn: () => therapySessionsApi.approveCancellation(rawSession.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+      onClose()
+    },
+  })
+
+  const rejectCancellationMut = useMutation({
+    mutationFn: () => therapySessionsApi.rejectCancellation(rawSession.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
@@ -603,7 +758,7 @@ function EventDetailDrawer({
                     <p className="text-xs font-semibold uppercase tracking-wider mb-2"
                       style={{ color: colors.text.muted }}>Mark as</p>
                     <div className="flex flex-col gap-2">
-                      {SESSION_STATUS_OPTIONS.map(opt => (
+                      {(canManageAll ? SESSION_STATUS_OPTIONS_ADMIN : SESSION_STATUS_OPTIONS_THERAPIST).map(opt => (
                         <button
                           key={opt.value}
                           disabled={updateSessionMut.isPending}
@@ -615,6 +770,44 @@ function EventDetailDrawer({
                           {opt.label}
                         </button>
                       ))}
+                      {/* Therapists/doctors request cancellation instead of directly cancelling */}
+                      {!canManageAll && (
+                        <button
+                          disabled={requestCancellationMut.isPending}
+                          onClick={() => requestCancellationMut.mutate()}
+                          className="text-sm font-medium px-3 py-2 rounded-xl text-left transition-colors"
+                          style={{ background: '#EF444418', color: '#dc2626' }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                          Request Cancellation
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+              {/* Admin/owner: approve or reject a pending cancellation */}
+              {canManageAll && rawSession.status === 'CANCELLATION_REQUESTED' && (
+                <>
+                  <div style={{ height: 1, background: border.divider }} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-2"
+                      style={{ color: '#dc2626' }}>Cancellation requested</p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        disabled={approveCancellationMut.isPending || rejectCancellationMut.isPending}
+                        onClick={() => approveCancellationMut.mutate()}
+                        className="text-sm font-medium px-3 py-2 rounded-xl text-left"
+                        style={{ background: '#EF444418', color: '#dc2626' }}>
+                        Approve — Cancel session
+                      </button>
+                      <button
+                        disabled={approveCancellationMut.isPending || rejectCancellationMut.isPending}
+                        onClick={() => rejectCancellationMut.mutate()}
+                        className="text-sm font-medium px-3 py-2 rounded-xl text-left"
+                        style={{ background: '#16a34a18', color: '#16a34a' }}>
+                        Reject — Keep scheduled
+                      </button>
                     </div>
                   </div>
                 </>
@@ -848,7 +1041,7 @@ function ProgramSessionsPlaceholder() {
 
 // ── Main CalendarPage ─────────────────────────────────────────────────────────
 
-type ViewMode = 'month' | 'week'
+type ViewMode = 'month' | 'week' | 'day'
 
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
@@ -884,15 +1077,17 @@ export default function CalendarPage() {
     Notification.requestPermission().then(p => setNotifPermission(p))
   }
 
-  // ── Visible date range (covers full grid for month view) ──────────────────
-  const visStart = useMemo(
-    () => format(startOfWeek(startOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-    [current]
-  )
-  const visEnd = useMemo(
-    () => format(endOfWeek(endOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-    [current]
-  )
+  // ── Visible date range ─────────────────────────────────────────────────────
+  const visStart = useMemo(() => {
+    if (view === 'day')   return format(current, 'yyyy-MM-dd')
+    if (view === 'week')  return format(getWeekStart(current, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return format(startOfWeek(startOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  }, [current, view])
+  const visEnd = useMemo(() => {
+    if (view === 'day')   return format(current, 'yyyy-MM-dd')
+    if (view === 'week')  return format(addDays(getWeekStart(current, { weekStartsOn: 1 }), 6), 'yyyy-MM-dd')
+    return format(endOfWeek(endOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  }, [current, view])
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: inquiries = [], isLoading: inquiriesLoading } = useQuery({
@@ -980,11 +1175,25 @@ export default function CalendarPage() {
   const hasAnyEvents = canSeeInquiries || canSeeLeaves || canSeeSessions
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  function prev() { setCurrent(v => view === 'month' ? subMonths(v, 1) : subWeeks(v, 1)) }
-  function next() { setCurrent(v => view === 'month' ? addMonths(v, 1) : addWeeks(v, 1)) }
+  function prev() {
+    setCurrent(v =>
+      view === 'month' ? subMonths(v, 1) :
+      view === 'week'  ? subWeeks(v, 1)  :
+      subDays(v, 1)
+    )
+  }
+  function next() {
+    setCurrent(v =>
+      view === 'month' ? addMonths(v, 1) :
+      view === 'week'  ? addWeeks(v, 1)  :
+      addDays(v, 1)
+    )
+  }
 
   const title = view === 'month'
     ? format(current, 'MMMM yyyy')
+    : view === 'day'
+    ? format(current, 'EEEE, d MMMM yyyy')
     : (() => {
         const ws = getWeekStart(current, { weekStartsOn: 1 })
         const we = addDays(ws, 6)
@@ -1090,9 +1299,9 @@ export default function CalendarPage() {
             Today
           </button>
 
-          {/* View toggle — hidden below sm (week view unusable on narrow screens) */}
+          {/* View toggle — hidden below sm */}
           <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.card }}>
-            {(['month', 'week'] as ViewMode[]).map(m => (
+            {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setView(m)}
                 className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
                 style={view === m ? styles.filterTabActive : styles.filterTabInactive}>
@@ -1107,19 +1316,21 @@ export default function CalendarPage() {
           <ProgramSessionsPlaceholder />
         ) : (
           <div className="flex flex-1 min-h-0 overflow-hidden gap-4 p-0">
-            {/* Calendar grid — horizontal scroll on narrow screens */}
+            {/* Calendar grid */}
             <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col">
-              <div className="min-w-[420px] flex flex-col flex-1">
+              <div className={`flex flex-col flex-1 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
                 {view === 'month' ? (
                   <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
-                ) : (
+                ) : view === 'week' ? (
                   <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
+                ) : (
+                  <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
                 )}
               </div>
             </div>
 
-            {/* Upcoming sidebar — month view + lg+ only */}
-            {view === 'month' && (
+            {/* Upcoming sidebar — month + day views on lg+ */}
+            {(view === 'month' || view === 'day') && (
               <div className="hidden lg:flex flex-col p-4 border-l overflow-hidden"
                 style={{ borderColor: border.divider }}>
                 <UpcomingPanel events={events} onSelect={setSelected} />

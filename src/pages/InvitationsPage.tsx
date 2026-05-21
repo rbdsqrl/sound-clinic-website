@@ -18,7 +18,7 @@ import { format } from 'date-fns'
 import type { InviteRequest, InviteResponse, Role } from '../types'
 
 const INVITABLE_ROLES: { value: Role; label: string }[] = [
-  { value: 'ADMIN',          label: 'Admin' },
+  { value: 'ADMIN',          label: 'Clinic Head' },
   { value: 'OFFICE_ADMIN',   label: 'Office Admin' },
   { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },

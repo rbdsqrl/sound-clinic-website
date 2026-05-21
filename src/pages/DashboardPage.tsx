@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
 import { tasksApi } from '../api/tasks'
 import { patientsApi } from '../api/patients'
@@ -31,6 +31,7 @@ function sessionStatusIcon(status: string) {
   if (status === 'COMPLETED') return <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
   if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={14} style={{ color: '#dc2626' }} />
   if (status === 'PENDING_RESCHEDULE') return <AlertTriangle size={14} style={{ color: '#d97706' }} />
+  if (status === 'CANCELLATION_REQUESTED') return <XCircle size={14} style={{ color: '#dc2626' }} />
   return <Circle size={14} style={{ color: colors.text.dim }} />
 }
 
@@ -38,6 +39,7 @@ function statusColor(status: string): string {
   if (status === 'COMPLETED') return '#16a34a'
   if (status === 'CANCELLED' || status === 'NO_SHOW') return '#dc2626'
   if (status === 'PENDING_RESCHEDULE') return '#d97706'
+  if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
   return palette.purple.text
 }
 
@@ -404,6 +406,118 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
   )
 }
 
+function CancellationRequestsPanel({ sessions, onDone }: {
+  sessions: TherapySessionResponse[]
+  onDone: () => void
+}) {
+  const qc = useQueryClient()
+  const { toasts, toast, dismiss } = useToast()
+  const [showAll, setShowAll] = useState(false)
+  const PREVIEW = 3
+
+  const approveMut = useMutation({
+    mutationFn: (id: string) => therapySessionsApi.approveCancellation(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions-cancellation-requests'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      toast('Session cancelled', 'success')
+      onDone()
+    },
+    onError: () => toast('Failed to approve cancellation', 'error'),
+  })
+
+  const rejectMut = useMutation({
+    mutationFn: (id: string) => therapySessionsApi.rejectCancellation(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions-cancellation-requests'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      toast('Cancellation rejected — session restored', 'success')
+      onDone()
+    },
+    onError: () => toast('Failed to reject cancellation', 'error'),
+  })
+
+  if (sessions.length === 0) return null
+
+  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
+    <div key={s.id} className="px-4 sm:px-6 py-3"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
+            {s.patientFirstName} {s.patientLastName}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {s.startTime.slice(0, 5)} · {s.programName}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
+            {s.therapistFirstName} {s.therapistLastName}
+          </p>
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            disabled={approveMut.isPending || rejectMut.isPending}
+            onClick={() => approveMut.mutate(s.id)}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: '#EF444418', color: '#dc2626' }}>
+            Approve
+          </button>
+          <button
+            disabled={approveMut.isPending || rejectMut.isPending}
+            onClick={() => rejectMut.mutate(s.id)}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: '#16a34a18', color: '#16a34a' }}>
+            Reject
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: '3px solid #dc2626' }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <XCircle size={16} style={{ color: '#dc2626' }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Cancellation Requests
+            </h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: '#EF444418', color: '#dc2626' }}>
+              {sessions.length}
+            </span>
+          </div>
+          <p className="text-xs" style={{ color: colors.text.muted }}>Awaiting your approval</p>
+        </div>
+
+        <div>
+          {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
+        </div>
+
+        {sessions.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: '#dc2626' }}>
+              View all {sessions.length} requests
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Cancellation Requests (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {sessions.map((s, i) => row(s, i, sessions))}
+          </div>
+        </Modal>
+      )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
+    </>
+  )
+}
+
 function dayLabel(days: number): string {
   if (days === 0) return 'Today!'
   if (days === 1) return 'Tomorrow'
@@ -552,6 +666,16 @@ function SessionUpdateModal({
     onError: () => toast('Failed to update session', 'error'),
   })
 
+  const cancelRequestMut = useMutation({
+    mutationFn: () => therapySessionsApi.requestCancellation(session.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      toast('Cancellation request sent', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to send request', 'error'),
+  })
+
   const isScheduled = session.status === 'SCHEDULED'
 
   return (
@@ -592,11 +716,10 @@ function SessionUpdateModal({
               {([
                 { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
                 { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
-                { value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' },
               ]).map(opt => (
                 <button
                   key={opt.value}
-                  disabled={statusMut.isPending}
+                  disabled={statusMut.isPending || cancelRequestMut.isPending}
                   onClick={() => statusMut.mutate(opt.value)}
                   className="flex-1 text-xs font-semibold py-2.5 rounded-xl transition-opacity disabled:opacity-50"
                   style={{ background: opt.color + '18', color: opt.color }}
@@ -604,6 +727,14 @@ function SessionUpdateModal({
                   {opt.label}
                 </button>
               ))}
+              <button
+                disabled={statusMut.isPending || cancelRequestMut.isPending}
+                onClick={() => cancelRequestMut.mutate()}
+                className="flex-1 text-xs font-semibold py-2.5 rounded-xl transition-opacity disabled:opacity-50"
+                style={{ background: '#EF444418', color: '#dc2626' }}
+              >
+                Request Cancel
+              </button>
             </div>
           </div>
         )}
@@ -834,6 +965,12 @@ export default function DashboardPage() {
     enabled: canReschedule,
     staleTime: 2 * 60 * 1000,
   })
+  const { data: cancellationRequests = [], refetch: refetchCancelRequests } = useQuery({
+    queryKey: ['sessions-cancellation-requests'],
+    queryFn: () => therapySessionsApi.list({ status: 'CANCELLATION_REQUESTED' }),
+    enabled: isOwnerOrAdmin,
+    staleTime: 2 * 60 * 1000,
+  })
 
   const { data: upcomingBirthdays = [] } = useQuery({
     queryKey: ['upcoming-birthdays'],
@@ -951,6 +1088,13 @@ export default function DashboardPage() {
         <PendingReschedulePanel
           sessions={pendingReschedule}
           onRescheduled={() => refetchPending()}
+        />
+      )}
+
+      {isOwnerOrAdmin && (
+        <CancellationRequestsPanel
+          sessions={cancellationRequests}
+          onDone={() => refetchCancelRequests()}
         />
       )}
 

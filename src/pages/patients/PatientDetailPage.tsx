@@ -694,6 +694,8 @@ function sessionRowIcon(status: string) {
     return <XCircle size={14} className="flex-shrink-0" style={{ color: '#dc2626' }} />
   if (status === 'PENDING_RESCHEDULE')
     return <AlertTriangle size={14} className="flex-shrink-0" style={{ color: '#d97706' }} />
+  if (status === 'CANCELLATION_REQUESTED')
+    return <XCircle size={14} className="flex-shrink-0" style={{ color: '#dc2626' }} />
   return <Circle size={14} className="flex-shrink-0" style={{ color: colors.text.dim }} />
 }
 
@@ -701,12 +703,14 @@ function sessionRowStatusColor(status: string): string {
   if (status === 'COMPLETED')              return '#16a34a'
   if (status === 'CANCELLED' || status === 'NO_SHOW') return '#dc2626'
   if (status === 'PENDING_RESCHEDULE')     return '#d97706'
+  if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
   return colors.text.dim
 }
 
 function sessionRowStatusLabel(status: string): string {
-  if (status === 'NO_SHOW')            return 'No show'
-  if (status === 'PENDING_RESCHEDULE') return 'Rescheduling'
+  if (status === 'NO_SHOW')                 return 'No show'
+  if (status === 'PENDING_RESCHEDULE')      return 'Rescheduling'
+  if (status === 'CANCELLATION_REQUESTED')  return 'Cancel requested'
   return status.charAt(0) + status.slice(1).toLowerCase()
 }
 
@@ -740,16 +744,16 @@ function SessionList({
 
   const completed = sessions.filter(s => s.status === 'COMPLETED').length
   const missed    = sessions.filter(s => s.status === 'NO_SHOW' || s.status === 'CANCELLED').length
-  const upcoming  = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE').length
+  const upcoming  = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE' || s.status === 'CANCELLATION_REQUESTED').length
   const total     = sessions.length
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
 
   const pastRows = sessions
-    .filter(s => s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE')
+    .filter(s => s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE' && s.status !== 'CANCELLATION_REQUESTED')
     .sort((a, b) => b.sessionNumber - a.sessionNumber)
 
   const upcomingRows = sessions
-    .filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
+    .filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE' || s.status === 'CANCELLATION_REQUESTED')
     .sort((a, b) => a.sessionNumber - b.sessionNumber)
 
   const shownPast     = showAll ? pastRows     : pastRows.slice(0, SESSION_PREVIEW)
@@ -861,11 +865,13 @@ function SessionList({
 function SessionNotesModal({
   session,
   canEdit,
+  canDirectlyCancel,
   enrollmentId,
   onClose,
 }: {
   session: TherapySessionResponse
   canEdit: boolean
+  canDirectlyCancel: boolean
   enrollmentId: string
   onClose: () => void
 }) {
@@ -906,6 +912,16 @@ function SessionNotesModal({
     onError: () => toast('Failed to update session', 'error'),
   })
 
+  const cancelRequestMut = useMutation({
+    mutationFn: () => therapySessionsApi.requestCancellation(session.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      toast('Cancellation request sent', 'success')
+      onClose()
+    },
+    onError: () => toast('Failed to send request', 'error'),
+  })
+
   const uploadMut = useMutation({
     mutationFn: (file: File) => therapySessionsApi.uploadAttachment(session.id, file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
@@ -936,7 +952,7 @@ function SessionNotesModal({
         <span className="text-[10px] px-2 py-1 rounded-full font-medium"
           style={
             session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-            : session.status === 'CANCELLED' || session.status === 'NO_SHOW' ? paletteStyle('red', 0.12, 0)
+            : session.status === 'CANCELLED' || session.status === 'NO_SHOW' || session.status === 'CANCELLATION_REQUESTED' ? paletteStyle('red', 0.12, 0)
             : paletteStyle('blue', 0.10, 0)
           }>
           {session.status.replace('_', ' ')}
@@ -952,11 +968,13 @@ function SessionNotesModal({
               {([
                 { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
                 { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
-                { value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' },
+                ...(canDirectlyCancel
+                  ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' }]
+                  : []),
               ]).map(opt => (
                 <button
                   key={opt.value}
-                  disabled={statusMut.isPending}
+                  disabled={statusMut.isPending || cancelRequestMut.isPending}
                   onClick={() => statusMut.mutate(opt.value)}
                   className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
                   style={{ background: opt.color + '18', color: opt.color }}
@@ -964,6 +982,16 @@ function SessionNotesModal({
                   {opt.label}
                 </button>
               ))}
+              {!canDirectlyCancel && (
+                <button
+                  disabled={statusMut.isPending || cancelRequestMut.isPending}
+                  onClick={() => cancelRequestMut.mutate()}
+                  className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
+                  style={{ background: '#EF444418', color: '#dc2626' }}
+                >
+                  Request Cancel
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -2232,6 +2260,7 @@ export default function PatientDetailPage() {
             <SessionNotesModal
               session={notesState.session}
               canEdit={notesState.canEdit}
+              canDirectlyCancel={['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')}
               enrollmentId={notesState.enrollmentId}
               onClose={() => setNotesState(null)}
             />
