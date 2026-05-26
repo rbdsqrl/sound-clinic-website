@@ -22,6 +22,8 @@ import LeaveManagementPage from './pages/leave/LeaveManagementPage'
 import InquiriesPage from './pages/inquiries/InquiriesPage'
 import ProgramsPage from './pages/programs/ProgramsPage'
 import TasksPage from './pages/tasks/TasksPage'
+import AttendancePage from './pages/attendance/AttendancePage'
+import AttendanceManagementPage from './pages/attendance/AttendanceManagementPage'
 
 // ── DEV BYPASS ────────────────────────────────────────────────────────────────
 // Set to true to skip authentication entirely during development.
@@ -74,7 +76,9 @@ function AppRoutes() {
         <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/inquiries"        element={<InquiriesPage />} />
         <Route path="/programs"         element={<ProgramsPage />} />
-        <Route path="/tasks"            element={<TasksPage />} />
+        <Route path="/tasks"                  element={<TasksPage />} />
+        <Route path="/attendance"             element={<AttendancePage />} />
+        <Route path="/attendance-management"  element={<AttendanceManagementPage />} />
       </Route>
 
       {/* Fallback */}

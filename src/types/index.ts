@@ -204,6 +204,9 @@ export interface ClinicResponse {
   phone: string | null
   email: string | null
   timezone: string
+  latitude: number | null
+  longitude: number | null
+  geoFenceRadiusMeters: number | null
   isActive: boolean
   createdAt: string
 }
@@ -214,6 +217,9 @@ export interface CreateClinicRequest {
   phone?: string
   email?: string
   timezone?: string
+  latitude?: number
+  longitude?: number
+  geoFenceRadiusMeters?: number
 }
 
 // ── Patient ────────────────────────────────────────────────────────────────────
@@ -651,6 +657,42 @@ export interface PublicHolidayResponse {
 export interface CreatePublicHolidayRequest {
   holidayDate: string    // "YYYY-MM-DD"
   name: string
+}
+
+// ── Attendance ─────────────────────────────────────────────────────────────────
+export type AttendanceStatus = 'CHECKED_IN' | 'CHECKED_OUT'
+
+export interface AttendanceResponse {
+  id: string
+  userId: string
+  userFirstName: string
+  userLastName: string
+  clinicId: string
+  clinicName: string
+  attendanceDate: string     // "YYYY-MM-DD"
+  checkInTime: string | null
+  checkOutTime: string | null
+  geoVerified: boolean
+  faceVerified: boolean
+  status: AttendanceStatus
+  createdAt: string
+}
+
+export interface CheckInRequest {
+  clinicId: string
+  latitude?: number
+  longitude?: number
+  faceDescriptor?: number[]
+}
+
+export interface CheckOutRequest {
+  latitude?: number
+  longitude?: number
+  faceDescriptor?: number[]
+}
+
+export interface EnrollFaceRequest {
+  faceDescriptor: number[]
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────

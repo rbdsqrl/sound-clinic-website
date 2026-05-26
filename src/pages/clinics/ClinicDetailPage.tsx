@@ -39,7 +39,16 @@ export default function ClinicDetailPage() {
   })
 
   const startEdit = () => {
-    if (clinic) reset({ name: clinic.name, email: clinic.email ?? '', phone: clinic.phone ?? '', address: clinic.address ?? '', timezone: clinic.timezone })
+    if (clinic) reset({
+      name: clinic.name,
+      email: clinic.email ?? '',
+      phone: clinic.phone ?? '',
+      address: clinic.address ?? '',
+      timezone: clinic.timezone,
+      latitude: clinic.latitude ?? undefined,
+      longitude: clinic.longitude ?? undefined,
+      geoFenceRadiusMeters: clinic.geoFenceRadiusMeters ?? 200,
+    })
     setEditing(true)
   }
 
@@ -79,6 +88,9 @@ export default function ClinicDetailPage() {
               ['Timezone', clinic.timezone],
               ['Address', clinic.address],
               ['Status', clinic.isActive ? 'Active' : 'Inactive'],
+              ['Latitude', clinic.latitude != null ? String(clinic.latitude) : null],
+              ['Longitude', clinic.longitude != null ? String(clinic.longitude) : null],
+              ['Geo-fence Radius (m)', clinic.geoFenceRadiusMeters != null ? String(clinic.geoFenceRadiusMeters) : null],
             ].map(([label, value]) => (
               <div key={label as string}>
                 <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
@@ -95,6 +107,9 @@ export default function ClinicDetailPage() {
               <Input label="Email"    type="email" {...register('email')} />
               <Input label="Phone"    {...register('phone')} />
               <Input label="Timezone" {...register('timezone')} />
+              <Input label="Latitude"  type="number" step="any" placeholder="e.g. 12.9716" {...register('latitude', { valueAsNumber: true })} />
+              <Input label="Longitude" type="number" step="any" placeholder="e.g. 77.5946" {...register('longitude', { valueAsNumber: true })} />
+              <Input label="Geo-fence Radius (metres)" type="number" placeholder="200" {...register('geoFenceRadiusMeters', { valueAsNumber: true })} />
             </div>
             <Input label="Address" {...register('address')} />
             <div className="flex gap-3">
