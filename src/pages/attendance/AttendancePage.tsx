@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as faceapi from 'face-api.js'
-import { Camera, MapPin, CheckCircle, XCircle, Clock, LogIn, LogOut, UserCheck } from 'lucide-react'
+import { Camera, MapPin, CheckCircle, XCircle, Clock, LogIn, LogOut, UserCheck, AlertTriangle } from 'lucide-react'
 import { attendanceApi } from '../../api/attendance'
 import { clinicsApi } from '../../api/clinics'
 import { useAuth } from '../../contexts/AuthContext'
@@ -42,17 +42,20 @@ export default function AttendancePage() {
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
-  const videoRef   = useRef<HTMLVideoElement>(null)
-  const canvasRef  = useRef<HTMLCanvasElement>(null)
-  const streamRef  = useRef<MediaStream | null>(null)
+  const videoRef          = useRef<HTMLVideoElement>(null)
+  const canvasRef         = useRef<HTMLCanvasElement>(null)
+  const streamRef         = useRef<MediaStream | null>(null)
+  const modelsLoadPromise = useRef<Promise<void> | null>(null)
+  const didAutoEnroll     = useRef(false)
 
+  const [faceEnrolled, setFaceEnrolled]         = useState(user?.faceEnrolled ?? false)
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [cameraActive, setCameraActive]         = useState(false)
   const [modelsLoaded, setModelsLoaded]         = useState(false)
   const [modelsLoading, setModelsLoading]       = useState(false)
   const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
   const [location, setLocation]                 = useState<{ lat: number; lon: number } | null>(null)
-  const [enrollMode, setEnrollMode]             = useState(false)
+  const [enrollMode, setEnrollMode]             = useState(!( user?.faceEnrolled ?? false))
 
   // ── Data queries ─────────────────────────────────────────────────────────────
 
@@ -80,21 +83,23 @@ export default function AttendancePage() {
   // ── Load face-api.js models ───────────────────────────────────────────────────
 
   const loadModels = useCallback(async () => {
-    if (modelsLoaded || modelsLoading) return
+    if (modelsLoaded) return
+    if (modelsLoadPromise.current) return modelsLoadPromise.current
     setModelsLoading(true)
-    try {
-      await Promise.all([
-        faceapi.nets.ssdMobilenetv1.loadFromUri(MODELS_PATH),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_PATH),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_PATH),
-      ])
+    modelsLoadPromise.current = Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODELS_PATH),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_PATH),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_PATH),
+    ]).then(() => {
       setModelsLoaded(true)
-    } catch {
+    }).catch(() => {
       toast('Face recognition models could not be loaded', 'error')
-    } finally {
+    }).finally(() => {
       setModelsLoading(false)
-    }
-  }, [modelsLoaded, modelsLoading, toast])
+      modelsLoadPromise.current = null
+    })
+    return modelsLoadPromise.current
+  }, [modelsLoaded, toast])
 
   // ── Geolocation ───────────────────────────────────────────────────────────────
 
@@ -122,11 +127,8 @@ export default function AttendancePage() {
     await loadModels()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        streamRef.current = stream
-        setCameraActive(true)
-      }
+      streamRef.current = stream
+      setCameraActive(true)
     } catch {
       toast('Camera access denied', 'error')
     }
@@ -139,6 +141,19 @@ export default function AttendancePage() {
   }, [])
 
   useEffect(() => () => stopCamera(), [stopCamera])
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraActive])
+
+  // Auto-open camera for enrollment if face not yet registered
+  useEffect(() => {
+    if (didAutoEnroll.current || faceEnrolled) return
+    didAutoEnroll.current = true
+    startCamera()
+  }, [faceEnrolled, startCamera])
 
   // ── Capture face descriptor ───────────────────────────────────────────────────
 
@@ -209,6 +224,7 @@ export default function AttendancePage() {
     },
     onSuccess: () => {
       toast('Face enrolled successfully', 'success')
+      setFaceEnrolled(true)
       setEnrollMode(false)
       stopCamera()
     },
@@ -269,6 +285,18 @@ export default function AttendancePage() {
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             {enrollMode ? 'Enroll Face' : checkedIn ? 'Check Out' : 'Check In'}
           </h2>
+
+          {!faceEnrolled && enrollMode && (
+            <div
+              className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 mb-4 text-sm"
+              style={{ background: warningAlpha(0.1), color: colors.text.primary }}
+            >
+              <AlertTriangle size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 1 }} />
+              <span>
+                <span className="font-semibold">Face not enrolled.</span> Position your face in the camera and tap <em>Save Face</em> to complete setup. You only need to do this once.
+              </span>
+            </div>
+          )}
 
           <div className="space-y-4">
 
@@ -403,18 +431,16 @@ export default function AttendancePage() {
         </Card>
       )}
 
-      {/* ── Face enrollment shortcut ── */}
-      {!enrollMode && !checkedIn && !checkedOut && (
+      {/* ── Re-enroll shortcut (only shown after already enrolled) ── */}
+      {!enrollMode && !checkedIn && !checkedOut && faceEnrolled && (
         <p className="text-xs text-center" style={{ color: colors.text.muted }}>
-          First time?{' '}
           <button
             onClick={() => { setEnrollMode(true); startCamera() }}
             className="underline font-medium"
             style={{ color: colors.accent }}
           >
-            Enroll your face
-          </button>{' '}
-          for faster verification.
+            Re-enroll face
+          </button>
         </p>
       )}
 

@@ -19,6 +19,7 @@ const DEV_MOCK_USER: UserResponse = {
   role: 'BUSINESS_OWNER',
   additionalRoles: ['PARENT'],   // dev mock holds both so the switcher is visible
   isActive: true,
+  faceEnrolled: false,
   createdAt: new Date().toISOString(),
 }
 const BYPASS_AUTH = false

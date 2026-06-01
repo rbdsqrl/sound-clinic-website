@@ -139,6 +139,7 @@ export interface UserResponse {
   role: Role
   additionalRoles: Role[]
   isActive: boolean
+  faceEnrolled: boolean
   createdAt: string
 }
 

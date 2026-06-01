@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
@@ -20,6 +20,7 @@ import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ui/Toast'
+import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
@@ -1142,10 +1143,11 @@ export default function DashboardPage() {
 
   // Quick-action links shown for owner/admin instead of empty stat cards
   const ownerActions = [
-    { to: '/invitations',      icon: <UserPlus size={14} />,     label: 'Invite Staff' },
-    { to: '/patients',         icon: <Users size={14} />,        label: 'Patients' },
-    { to: '/calendar',         icon: <CalendarDays size={14} />, label: 'Calendar' },
-    { to: '/leave-management', icon: <ClipboardList size={14} />, label: 'Leave Requests' },
+    { to: '/invitations',      icon: <UserPlus size={14} />,       label: 'Invite Staff' },
+    { to: '/patients',         icon: <Users size={14} />,          label: 'Patients' },
+    { to: '/calendar',         icon: <CalendarDays size={14} />,   label: 'Calendar' },
+    { to: '/leave-management', icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
+    { to: '/attendance-management', icon: <ClipboardCheck size={14} />, label: 'Attendance' },
   ]
 
   return (
@@ -1168,6 +1170,8 @@ export default function DashboardPage() {
           </span>
         </div>
       </div>
+
+      <AttendanceWidget />
 
       {isOwnerOrAdmin ? (
         /* Quick-action strip replaces the empty stat cards */
