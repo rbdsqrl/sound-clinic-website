@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Plus, Users, LayoutGrid, List, Search, Puzzle, Check } from 'lucide-react'
+import { Plus, Users, LayoutGrid, List, Search, Check } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { Button } from '../../components/ui/Button'
@@ -14,26 +14,20 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../contexts/AuthContext'
-import { colors, border, styles, surface } from '../../theme'
+import { colors, border, styles, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
 import { format, differenceInMonths } from 'date-fns'
 
-// ── Avatar colours (cycles through 8) ────────────────────────────────────────
+// ── Avatar colours (cycles through theme palette) ─────────────────────────────
 
-const AVATAR_COLORS = [
-  { bg: '#4CAF50', text: '#fff' },
-  { bg: '#9C27B0', text: '#fff' },
-  { bg: '#3F51B5', text: '#fff' },
-  { bg: '#009688', text: '#fff' },
-  { bg: '#FF9800', text: '#fff' },
-  { bg: '#E91E63', text: '#fff' },
-  { bg: '#00BCD4', text: '#fff' },
-  { bg: '#795548', text: '#fff' },
+const AVATAR_STYLES = [
+  { bg: `rgba(var(--color-accent-raw), 0.15)`,   fg: `var(--color-accent)` },
+  { bg: `rgba(var(--color-purple-raw), 0.15)`,   fg: palette.purple.text },
+  { bg: `rgba(var(--color-info-raw), 0.15)`,     fg: `var(--color-info)` },
+  { bg: `rgba(var(--color-success-raw), 0.15)`,  fg: `var(--color-success)` },
+  { bg: `rgba(var(--color-warning-raw), 0.15)`,  fg: `var(--color-warning)` },
+  { bg: `rgba(var(--color-pink-raw), 0.15)`,     fg: palette.pink.text },
 ]
-
-function avatarColor(index: number) {
-  return AVATAR_COLORS[index % AVATAR_COLORS.length]
-}
 
 // ── Age helper ────────────────────────────────────────────────────────────────
 
@@ -43,7 +37,7 @@ function calcAge(dob: string): string {
   const months = totalMonths % 12
   if (years === 0) return `${months} month${months !== 1 ? 's' : ''}`
   if (months === 0) return `${years} year${years !== 1 ? 's' : ''}`
-  return `${years} year${years !== 1 ? 's' : ''} ${months} month${months !== 1 ? 's' : ''}`
+  return `${years}y ${months}m`
 }
 
 // ── Invite status ─────────────────────────────────────────────────────────────
@@ -60,8 +54,8 @@ const INVITE_LABEL: Record<InviteStatus, string> = {
 }
 
 const INVITE_STYLE: Record<InviteStatus, React.CSSProperties> = {
-  ACTIVE:      { background: 'rgba(99,102,241,0.12)', color: '#6366f1' },
-  NOT_INVITED: { background: 'rgba(99,102,241,0.10)', color: '#818cf8' },
+  ACTIVE:      paletteStyle('teal',  0.10),
+  NOT_INVITED: paletteStyle('slate', 0.10),
 }
 
 // ── Filter pill types ─────────────────────────────────────────────────────────
@@ -82,34 +76,41 @@ const GENDERS: { value: Gender; label: string }[] = [
   { value: 'OTHER',  label: 'Other'  },
 ]
 
-// ── Patient card ──────────────────────────────────────────────────────────────
+// ── Patient card (grid view) ──────────────────────────────────────────────────
 
-function PatientCard({ patient, index }: { patient: PatientResponse; index: number }) {
-  const color  = avatarColor(index)
-  const status = inviteStatus(patient)
+function PatientCard({ patient, index, clinicName }: {
+  patient: PatientResponse
+  index: number
+  clinicName?: string
+}) {
+  const av      = AVATAR_STYLES[index % AVATAR_STYLES.length]
+  const status  = inviteStatus(patient)
   const initials = `${patient.firstName[0] ?? ''}${patient.lastName[0] ?? ''}`.toUpperCase()
 
   return (
-    <Link to={`/patients/${patient.id}`} className="block group">
+    <Link to={`/patients/${patient.id}`} className="block">
       <div
-        className="rounded-2xl p-5 flex flex-col gap-3 transition-shadow"
-        style={{ background: surface.card, border: `1px solid ${border.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+        className="rounded-2xl p-5 flex flex-col gap-3 transition-all"
+        style={styles.card}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px var(--color-accent), 0 4px 16px ${accentAlpha(0.12)}`}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = (styles.card as React.CSSProperties).boxShadow as string ?? ''}
       >
-        {/* Top row: avatar + name/age + status badge */}
+        {/* Avatar + name + status */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="h-12 w-12 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold"
-              style={{ background: color.bg, color: color.text }}
+              className="h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold"
+              style={{ background: av.bg, color: av.fg }}
             >
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm leading-tight truncate" style={{ color: colors.text.heading }}>
-                {patient.firstName} {patient.lastName[0]}<span style={{ color: colors.text.muted }}>#{index + 1}</span>
+              <p className="font-semibold text-sm leading-tight truncate" style={{ color: colors.text.primary }}>
+                {patient.firstName} {patient.lastName}
               </p>
               <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
                 {patient.dateOfBirth ? calcAge(patient.dateOfBirth) : '—'}
+                {clinicName && <> · {clinicName}</>}
               </p>
             </div>
           </div>
@@ -121,50 +122,32 @@ function PatientCard({ patient, index }: { patient: PatientResponse; index: numb
           </span>
         </div>
 
-        {/* Conditions/therapy tags */}
+        {/* Conditions */}
         {patient.conditions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {patient.conditions.slice(0, 3).map(c => (
-              <span
-                key={c.id}
-                className="text-[11px] px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1' }}
-              >
+              <span key={c.id} className="text-[11px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
                 {c.name}
               </span>
             ))}
             {patient.conditions.length > 3 && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.05)', color: colors.text.muted }}>
+              <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
                 +{patient.conditions.length - 3}
               </span>
             )}
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="flex gap-2">
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-1 justify-center"
-            style={{ background: 'rgba(99,102,241,0.10)', color: '#6366f1' }}
-            onClick={e => e.preventDefault()}
-          >
-            <Puzzle size={12} />
-            Activities
-          </button>
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold flex-1 justify-center"
-            style={{ background: '#3730a3', color: '#fff' }}
-            onClick={e => e.preventDefault()}
-          >
-            <Users size={12} />
-            Specialists ({patient.therapists.length})
-          </button>
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: border.divider }}>
+          <span className="text-[11px] flex items-center gap-1" style={{ color: colors.text.muted }}>
+            <Users size={11} />
+            {patient.therapists.length} specialist{patient.therapists.length !== 1 ? 's' : ''}
+          </span>
+          <span className="text-[11px]" style={{ color: colors.text.dim }}>
+            {format(new Date(patient.createdAt), 'dd MMM yyyy')}
+          </span>
         </div>
-
-        {/* Added on */}
-        <p className="text-center text-[11px]" style={{ color: colors.text.dim }}>
-          Added On {format(new Date(patient.createdAt), 'dd MMM, yyyy')}
-        </p>
       </div>
     </Link>
   )
@@ -177,14 +160,14 @@ export default function PatientsPage() {
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
 
-  const [showModal,   setShowModal]   = useState(false)
-  const [viewMode,    setViewMode]    = useState<'grid' | 'list'>('grid')
-  const [tab,         setTab]         = useState<'all' | 'mine'>('all')
-  const [search,      setSearch]      = useState('')
+  const [showModal,     setShowModal]     = useState(false)
+  const [viewMode,      setViewMode]      = useState<'grid' | 'list'>('grid')
+  const [tab,           setTab]           = useState<'all' | 'mine'>('all')
+  const [search,        setSearch]        = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE', 'NOT_INVITED']))
 
   const { data: patients, isLoading } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
-  const { data: clinics } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
+  const { data: clinics }             = useQuery({ queryKey: ['clinics'],  queryFn: clinicsApi.list })
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreatePatientRequest>()
 
@@ -206,26 +189,19 @@ export default function PatientsPage() {
     if (!patients) return []
     let list = patients
 
-    // Tab filter
     if (tab === 'mine' && user) {
       list = list.filter(p => p.therapists.some(t => t.id === user.id))
     }
 
-    // Search filter
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(p =>
-        `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
-      )
+      list = list.filter(p => `${p.firstName} ${p.lastName}`.toLowerCase().includes(q))
     }
 
-    // Status pill filter
     if (activeFilters.size > 0) {
       list = list.filter(p => {
-        const status = inviteStatus(p)
-        const isInactive = !p.isActive
-        if (isInactive) return activeFilters.has('INACTIVE')
-        if (status === 'ACTIVE') return activeFilters.has('ACTIVE')
+        if (!p.isActive) return activeFilters.has('INACTIVE')
+        if (inviteStatus(p) === 'ACTIVE') return activeFilters.has('ACTIVE')
         return activeFilters.has('NOT_INVITED')
       })
     }
@@ -246,7 +222,7 @@ export default function PatientsPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-5">
 
-      {/* ── Tabs + toolbar ── */}
+      {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
         {/* Tabs */}
@@ -255,57 +231,49 @@ export default function PatientsPage() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap"
+              className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap"
               style={tab === t
-                ? { color: '#3730a3', borderBottom: '2px solid #3730a3', marginBottom: -1 }
-                : { color: colors.text.muted }
-              }
+                ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
+                : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
             >
               {t === 'all' ? 'All Cases' : 'My Cases'}
             </button>
           ))}
         </div>
 
-        {/* Right side: view toggle + search + add */}
+        {/* Toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Grid / List toggle */}
-          <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: border.divider }}>
-            <button
-              onClick={() => setViewMode('grid')}
-              className="p-2 transition-colors"
-              style={{ background: viewMode === 'grid' ? '#3730a3' : 'transparent', color: viewMode === 'grid' ? '#fff' : colors.text.muted }}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className="p-2 transition-colors"
-              style={{ background: viewMode === 'list' ? '#3730a3' : 'transparent', color: viewMode === 'list' ? '#fff' : colors.text.muted }}
-            >
-              <List size={16} />
-            </button>
+          <div className="flex rounded-xl overflow-hidden" style={{ border: border.card }}>
+            {(['grid', 'list'] as const).map((mode, idx) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className="p-2 transition-colors"
+                style={viewMode === mode
+                  ? { background: accentAlpha(0.10), color: colors.accent }
+                  : { background: surface.card, color: colors.text.dim }}
+              >
+                {idx === 0 ? <LayoutGrid size={15} /> : <List size={15} />}
+              </button>
+            ))}
           </div>
 
           {/* Search */}
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.text.dim }} />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.text.dim }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search Cases..."
-              className="pl-8 pr-3 py-2 text-sm rounded-xl border outline-none w-44 md:w-56"
-              style={{ borderColor: border.divider, background: surface.card, color: colors.text.primary }}
+              placeholder="Search patients…"
+              className="pl-8 pr-3 py-2 text-sm rounded-xl outline-none w-44 md:w-52 transition-colors"
+              style={{ border: border.card, background: surface.card, color: colors.text.primary }}
             />
           </div>
 
-          {/* Add button */}
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold min-h-[36px]"
-            style={{ background: '#3730a3', color: '#fff' }}
-          >
-            <Plus size={14} /> Add
-          </button>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={15} /> Add Patient
+          </Button>
         </div>
       </div>
 
@@ -317,11 +285,10 @@ export default function PatientsPage() {
             <button
               key={key}
               onClick={() => toggleFilter(key)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all"
               style={active
-                ? { borderColor: '#3730a3', color: '#3730a3', background: 'transparent' }
-                : { borderColor: border.divider, color: colors.text.muted, background: 'transparent' }
-              }
+                ? { background: accentAlpha(0.10), color: colors.accent, border: `1px solid ${accentAlpha(0.22)}` }
+                : { background: 'transparent', color: colors.text.dim, border: `1px solid ${border.divider}` }}
             >
               {active
                 ? <Check size={11} strokeWidth={3} />
@@ -335,75 +302,110 @@ export default function PatientsPage() {
 
       {/* ── Patient list ── */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl flex flex-col items-center justify-center py-16 gap-3" style={{ border: `1px solid ${border.divider}` }}>
-          <Users size={32} style={{ color: colors.text.dim }} />
-          <p className="text-sm font-medium" style={{ color: colors.text.muted }}>No patients match your filters</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="text-xs px-4 py-2 rounded-lg font-medium"
-            style={{ background: '#3730a3', color: '#fff' }}
-          >
-            Add Patient
-          </button>
-        </div>
+        <EmptyState
+          icon={<Users size={32} />}
+          title="No patients match your filters"
+          description="Try adjusting the filters above or add a new patient."
+          action={{ label: 'Add Patient', onClick: () => setShowModal(true) }}
+        />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((p, i) => (
-            <PatientCard key={p.id} patient={p} index={i} />
+            <PatientCard key={p.id} patient={p} index={i} clinicName={clinicMap[p.clinicId]} />
           ))}
         </div>
       ) : (
         /* List view */
-        <div className="rounded-2xl overflow-hidden border" style={{ borderColor: border.divider }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: 'rgba(0,0,0,0.02)', borderBottom: `1px solid ${border.divider}` }}>
-                {['#', 'Patient', 'Age', 'Clinic', 'Conditions', 'Specialists', 'Status', 'Added'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.muted }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p, i) => {
-                const color  = avatarColor(i)
-                const status = inviteStatus(p)
-                const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
-                return (
-                  <tr
-                    key={p.id}
-                    style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${border.divider}` : undefined, cursor: 'pointer' }}
-                    onClick={() => window.location.assign(`/patients/${p.id}`)}
-                  >
-                    <td className="px-4 py-3 text-xs" style={{ color: colors.text.dim }}>#{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: color.bg, color: color.text }}>{initials}</div>
-                        <span className="font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</span>
+        <>
+          {/* Mobile cards */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {filtered.map((p, i) => {
+              const av      = AVATAR_STYLES[i % AVATAR_STYLES.length]
+              const status  = inviteStatus(p)
+              const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
+              return (
+                <Link key={p.id} to={`/patients/${p.id}`}>
+                  <div className="rounded-xl p-4" style={styles.card}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: av.bg, color: av.fg }}>{initials}</div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</p>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</td>
-                    <td className="px-4 py-3" style={{ color: colors.text.muted }}>{clinicMap[p.clinicId] ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {p.conditions.length === 0
-                          ? <span style={{ color: colors.text.dim }}>—</span>
-                          : p.conditions.slice(0, 2).map(c => (
-                            <span key={c.id} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1' }}>{c.name}</span>
-                          ))}
+                      <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                    </div>
+                    {p.conditions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {p.conditions.slice(0, 2).map(c => (
+                          <span key={c.id} className="text-[11px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
+                        ))}
                         {p.conditions.length > 2 && <span className="text-[11px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
                       </div>
-                    </td>
-                    <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.therapists.length}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{format(new Date(p.createdAt), 'dd MMM yyyy')}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block rounded-2xl overflow-hidden" style={styles.card}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${border.divider}` }}>
+                  {['Patient', 'Age', 'Clinic', 'Conditions', 'Specialists', 'Status', 'Added'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => {
+                  const av      = AVATAR_STYLES[i % AVATAR_STYLES.length]
+                  const status  = inviteStatus(p)
+                  const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
+                  return (
+                    <tr
+                      key={p.id}
+                      className="cursor-pointer transition-colors"
+                      style={{ borderBottom: `1px solid ${border.divider}` }}
+                      onClick={() => window.location.assign(`/patients/${p.id}`)}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.03)}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: av.bg, color: av.fg }}>{initials}</div>
+                          <span className="font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</td>
+                      <td className="px-4 py-3" style={{ color: colors.text.muted }}>{clinicMap[p.clinicId] ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {p.conditions.length === 0
+                            ? <span style={{ color: colors.text.dim }}>—</span>
+                            : p.conditions.slice(0, 2).map(c => (
+                              <span key={c.id} className="text-[11px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
+                            ))}
+                          {p.conditions.length > 2 && <span className="text-[11px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.therapists.length}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{format(new Date(p.createdAt), 'dd MMM yyyy')}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* ── Add patient modal ── */}
