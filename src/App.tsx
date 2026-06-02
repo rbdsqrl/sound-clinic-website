@@ -13,9 +13,7 @@ import ClinicDetailPage from './pages/clinics/ClinicDetailPage'
 import PatientsPage from './pages/patients/PatientsPage'
 import PatientDetailPage from './pages/patients/PatientDetailPage'
 import MyChildrenPage from './pages/patients/MyChildrenPage'
-import InvitationsPage from './pages/InvitationsPage'
 import AvailabilityPage from './pages/availability/AvailabilityPage'
-import TherapistsPage from './pages/therapists/TherapistsPage'
 import CalendarPage from './pages/calendar/CalendarPage'
 import MyLeavePage from './pages/leave/MyLeavePage'
 import LeaveManagementPage from './pages/leave/LeaveManagementPage'
@@ -69,10 +67,8 @@ function AppRoutes() {
         <Route path="/patients"         element={<PatientsPage />} />
         <Route path="/patients/:id"     element={<PatientDetailPage />} />
         <Route path="/my-children"      element={<MyChildrenPage />} />
-        <Route path="/invitations"  element={<InvitationsPage />} />
         <Route path="/calendar"     element={<CalendarPage />} />
         <Route path="/availability" element={<AvailabilityPage />} />
-        <Route path="/therapists"       element={<TherapistsPage />} />
         <Route path="/my-leave"         element={<MyLeavePage />} />
         <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/inquiries"        element={<InquiriesPage />} />

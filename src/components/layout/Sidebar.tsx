@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Building2, Stethoscope, Users, Mail,
+  LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
-  Sun, Moon, UserRound, CalendarOff, Inbox, BookOpen,
+  Sun, Moon, CalendarOff, Inbox, BookOpen,
   ChevronLeft, ChevronRight, ListTodo, ClipboardCheck, UserCog,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -20,7 +20,6 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/inquiries',             label: 'Inquiries',           icon: Inbox },
     { to: '/organisation',          label: 'Organisation',        icon: Building2 },
     { to: '/clinics',               label: 'Clinics',             icon: Stethoscope },
-    { to: '/therapists',            label: 'Therapists',          icon: UserRound },
     { to: '/patients',              label: 'Patients',            icon: Users },
     { to: '/programs',              label: 'Programs',            icon: BookOpen },
     { to: '/tasks',                 label: 'Tasks',               icon: ListTodo },
@@ -66,7 +65,6 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/inquiries',             label: 'Inquiries',       icon: Inbox },
     { to: '/organisation',          label: 'Organisation',    icon: Building2 },
     { to: '/clinics',               label: 'Clinics',         icon: Stethoscope },
-    { to: '/therapists',            label: 'Therapists',      icon: UserRound },
     { to: '/patients',              label: 'Patients',        icon: Users },
     { to: '/programs',              label: 'Programs',        icon: BookOpen },
     { to: '/tasks',                 label: 'Tasks',           icon: ListTodo },
