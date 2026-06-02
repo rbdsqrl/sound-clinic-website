@@ -6,7 +6,11 @@ export const leavesApi = {
   apply: (data: CreateLeaveRequest) =>
     client.post<ApiResponse<LeaveResponse>>('/leaves', data).then(r => r.data.data),
 
-  /** List leaves — role-scoped on the backend */
+  /** Caller's own leaves (all roles) */
+  listMine: () =>
+    client.get<ApiResponse<LeaveResponse[]>>('/leaves/my').then(r => r.data.data),
+
+  /** List leaves — role-scoped on the backend (admins see all) */
   list: (status?: LeaveStatus) =>
     client.get<ApiResponse<LeaveResponse[]>>('/leaves', {
       params: status ? { status } : {},

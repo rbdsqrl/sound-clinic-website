@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, AttendanceResponse, CheckInRequest, CheckOutRequest, EnrollFaceRequest } from '../types'
+import type { ApiResponse, AttendanceResponse, CheckInRequest, CheckOutRequest, EnrollFaceRequest, VerifyAttendanceRequest } from '../types'
 
 export const attendanceApi = {
   checkIn: (data: CheckInRequest) =>
@@ -21,4 +21,7 @@ export const attendanceApi = {
 
   enrollFace: (data: EnrollFaceRequest) =>
     client.post<ApiResponse<null>>('/attendance/enroll-face', data).then(r => r.data),
+
+  verify: (data: VerifyAttendanceRequest) =>
+    client.patch<ApiResponse<AttendanceResponse>>('/attendance/today/verify', data).then(r => r.data.data),
 }

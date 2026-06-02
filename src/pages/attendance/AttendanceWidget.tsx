@@ -21,11 +21,11 @@ function formatTime(iso: string | null) {
 }
 
 export default function AttendanceWidget() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
-  const [faceEnrolled, setFaceEnrolled] = useState(user?.faceEnrolled ?? false)
+  const faceEnrolled = user?.faceEnrolled ?? false
   const [enrollMode, setEnrollMode]   = useState(false)
   const [open, setOpen]               = useState(false)
   const [modelsLoaded, setModelsLoaded] = useState(false)
@@ -153,11 +153,12 @@ export default function AttendanceWidget() {
 
   const checkInMut = useMutation({
     mutationFn: async () => {
-      const descriptor = cameraActive ? await captureFaceDescriptor() : undefined
+      const descriptor = await captureFaceDescriptor()
+      if (!descriptor) throw new Error('No face detected')
       return attendanceApi.checkIn({
         clinicId: selectedClinicId,
-        latitude: location?.lat,
-        longitude: location?.lon,
+        latitude: location!.lat,
+        longitude: location!.lon,
         faceDescriptor: descriptor,
       })
     },
@@ -167,7 +168,7 @@ export default function AttendanceWidget() {
       toast('Checked in successfully', 'success')
       closeModal()
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Check-in failed', 'error'),
+    onError: (err: any) => toast(err?.response?.data?.message ?? err?.message ?? 'Check-in failed', 'error'),
   })
 
   const checkOutMut = useMutation({
@@ -194,11 +195,11 @@ export default function AttendanceWidget() {
       if (!descriptor) throw new Error('No face detected')
       return attendanceApi.enrollFace({ faceDescriptor: descriptor })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast('Face enrolled successfully', 'success')
-      setFaceEnrolled(true)
       setEnrollMode(false)
       stopCamera()
+      await refreshUser()
     },
     onError: () => toast('Face enrollment failed', 'error'),
   })
@@ -356,13 +357,15 @@ export default function AttendanceWidget() {
                   className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all min-h-[40px] disabled:opacity-60"
                   style={geoStatus === 'ok'
                     ? { background: successAlpha(0.1), color: colors.status.success }
+                    : geoStatus === 'denied'
+                    ? { background: dangerAlpha(0.08), color: colors.status.error, border: `1px solid ${dangerAlpha(0.3)}` }
                     : { background: accentAlpha(0.07), color: colors.text.primary, border: `1px solid ${accentAlpha(0.15)}` }
                   }
                 >
                   <MapPin size={14} />
                   {geoStatus === 'loading' && 'Getting location…'}
                   {geoStatus === 'ok'      && 'Location captured'}
-                  {geoStatus === 'denied'  && 'Retry location'}
+                  {geoStatus === 'denied'  && 'Location denied — tap to retry'}
                   {geoStatus === 'idle'    && 'Allow location access'}
                 </button>
               </div>
@@ -410,7 +413,7 @@ export default function AttendanceWidget() {
                 <LogOut size={14} /> Check Out
               </Button>
             ) : (
-              <Button onClick={() => checkInMut.mutate()} loading={isWorking} disabled={!selectedClinicId}>
+              <Button onClick={() => checkInMut.mutate()} loading={isWorking} disabled={!selectedClinicId || geoStatus !== 'ok' || !cameraActive}>
                 <LogIn size={14} /> Check In
               </Button>
             )}

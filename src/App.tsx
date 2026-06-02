@@ -15,13 +15,9 @@ import PatientDetailPage from './pages/patients/PatientDetailPage'
 import MyChildrenPage from './pages/patients/MyChildrenPage'
 import AvailabilityPage from './pages/availability/AvailabilityPage'
 import CalendarPage from './pages/calendar/CalendarPage'
-import MyLeavePage from './pages/leave/MyLeavePage'
-import LeaveManagementPage from './pages/leave/LeaveManagementPage'
 import InquiriesPage from './pages/inquiries/InquiriesPage'
-import ProgramsPage from './pages/programs/ProgramsPage'
 import TasksPage from './pages/tasks/TasksPage'
-import AttendancePage from './pages/attendance/AttendancePage'
-import AttendanceManagementPage from './pages/attendance/AttendanceManagementPage'
+import WorkforcePage from './pages/workforce/WorkforcePage'
 import MembersPage from './pages/members/MembersPage'
 
 // ── DEV BYPASS ────────────────────────────────────────────────────────────────
@@ -69,14 +65,10 @@ function AppRoutes() {
         <Route path="/my-children"      element={<MyChildrenPage />} />
         <Route path="/calendar"     element={<CalendarPage />} />
         <Route path="/availability" element={<AvailabilityPage />} />
-        <Route path="/my-leave"         element={<MyLeavePage />} />
-        <Route path="/leave-management" element={<LeaveManagementPage />} />
-        <Route path="/inquiries"        element={<InquiriesPage />} />
-        <Route path="/programs"         element={<ProgramsPage />} />
-        <Route path="/tasks"                  element={<TasksPage />} />
-        <Route path="/attendance"             element={<AttendancePage />} />
-        <Route path="/attendance-management"  element={<AttendanceManagementPage />} />
-        <Route path="/members"              element={<MembersPage />} />
+        <Route path="/inquiries"    element={<InquiriesPage />} />
+        <Route path="/tasks"        element={<TasksPage />} />
+        <Route path="/workforce"    element={<WorkforcePage />} />
+        <Route path="/members"      element={<MembersPage />} />
       </Route>
 
       {/* Fallback */}

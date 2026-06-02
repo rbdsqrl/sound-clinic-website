@@ -32,6 +32,7 @@ interface AuthContextValue {
   switchRole: (role: Role) => void
   addRole: (role: Role) => Promise<void>
   removeRole: (role: Role) => Promise<void>
+  refreshUser: () => Promise<void>
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
@@ -114,6 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshUser = async () => {
+    const updated = await authApi.me()
+    setUser(updated)
+    localStorage.setItem('user', JSON.stringify(updated))
+  }
+
   const login = async (data: LoginRequest) => {
     const res = await authApi.login(data)
     tokenStorage.set(res.accessToken, res.refreshToken)
@@ -143,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, activeRole, isLoading, isAuthenticated: !!user,
-      switchRole, addRole, removeRole, login, register, logout,
+      switchRole, addRole, removeRole, refreshUser, login, register, logout,
     }}>
       {children}
     </AuthContext.Provider>

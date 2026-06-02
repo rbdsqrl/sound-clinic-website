@@ -109,7 +109,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
-export default function LeaveManagementPage() {
+export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | ''>('PENDING')
@@ -139,12 +139,14 @@ export default function LeaveManagementPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Leave Requests</h1>
-        <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>
-          Review and manage therapist leave applications
-        </p>
-      </div>
+      {!asTab && (
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Leave Requests</h1>
+          <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>
+            Review and manage therapist leave applications
+          </p>
+        </div>
+      )}
 
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-3">

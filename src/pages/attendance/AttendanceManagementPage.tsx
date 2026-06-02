@@ -29,7 +29,7 @@ function StatusBadge({ status }: { status: AttendanceResponse['status'] }) {
   )
 }
 
-export default function AttendanceManagementPage() {
+export default function AttendanceManagementPage({ asTab = false }: { asTab?: boolean }) {
   const today = new Date().toISOString().split('T')[0]
   const [from, setFrom] = useState(today)
   const [to, setTo]     = useState(today)
@@ -45,37 +45,33 @@ export default function AttendanceManagementPage() {
 
   if (isLoading) return <PageLoader />
 
+  const DateFilters = (
+    <div className="flex items-center gap-2">
+      <Input label="" type="date" value={from} onChange={e => setFrom(e.target.value)} className="text-sm" />
+      <span className="text-sm" style={{ color: colors.text.muted }}>to</span>
+      <Input label="" type="date" value={to} onChange={e => setTo(e.target.value)} className="text-sm" />
+    </div>
+  )
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className={asTab ? 'space-y-6' : 'p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6'}>
 
       {/* ── Header ── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>
-            Attendance Management
-          </h1>
-          <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
-            View and monitor staff attendance
-          </p>
+      {asTab ? (
+        <div className="flex justify-end">{DateFilters}</div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>
+              Attendance Management
+            </h1>
+            <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
+              View and monitor staff attendance
+            </p>
+          </div>
+          {DateFilters}
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            label=""
-            type="date"
-            value={from}
-            onChange={e => setFrom(e.target.value)}
-            className="text-sm"
-          />
-          <span className="text-sm" style={{ color: colors.text.muted }}>to</span>
-          <Input
-            label=""
-            type="date"
-            value={to}
-            onChange={e => setTo(e.target.value)}
-            className="text-sm"
-          />
-        </div>
-      </div>
+      )}
 
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">

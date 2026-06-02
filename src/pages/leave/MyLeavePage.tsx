@@ -142,7 +142,7 @@ function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () =
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
-export default function MyLeavePage() {
+export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
@@ -150,7 +150,7 @@ export default function MyLeavePage() {
 
   const { data: leaves, isLoading } = useQuery({
     queryKey: ['my-leaves'],
-    queryFn: () => leavesApi.list(),
+    queryFn: () => leavesApi.listMine(),
   })
 
   const cancelMut = useMutation({
@@ -168,17 +168,23 @@ export default function MyLeavePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>My Leave</h1>
-          <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>
-            Apply for time off and track your leave requests
-          </p>
+      {asTab ? (
+        <div className="flex justify-end">
+          <Button onClick={() => setModalOpen(true)}><Plus size={16} /> Apply for Leave</Button>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus size={16} /> Apply for Leave
-        </Button>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>My Leave</h1>
+            <p className="mt-1 text-sm" style={{ color: colors.text.dim }}>
+              Apply for time off and track your leave requests
+            </p>
+          </div>
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus size={16} /> Apply for Leave
+          </Button>
+        </div>
+      )}
 
       {/* Summary chips */}
       {leaves && leaves.length > 0 && (

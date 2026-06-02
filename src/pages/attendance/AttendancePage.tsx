@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as faceapi from 'face-api.js'
-import { Camera, MapPin, CheckCircle, XCircle, Clock, LogIn, LogOut, UserCheck, AlertTriangle } from 'lucide-react'
+import { Camera, MapPin, CheckCircle, XCircle, Clock, LogIn, LogOut, UserCheck, AlertTriangle, RefreshCw } from 'lucide-react'
 import { attendanceApi } from '../../api/attendance'
 import { clinicsApi } from '../../api/clinics'
 import { useAuth } from '../../contexts/AuthContext'
@@ -37,8 +37,8 @@ function VerifyBadge({ ok, label }: VerifyBadgeProps) {
   )
 }
 
-export default function AttendancePage() {
-  const { user } = useAuth()
+export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
+  const { user, refreshUser } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
@@ -48,14 +48,25 @@ export default function AttendancePage() {
   const modelsLoadPromise = useRef<Promise<void> | null>(null)
   const didAutoEnroll     = useRef(false)
 
-  const [faceEnrolled, setFaceEnrolled]         = useState(user?.faceEnrolled ?? false)
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [cameraActive, setCameraActive]         = useState(false)
   const [modelsLoaded, setModelsLoaded]         = useState(false)
   const [modelsLoading, setModelsLoading]       = useState(false)
   const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
   const [location, setLocation]                 = useState<{ lat: number; lon: number } | null>(null)
-  const [enrollMode, setEnrollMode]             = useState(!( user?.faceEnrolled ?? false))
+  const [enrollMode, setEnrollMode]             = useState(false)
+  const [showVerifyForm, setShowVerifyForm]     = useState(false)
+
+  // Derive directly from context so any refresh automatically propagates
+  const faceEnrolled = user?.faceEnrolled ?? false
+
+  // Fetch fresh user from DB on mount — localStorage may have stale faceEnrolled: false
+  useEffect(() => { refreshUser() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync enrollMode whenever faceEnrolled changes (initial load or after refresh)
+  useEffect(() => {
+    setEnrollMode(!faceEnrolled)
+  }, [faceEnrolled])
 
   // ── Data queries ─────────────────────────────────────────────────────────────
 
@@ -116,7 +127,7 @@ export default function AttendancePage() {
       },
       () => {
         setGeoStatus('denied')
-        toast('Location access denied — geo-fence verification will be skipped', 'info')
+        toast('Location access denied — please allow location in browser settings', 'error')
       },
     )
   }, [toast])
@@ -175,11 +186,12 @@ export default function AttendancePage() {
 
   const checkInMut = useMutation({
     mutationFn: async () => {
-      const descriptor = cameraActive ? await captureFaceDescriptor() : undefined
+      const descriptor = await captureFaceDescriptor()
+      if (!descriptor) throw new Error('No face detected')
       return attendanceApi.checkIn({
         clinicId: selectedClinicId,
-        latitude: location?.lat,
-        longitude: location?.lon,
+        latitude: location!.lat,
+        longitude: location!.lon,
         faceDescriptor: descriptor,
       })
     },
@@ -190,7 +202,7 @@ export default function AttendancePage() {
       stopCamera()
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? 'Check-in failed'
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Check-in failed'
       toast(msg, 'error')
     },
   })
@@ -216,17 +228,39 @@ export default function AttendancePage() {
     },
   })
 
+  const verifyMut = useMutation({
+    mutationFn: async () => {
+      const descriptor = cameraActive ? await captureFaceDescriptor() : undefined
+      return attendanceApi.verify({
+        latitude: location?.lat,
+        longitude: location?.lon,
+        faceDescriptor: descriptor,
+      })
+    },
+    onSuccess: (data: AttendanceResponse) => {
+      qc.setQueryData(['attendance', 'today'], data)
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+      const allGood = data.geoVerified && data.faceVerified
+      toast(allGood ? 'Verification complete' : 'Partial verification — check location/camera settings', allGood ? 'success' : 'info')
+      setShowVerifyForm(false)
+      stopCamera()
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? 'Verification failed'
+      toast(msg, 'error')
+    },
+  })
+
   const enrollMut = useMutation({
     mutationFn: async () => {
       const descriptor = await captureFaceDescriptor()
       if (!descriptor) throw new Error('No face detected')
       return attendanceApi.enrollFace({ faceDescriptor: descriptor })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast('Face enrolled successfully', 'success')
-      setFaceEnrolled(true)
-      setEnrollMode(false)
       stopCamera()
+      await refreshUser()  // updates user.faceEnrolled in context → faceEnrolled derived value updates → enrollMode syncs
     },
     onError: () => toast('Face enrollment failed', 'error'),
   })
@@ -235,20 +269,64 @@ export default function AttendancePage() {
 
   const checkedIn  = today?.status === 'CHECKED_IN'
   const checkedOut = today?.status === 'CHECKED_OUT'
-  const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending
+  const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending || verifyMut.isPending
+  const needsVerification = checkedIn && today && (!today.geoVerified || !today.faceVerified)
+
+  const canCheckIn = geoStatus === 'ok' && cameraActive && !!selectedClinicId
+
+  // ── Camera panel (shared between check-in, verify, enroll modes) ─────────────
+
+  const CameraPanel = (
+    <div>
+      <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
+        {enrollMode ? 'Position your face in the camera' : 'Face verification'}
+      </p>
+      {!cameraActive ? (
+        <Button variant="secondary" onClick={startCamera} loading={modelsLoading}>
+          <Camera size={15} />
+          {modelsLoading ? 'Loading face models…' : 'Open Camera'}
+        </Button>
+      ) : (
+        <div className="space-y-3">
+          <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 280 }}>
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+            <div
+              className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
+              style={{ background: 'rgba(0,0,0,0.6)', color: '#4ade80' }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+              Live
+            </div>
+          </div>
+          <button onClick={stopCamera} className="text-xs" style={{ color: colors.text.muted }}>
+            Close camera
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+    <div className={asTab ? 'max-w-2xl space-y-6' : 'p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6'}>
 
       {/* ── Header ── */}
-      <div>
-        <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>
-          Attendance
-        </h1>
-        <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
-          {new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
-      </div>
+      {!asTab && (
+        <div>
+          <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>
+            Attendance
+          </h1>
+          <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
+            {new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+      )}
 
       {/* ── Today's status card ── */}
       {today && (
@@ -276,11 +354,83 @@ export default function AttendancePage() {
               <VerifyBadge ok={today.faceVerified} label="Face" />
             </div>
           </div>
+
+          {/* Retry verification prompt */}
+          {needsVerification && !showVerifyForm && (
+            <div
+              className="flex items-center justify-between gap-3 mt-3 rounded-xl px-3 py-2.5"
+              style={{ background: warningAlpha(0.1) }}
+            >
+              <div className="flex items-center gap-2 text-sm" style={{ color: colors.text.primary }}>
+                <AlertTriangle size={15} style={{ color: colors.status.warning, flexShrink: 0 }} />
+                <span>Verification incomplete — fix it now to complete your attendance.</span>
+              </div>
+              <button
+                onClick={() => setShowVerifyForm(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 whitespace-nowrap"
+                style={{ background: warningAlpha(0.2), color: colors.status.warning }}
+              >
+                <RefreshCw size={12} />
+                Fix
+              </button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── Fix Verification card (inline retry) ── */}
+      {needsVerification && showVerifyForm && (
+        <Card>
+          <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
+            Fix Verification
+          </h2>
+
+          <div className="space-y-4">
+            {/* Location */}
+            <div>
+              <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
+                Step 1 — Location
+              </p>
+              <button
+                onClick={getLocation}
+                disabled={geoStatus === 'ok' || geoStatus === 'loading'}
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all min-h-[44px]"
+                style={geoStatus === 'ok'
+                  ? { background: successAlpha(0.1), color: colors.status.success }
+                  : { background: warningAlpha(0.08), color: colors.text.primary, border: `1px solid ${colors.text.dim}` }
+                }
+              >
+                <MapPin size={15} />
+                {geoStatus === 'loading' && 'Getting location…'}
+                {geoStatus === 'ok'      && 'Location captured'}
+                {geoStatus === 'denied'  && 'Retry location access'}
+                {geoStatus === 'idle'    && 'Allow location access'}
+              </button>
+            </div>
+
+            {/* Camera */}
+            {CameraPanel}
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                onClick={() => verifyMut.mutate()}
+                loading={verifyMut.isPending}
+                disabled={!geoStatus || geoStatus === 'loading'}
+              >
+                <RefreshCw size={15} />
+                Verify Now
+              </Button>
+              <Button variant="secondary" onClick={() => { setShowVerifyForm(false); stopCamera(); setGeoStatus('idle'); setLocation(null) }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         </Card>
       )}
 
       {/* ── Action card ── */}
-      {!checkedOut && (
+      {!checkedOut && !showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             {enrollMode ? 'Enroll Face' : checkedIn ? 'Check Out' : 'Check In'}
@@ -310,11 +460,11 @@ export default function AttendancePage() {
               />
             )}
 
-            {/* Step 1: Location */}
-            {!enrollMode && (
+            {/* Step 1: Location — required for check-in */}
+            {!enrollMode && !checkedIn && (
               <div>
                 <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-                  Step 1 — Location
+                  Step 1 — Location <span style={{ color: colors.status.error }}>*</span>
                 </p>
                 <button
                   onClick={getLocation}
@@ -322,13 +472,15 @@ export default function AttendancePage() {
                   className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all min-h-[44px]"
                   style={geoStatus === 'ok'
                     ? { background: successAlpha(0.1), color: colors.status.success }
+                    : geoStatus === 'denied'
+                    ? { background: dangerAlpha(0.08), color: colors.status.error, border: `1px solid ${dangerAlpha(0.3)}` }
                     : { background: warningAlpha(0.08), color: colors.text.primary, border: `1px solid ${colors.text.dim}` }
                   }
                 >
                   <MapPin size={15} />
                   {geoStatus === 'loading' && 'Getting location…'}
                   {geoStatus === 'ok'      && 'Location captured'}
-                  {geoStatus === 'denied'  && 'Location denied — try again'}
+                  {geoStatus === 'denied'  && 'Location denied — tap to retry'}
                   {geoStatus === 'idle'    && 'Allow location access'}
                 </button>
               </div>
@@ -337,7 +489,11 @@ export default function AttendancePage() {
             {/* Step 2: Camera / Face */}
             <div>
               <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-                {enrollMode ? 'Position your face in the camera' : 'Step 2 — Face verification'}
+                {enrollMode
+                  ? 'Position your face in the camera'
+                  : checkedIn
+                  ? 'Step 1 — Face verification (optional)'
+                  : <>Step 2 — Face verification <span style={{ color: colors.status.error }}>*</span></>}
               </p>
 
               {!cameraActive ? (
@@ -379,6 +535,13 @@ export default function AttendancePage() {
               )}
             </div>
 
+            {/* Check-in requirement hint */}
+            {!enrollMode && !checkedIn && !canCheckIn && (geoStatus !== 'idle' || cameraActive) && (
+              <p className="text-xs" style={{ color: colors.text.muted }}>
+                Location and camera are both required to check in.
+              </p>
+            )}
+
             {/* Action buttons */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               {enrollMode ? (
@@ -407,7 +570,7 @@ export default function AttendancePage() {
                 <Button
                   onClick={() => checkInMut.mutate()}
                   loading={isWorking}
-                  disabled={!selectedClinicId}
+                  disabled={!canCheckIn}
                 >
                   <LogIn size={15} />
                   Check In

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
-  Building2, CalendarOff, FileUp, Pencil, Plus, Trash2, X,
+  Building2, CalendarOff, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, Stethoscope, HeartPulse, Receipt,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -12,20 +13,34 @@ import { programsApi } from '../api/programs'
 import { conditionsApi } from '../api/conditions'
 import { therapiesApi } from '../api/therapies'
 import { taxesApi } from '../api/taxes'
+import { clinicsApi } from '../api/clinics'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
+import { Modal } from '../components/ui/Modal'
+import { Select } from '../components/ui/Select'
+import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { ToastContainer } from '../components/ui/Toast'
 import { useToast } from '../hooks/useToast'
 import { useAuth } from '../contexts/AuthContext'
-import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha } from '../theme'
+import { TIMEZONES } from '../lib/timezones'
+import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
-  UpdateOrganisationRequest, CreatePublicHolidayRequest,
+  UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
   ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse,
 } from '../types'
 
-type Tab = 'information' | 'manage'
+type Tab = 'information' | 'clinics' | 'manage'
+
+const TIMEZONE_GROUPS = Array.from(
+  TIMEZONES.reduce((map, tz) => {
+    if (!map.has(tz.region)) map.set(tz.region, [])
+    map.get(tz.region)!.push({ value: tz.value, label: tz.label })
+    return map
+  }, new Map<string, { value: string; label: string }[]>()),
+  ([group, options]) => ({ group, options })
+)
 
 // ── CSV parser ─────────────────────────────────────────────────────────────────
 function parseCsv(text: string): { holidayDate: string; name: string }[] {
@@ -116,13 +131,59 @@ function AddRow({
 
 // ── Program row ───────────────────────────────────────────────────────────────
 function ProgramRow({
-  program, canManage, onToggle, onDelete,
+  program, canManage, onToggle, onDelete, onEdit,
 }: {
   program: ProgramResponse
   canManage: boolean
   onToggle: () => void
   onDelete: () => void
+  onEdit: (name: string, cost: number, description?: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName]       = useState(program.name)
+  const [cost, setCost]       = useState(String(program.perSessionCost))
+  const [desc, setDesc]       = useState(program.description ?? '')
+
+  const save = () => {
+    const c = parseFloat(cost)
+    if (!name.trim() || isNaN(c)) return
+    onEdit(name.trim(), c, desc.trim() || undefined)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="py-3 px-1 border-b last:border-b-0 space-y-2" style={{ borderColor: border.divider }}>
+        <div className="flex gap-2">
+          <input
+            className="form-input flex-1 text-sm"
+            placeholder="Program name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+          <input
+            className="form-input w-28 text-sm"
+            placeholder="₹ price"
+            type="number"
+            min="0"
+            value={cost}
+            onChange={e => setCost(e.target.value)}
+          />
+        </div>
+        <input
+          className="form-input w-full text-sm"
+          placeholder="Description (optional)"
+          value={desc}
+          onChange={e => setDesc(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={save} disabled={!name.trim() || !cost}>Save</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setEditing(false); setName(program.name); setCost(String(program.perSessionCost)); setDesc(program.description ?? '') }}>Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="py-3 px-1 border-b last:border-b-0"
@@ -148,6 +209,14 @@ function ProgramRow({
         </div>
         {canManage && (
           <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => setEditing(true)}
+              className="p-1.5 rounded-lg hover:opacity-75"
+              style={{ color: colors.text.dim }}
+              title="Edit"
+            >
+              <Pencil size={13} />
+            </button>
             <button onClick={onToggle} title={program.isActive ? 'Disable' : 'Enable'}>
               {program.isActive
                 ? <ToggleRight size={20} style={{ color: colors.accent }} />
@@ -236,6 +305,7 @@ export default function OrganisationPage() {
   const [holidayName, setHolidayName] = useState('')
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
+  const [showClinicModal, setShowClinicModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { toasts, toast, dismiss } = useToast()
@@ -276,8 +346,24 @@ export default function OrganisationPage() {
     enabled: tab === 'manage',
   })
 
+  const { data: clinics = [] } = useQuery({
+    queryKey: ['clinics'],
+    queryFn: clinicsApi.list,
+    enabled: tab === 'clinics',
+  })
+
   // ── Org form ─────────────────────────────────────────────────────────────────
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdateOrganisationRequest>()
+
+  // ── Clinic form ───────────────────────────────────────────────────────────────
+  const {
+    register: registerClinic,
+    handleSubmit: handleClinicSubmit,
+    reset: resetClinic,
+    formState: { errors: clinicErrors, isSubmitting: isClinicSubmitting },
+  } = useForm<CreateClinicRequest>({
+    defaultValues: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+  })
 
   const orgMut = useMutation({
     mutationFn: organisationApi.update,
@@ -327,6 +413,13 @@ export default function OrganisationPage() {
     onError: () => toast('Failed to update program', 'error'),
   })
 
+  const updateProgramMut = useMutation({
+    mutationFn: ({ id, name, perSessionCost, description }: { id: string; name: string; perSessionCost: number; description?: string }) =>
+      programsApi.update(id, { name, perSessionCost, description }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program updated', 'success') },
+    onError: () => toast('Failed to update program', 'error'),
+  })
+
   const deleteProgramMut = useMutation({
     mutationFn: programsApi.deactivate,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program removed', 'success') },
@@ -372,6 +465,18 @@ export default function OrganisationPage() {
     onError: () => toast('Failed to remove tax', 'error'),
   })
 
+  // ── Clinic mutations ──────────────────────────────────────────────────────────
+  const createClinicMut = useMutation({
+    mutationFn: clinicsApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clinics'] })
+      toast('Clinic created', 'success')
+      setShowClinicModal(false)
+      resetClinic()
+    },
+    onError: () => toast('Failed to create clinic', 'error'),
+  })
+
   // ── CSV handlers ─────────────────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
@@ -405,6 +510,7 @@ export default function OrganisationPage() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'information', label: 'Information' },
+    { key: 'clinics',     label: 'Clinics' },
     { key: 'manage',      label: 'Manage' },
   ]
 
@@ -560,6 +666,88 @@ export default function OrganisationPage() {
         </>
       )}
 
+      {/* ── Clinics tab ─────────────────────────────────────────────────────── */}
+      {tab === 'clinics' && (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm" style={{ color: colors.text.muted }}>
+              {clinics.length} clinic{clinics.length !== 1 ? 's' : ''} in your organisation
+            </p>
+            {canManage && (
+              <Button onClick={() => setShowClinicModal(true)}>
+                <Plus size={16} /> New Clinic
+              </Button>
+            )}
+          </div>
+
+          {clinics.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={<Building2 size={32} />}
+                title="No clinics yet"
+                description="Create your first clinic to start managing patients and therapists."
+                action={canManage ? { label: 'Create clinic', onClick: () => setShowClinicModal(true) } : undefined}
+              />
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {clinics.map(clinic => (
+                <Link key={clinic.id} to={`/clinics/${clinic.id}`}>
+                  <div
+                    className="rounded-2xl p-5 cursor-pointer transition-all"
+                    style={styles.card}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px var(--color-accent), 0 4px 16px ${accentAlpha(0.12)}`}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = (styles.card as React.CSSProperties).boxShadow as string ?? ''}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl p-2.5" style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                          <Building2 size={20} />
+                        </div>
+                        <div>
+                          <p className="font-semibold" style={{ color: colors.text.primary }}>{clinic.name}</p>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{clinic.email ?? 'No email'}</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: colors.text.dim }} />
+                    </div>
+                    {clinic.address && (
+                      <p className="mt-3 text-xs truncate" style={{ color: colors.text.muted }}>{clinic.address}</p>
+                    )}
+                    <div className="mt-3 flex items-center gap-2">
+                      <span
+                        className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={clinic.isActive
+                          ? { background: 'rgba(16,185,129,0.10)', color: '#059669' }
+                          : { background: 'rgba(239,68,68,0.10)',  color: '#dc2626' }}
+                      >
+                        {clinic.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.text.dim }}>{clinic.timezone}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <Modal open={showClinicModal} onClose={() => { setShowClinicModal(false); resetClinic() }} title="Create new clinic">
+            <form onSubmit={handleClinicSubmit(d => createClinicMut.mutate(d))} className="space-y-4">
+              <Input label="Clinic name" placeholder="Downtown Branch" error={clinicErrors.name?.message}
+                {...registerClinic('name', { required: 'Clinic name is required' })} />
+              <Input label="Email" type="email" placeholder="clinic@example.com" {...registerClinic('email')} />
+              <Input label="Phone" placeholder="+1 555 0123" {...registerClinic('phone')} />
+              <Input label="Address" placeholder="123 Main St, City" {...registerClinic('address')} />
+              <Select label="Timezone" placeholder="Select timezone…" options={TIMEZONE_GROUPS} {...registerClinic('timezone')} />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => { setShowClinicModal(false); resetClinic() }}>Cancel</Button>
+                <Button type="submit" loading={isClinicSubmitting || createClinicMut.isPending}>Create</Button>
+              </div>
+            </form>
+          </Modal>
+        </>
+      )}
+
       {/* ── Manage tab ──────────────────────────────────────────────────────── */}
       {tab === 'manage' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -576,6 +764,7 @@ export default function OrganisationPage() {
                 canManage={canManage}
                 onToggle={() => canManage && toggleProgramMut.mutate({ id: p.id, isActive: !p.isActive })}
                 onDelete={() => canManage && deleteProgramMut.mutate(p.id)}
+                onEdit={(name, cost, desc) => canManage && updateProgramMut.mutate({ id: p.id, name, perSessionCost: cost, description: desc })}
               />
             ))}
             {canManage && (

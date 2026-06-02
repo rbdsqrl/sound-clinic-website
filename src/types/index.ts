@@ -736,6 +736,12 @@ export interface EnrollFaceRequest {
   faceDescriptor: number[]
 }
 
+export interface VerifyAttendanceRequest {
+  latitude?: number
+  longitude?: number
+  faceDescriptor?: number[]
+}
+
 // ── API wrapper ────────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
   success: boolean
