@@ -1,10 +1,17 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Building2, CalendarOff, FileUp, Pencil, Plus, Trash2, X } from 'lucide-react'
+import {
+  Building2, CalendarOff, FileUp, Pencil, Plus, Trash2, X,
+  ToggleLeft, ToggleRight, IndianRupee, Stethoscope, HeartPulse, Receipt,
+} from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { organisationApi } from '../api/organisation'
 import { publicHolidaysApi } from '../api/publicHolidays'
+import { programsApi } from '../api/programs'
+import { conditionsApi } from '../api/conditions'
+import { therapiesApi } from '../api/therapies'
+import { taxesApi } from '../api/taxes'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -12,21 +19,23 @@ import { PageLoader } from '../components/ui/Spinner'
 import { ToastContainer } from '../components/ui/Toast'
 import { useToast } from '../hooks/useToast'
 import { useAuth } from '../contexts/AuthContext'
-import { colors, border, accentAlpha } from '../theme'
-import type { UpdateOrganisationRequest, CreatePublicHolidayRequest } from '../types'
+import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha } from '../theme'
+import type {
+  UpdateOrganisationRequest, CreatePublicHolidayRequest,
+  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse,
+} from '../types'
+
+type Tab = 'information' | 'manage'
 
 // ── CSV parser ─────────────────────────────────────────────────────────────────
 function parseCsv(text: string): { holidayDate: string; name: string }[] {
   const rows = text.trim().split(/\r?\n/).filter(Boolean)
   const results: { holidayDate: string; name: string }[] = []
   for (const row of rows) {
-    // Support comma or semicolon separators; handle quoted fields
     const parts = row.split(/,|;/).map(p => p.trim().replace(/^"|"$/g, ''))
     const [col0, ...rest] = parts
     const name = rest.join(',').trim()
-    // Skip header row
     if (/^date$/i.test(col0)) continue
-    // Validate YYYY-MM-DD
     if (!/^\d{4}-\d{2}-\d{2}$/.test(col0)) continue
     if (!name) continue
     results.push({ holidayDate: col0, name })
@@ -34,63 +43,246 @@ function parseCsv(text: string): { holidayDate: string; name: string }[] {
   return results
 }
 
-// ── CSV preview row ────────────────────────────────────────────────────────────
-type CsvRow = { holidayDate: string; name: string; error?: string }
+type CsvRow = { holidayDate: string; name: string }
 
+// ── Reusable item row (name + delete button) ──────────────────────────────────
+function ItemRow({ name, onDelete, canDelete = true }: { name: string; onDelete?: () => void; canDelete?: boolean }) {
+  return (
+    <div
+      className="flex items-center justify-between py-3 px-1 border-b last:border-b-0"
+      style={{ borderColor: border.divider }}
+    >
+      <span className="text-sm" style={{ color: colors.text.primary }}>{name}</span>
+      {canDelete && onDelete && (
+        <button
+          onClick={onDelete}
+          className="p-1.5 rounded-lg transition-colors hover:opacity-75"
+          style={{ color: colors.text.dim }}
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Add row inline input ───────────────────────────────────────────────────────
+function AddRow({
+  placeholder, onAdd, loading, extraInput,
+}: {
+  placeholder: string
+  onAdd: (value: string, extra?: string) => void
+  loading: boolean
+  extraInput?: { placeholder: string; label: string }
+}) {
+  const [val, setVal] = useState('')
+  const [extra, setExtra] = useState('')
+
+  const submit = () => {
+    if (!val.trim()) return
+    onAdd(val.trim(), extra.trim() || undefined)
+    setVal('')
+    setExtra('')
+  }
+
+  return (
+    <div className="flex items-end gap-2 mt-3">
+      <div className="flex-1">
+        <input
+          className="form-input w-full text-sm"
+          placeholder={placeholder}
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+        />
+      </div>
+      {extraInput && (
+        <div className="w-28">
+          <input
+            className="form-input w-full text-sm"
+            placeholder={extraInput.placeholder}
+            value={extra}
+            onChange={e => setExtra(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+          />
+        </div>
+      )}
+      <Button size="sm" onClick={submit} loading={loading} disabled={!val.trim()}>
+        <Plus size={13} /> Add
+      </Button>
+    </div>
+  )
+}
+
+// ── Program row ───────────────────────────────────────────────────────────────
+function ProgramRow({
+  program, canManage, onToggle, onDelete,
+}: {
+  program: ProgramResponse
+  canManage: boolean
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div
+      className="py-3 px-1 border-b last:border-b-0"
+      style={{ borderColor: border.divider }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium" style={{ color: colors.text.primary }}>
+              {program.name}
+            </span>
+            <span
+              className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+              style={{ background: accentAlpha(0.08), color: colors.accent }}
+            >
+              <IndianRupee size={10} />
+              {Number(program.perSessionCost).toLocaleString('en-IN')}
+            </span>
+          </div>
+          {program.description && (
+            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{program.description}</p>
+          )}
+        </div>
+        {canManage && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={onToggle} title={program.isActive ? 'Disable' : 'Enable'}>
+              {program.isActive
+                ? <ToggleRight size={20} style={{ color: colors.accent }} />
+                : <ToggleLeft size={20} style={{ color: colors.text.dim }} />}
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg hover:opacity-75"
+              style={{ color: colors.text.dim }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Add program inline ─────────────────────────────────────────────────────────
+function AddProgramRow({ onAdd, loading }: { onAdd: (name: string, cost: string, desc: string) => void; loading: boolean }) {
+  const [name, setName] = useState('')
+  const [cost, setCost] = useState('')
+  const [desc, setDesc] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const submit = () => {
+    if (!name.trim() || !cost) return
+    onAdd(name.trim(), cost, desc.trim())
+    setName(''); setCost(''); setDesc(''); setOpen(false)
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-3 flex items-center gap-1.5 text-sm font-medium"
+        style={{ color: colors.accent }}
+      >
+        <Plus size={14} /> Add Program
+      </button>
+    )
+  }
+
+  return (
+    <div
+      className="mt-3 p-3 rounded-xl space-y-2"
+      style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}
+    >
+      <div className="flex gap-2">
+        <input className="form-input flex-1 text-sm" placeholder="Program name" value={name} onChange={e => setName(e.target.value)} />
+        <input className="form-input w-28 text-sm" placeholder="₹ price" type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} />
+      </div>
+      <input className="form-input w-full text-sm" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={submit} loading={loading} disabled={!name.trim() || !cost}>
+          <Plus size={13} /> Add
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => { setOpen(false); setName(''); setCost(''); setDesc('') }}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Manage section card ────────────────────────────────────────────────────────
+function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl p-4 md:p-5" style={{ background: surface.card, border: border.card }}>
+      <div className="flex items-center gap-2 mb-4">
+        <span style={{ color: colors.accent }}>{icon}</span>
+        <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>{title}</h2>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function OrganisationPage() {
-  const [editing, setEditing] = useState(false)
+  const [tab, setTab]               = useState<Tab>('information')
+  const [editing, setEditing]       = useState(false)
   const [addingHoliday, setAddingHoliday] = useState(false)
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
-  const [csvRows, setCsvRows] = useState<CsvRow[] | null>(null)
+  const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { toasts, toast, dismiss } = useToast()
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
   const { user } = useAuth()
-  const canManageHolidays = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
+  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
 
-  const { data: org, isLoading } = useQuery({
-    queryKey: ['organisation'],
-    queryFn: organisationApi.get,
-  })
+  // ── Queries ──────────────────────────────────────────────────────────────────
+  const { data: org, isLoading } = useQuery({ queryKey: ['organisation'], queryFn: organisationApi.get })
 
   const { data: holidays = [] } = useQuery({
     queryKey: ['public-holidays'],
     queryFn: publicHolidaysApi.list,
+    enabled: tab === 'information',
   })
 
-  const createHolidayMutation = useMutation({
-    mutationFn: (data: CreatePublicHolidayRequest) => publicHolidaysApi.create(data),
-    onSuccess: (h) => {
-      queryClient.invalidateQueries({ queryKey: ['public-holidays'] })
-      const msg = h.sessionsAffected > 0
-        ? `Holiday added — ${h.sessionsAffected} session${h.sessionsAffected !== 1 ? 's' : ''} flagged for rescheduling`
-        : 'Holiday added'
-      toast(msg, 'success')
-      setAddingHoliday(false)
-      setHolidayDate('')
-      setHolidayName('')
-    },
-    onError: () => toast('Failed to add holiday', 'error'),
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => programsApi.list(),
+    enabled: tab === 'manage',
   })
 
-  const deleteHolidayMutation = useMutation({
-    mutationFn: publicHolidaysApi.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['public-holidays'] })
-      toast('Holiday removed', 'success')
-    },
-    onError: () => toast('Failed to remove holiday', 'error'),
+  const { data: conditions = [] } = useQuery({
+    queryKey: ['conditions'],
+    queryFn: conditionsApi.list,
+    enabled: tab === 'manage',
   })
 
+  const { data: therapies = [] } = useQuery({
+    queryKey: ['therapies'],
+    queryFn: therapiesApi.list,
+    enabled: tab === 'manage',
+  })
+
+  const { data: taxes = [] } = useQuery({
+    queryKey: ['taxes'],
+    queryFn: taxesApi.list,
+    enabled: tab === 'manage',
+  })
+
+  // ── Org form ─────────────────────────────────────────────────────────────────
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdateOrganisationRequest>()
 
-  const mutation = useMutation({
+  const orgMut = useMutation({
     mutationFn: organisationApi.update,
     onSuccess: (updated) => {
-      queryClient.setQueryData(['organisation'], updated)
+      qc.setQueryData(['organisation'], updated)
       toast('Organisation updated', 'success')
       setEditing(false)
     },
@@ -102,23 +294,94 @@ export default function OrganisationPage() {
     setEditing(true)
   }
 
-  // ── CSV handlers ─────────────────────────────────────────────────────────────
+  // ── Holiday mutations ────────────────────────────────────────────────────────
+  const createHolidayMut = useMutation({
+    mutationFn: (data: CreatePublicHolidayRequest) => publicHolidaysApi.create(data),
+    onSuccess: (h) => {
+      qc.invalidateQueries({ queryKey: ['public-holidays'] })
+      const msg = h.sessionsAffected > 0
+        ? `Holiday added — ${h.sessionsAffected} session${h.sessionsAffected !== 1 ? 's' : ''} flagged`
+        : 'Holiday added'
+      toast(msg, 'success')
+      setAddingHoliday(false); setHolidayDate(''); setHolidayName('')
+    },
+    onError: () => toast('Failed to add holiday', 'error'),
+  })
 
+  const deleteHolidayMut = useMutation({
+    mutationFn: publicHolidaysApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['public-holidays'] }); toast('Holiday removed', 'success') },
+    onError: () => toast('Failed to remove holiday', 'error'),
+  })
+
+  // ── Programs mutations ───────────────────────────────────────────────────────
+  const createProgramMut = useMutation({
+    mutationFn: (p: { name: string; description?: string; perSessionCost: number }) => programsApi.create(p),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program added', 'success') },
+    onError: () => toast('Failed to add program', 'error'),
+  })
+
+  const toggleProgramMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => programsApi.update(id, { isActive }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onError: () => toast('Failed to update program', 'error'),
+  })
+
+  const deleteProgramMut = useMutation({
+    mutationFn: programsApi.deactivate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program removed', 'success') },
+    onError: () => toast('Failed to remove program', 'error'),
+  })
+
+  // ── Conditions mutations ─────────────────────────────────────────────────────
+  const createConditionMut = useMutation({
+    mutationFn: conditionsApi.create,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['conditions'] }); toast('Condition added', 'success') },
+    onError: () => toast('Failed to add condition', 'error'),
+  })
+
+  const deleteConditionMut = useMutation({
+    mutationFn: conditionsApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['conditions'] }); toast('Condition removed', 'success') },
+    onError: () => toast('Failed to remove condition', 'error'),
+  })
+
+  // ── Therapies mutations ──────────────────────────────────────────────────────
+  const createTherapyMut = useMutation({
+    mutationFn: therapiesApi.create,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy type added', 'success') },
+    onError: () => toast('Failed to add therapy', 'error'),
+  })
+
+  const deleteTherapyMut = useMutation({
+    mutationFn: therapiesApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy removed', 'success') },
+    onError: () => toast('Failed to remove therapy', 'error'),
+  })
+
+  // ── Taxes mutations ──────────────────────────────────────────────────────────
+  const createTaxMut = useMutation({
+    mutationFn: ({ name, rate }: { name: string; rate: number }) => taxesApi.create(name, rate),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['taxes'] }); toast('Tax rate added', 'success') },
+    onError: () => toast('Failed to add tax', 'error'),
+  })
+
+  const deleteTaxMut = useMutation({
+    mutationFn: taxesApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['taxes'] }); toast('Tax rate removed', 'success') },
+    onError: () => toast('Failed to remove tax', 'error'),
+  })
+
+  // ── CSV handlers ─────────────────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      const parsed = parseCsv(text)
-      if (parsed.length === 0) {
-        toast('No valid rows found. Expected format: date (YYYY-MM-DD), name', 'error')
-        return
-      }
+      const parsed = parseCsv(ev.target?.result as string)
+      if (parsed.length === 0) { toast('No valid rows found. Expected: date (YYYY-MM-DD), name', 'error'); return }
       setCsvRows(parsed)
     }
     reader.readAsText(file)
-    // Reset so same file can be re-selected
     e.target.value = ''
   }
 
@@ -127,228 +390,274 @@ export default function OrganisationPage() {
     setCsvUploading(true)
     let added = 0, skipped = 0, totalAffected = 0
     for (const row of csvRows) {
-      try {
-        const result = await publicHolidaysApi.create({ holidayDate: row.holidayDate, name: row.name })
-        added++
-        totalAffected += result.sessionsAffected
-      } catch {
-        skipped++
-      }
+      try { const r = await publicHolidaysApi.create({ holidayDate: row.holidayDate, name: row.name }); added++; totalAffected += r.sessionsAffected }
+      catch { skipped++ }
     }
-    queryClient.invalidateQueries({ queryKey: ['public-holidays'] })
+    qc.invalidateQueries({ queryKey: ['public-holidays'] })
     const parts = [`${added} holiday${added !== 1 ? 's' : ''} added`]
     if (totalAffected > 0) parts.push(`${totalAffected} session${totalAffected !== 1 ? 's' : ''} flagged`)
-    if (skipped > 0) parts.push(`${skipped} skipped (duplicates)`)
+    if (skipped > 0) parts.push(`${skipped} skipped`)
     toast(parts.join(' · '), added > 0 ? 'success' : 'error')
-    setCsvRows(null)
-    setCsvUploading(false)
+    setCsvRows(null); setCsvUploading(false)
   }
 
   if (isLoading) return <PageLoader />
 
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'information', label: 'Information' },
+    { key: 'manage',      label: 'Manage' },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-5">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Organisation</h1>
-        <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>Your organisation profile and settings</p>
+        <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Organisation</h1>
+        <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>Profile and service configuration</p>
       </div>
 
-      <Card>
-        <CardHeader
-          title="Profile"
-          subtitle="Manage your organisation's details"
-          action={!editing ? (
-            <Button variant="secondary" size="sm" onClick={startEdit}>
-              <Pencil size={14} /> Edit
-            </Button>
-          ) : undefined}
-        />
+      {/* Tab bar */}
+      <div className="flex gap-2 border-b" style={{ borderColor: border.divider }}>
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+            style={tab === t.key
+              ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
+              : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {!editing ? (
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[
-              ['Name', org?.name],
-              ['Slug', org?.slug],
-              ['Email', org?.contactEmail],
-              ['Phone', org?.contactPhone],
-              ['Timezone', org?.timezone],
-              ['Address', org?.address],
-            ].map(([label, value]) => (
-              <div key={label as string}>
-                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
-                <dd className="mt-1 text-sm" style={{ color: colors.text.primary }}>{value || <span style={{ color: colors.text.dim }}>—</span>}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="Name" error={errors.name?.message} {...register('name')} />
-              <Input label="Contact Email" type="email" {...register('contactEmail')} />
-              <Input label="Contact Phone" {...register('contactPhone')} />
-              <Input label="Timezone" {...register('timezone')} />
-            </div>
-            <Input label="Address" {...register('address')} />
-            <Input label="Logo URL" type="url" {...register('logoUrl')} />
-            <div className="flex gap-3">
-              <Button type="submit" loading={isSubmitting || mutation.isPending}>Save changes</Button>
-              <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
-            </div>
-          </form>
-        )}
-      </Card>
-
-      {/* Org ID + Slug info */}
-      <Card>
-        <CardHeader title="Deployment Info" />
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Organisation ID</dt>
-            <dd className="mt-1 font-mono text-xs break-all" style={{ color: colors.text.muted }}>{org?.id}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Slug</dt>
-            <dd className="mt-1 font-mono text-sm" style={{ color: colors.text.muted }}>{org?.slug}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Status</dt>
-            <dd className="mt-1">
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${org?.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                {org?.isActive ? 'Active' : 'Inactive'}
-              </span>
-            </dd>
-          </div>
-        </dl>
-      </Card>
-
-      {/* Public Holidays */}
-      <Card>
-        <CardHeader
-          title="Public Holidays"
-          subtitle="Sessions scheduled on these dates are flagged for rescheduling"
-          action={canManageHolidays ? (
-            <div className="flex items-center gap-2">
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-                <FileUp size={14} /> Upload CSV
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => { setAddingHoliday(v => !v) }}>
-                <Plus size={14} /> Add Holiday
-              </Button>
-            </div>
-          ) : undefined}
-        />
-
-        {/* CSV format hint */}
-        {canManageHolidays && (
-          <p className="text-xs mb-4" style={{ color: colors.text.dim }}>
-            CSV format: <code className="font-mono">date,name</code> — one row per holiday, date as <code className="font-mono">YYYY-MM-DD</code>. Header row optional. Duplicates are skipped.
-          </p>
-        )}
-
-        {/* CSV preview before import */}
-        {csvRows && (
-          <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${border.divider}` }}>
-            <div className="flex items-center justify-between px-4 py-2.5"
-              style={{ background: accentAlpha(0.06), borderBottom: `1px solid ${border.divider}` }}>
-              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                {csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''} ready to import
-              </p>
-              <button onClick={() => setCsvRows(null)} style={{ color: colors.text.dim }}>
-                <X size={16} />
-              </button>
-            </div>
-            <div className="max-h-60 overflow-y-auto">
-              {csvRows.map((row, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-2.5 text-sm"
-                  style={{ borderBottom: i < csvRows.length - 1 ? `1px solid ${border.divider}` : undefined }}>
-                  <span className="font-mono text-xs w-28 flex-shrink-0" style={{ color: colors.text.muted }}>
-                    {format(parseISO(row.holidayDate), 'd MMM yyyy')}
-                  </span>
-                  <span style={{ color: colors.text.primary }}>{row.name}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 px-4 py-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-              <Button variant="secondary" size="sm" onClick={() => setCsvRows(null)}>Cancel</Button>
-              <Button size="sm" loading={csvUploading} onClick={handleCsvImport}>
-                Import {csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Single-add inline form */}
-        {addingHoliday && (
-          <div className="mb-4 p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-end"
-            style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
-            <Input
-              label="Date"
-              type="date"
-              value={holidayDate}
-              onChange={e => setHolidayDate(e.target.value)}
+      {/* ── Information tab ─────────────────────────────────────────────────── */}
+      {tab === 'information' && (
+        <>
+          <Card>
+            <CardHeader
+              title="Profile"
+              subtitle="Manage your organisation's details"
+              action={!editing ? (
+                <Button variant="secondary" size="sm" onClick={startEdit}><Pencil size={14} /> Edit</Button>
+              ) : undefined}
             />
-            <div className="flex-1">
-              <Input
-                label="Holiday name"
-                placeholder="e.g. Republic Day"
-                value={holidayName}
-                onChange={e => setHolidayName(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                disabled={!holidayDate || !holidayName.trim()}
-                loading={createHolidayMutation.isPending}
-                onClick={() => createHolidayMutation.mutate({ holidayDate, name: holidayName.trim() })}
-              >
-                Add
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => { setAddingHoliday(false); setHolidayDate(''); setHolidayName('') }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {holidays.length === 0 ? (
-          <div className="flex items-center gap-3 py-6 justify-center">
-            <CalendarOff size={20} style={{ color: colors.text.dim }} />
-            <p className="text-sm" style={{ color: colors.text.muted }}>No public holidays defined yet</p>
-          </div>
-        ) : (
-          <div className="divide-y" style={{ borderColor: border.divider }}>
-            {holidays.map(h => (
-              <div key={h.id} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                    {format(parseISO(h.holidayDate), 'EEEE, d MMMM yyyy')}
-                  </p>
+            {!editing ? (
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {[['Name', org?.name], ['Slug', org?.slug], ['Email', org?.contactEmail],
+                  ['Phone', org?.contactPhone], ['Timezone', org?.timezone], ['Address', org?.address]
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                    <dd className="mt-1 text-sm" style={{ color: colors.text.primary }}>{value || <span style={{ color: colors.text.dim }}>—</span>}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <form onSubmit={handleSubmit((d) => orgMut.mutate(d))} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input label="Name" error={errors.name?.message} {...register('name')} />
+                  <Input label="Contact Email" type="email" {...register('contactEmail')} />
+                  <Input label="Contact Phone" {...register('contactPhone')} />
+                  <Input label="Timezone" {...register('timezone')} />
                 </div>
-                {canManageHolidays && (
-                  <button
-                    onClick={() => deleteHolidayMutation.mutate(h.id)}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: colors.text.dim }}
-                    title="Remove holiday"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                )}
+                <Input label="Address" {...register('address')} />
+                <Input label="Logo URL" type="url" {...register('logoUrl')} />
+                <div className="flex gap-3">
+                  <Button type="submit" loading={isSubmitting || orgMut.isPending}>Save changes</Button>
+                  <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+                </div>
+              </form>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader title="Deployment Info" />
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Organisation ID</dt>
+                <dd className="mt-1 font-mono text-xs break-all" style={{ color: colors.text.muted }}>{org?.id}</dd>
               </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Status</dt>
+                <dd className="mt-1">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${org?.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {org?.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          </Card>
+
+          {/* Public Holidays */}
+          <Card>
+            <CardHeader
+              title="Public Holidays"
+              subtitle="Sessions scheduled on these dates are flagged for rescheduling"
+              action={canManage ? (
+                <div className="flex items-center gap-2">
+                  <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
+                  <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}><FileUp size={14} /> Upload CSV</Button>
+                  <Button variant="secondary" size="sm" onClick={() => setAddingHoliday(v => !v)}><Plus size={14} /> Add Holiday</Button>
+                </div>
+              ) : undefined}
+            />
+            {canManage && <p className="text-xs mb-4" style={{ color: colors.text.dim }}>CSV format: <code className="font-mono">date,name</code> — date as <code className="font-mono">YYYY-MM-DD</code>.</p>}
+            {csvRows && (
+              <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${border.divider}` }}>
+                <div className="flex items-center justify-between px-4 py-2.5" style={{ background: accentAlpha(0.06), borderBottom: `1px solid ${border.divider}` }}>
+                  <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''} ready to import</p>
+                  <button onClick={() => setCsvRows(null)} style={{ color: colors.text.dim }}><X size={16} /></button>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {csvRows.map((row, i) => (
+                    <div key={i} className="flex items-center gap-4 px-4 py-2.5 text-sm" style={{ borderBottom: i < csvRows.length - 1 ? `1px solid ${border.divider}` : undefined }}>
+                      <span className="font-mono text-xs w-28 flex-shrink-0" style={{ color: colors.text.muted }}>{format(parseISO(row.holidayDate), 'd MMM yyyy')}</span>
+                      <span style={{ color: colors.text.primary }}>{row.name}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end gap-2 px-4 py-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+                  <Button variant="secondary" size="sm" onClick={() => setCsvRows(null)}>Cancel</Button>
+                  <Button size="sm" loading={csvUploading} onClick={handleCsvImport}>Import {csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''}</Button>
+                </div>
+              </div>
+            )}
+            {addingHoliday && (
+              <div className="mb-4 p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-end" style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
+                <Input label="Date" type="date" value={holidayDate} onChange={e => setHolidayDate(e.target.value)} />
+                <div className="flex-1"><Input label="Holiday name" placeholder="e.g. Republic Day" value={holidayName} onChange={e => setHolidayName(e.target.value)} /></div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={!holidayDate || !holidayName.trim()} loading={createHolidayMut.isPending} onClick={() => createHolidayMut.mutate({ holidayDate, name: holidayName.trim() })}>Add</Button>
+                  <Button size="sm" variant="secondary" onClick={() => { setAddingHoliday(false); setHolidayDate(''); setHolidayName('') }}>Cancel</Button>
+                </div>
+              </div>
+            )}
+            {holidays.length === 0 ? (
+              <div className="flex items-center gap-3 py-6 justify-center">
+                <CalendarOff size={20} style={{ color: colors.text.dim }} />
+                <p className="text-sm" style={{ color: colors.text.muted }}>No public holidays defined yet</p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: border.divider }}>
+                {holidays.map(h => (
+                  <div key={h.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{format(parseISO(h.holidayDate), 'EEEE, d MMMM yyyy')}</p>
+                    </div>
+                    {canManage && (
+                      <button onClick={() => deleteHolidayMut.mutate(h.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ── Manage tab ──────────────────────────────────────────────────────── */}
+      {tab === 'manage' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+          {/* Programs */}
+          <SectionCard title="Programs" icon={<IndianRupee size={18} />}>
+            {programs.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No programs yet.</p>
+            )}
+            {programs.map(p => (
+              <ProgramRow
+                key={p.id}
+                program={p}
+                canManage={canManage}
+                onToggle={() => canManage && toggleProgramMut.mutate({ id: p.id, isActive: !p.isActive })}
+                onDelete={() => canManage && deleteProgramMut.mutate(p.id)}
+              />
             ))}
-          </div>
-        )}
-      </Card>
+            {canManage && (
+              <AddProgramRow
+                loading={createProgramMut.isPending}
+                onAdd={(name, cost, desc) => createProgramMut.mutate({
+                  name,
+                  description: desc || undefined,
+                  perSessionCost: parseFloat(cost),
+                })}
+              />
+            )}
+          </SectionCard>
+
+          {/* Therapies */}
+          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
+            {therapies.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
+            )}
+            {therapies.map(t => (
+              <ItemRow
+                key={t.id}
+                name={t.name}
+                onDelete={() => deleteTherapyMut.mutate(t.id)}
+                canDelete={canManage}
+              />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Occupational Therapy"
+                loading={createTherapyMut.isPending}
+                onAdd={(name) => createTherapyMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
+          {/* Conditions */}
+          <SectionCard title="Conditions" icon={<HeartPulse size={18} />}>
+            {conditions.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No conditions yet.</p>
+            )}
+            {conditions.map(c => (
+              <ItemRow
+                key={c.id}
+                name={c.name}
+                onDelete={() => deleteConditionMut.mutate(c.id)}
+                canDelete={canManage && !!(c as any).orgId}
+              />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Autism, ADHD…"
+                loading={createConditionMut.isPending}
+                onAdd={(name) => createConditionMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
+          {/* Taxes */}
+          <SectionCard title="Taxes" icon={<Receipt size={18} />}>
+            {taxes.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No tax rates defined.</p>
+            )}
+            {taxes.map(t => (
+              <ItemRow
+                key={t.id}
+                name={`${t.name} — ${t.rate}%`}
+                onDelete={() => deleteTaxMut.mutate(t.id)}
+                canDelete={canManage}
+              />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. GST"
+                loading={createTaxMut.isPending}
+                extraInput={{ placeholder: 'Rate %', label: 'Rate' }}
+                onAdd={(name, rate) => createTaxMut.mutate({ name, rate: parseFloat(rate ?? '0') })}
+              />
+            )}
+          </SectionCard>
+        </div>
+      )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>

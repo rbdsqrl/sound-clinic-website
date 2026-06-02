@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, UserResponse, Role } from '../types'
+import type { ApiResponse, UserResponse, StaffMemberResponse, Role } from '../types'
 
 export const usersApi = {
   me: () =>
@@ -19,7 +19,7 @@ export const usersApi = {
 
   listMembers: () =>
     client
-      .get<ApiResponse<UserResponse[]>>('/users/members')
+      .get<ApiResponse<StaffMemberResponse[]>>('/users/members')
       .then((r) => r.data.data),
 
   /** Search users by partial email within the caller's organisation. */

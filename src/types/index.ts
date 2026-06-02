@@ -143,6 +143,24 @@ export interface UserResponse {
   createdAt: string
 }
 
+export interface StaffMemberResponse {
+  id: string
+  orgId: string
+  clinicId: string | null
+  email: string
+  firstName: string
+  lastName: string
+  phone: string | null
+  dateOfBirth: string | null
+  gender: Gender | null
+  role: Role
+  additionalRoles: Role[]
+  isActive: boolean
+  faceEnrolled: boolean
+  caseCount: number
+  createdAt: string
+}
+
 /** All roles this user holds (primary + additional). */
 export function allRoles(user: UserResponse): Role[] {
   return [user.role, ...user.additionalRoles.filter(r => r !== user.role)]
@@ -559,6 +577,7 @@ export interface ProgramResponse {
   id: string
   orgId: string
   name: string
+  description: string | null
   perSessionCost: number
   isActive: boolean
   createdAt: string
@@ -566,13 +585,34 @@ export interface ProgramResponse {
 
 export interface CreateProgramRequest {
   name: string
+  description?: string
   perSessionCost: number
 }
 
 export interface UpdateProgramRequest {
   name?: string
+  description?: string
   perSessionCost?: number
   isActive?: boolean
+}
+
+// ── Therapies ──────────────────────────────────────────────────────────────────
+export interface TherapyResponse {
+  id: string
+  orgId: string
+  name: string
+  isActive: boolean
+  createdAt: string
+}
+
+// ── Taxes ──────────────────────────────────────────────────────────────────────
+export interface TaxResponse {
+  id: string
+  orgId: string
+  name: string
+  rate: number
+  isActive: boolean
+  createdAt: string
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────────────

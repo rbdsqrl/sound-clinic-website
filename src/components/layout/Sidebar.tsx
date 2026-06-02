@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users, Mail,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, UserRound, CalendarOff, Inbox, BookOpen,
-  ChevronLeft, ChevronRight, ListTodo, ClipboardCheck,
+  ChevronLeft, ChevronRight, ListTodo, ClipboardCheck, UserCog,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -28,7 +28,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/leave-management',      label: 'Leave Requests',      icon: CalendarOff },
     { to: '/attendance',            label: 'Attendance',          icon: ClipboardCheck },
     { to: '/attendance-management', label: 'Attendance Mgmt',     icon: ClipboardCheck },
-    { to: '/invitations',           label: 'Add Members',         icon: Mail },
+    { to: '/members',               label: 'Members',             icon: UserCog },
   ],
   OFFICE_ADMIN: [
     { to: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
@@ -74,7 +74,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: '/leave-management',      label: 'Leave Requests',  icon: CalendarOff },
     { to: '/attendance',            label: 'Attendance',      icon: ClipboardCheck },
     { to: '/attendance-management', label: 'Attendance Mgmt', icon: ClipboardCheck },
-    { to: '/invitations',           label: 'Add Members',     icon: Mail },
+    { to: '/members',               label: 'Members',         icon: UserCog },
   ],
   PATIENT: [
     { to: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },

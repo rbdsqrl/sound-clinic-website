@@ -24,6 +24,7 @@ import ProgramsPage from './pages/programs/ProgramsPage'
 import TasksPage from './pages/tasks/TasksPage'
 import AttendancePage from './pages/attendance/AttendancePage'
 import AttendanceManagementPage from './pages/attendance/AttendanceManagementPage'
+import MembersPage from './pages/members/MembersPage'
 
 // ── DEV BYPASS ────────────────────────────────────────────────────────────────
 // Set to true to skip authentication entirely during development.
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="/tasks"                  element={<TasksPage />} />
         <Route path="/attendance"             element={<AttendancePage />} />
         <Route path="/attendance-management"  element={<AttendanceManagementPage />} />
+        <Route path="/members"              element={<MembersPage />} />
       </Route>
 
       {/* Fallback */}
