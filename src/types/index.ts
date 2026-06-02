@@ -742,6 +742,91 @@ export interface VerifyAttendanceRequest {
   faceDescriptor?: number[]
 }
 
+// ── IEP ───────────────────────────────────────────────────────────────────────
+
+export type IEPGoalDomain =
+  | 'AUDITORY' | 'SPEECH' | 'LANGUAGE' | 'SENSORY'
+  | 'MOTOR' | 'SOCIAL' | 'COGNITIVE' | 'LITERACY' | 'ADAPTIVE'
+
+export type IEPGoalStatus =
+  | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'PENDING_APPROVAL' | 'APPROVED'
+
+export type IEPPlanStatus = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'
+
+export interface IEPGoalResponse {
+  id: string
+  planId: string
+  title: string
+  goalStatement: string | null
+  domain: IEPGoalDomain
+  baseline: string | null
+  targetCriteria: string | null
+  targetDate: string | null
+  status: IEPGoalStatus
+  progressTag: string | null
+  assignedTherapistId: string | null
+  therapistName: string | null
+  progressCount: number
+  createdAt: string
+}
+
+export interface IEPPlanResponse {
+  id: string
+  patientId: string
+  therapistId: string
+  therapistName: string | null
+  title: string
+  startDate: string | null
+  endDate: string | null
+  status: IEPPlanStatus
+  tags: string[]
+  goals: IEPGoalResponse[]
+  totalGoals: number
+  completedGoals: number
+  createdAt: string
+}
+
+export interface CreateIEPGoalRequest {
+  title: string
+  goalStatement?: string
+  domain: IEPGoalDomain
+  baseline?: string
+  targetCriteria?: string
+  targetDate?: string
+}
+
+export interface CreateIEPPlanRequest {
+  title: string
+  startDate?: string
+  endDate?: string
+  tags?: string[]
+  goals?: CreateIEPGoalRequest[]
+}
+
+export interface UpdateIEPGoalRequest {
+  status?: IEPGoalStatus
+  title?: string
+  goalStatement?: string
+  domain?: IEPGoalDomain
+  baseline?: string
+  targetCriteria?: string
+  targetDate?: string
+  progressTag?: string
+}
+
+export interface AddProgressRequest {
+  sessionDate: string
+  note?: string
+  trialsPassed?: number
+  trialsTotal?: number
+}
+
+export interface ImportResultResponse {
+  plansCreated: number
+  goalsCreated: number
+  errors: string[]
+}
+
 // ── API wrapper ────────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
   success: boolean

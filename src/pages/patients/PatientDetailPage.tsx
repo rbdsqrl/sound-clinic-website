@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle } from 'lucide-react'
+import IEPTab from './IEPTab'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -1400,7 +1401,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Clinical', 'Therapy'] as const
+const TABS = ['Overview', 'Clinical', 'Therapy', 'IEP'] as const
 type Tab = typeof TABS[number]
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -2254,6 +2255,9 @@ export default function PatientDetailPage() {
               </Card>
             </div>
           )}
+
+          {/* ── IEP tab ──────────────────────────────────────────────────────── */}
+          {activeTab === 'IEP' && <IEPTab patientId={id!} />}
 
           {/* ── Modals ───────────────────────────────────────────────────────── */}
           {notesState && (
