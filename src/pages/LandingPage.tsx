@@ -505,6 +505,7 @@ function InquiryForm() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
   const [orgId, setOrgId] = useState<string | undefined>()
 
   useEffect(() => {
@@ -513,14 +514,19 @@ function InquiryForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !phone.trim()) return
+    if (!name.trim()) return
+    if (phone.length !== 10) {
+      setPhoneError('Please enter a valid 10-digit mobile number.')
+      return
+    }
     setLoading(true)
     setError('')
+    setPhoneError('')
     try {
       await inquiriesApi.submit({
         name: name.trim(),
         email: email.trim() || undefined,
-        phone: phone.trim(),
+        phone: '+91' + phone,
         reason: reason.trim() || undefined,
         preferredTime: time || undefined,
         orgId,
@@ -595,17 +601,33 @@ function InquiryForm() {
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#4A6A7A' }}>
                   Phone <span style={{ color: '#D96060' }}>*</span>
                 </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  required
-                  placeholder="+91 XXXXX XXXXX"
-                  className="block w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-all"
-                  style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.12)', color: '#374B5F' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#2B80C8')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
+                <div
+                  className="flex rounded-lg overflow-hidden transition-all"
+                  style={{ border: `1px solid ${phoneError ? '#D96060' : 'rgba(0,0,0,0.12)'}` }}
+                >
+                  <span
+                    className="flex items-center px-3 text-sm font-semibold flex-shrink-0"
+                    style={{ background: '#f4f5f7', color: '#374B5F', borderRight: '1px solid rgba(0,0,0,0.10)' }}
+                  >
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setPhone(digits)
+                      if (phoneError) setPhoneError('')
+                    }}
+                    placeholder="10-digit mobile number"
+                    className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
+                    style={{ color: '#374B5F' }}
+                  />
+                </div>
+                {phoneError && (
+                  <p className="mt-1 text-xs" style={{ color: '#D96060' }}>{phoneError}</p>
+                )}
               </div>
             </div>
 
@@ -660,7 +682,7 @@ function InquiryForm() {
 
             <button
               type="submit"
-              disabled={loading || !name.trim() || !phone.trim()}
+              disabled={loading || !name.trim() || phone.length !== 10}
               className="w-full rounded-xl py-3.5 text-sm font-semibold transition-all disabled:opacity-50"
               style={{ background: gradient.buttonCta, color: '#fff', boxShadow: shadow.buttonCta }}
             >
