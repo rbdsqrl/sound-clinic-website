@@ -828,6 +828,45 @@ export interface ImportResultResponse {
   errors: string[]
 }
 
+// ── IEP Template Library ──────────────────────────────────────────────────────
+
+export interface IEPTemplateGoalResponse {
+  id: string
+  templateId: string
+  orgId: string
+  title: string
+  goalStatement?: string
+  domain?: IEPGoalDomain
+  baseline?: string
+  targetCriteria?: string
+  createdAt: string
+}
+
+export interface IEPTemplateResponse {
+  id: string
+  orgId: string
+  name: string
+  description?: string
+  tags: string[]
+  goals: IEPTemplateGoalResponse[]
+  goalCount: number
+  createdAt: string
+}
+
+export interface CreateIEPTemplateRequest {
+  name: string
+  description?: string
+  tags?: string[]
+}
+
+export interface CreateIEPTemplateGoalRequest {
+  title: string
+  goalStatement?: string
+  domain?: IEPGoalDomain
+  baseline?: string
+  targetCriteria?: string
+}
+
 // ── API wrapper ────────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
   success: boolean
