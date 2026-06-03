@@ -1,23 +1,27 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
 import { Plus, Trash2, ChevronDown, ChevronUp, Pencil, BookOpen } from 'lucide-react'
 import { iepTemplatesApi } from '../../api/iep-templates'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { ToastContainer } from '../../components/ui/Toast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
 import type {
   IEPTemplateResponse,
   IEPTemplateGoalResponse,
   IEPGoalDomain,
+  CreateIEPTemplateGoalRequest,
 } from '../../types'
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Domain config ─────────────────────────────────────────────────────────────
 
 const DOMAINS: { value: IEPGoalDomain; label: string }[] = [
   { value: 'AUDITORY',  label: 'Auditory Processing'     },
@@ -31,9 +35,7 @@ const DOMAINS: { value: IEPGoalDomain; label: string }[] = [
   { value: 'ADAPTIVE',  label: 'Adaptive / Daily Living' },
 ]
 
-type DomainPalette = 'blue' | 'green' | 'yellow' | 'red' | 'slate'
-
-const DOMAIN_PALETTE: Record<IEPGoalDomain, DomainPalette> = {
+const DOMAIN_PALETTE: Record<IEPGoalDomain, 'blue' | 'green' | 'yellow' | 'red' | 'slate'> = {
   AUDITORY:  'blue',
   SPEECH:    'green',
   LANGUAGE:  'yellow',
@@ -45,8 +47,8 @@ const DOMAIN_PALETTE: Record<IEPGoalDomain, DomainPalette> = {
   ADAPTIVE:  'slate',
 }
 
-function domainLabel(domain: IEPGoalDomain): string {
-  return DOMAINS.find(d => d.value === domain)?.label ?? domain
+function domainLabel(d: IEPGoalDomain) {
+  return DOMAINS.find(x => x.value === d)?.label ?? d
 }
 
 type ToastFn = (msg: string, type: 'success' | 'error') => void
@@ -54,18 +56,17 @@ type ToastFn = (msg: string, type: 'success' | 'error') => void
 // ── Domain badge ──────────────────────────────────────────────────────────────
 
 function DomainBadge({ domain }: { domain: IEPGoalDomain }) {
-  const key = DOMAIN_PALETTE[domain]
   return (
     <span
       className="inline-flex items-center text-xs font-medium rounded-full px-2.5 py-0.5 flex-shrink-0"
-      style={paletteStyle(key)}
+      style={paletteStyle(DOMAIN_PALETTE[domain])}
     >
       {domainLabel(domain)}
     </span>
   )
 }
 
-// ── Inline goal row ───────────────────────────────────────────────────────────
+// ── Goal row ──────────────────────────────────────────────────────────────────
 
 function GoalItem({
   goal,
@@ -85,7 +86,7 @@ function GoalItem({
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{goal.title}</p>
         {goal.goalStatement && (
-          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{goal.goalStatement}</p>
+          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: colors.text.muted }}>{goal.goalStatement}</p>
         )}
         <div className="flex items-center gap-2 flex-wrap mt-1.5">
           {goal.domain && <DomainBadge domain={goal.domain} />}
@@ -116,108 +117,69 @@ function GoalItem({
   )
 }
 
-// ── Add goal form (inline) ────────────────────────────────────────────────────
+// ── Add Goal modal ────────────────────────────────────────────────────────────
 
-function AddGoalForm({
+function AddGoalModal({
+  open,
+  onClose,
   templateId,
+  templateName,
   toast,
-  onSuccess,
-  onCancel,
 }: {
+  open: boolean
+  onClose: () => void
   templateId: string
+  templateName: string
   toast: ToastFn
-  onSuccess: () => void
-  onCancel: () => void
 }) {
   const qc = useQueryClient()
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } =
+    useForm<CreateIEPTemplateGoalRequest>()
 
-  const [title, setTitle] = useState('')
-  const [domain, setDomain] = useState<IEPGoalDomain | ''>('')
-  const [goalStatement, setGoalStatement] = useState('')
-  const [baseline, setBaseline] = useState('')
-  const [targetCriteria, setTargetCriteria] = useState('')
-
-  const addGoalMut = useMutation({
-    mutationFn: () =>
-      iepTemplatesApi.addGoal(templateId, {
-        title,
-        domain: domain || undefined,
-        goalStatement: goalStatement || undefined,
-        baseline: baseline || undefined,
-        targetCriteria: targetCriteria || undefined,
-      }),
+  const mut = useMutation({
+    mutationFn: (data: CreateIEPTemplateGoalRequest) => iepTemplatesApi.addGoal(templateId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep-templates'] })
       toast('Goal added', 'success')
-      onSuccess()
+      reset()
+      onClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to add goal'), 'error'),
   })
 
   return (
-    <div
-      className="mt-3 rounded-xl p-4 space-y-3"
-      style={{ background: accentAlpha(0.04), border: `1px solid ${accentAlpha(0.12)}` }}
-    >
-      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.text.dim }}>
-        New Goal
-      </p>
-
-      <input
-        className="form-input w-full"
-        placeholder="Goal title *"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-      />
-
-      <select
-        className="form-input w-full"
-        value={domain}
-        onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
-      >
-        <option value="">Domain (optional)</option>
-        {DOMAINS.map(d => (
-          <option key={d.value} value={d.value}>{d.label}</option>
-        ))}
-      </select>
-
-      <textarea
-        className="form-input w-full resize-none"
-        placeholder="Goal statement (optional)"
-        rows={2}
-        value={goalStatement}
-        onChange={e => setGoalStatement(e.target.value)}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <input
-          className="form-input w-full"
-          placeholder="Baseline (optional)"
-          value={baseline}
-          onChange={e => setBaseline(e.target.value)}
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Add Goal — ${templateName}`}>
+      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+        <Input
+          label="Goal title"
+          placeholder="e.g. Phoneme Discrimination"
+          error={errors.title?.message}
+          {...register('title', { required: 'Title is required' })}
         />
-        <input
-          className="form-input w-full"
-          placeholder="Target criteria (optional)"
-          value={targetCriteria}
-          onChange={e => setTargetCriteria(e.target.value)}
+        <Select
+          label="Domain"
+          placeholder="Select domain…"
+          options={DOMAINS}
+          error={errors.domain?.message}
+          {...register('domain', { required: 'Domain is required' })}
         />
-      </div>
-
-      <div className="flex gap-2 pt-1">
-        <Button
-          size="sm"
-          onClick={() => addGoalMut.mutate()}
-          loading={addGoalMut.isPending}
-          disabled={!title.trim()}
-        >
-          Add Goal
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </div>
+        <div>
+          <label className="form-label">Goal statement</label>
+          <textarea
+            className="form-input w-full resize-none"
+            rows={3}
+            placeholder="Full SMART goal text…"
+            {...register('goalStatement')}
+          />
+        </div>
+        <Input label="Baseline" placeholder="Current performance level" {...register('baseline')} />
+        <Input label="Target criteria" placeholder='e.g. "80% accuracy over 3 sessions"' {...register('targetCriteria')} />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
+          <Button type="submit" loading={isSubmitting || mut.isPending}>Add Goal</Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -234,132 +196,121 @@ function TemplateCard({
   template: IEPTemplateResponse
   canManage: boolean
   toast: ToastFn
-  onEdit: (template: IEPTemplateResponse) => void
+  onEdit: (t: IEPTemplateResponse) => void
   onDelete: (id: string) => void
   onGoalDelete: (goalId: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [addingGoal, setAddingGoal] = useState(false)
+  const [addGoalOpen, setAddGoalOpen] = useState(false)
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ border: `1px solid ${border.divider}`, background: surface.card }}
-    >
-      <div className="flex items-start gap-3 px-5 py-4">
-        <button
-          className="flex-1 min-w-0 text-left"
-          onClick={() => setExpanded(v => !v)}
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-              {template.name}
-            </span>
-            <span
-              className="text-xs rounded-full px-2 py-0.5"
-              style={{ background: accentAlpha(0.08), color: colors.accent, border: `1px solid ${accentAlpha(0.18)}` }}
-            >
-              {template.goalCount} {template.goalCount === 1 ? 'goal' : 'goals'}
-            </span>
-          </div>
-
-          {template.description && (
-            <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
-              {template.description}
-            </p>
-          )}
-
-          {template.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {template.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs rounded-full px-2 py-0.5"
-                  style={{ background: accentAlpha(0.06), color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                >
-                  {tag}
-                </span>
-              ))}
+    <>
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ border: `1px solid ${border.divider}`, background: surface.card }}
+      >
+        {/* Header row */}
+        <div className="flex items-start gap-3 px-5 py-4">
+          <button className="flex-1 min-w-0 text-left" onClick={() => setExpanded(v => !v)}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                {template.name}
+              </span>
+              <span
+                className="text-xs rounded-full px-2 py-0.5"
+                style={{ background: accentAlpha(0.08), color: colors.accent, border: `1px solid ${accentAlpha(0.18)}` }}
+              >
+                {template.goalCount} {template.goalCount === 1 ? 'goal' : 'goals'}
+              </span>
             </div>
-          )}
-        </button>
-
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {canManage && (
-            <button
-              onClick={() => onEdit(template)}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: colors.text.dim }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-            >
-              <Pencil size={14} />
-            </button>
-          )}
-          {canManage && (
-            <button
-              onClick={() => onDelete(template.id)}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: colors.text.dim }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: colors.text.dim }}
-          >
-            {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            {template.description && (
+              <p className="text-xs mt-1" style={{ color: colors.text.muted }}>{template.description}</p>
+            )}
+            {template.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {template.tags.map(tag => (
+                  <span
+                    key={tag}
+                    className="text-xs rounded-full px-2 py-0.5"
+                    style={{ background: accentAlpha(0.06), color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </button>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {canManage && (
+              <button
+                onClick={() => onEdit(template)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.text.dim }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+            {canManage && (
+              <button
+                onClick={() => onDelete(template.id)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.text.dim }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="p-2 rounded-lg transition-colors"
+              style={{ color: colors.text.dim }}
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {expanded && (
-        <div
-          className="px-5 pb-4"
-          style={{ borderTop: `1px solid ${border.divider}` }}
-        >
-          {template.goals.length === 0 && !addingGoal && (
-            <p className="text-xs py-3" style={{ color: colors.text.dim }}>
-              No goals yet.{canManage ? ' Add the first goal below.' : ''}
-            </p>
-          )}
+        {/* Expanded goals */}
+        {expanded && (
+          <div className="px-5 pb-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+            {template.goals.length === 0 ? (
+              <p className="text-xs py-3" style={{ color: colors.text.dim }}>
+                No goals yet.{canManage ? ' Add the first goal below.' : ''}
+              </p>
+            ) : (
+              template.goals.map(goal => (
+                <GoalItem
+                  key={goal.id}
+                  goal={goal}
+                  canManage={canManage}
+                  onDelete={onGoalDelete}
+                />
+              ))
+            )}
 
-          {template.goals.map(goal => (
-            <GoalItem
-              key={goal.id}
-              goal={goal}
-              canManage={canManage}
-              onDelete={onGoalDelete}
-            />
-          ))}
-
-          {addingGoal ? (
-            <AddGoalForm
-              templateId={template.id}
-              toast={toast}
-              onSuccess={() => setAddingGoal(false)}
-              onCancel={() => setAddingGoal(false)}
-            />
-          ) : (
-            canManage && (
+            {canManage && (
               <div className="pt-3">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setAddingGoal(true)}
-                >
+                <Button size="sm" variant="secondary" onClick={() => setAddGoalOpen(true)}>
                   <Plus size={13} /> Add Goal
                 </Button>
               </div>
-            )
-          )}
-        </div>
-      )}
-    </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <AddGoalModal
+        open={addGoalOpen}
+        onClose={() => setAddGoalOpen(false)}
+        templateId={template.id}
+        templateName={template.name}
+        toast={toast}
+      />
+    </>
   )
 }
 
@@ -377,79 +328,78 @@ function TemplateModal({
   toast: ToastFn
 }) {
   const qc = useQueryClient()
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } =
+    useForm<{ name: string; description: string; tags: string }>({
+      defaultValues: {
+        name:        editing?.name ?? '',
+        description: editing?.description ?? '',
+        tags:        editing?.tags.join(', ') ?? '',
+      },
+    })
 
-  const [name, setName] = useState(editing?.name ?? '')
-  const [description, setDescription] = useState(editing?.description ?? '')
-  const [tagsRaw, setTagsRaw] = useState(editing?.tags.join(', ') ?? '')
+  const tagsRaw = watch('tags') ?? ''
+  const tagChips = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
 
-  const parseTags = (raw: string) =>
-    raw.split(',').map(t => t.trim()).filter(Boolean)
+  const parseTags = (raw: string) => raw.split(',').map(t => t.trim()).filter(Boolean)
 
   const createMut = useMutation({
-    mutationFn: () =>
-      iepTemplatesApi.create({ name, description: description || undefined, tags: parseTags(tagsRaw) }),
+    mutationFn: (d: { name: string; description: string; tags: string }) =>
+      iepTemplatesApi.create({ name: d.name, description: d.description || undefined, tags: parseTags(d.tags) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep-templates'] })
       toast('Template created', 'success')
+      reset()
       onClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to create template'), 'error'),
   })
 
   const updateMut = useMutation({
-    mutationFn: () =>
-      iepTemplatesApi.update(editing!.id, { name, description: description || undefined, tags: parseTags(tagsRaw) }),
+    mutationFn: (d: { name: string; description: string; tags: string }) =>
+      iepTemplatesApi.update(editing!.id, { name: d.name, description: d.description || undefined, tags: parseTags(d.tags) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep-templates'] })
       toast('Template updated', 'success')
+      reset()
       onClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to update template'), 'error'),
   })
 
-  const isPending = createMut.isPending || updateMut.isPending
-
-  const handleSubmit = () => {
-    if (!name.trim()) return
-    if (editing) updateMut.mutate()
-    else createMut.mutate()
-  }
+  const onSubmit = (d: { name: string; description: string; tags: string }) =>
+    editing ? updateMut.mutateAsync(d) : createMut.mutateAsync(d)
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Edit Template' : 'New IEP Template'}>
-      <div className="space-y-4">
-        <div>
-          <label className="form-label">Template name *</label>
-          <input
-            className="form-input w-full"
-            placeholder="e.g. Annual Speech-Language IEP"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-        </div>
-
+    <Modal
+      open={open}
+      onClose={() => { reset(); onClose() }}
+      title={editing ? 'Edit Template' : 'New IEP Template'}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Input
+          label="Plan name"
+          placeholder="e.g. Annual Speech-Language IEP"
+          error={errors.name?.message}
+          {...register('name', { required: 'Name is required' })}
+        />
         <div>
           <label className="form-label">Description</label>
           <textarea
             className="form-input w-full resize-none"
             placeholder="Brief description of this template's purpose"
             rows={3}
-            value={description}
-            onChange={e => setDescription(e.target.value)}
+            {...register('description')}
           />
         </div>
-
         <div>
-          <label className="form-label">Tags (comma-separated)</label>
-          <input
-            className="form-input w-full"
+          <Input
+            label="Tags (comma-separated)"
             placeholder="e.g. speech, language, preschool"
-            value={tagsRaw}
-            onChange={e => setTagsRaw(e.target.value)}
+            {...register('tags')}
           />
-          {tagsRaw.trim() && (
+          {tagChips.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {parseTags(tagsRaw).map(tag => (
+              {tagChips.map(tag => (
                 <span
                   key={tag}
                   className="text-xs rounded-full px-2 py-0.5"
@@ -461,16 +411,13 @@ function TemplateModal({
             </div>
           )}
         </div>
-
-        <div className="flex gap-3 pt-1">
-          <Button onClick={handleSubmit} loading={isPending} disabled={!name.trim()}>
-            {editing ? 'Save Changes' : 'Create Template'}
-          </Button>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
+          <Button type="submit" loading={isSubmitting || createMut.isPending || updateMut.isPending}>
+            {editing ? 'Save Changes' : 'Create Plan'}
           </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   )
 }
@@ -478,19 +425,20 @@ function TemplateModal({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function IEPLibraryTab() {
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
-  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
+  const currentRole = activeRole ?? user?.role
+  const canManage = currentRole === 'BUSINESS_OWNER' || currentRole === 'ADMIN'
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingTemplate, setEditingTemplate] = useState<IEPTemplateResponse | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [modalOpen,        setModalOpen]        = useState(false)
+  const [editingTemplate,  setEditingTemplate]  = useState<IEPTemplateResponse | null>(null)
+  const [deletingId,       setDeletingId]       = useState<string | null>(null)
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ['iep-templates'],
-    queryFn: () => iepTemplatesApi.list(),
+    queryFn: iepTemplatesApi.list,
   })
 
   const deleteMut = useMutation({
@@ -518,6 +466,7 @@ export default function IEPLibraryTab() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>
@@ -528,21 +477,19 @@ export default function IEPLibraryTab() {
           </p>
         </div>
         {canManage && (
-          <Button
-            size="sm"
-            onClick={() => { setEditingTemplate(null); setModalOpen(true) }}
-          >
+          <Button onClick={() => { setEditingTemplate(null); setModalOpen(true) }}>
             <Plus size={14} /> New Template
           </Button>
         )}
       </div>
 
+      {/* Template list */}
       {list.length === 0 ? (
         <EmptyState
           icon={<BookOpen size={32} />}
           title="No templates yet"
           description={canManage
-            ? 'Create reusable IEP templates for your organisation.'
+            ? 'Create reusable IEP plan templates for your organisation.'
             : 'No IEP templates have been created yet.'}
         />
       ) : (
@@ -553,14 +500,15 @@ export default function IEPLibraryTab() {
               template={template}
               canManage={canManage}
               toast={toast}
-              onEdit={(t) => { setEditingTemplate(t); setModalOpen(true) }}
-              onDelete={(id) => setDeletingId(id)}
-              onGoalDelete={(goalId) => deleteGoalMut.mutate(goalId)}
+              onEdit={t => { setEditingTemplate(t); setModalOpen(true) }}
+              onDelete={id => setDeletingId(id)}
+              onGoalDelete={goalId => deleteGoalMut.mutate(goalId)}
             />
           ))}
         </div>
       )}
 
+      {/* Create / Edit modal */}
       <TemplateModal
         key={editingTemplate?.id ?? 'new'}
         open={modalOpen}
@@ -569,6 +517,7 @@ export default function IEPLibraryTab() {
         toast={toast}
       />
 
+      {/* Delete confirmation */}
       <Modal
         open={deletingId !== null}
         onClose={() => setDeletingId(null)}
@@ -576,18 +525,16 @@ export default function IEPLibraryTab() {
         size="sm"
       >
         <p className="text-sm mb-5" style={{ color: colors.text.primary }}>
-          Are you sure you want to delete this template? All goals inside it will be removed.
+          This will permanently delete the template and all its goals.
         </p>
-        <div className="flex gap-3">
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setDeletingId(null)}>Cancel</Button>
           <Button
             variant="danger"
             loading={deleteMut.isPending}
             onClick={() => deletingId && deleteMut.mutate(deletingId)}
           >
             Delete
-          </Button>
-          <Button variant="ghost" onClick={() => setDeletingId(null)}>
-            Cancel
           </Button>
         </div>
       </Modal>
