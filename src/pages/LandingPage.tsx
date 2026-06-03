@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import {
   Phone, Mail, MapPin, Clock, ChevronRight,
   Baby, Brain, Activity, Waves, Mic2, Stethoscope,
@@ -68,6 +69,8 @@ const STATS = [
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
 function Navbar() {
+  const { isAuthenticated } = useAuth()
+
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 sm:px-10"
@@ -90,9 +93,9 @@ function Navbar() {
         </div>
       </div>
 
-      {/* Sign in */}
+      {/* Auth button */}
       <Link
-        to="/login"
+        to={isAuthenticated ? '/dashboard' : '/login'}
         className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all"
         style={{
           background: gradient.buttonCta,
@@ -100,7 +103,7 @@ function Navbar() {
           boxShadow: shadow.buttonCta,
         }}
       >
-        Sign In <ArrowRight size={14} />
+        {isAuthenticated ? 'Dashboard' : 'Sign In'} <ArrowRight size={14} />
       </Link>
     </header>
   )
@@ -457,6 +460,8 @@ function Contact() {
 }
 
 function Footer() {
+  const { isAuthenticated } = useAuth()
+
   return (
     <footer
       className="px-6 py-8 sm:px-10"
@@ -476,13 +481,13 @@ function Footer() {
         </p>
 
         <Link
-          to="/login"
+          to={isAuthenticated ? '/dashboard' : '/login'}
           className="text-xs font-medium transition-colors"
           style={{ color: 'rgba(255,255,255,0.50)' }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#4FB6B2'}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.50)'}
         >
-          Staff Sign In →
+          {isAuthenticated ? 'Go to Dashboard →' : 'Staff Sign In →'}
         </Link>
       </div>
     </footer>
