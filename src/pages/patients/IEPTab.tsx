@@ -428,7 +428,7 @@ function AddPlanModal({ open, onClose, patientId }: {
   const mut = useMutation({
     mutationFn: (data: CreateIEPPlanRequest) => iepApi.createPlan(patientId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['iep', patientId] })
+      qc.invalidateQueries({ queryKey: ['iep'] })
       toast('IEP plan created', 'success')
       reset()
       onClose()
@@ -530,7 +530,7 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
         trialsTotal: data.trialsTotal ? parseInt(data.trialsTotal) : undefined,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['iep', patientId] })
+      qc.invalidateQueries({ queryKey: ['iep'] })
       toast('Progress logged', 'success')
       reset({ sessionDate: new Date().toISOString().split('T')[0] })
       onClose()
@@ -583,7 +583,7 @@ export default function IEPTab({ patientId }: { patientId: string }) {
   const importMut = useMutation({
     mutationFn: (file: File) => iepApi.importCsv(patientId, file),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ['iep', patientId] })
+      qc.invalidateQueries({ queryKey: ['iep'] })
       const msg = `${result.plansCreated} plan${result.plansCreated !== 1 ? 's' : ''} · ${result.goalsCreated} goal${result.goalsCreated !== 1 ? 's' : ''} imported`
       toast(result.errors.length > 0 ? `${msg} (${result.errors.length} errors)` : msg, result.errors.length > 0 ? 'error' : 'success')
     },
@@ -593,19 +593,19 @@ export default function IEPTab({ patientId }: { patientId: string }) {
   const updateGoalMut = useMutation({
     mutationFn: ({ goalId, data }: { goalId: string; data: UpdateIEPGoalRequest }) =>
       iepApi.updateGoal(goalId, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iep', patientId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iep'] }),
     onError: () => toast('Failed to update goal', 'error'),
   })
 
   const deletePlanMut = useMutation({
     mutationFn: iepApi.deletePlan,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep', patientId] }); toast('Plan deleted', 'success') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Plan deleted', 'success') },
     onError: () => toast('Failed to delete plan', 'error'),
   })
 
   const deleteGoalMut = useMutation({
     mutationFn: iepApi.deleteGoal,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep', patientId] }); toast('Goal deleted', 'success') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Goal deleted', 'success') },
     onError: () => toast('Failed to delete goal', 'error'),
   })
 

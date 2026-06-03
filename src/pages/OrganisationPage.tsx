@@ -14,6 +14,7 @@ import { conditionsApi } from '../api/conditions'
 import { therapiesApi } from '../api/therapies'
 import { taxesApi } from '../api/taxes'
 import { clinicsApi } from '../api/clinics'
+import IEPOrgTab from './patients/IEPOrgTab'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -31,7 +32,7 @@ import type {
   ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse,
 } from '../types'
 
-type Tab = 'information' | 'clinics' | 'manage'
+type Tab = 'information' | 'clinics' | 'manage' | 'iep'
 
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
@@ -512,6 +513,7 @@ export default function OrganisationPage() {
     { key: 'information', label: 'Information' },
     { key: 'clinics',     label: 'Clinics' },
     { key: 'manage',      label: 'Manage' },
+    { key: 'iep',         label: 'IEP Plans' },
   ]
 
   return (
@@ -847,6 +849,9 @@ export default function OrganisationPage() {
           </SectionCard>
         </div>
       )}
+
+      {/* ── IEP Plans tab ────────────────────────────────────────────────── */}
+      {tab === 'iep' && <IEPOrgTab />}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>

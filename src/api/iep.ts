@@ -10,6 +10,10 @@ export const iepApi = {
     client.get<ApiResponse<IEPPlanResponse[]>>('/iep', { params: { patientId } })
       .then(r => r.data.data),
 
+  listAllPlans: () =>
+    client.get<ApiResponse<IEPPlanResponse[]>>('/iep')
+      .then(r => r.data.data),
+
   createPlan: (patientId: string, data: CreateIEPPlanRequest) =>
     client.post<ApiResponse<IEPPlanResponse>>('/iep', data, { params: { patientId } })
       .then(r => r.data.data),

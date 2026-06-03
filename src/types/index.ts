@@ -775,6 +775,7 @@ export interface IEPPlanResponse {
   patientId: string
   therapistId: string
   therapistName: string | null
+  patientName: string | null
   title: string
   startDate: string | null
   endDate: string | null
