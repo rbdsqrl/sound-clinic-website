@@ -288,8 +288,12 @@ export default function MembersPage() {
 
   const resendMut = useMutation({
     mutationFn: (id: string) => invitationsApi.resend(id),
-    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['invitations'] }); setLinkModal(res) },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to regenerate link', 'error'),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['invitations'] })
+      toast('Invitation resent', 'success')
+      setLinkModal(res)
+    },
+    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to resend invite', 'error'),
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
@@ -485,19 +489,24 @@ export default function MembersPage() {
                     <p className="flex items-center gap-1 text-xs" style={{ color: colors.text.muted }}>
                       <CalendarDays size={11} /> Expires {format(new Date(inv.expiresAt), 'MMM d, yyyy')}
                     </p>
-                    {inv.acceptLink ? (
-                      <button onClick={() => setLinkModal(inv)}
-                        className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2"
-                        style={{ color: colors.accent }}>
-                        <Link2 size={12} /> View link
-                      </button>
-                    ) : inv.status === 'PENDING' ? (
-                      <button onClick={() => resendMut.mutate(inv.id)} disabled={resendMut.isPending}
-                        className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
-                        style={{ color: colors.accent }}>
-                        <Link2 size={12} /> Get link
-                      </button>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                      {inv.acceptLink && (
+                        <button onClick={() => setLinkModal(inv)}
+                          className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2"
+                          style={{ color: colors.accent }}>
+                          <Link2 size={12} /> View link
+                        </button>
+                      )}
+                      {inv.status === 'PENDING' && (
+                        <button
+                          onClick={() => resendMut.mutate(inv.id)}
+                          disabled={resendMut.isPending && resendMut.variables === inv.id}
+                          className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
+                          style={{ color: colors.accent }}>
+                          <Send size={12} /> Resend
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -525,21 +534,26 @@ export default function MembersPage() {
                         {format(new Date(inv.expiresAt), 'MMM d, yyyy')}
                       </td>
                       <td className="px-4 py-3">
-                        {inv.acceptLink ? (
-                          <button onClick={() => setLinkModal(inv)}
-                            className="flex items-center gap-1 text-xs hover:underline"
-                            style={{ color: colors.accent }}>
-                            <Link2 size={13} /> View link
-                          </button>
-                        ) : inv.status === 'PENDING' ? (
-                          <button onClick={() => resendMut.mutate(inv.id)} disabled={resendMut.isPending}
-                            className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
-                            style={{ color: colors.accent }}>
-                            <Link2 size={13} /> Get link
-                          </button>
-                        ) : (
-                          <span className="text-xs" style={{ color: colors.text.dim }}>—</span>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {inv.acceptLink && (
+                            <button onClick={() => setLinkModal(inv)}
+                              className="flex items-center gap-1 text-xs hover:underline"
+                              style={{ color: colors.accent }}>
+                              <Link2 size={13} /> View link
+                            </button>
+                          )}
+                          {inv.status === 'PENDING' ? (
+                            <button
+                              onClick={() => resendMut.mutate(inv.id)}
+                              disabled={resendMut.isPending && resendMut.variables === inv.id}
+                              className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
+                              style={{ color: colors.accent }}>
+                              <Send size={13} /> Resend
+                            </button>
+                          ) : !inv.acceptLink && (
+                            <span className="text-xs" style={{ color: colors.text.dim }}>—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
