@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { TIMEZONES } from '../../lib/timezones'
 import { colors, border, surface, styles, accentAlpha } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
@@ -48,7 +49,7 @@ export default function ClinicsPage() {
       setShowModal(false)
       reset()
     },
-    onError: () => toast('Failed to create clinic', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create clinic'), 'error'),
   })
 
   if (isLoading) return <PageLoader />

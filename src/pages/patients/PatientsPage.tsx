@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, styles, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
@@ -179,7 +180,7 @@ export default function PatientsPage() {
       setShowModal(false)
       reset()
     },
-    onError: () => toast('Failed to create patient', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create patient'), 'error'),
   })
 
   const clinicOptions = (clinics ?? []).map(c => ({ value: c.id, label: c.name }))

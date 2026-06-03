@@ -24,6 +24,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { ToastContainer } from '../components/ui/Toast'
 import { useToast } from '../hooks/useToast'
+import { getApiError } from '../lib/apiError'
 import { useAuth } from '../contexts/AuthContext'
 import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
@@ -373,7 +374,7 @@ export default function OrganisationPage() {
       toast('Organisation updated', 'success')
       setEditing(false)
     },
-    onError: () => toast('Failed to update organisation', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update organisation'), 'error'),
   })
 
   const startEdit = () => {
@@ -392,78 +393,78 @@ export default function OrganisationPage() {
       toast(msg, 'success')
       setAddingHoliday(false); setHolidayDate(''); setHolidayName('')
     },
-    onError: () => toast('Failed to add holiday', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add holiday'), 'error'),
   })
 
   const deleteHolidayMut = useMutation({
     mutationFn: publicHolidaysApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['public-holidays'] }); toast('Holiday removed', 'success') },
-    onError: () => toast('Failed to remove holiday', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove holiday'), 'error'),
   })
 
   // ── Programs mutations ───────────────────────────────────────────────────────
   const createProgramMut = useMutation({
     mutationFn: (p: { name: string; description?: string; perSessionCost: number }) => programsApi.create(p),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program added', 'success') },
-    onError: () => toast('Failed to add program', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add program'), 'error'),
   })
 
   const toggleProgramMut = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => programsApi.update(id, { isActive }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
-    onError: () => toast('Failed to update program', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update program'), 'error'),
   })
 
   const updateProgramMut = useMutation({
     mutationFn: ({ id, name, perSessionCost, description }: { id: string; name: string; perSessionCost: number; description?: string }) =>
       programsApi.update(id, { name, perSessionCost, description }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program updated', 'success') },
-    onError: () => toast('Failed to update program', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update program'), 'error'),
   })
 
   const deleteProgramMut = useMutation({
     mutationFn: programsApi.deactivate,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program removed', 'success') },
-    onError: () => toast('Failed to remove program', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove program'), 'error'),
   })
 
   // ── Conditions mutations ─────────────────────────────────────────────────────
   const createConditionMut = useMutation({
     mutationFn: conditionsApi.create,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['conditions'] }); toast('Condition added', 'success') },
-    onError: () => toast('Failed to add condition', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add condition'), 'error'),
   })
 
   const deleteConditionMut = useMutation({
     mutationFn: conditionsApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['conditions'] }); toast('Condition removed', 'success') },
-    onError: () => toast('Failed to remove condition', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove condition'), 'error'),
   })
 
   // ── Therapies mutations ──────────────────────────────────────────────────────
   const createTherapyMut = useMutation({
     mutationFn: therapiesApi.create,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy type added', 'success') },
-    onError: () => toast('Failed to add therapy', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add therapy'), 'error'),
   })
 
   const deleteTherapyMut = useMutation({
     mutationFn: therapiesApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy removed', 'success') },
-    onError: () => toast('Failed to remove therapy', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove therapy'), 'error'),
   })
 
   // ── Taxes mutations ──────────────────────────────────────────────────────────
   const createTaxMut = useMutation({
     mutationFn: ({ name, rate }: { name: string; rate: number }) => taxesApi.create(name, rate),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['taxes'] }); toast('Tax rate added', 'success') },
-    onError: () => toast('Failed to add tax', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add tax'), 'error'),
   })
 
   const deleteTaxMut = useMutation({
     mutationFn: taxesApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['taxes'] }); toast('Tax rate removed', 'success') },
-    onError: () => toast('Failed to remove tax', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove tax'), 'error'),
   })
 
   // ── Clinic mutations ──────────────────────────────────────────────────────────
@@ -475,7 +476,7 @@ export default function OrganisationPage() {
       setShowClinicModal(false)
       resetClinic()
     },
-    onError: () => toast('Failed to create clinic', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create clinic'), 'error'),
   })
 
   // ── CSV handlers ─────────────────────────────────────────────────────────────

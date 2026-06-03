@@ -16,6 +16,7 @@ import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
   IEPGoalResponse, IEPGoalStatus, IEPGoalDomain,
@@ -433,7 +434,7 @@ function AddPlanModal({ open, onClose, patientId }: {
       reset()
       onClose()
     },
-    onError: () => toast('Failed to create plan', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create plan'), 'error'),
   })
 
   const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string }) => {
@@ -480,7 +481,7 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
       reset()
       onClose()
     },
-    onError: () => toast('Failed to add goal', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add goal'), 'error'),
   })
 
   return (
@@ -535,7 +536,7 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
       reset({ sessionDate: new Date().toISOString().split('T')[0] })
       onClose()
     },
-    onError: () => toast('Failed to log progress', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to log progress'), 'error'),
   })
 
   if (!goal) return null
@@ -587,26 +588,26 @@ export default function IEPTab({ patientId }: { patientId: string }) {
       const msg = `${result.plansCreated} plan${result.plansCreated !== 1 ? 's' : ''} · ${result.goalsCreated} goal${result.goalsCreated !== 1 ? 's' : ''} imported`
       toast(result.errors.length > 0 ? `${msg} (${result.errors.length} errors)` : msg, result.errors.length > 0 ? 'error' : 'success')
     },
-    onError: () => toast('Import failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Import failed'), 'error'),
   })
 
   const updateGoalMut = useMutation({
     mutationFn: ({ goalId, data }: { goalId: string; data: UpdateIEPGoalRequest }) =>
       iepApi.updateGoal(goalId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iep'] }),
-    onError: () => toast('Failed to update goal', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update goal'), 'error'),
   })
 
   const deletePlanMut = useMutation({
     mutationFn: iepApi.deletePlan,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Plan deleted', 'success') },
-    onError: () => toast('Failed to delete plan', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to delete plan'), 'error'),
   })
 
   const deleteGoalMut = useMutation({
     mutationFn: iepApi.deleteGoal,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Goal deleted', 'success') },
-    onError: () => toast('Failed to delete goal', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to delete goal'), 'error'),
   })
 
   const togglePlan = (id: string) =>

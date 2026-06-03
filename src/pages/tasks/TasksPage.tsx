@@ -14,6 +14,7 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, dangerAlpha, warningAlpha } from '../../theme'
 import { roleLabel } from '../../components/ui/Badge'
@@ -432,7 +433,7 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['tasks'] })
       setCommentText('')
     },
-    onError: () => toast('Failed to post comment', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to post comment'), 'error'),
   })
   const deleteCommentMut = useMutation({
     mutationFn: (commentId: string) => tasksApi.deleteComment(task.id, commentId),
@@ -440,7 +441,7 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-comments', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: () => toast('Failed to delete comment', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to delete comment'), 'error'),
   })
   const uploadMut = useMutation({
     mutationFn: (file: File) => tasksApi.uploadAttachment(task.id, file),
@@ -448,7 +449,7 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: () => toast('Upload failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Upload failed'), 'error'),
   })
   const deleteAttMut = useMutation({
     mutationFn: (attId: string) => tasksApi.deleteAttachment(task.id, attId),
@@ -456,7 +457,7 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: () => toast('Failed to delete file', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to delete file'), 'error'),
   })
 
   const due = dueDateLabel(task.dueDate)
@@ -661,7 +662,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
       toast('Task created', 'success')
       onClose()
     },
-    onError: () => toast('Failed to create task', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create task'), 'error'),
   })
 
   const submit = () => {
@@ -777,7 +778,7 @@ export default function TasksPage() {
         prev?.map(t => t.id === updated.id ? updated : t) ?? [])
       if (selectedTask?.id === updated.id) setSelectedTask(updated)
     },
-    onError: () => toast('Failed to update task', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update task'), 'error'),
   })
 
   const deleteMut = useMutation({
@@ -787,7 +788,7 @@ export default function TasksPage() {
       if (selectedTask?.id === id) setSelectedTask(null)
       toast('Task deleted', 'success')
     },
-    onError: () => toast('Failed to delete task', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to delete task'), 'error'),
   })
 
   const handleDragStart = (e: React.DragEvent, task: TaskResponse) => {

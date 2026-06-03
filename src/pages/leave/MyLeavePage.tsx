@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, styles, border, surface, palette, rgba, paletteStyle } from '../../theme'
 import type { CreateLeaveRequest, LeaveResponse, LeaveStatus, LeaveType } from '../../types'
 
@@ -98,7 +99,7 @@ function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () =
   const mut = useMutation({
     mutationFn: (data: CreateLeaveRequest) => leavesApi.apply(data),
     onSuccess: () => { toast('Leave request submitted', 'success'); reset(); onCreated() },
-    onError:   () => toast('Failed to submit leave request', 'error'),
+    onError:   (err) => toast(getApiError(err, 'Failed to submit leave request'), 'error'),
   })
 
   return (
@@ -156,7 +157,7 @@ export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
   const cancelMut = useMutation({
     mutationFn: (id: string) => leavesApi.cancel(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-leaves'] }); toast('Leave request cancelled', 'success') },
-    onError:   () => toast('Failed to cancel request', 'error'),
+    onError:   (err) => toast(getApiError(err, 'Failed to cancel request'), 'error'),
   })
 
   const filtered = (leaves ?? []).filter(l => !filterStatus || l.status === filterStatus)

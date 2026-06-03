@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { statusBadge, roleBadge } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { ToastContainer } from '../../components/ui/Toast'
 import {
   colors, styles, surface, border, shadow,
@@ -283,7 +284,7 @@ export default function MembersPage() {
       setLinkModal(res)
       setTab('invites')
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to send invite', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to send invite'), 'error'),
   })
 
   const resendMut = useMutation({
@@ -293,7 +294,7 @@ export default function MembersPage() {
       toast('Invitation resent', 'success')
       setLinkModal(res)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to resend invite', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to resend invite'), 'error'),
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { roleBadge } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
+import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
 import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek } from '../types'
@@ -282,7 +283,7 @@ function RescheduleModal({
       substituteTherapistId: substituteId || undefined,
     }),
     onSuccess: () => { onDone() },
-    onError: () => toast('Failed to reschedule session', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to reschedule session'), 'error'),
   })
 
   const canSubmit = newDate || substituteId
@@ -501,7 +502,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
       toast('Session cancelled', 'success')
       onDone()
     },
-    onError: () => toast('Failed to approve cancellation', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to approve cancellation'), 'error'),
   })
 
   const rejectMut = useMutation({
@@ -512,7 +513,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
       toast('Cancellation rejected — session restored', 'success')
       onDone()
     },
-    onError: () => toast('Failed to reject cancellation', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to reject cancellation'), 'error'),
   })
 
   if (sessions.length === 0) return null
@@ -730,7 +731,7 @@ function SessionUpdateModal({
       toast('Session saved', 'success')
       onClose()
     },
-    onError: () => toast('Failed to save', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to save'), 'error'),
   })
 
   const statusMut = useMutation({
@@ -741,7 +742,7 @@ function SessionUpdateModal({
       toast('Session updated', 'success')
       onClose()
     },
-    onError: () => toast('Failed to update session', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update session'), 'error'),
   })
 
   const cancelRequestMut = useMutation({
@@ -751,7 +752,7 @@ function SessionUpdateModal({
       toast('Cancellation request sent', 'success')
       onClose()
     },
-    onError: () => toast('Failed to send request', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to send request'), 'error'),
   })
 
   const isScheduled = session.status === 'SCHEDULED'

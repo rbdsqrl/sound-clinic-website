@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
 import type { LeaveResponse, LeaveStatus, LeaveType } from '../../types'
 
@@ -126,7 +127,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
       qc.invalidateQueries({ queryKey: ['leaves'] })
       toast(action === 'APPROVED' ? 'Leave approved' : 'Leave rejected', 'success')
     },
-    onError: () => toast('Failed to review leave request', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to review leave request'), 'error'),
   })
 
   const filtered = (leaves ?? []).filter(l => !filterStatus || l.status === filterStatus)

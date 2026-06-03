@@ -22,6 +22,7 @@ import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, palette } from '../../theme'
 import { format } from 'date-fns'
@@ -276,7 +277,7 @@ function CreateSubscriptionModal({
   const createMut = useMutation({
     mutationFn: (data: CreateSubscriptionRequest) => subscriptionsApi.create(data),
     onSuccess: (sub) => { onCreated(sub) },
-    onError: () => toast('Failed to create subscription', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create subscription'), 'error'),
   })
 
   const selectedProgram = programs.find(p => p.id === programId)
@@ -399,7 +400,7 @@ function RecordPaymentModal({
   const saveMut = useMutation({
     mutationFn: (data: UpdatePaymentRequest) => subscriptionsApi.recordPayment(subscription.id, data),
     onSuccess: (sub) => { onSaved(sub) },
-    onError: () => toast('Failed to record payment', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to record payment'), 'error'),
   })
 
   const validate = () => {
@@ -899,7 +900,7 @@ function SessionNotesModal({
       toast('Notes saved', 'success')
       onClose()
     },
-    onError: () => toast('Failed to save notes', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to save notes'), 'error'),
   })
 
   const statusMut = useMutation({
@@ -910,7 +911,7 @@ function SessionNotesModal({
       toast('Session updated', 'success')
       onClose()
     },
-    onError: () => toast('Failed to update session', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update session'), 'error'),
   })
 
   const cancelRequestMut = useMutation({
@@ -920,19 +921,19 @@ function SessionNotesModal({
       toast('Cancellation request sent', 'success')
       onClose()
     },
-    onError: () => toast('Failed to send request', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to send request'), 'error'),
   })
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => therapySessionsApi.uploadAttachment(session.id, file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
-    onError: () => toast('Upload failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Upload failed'), 'error'),
   })
 
   const deleteMut = useMutation({
     mutationFn: (attachmentId: string) => therapySessionsApi.deleteAttachment(session.id, attachmentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
-    onError: () => toast('Delete failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Delete failed'), 'error'),
   })
 
   const handleFiles = (files: FileList | null) => {
@@ -1189,7 +1190,7 @@ function EnrollmentModal({
   const createMut = useMutation({
     mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
     onSuccess: (enrollment) => { onCreated(enrollment) },
-    onError: () => toast('Failed to create enrollment', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create enrollment'), 'error'),
   })
 
   const validateStep1 = () => {
@@ -1425,6 +1426,10 @@ export default function PatientDetailPage() {
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [sidebarSearch,    setSidebarSearch]    = useState('')
 
+  // Derive role early so queries can use it as a gate
+  const currentRoleEarly = activeRole ?? user?.role
+  const isParentRole = currentRoleEarly === 'PARENT'
+
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
     queryFn: () => patientsApi.get(id!),
@@ -1433,11 +1438,12 @@ export default function PatientDetailPage() {
   const { data: conditions } = useQuery({ queryKey: ['conditions'], queryFn: conditionsApi.list })
   const { data: clinics }    = useQuery({ queryKey: ['clinics'],    queryFn: clinicsApi.list })
 
-  // Sidebar patient list
+  // Sidebar patient list — PARENT cannot call GET /patients (403), skip it
   const { data: allPatients = [] } = useQuery({
     queryKey: ['patients'],
     queryFn: patientsApi.list,
     staleTime: 2 * 60 * 1000,
+    enabled: !isParentRole,
   })
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['patients', id] })
@@ -1446,7 +1452,7 @@ export default function PatientDetailPage() {
   const stageMutation = useMutation({
     mutationFn: (stage: PatientStage) => patientsApi.updateStage(id!, stage),
     onSuccess: () => { refresh(); toast('Stage updated', 'success') },
-    onError:   () => toast('Failed to update stage', 'error'),
+    onError:   (err) => toast(getApiError(err, 'Failed to update stage'), 'error'),
   })
 
   // Condition mutations
@@ -1454,7 +1460,7 @@ export default function PatientDetailPage() {
   const addConditionMutation = useMutation({
     mutationFn: (d: AddConditionRequest) => patientsApi.addCondition(id!, d),
     onSuccess: () => { refresh(); toast('Condition added', 'success'); setConditionModal(false); conditionForm.reset() },
-    onError:   () => toast('Failed to add condition', 'error'),
+    onError:   (err) => toast(getApiError(err, 'Failed to add condition'), 'error'),
   })
   const removeConditionMutation = useMutation({
     mutationFn: (conditionId: string) => patientsApi.removeCondition(id!, conditionId),
@@ -1466,10 +1472,7 @@ export default function PatientDetailPage() {
   const linkParentMutation = useMutation({
     mutationFn: (d: LinkParentRequest) => patientsApi.linkParent(id!, d),
     onSuccess: () => { refresh(); toast('Parent linked', 'success'); setParentModal(false); setSelectedParent(null) },
-    onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast(msg ?? 'Failed to link parent', 'error')
-    },
+    onError: (e) => toast(getApiError(e, 'Failed to link parent'), 'error'),
   })
   const unlinkParentMutation = useMutation({
     mutationFn: (parentId: string) => patientsApi.unlinkParent(id!, parentId),
@@ -1481,10 +1484,7 @@ export default function PatientDetailPage() {
   const assignTherapistMutation = useMutation({
     mutationFn: (d: AssignTherapistRequest) => patientsApi.assignTherapist(id!, d),
     onSuccess: () => { refresh(); toast('Therapist assigned', 'success'); setTherapistModal(false); setSelectedTherapist(null) },
-    onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast(msg ?? 'Failed to assign therapist', 'error')
-    },
+    onError: (e) => toast(getApiError(e, 'Failed to assign therapist'), 'error'),
   })
   const unassignTherapistMutation = useMutation({
     mutationFn: (therapistId: string) => patientsApi.unassignTherapist(id!, therapistId),
@@ -1502,7 +1502,7 @@ export default function PatientDetailPage() {
   const cancelSubMutation = useMutation({
     mutationFn: (subId: string) => subscriptionsApi.cancel(subId),
     onSuccess: () => { refetchSubs(); toast('Subscription cancelled', 'success') },
-    onError: () => toast('Failed to cancel subscription', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to cancel subscription'), 'error'),
   })
 
   // Enrollments query + mutations
@@ -1516,7 +1516,7 @@ export default function PatientDetailPage() {
   const cancelEnrollmentMutation = useMutation({
     mutationFn: (enrollId: string) => enrollmentsApi.cancel(enrollId),
     onSuccess: () => { refetchEnrollments(); toast('Enrollment cancelled', 'success') },
-    onError: () => toast('Failed to cancel enrollment', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to cancel enrollment'), 'error'),
   })
 
   const editForm = useForm<{ firstName: string; lastName: string; dateOfBirth: string; gender: string; notes: string }>()
@@ -1530,7 +1530,7 @@ export default function PatientDetailPage() {
         notes:       data.notes       || undefined,
       }),
     onSuccess: () => { refresh(); toast('Patient details updated', 'success'); setEditModal(false) },
-    onError:   () => toast('Failed to update patient', 'error'),
+    onError:   (err) => toast(getApiError(err, 'Failed to update patient'), 'error'),
   })
 
   if (isLoading) return <PageLoader />
@@ -1541,8 +1541,8 @@ export default function PatientDetailPage() {
     .map((c) => ({ value: c.id, label: c.name }))
   const clinicName = clinics?.find((c) => c.id === patient.clinicId)?.name ?? '—'
 
-  const currentRole = activeRole ?? user?.role
-  const isParent            = currentRole === 'PARENT'
+  const currentRole = currentRoleEarly
+  const isParent            = isParentRole
   const canChangeStage      = ['BUSINESS_OWNER', 'ADMIN', 'DOCTOR'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')
   const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
@@ -1579,9 +1579,9 @@ export default function PatientDetailPage() {
   return (
     <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 flex min-h-screen">
 
-      {/* ── Left sidebar (desktop only) ──────────────────────────────────────── */}
+      {/* ── Left sidebar (desktop only) — hidden for PARENT, they have no list access ── */}
       <aside
-        className="hidden lg:flex flex-col w-64 flex-shrink-0 sticky top-0 self-start overflow-y-auto"
+        className={`${isParentRole ? 'hidden' : 'hidden lg:flex'} flex-col w-64 flex-shrink-0 sticky top-0 self-start overflow-y-auto`}
         style={{
           maxHeight: '100vh',
           background: surface.sidebar,
@@ -1896,7 +1896,7 @@ export default function PatientDetailPage() {
                 <CardHeader
                   title="Conditions"
                   subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
-                  action={<Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button>}
+                  action={canEditDetails ? <Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button> : undefined}
                 />
                 {!patient.conditions.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
@@ -1920,7 +1920,7 @@ export default function PatientDetailPage() {
                             {c.notes && <p className="text-xs italic" style={{ color: colors.text.muted }}>{c.notes}</p>}
                           </div>
                         </div>
-                        {removeBtn(() => removeConditionMutation.mutate(c.id))}
+                        {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
                       </div>
                     ))}
                   </div>

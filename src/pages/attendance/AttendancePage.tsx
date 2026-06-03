@@ -11,6 +11,7 @@ import { Card } from '../../components/ui/Card'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, styles, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
 import type { AttendanceResponse } from '../../types'
 
@@ -201,10 +202,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       toast('Checked in successfully', 'success')
       stopCamera()
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Check-in failed'
-      toast(msg, 'error')
-    },
+    onError: (err) => toast(getApiError(err, 'Check-in failed'), 'error'),
   })
 
   const checkOutMut = useMutation({
@@ -222,10 +220,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       toast('Checked out successfully', 'success')
       stopCamera()
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? 'Check-out failed'
-      toast(msg, 'error')
-    },
+    onError: (err) => toast(getApiError(err, 'Check-out failed'), 'error'),
   })
 
   const verifyMut = useMutation({
@@ -245,10 +240,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       setShowVerifyForm(false)
       stopCamera()
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? 'Verification failed'
-      toast(msg, 'error')
-    },
+    onError: (err) => toast(getApiError(err, 'Verification failed'), 'error'),
   })
 
   const enrollMut = useMutation({
@@ -262,7 +254,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       stopCamera()
       await refreshUser()  // updates user.faceEnrolled in context → faceEnrolled derived value updates → enrollMode syncs
     },
-    onError: () => toast('Face enrollment failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Face enrollment failed'), 'error'),
   })
 
   if (loadingToday) return <PageLoader />

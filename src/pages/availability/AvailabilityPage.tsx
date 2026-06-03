@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, styles, border, surface, palette, paletteStyle, rgba, borderAlpha } from '../../theme'
 import type { CreateSlotRequest, DayOfWeek, SlotResponse, ClinicResponse, UserResponse } from '../../types'
 
@@ -49,7 +50,7 @@ export default function AvailabilityPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => slotsApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['slots'] }); toast('Slot removed', 'success') },
-    onError: () => toast('Failed to remove slot', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to remove slot'), 'error'),
   })
 
   // Group slots by therapist → by day
@@ -209,7 +210,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
   const createMut = useMutation({
     mutationFn: (data: CreateSlotRequest) => slotsApi.create(data),
     onSuccess: () => { toast('Slot added', 'success'); reset(); onCreated() },
-    onError: () => toast('Failed to add slot', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to add slot'), 'error'),
   })
 
   const onSubmit = handleSubmit(async (raw: FormValues) => {

@@ -17,6 +17,7 @@ import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, styles, border, surface, accentAlpha, paletteStyle, borderAlpha } from '../../theme'
 import type {
@@ -222,7 +223,7 @@ function ConvertModal({
       onClose()
       onConverted(convertedId)
     },
-    onError: () => toast('Failed to assign plan', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to assign plan'), 'error'),
   })
 
   const convertMutation = useMutation({
@@ -247,7 +248,7 @@ function ConvertModal({
         setShowSubscription(true)
       }
     },
-    onError: () => toast('Conversion failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Conversion failed'), 'error'),
   })
 
   const canSubmit = firstName.trim() && lastName.trim() && clinicId &&
@@ -544,7 +545,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
       qc.invalidateQueries({ queryKey: ['inquiry-logs', inquiry.id] })
       toast('Saved', 'success')
     },
-    onError: () => toast('Save failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Save failed'), 'error'),
   })
 
   const addLogMutation = useMutation({
@@ -554,7 +555,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
       setLogNote('')
       toast('Activity logged', 'success')
     },
-    onError: () => toast('Failed to log activity', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to log activity'), 'error'),
   })
 
   function handleSave() {

@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { ToastContainer } from '../../components/ui/Toast'
 import { colors, styles, accentAlpha, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
 import type { AttendanceResponse } from '../../types'
@@ -168,7 +169,7 @@ export default function AttendanceWidget() {
       toast('Checked in successfully', 'success')
       closeModal()
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? err?.message ?? 'Check-in failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Check-in failed'), 'error'),
   })
 
   const checkOutMut = useMutation({
@@ -186,7 +187,7 @@ export default function AttendanceWidget() {
       toast('Checked out successfully', 'success')
       closeModal()
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Check-out failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Check-out failed'), 'error'),
   })
 
   const enrollMut = useMutation({
@@ -201,7 +202,7 @@ export default function AttendanceWidget() {
       stopCamera()
       await refreshUser()
     },
-    onError: () => toast('Face enrollment failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Face enrollment failed'), 'error'),
   })
 
 

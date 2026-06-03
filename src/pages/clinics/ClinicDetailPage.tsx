@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, border } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
 
@@ -35,7 +36,7 @@ export default function ClinicDetailPage() {
       toast('Clinic updated', 'success')
       setEditing(false)
     },
-    onError: () => toast('Failed to update clinic', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to update clinic'), 'error'),
   })
 
   const startEdit = () => {

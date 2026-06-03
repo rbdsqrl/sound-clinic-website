@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, border, accentAlpha } from '../../theme'
 
 function ChildSessions({ childId, childName }: { childId: string; childName: string }) {
@@ -32,7 +33,7 @@ function ChildSessions({ childId, childName }: { childId: string; childName: str
       qc.invalidateQueries({ queryKey: ['child-sessions', childId] })
       toast('Reschedule request sent to the clinic', 'success')
     },
-    onError: () => toast('Failed to send request', 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to send request'), 'error'),
   })
 
   return (

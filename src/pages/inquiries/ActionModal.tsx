@@ -9,6 +9,7 @@ import { format } from 'date-fns'
 import { inquiriesApi } from '../../api/inquiries'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
+import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
 import type { InquiryResponse, InquiryStatus, InquiryActionOutcome } from '../../types'
 import { MiniCalendar } from './MiniCalendar'
@@ -263,7 +264,7 @@ export function ActionModal({
       toast('Updated', 'success')
       onClose()
     },
-    onError: () => toast('Action failed', 'error'),
+    onError: (err) => toast(getApiError(err, 'Action failed'), 'error'),
   })
 
   const canSubmit =
