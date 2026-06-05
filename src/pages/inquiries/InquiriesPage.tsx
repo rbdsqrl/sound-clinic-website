@@ -636,12 +636,20 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label style={fieldLabel}>Status</label>
-            <select className="form-input w-full" value={status}
-              onChange={e => setStatus(e.target.value as InquiryStatus)}>
-              {(Object.keys(STATUS_META) as InquiryStatus[]).map(s => (
-                <option key={s} value={s}>{STATUS_META[s].label}</option>
-              ))}
-            </select>
+            {inquiry.status === 'CONVERTED' ? (
+              <div className="form-input w-full" style={{ color: colors.text.muted, cursor: 'default' }}>
+                {STATUS_META['CONVERTED'].label}
+              </div>
+            ) : (
+              <select className="form-input w-full" value={status}
+                onChange={e => setStatus(e.target.value as InquiryStatus)}>
+                {(Object.keys(STATUS_META) as InquiryStatus[])
+                  .filter(s => s !== 'CONVERTED')
+                  .map(s => (
+                    <option key={s} value={s}>{STATUS_META[s].label}</option>
+                  ))}
+              </select>
+            )}
           </div>
           {canConvert && (
             <Button onClick={() => setShowConvert(true)} variant="secondary">
