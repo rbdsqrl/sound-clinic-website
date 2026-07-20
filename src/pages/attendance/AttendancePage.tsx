@@ -61,6 +61,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [enrollMode, setEnrollMode]             = useState(false)
   const [showVerifyForm, setShowVerifyForm]     = useState(false)
   const [scanStatus, setScanStatus]             = useState<'idle' | 'scanning' | 'detected'>('idle')
+  const [reCheckIn, setReCheckIn]               = useState(false)
 
   // Derive directly from context so any refresh automatically propagates
   const faceEnrolled = user?.faceEnrolled ?? false
@@ -225,6 +226,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       toast('Checked in successfully', 'success')
       stopCamera()
       stopAutoScan()
+      setReCheckIn(false)
     },
     onError: (err) => toast(getApiError(err, 'Check-in failed'), 'error'),
   })
@@ -476,7 +478,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       )}
 
       {/* ── Action card ── */}
-      {!checkedOut && !showVerifyForm && (
+      {(!checkedOut || reCheckIn) && !showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             {enrollMode ? 'Enroll Face' : checkedIn ? 'Check Out' : 'Check In'}
@@ -650,20 +652,32 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       )}
 
       {/* ── Checked out done state ── */}
-      {checkedOut && (
+      {checkedOut && !reCheckIn && (
         <Card>
-          <div className="flex flex-col items-center gap-2 py-4 text-center">
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
             <CheckCircle size={40} style={{ color: colors.status.success }} />
             <p className="font-semibold" style={{ color: colors.text.heading }}>You're done for today</p>
             <p className="text-sm" style={{ color: colors.text.muted }}>
               Checked in at {formatTime(today?.checkInTime ?? null)} · Checked out at {formatTime(today?.checkOutTime ?? null)}
             </p>
+            <button
+              className="text-sm underline mt-1"
+              style={{ color: colors.accent }}
+              onClick={() => {
+                didAutoCheckIn.current = false
+                setReCheckIn(true)
+                getLocation()
+                startCamera()
+              }}
+            >
+              Check in again
+            </button>
           </div>
         </Card>
       )}
 
       {/* ── Re-enroll shortcut (only shown after already enrolled) ── */}
-      {!enrollMode && !checkedIn && !checkedOut && faceEnrolled && (
+      {!enrollMode && !checkedIn && !checkedOut && !reCheckIn && faceEnrolled && (
         <p className="text-xs text-center" style={{ color: colors.text.muted }}>
           <button
             onClick={() => { setEnrollMode(true); startCamera() }}
