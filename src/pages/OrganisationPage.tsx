@@ -104,7 +104,7 @@ function AddRow({
   }
 
   return (
-    <div className="flex items-end gap-2 mt-3">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 mt-3">
       <div className="flex-1">
         <input
           className="form-input w-full text-sm"
@@ -115,7 +115,7 @@ function AddRow({
         />
       </div>
       {extraInput && (
-        <div className="w-28">
+        <div className="w-full sm:w-28">
           <input
             className="form-input w-full text-sm"
             placeholder={extraInput.placeholder}
@@ -157,7 +157,7 @@ function ProgramRow({
   if (editing) {
     return (
       <div className="py-3 px-1 border-b last:border-b-0 space-y-2" style={{ borderColor: border.divider }}>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             className="form-input flex-1 text-sm"
             placeholder="Program name"
@@ -165,7 +165,7 @@ function ProgramRow({
             onChange={e => setName(e.target.value)}
           />
           <input
-            className="form-input w-28 text-sm"
+            className="form-input w-full sm:w-28 text-sm"
             placeholder="₹ price"
             type="number"
             min="0"
@@ -269,9 +269,9 @@ function AddProgramRow({ onAdd, loading }: { onAdd: (name: string, cost: string,
       className="mt-3 p-3 rounded-xl space-y-2"
       style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}
     >
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input className="form-input flex-1 text-sm" placeholder="Program name" value={name} onChange={e => setName(e.target.value)} />
-        <input className="form-input w-28 text-sm" placeholder="₹ price" type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} />
+        <input className="form-input w-full sm:w-28 text-sm" placeholder="₹ price" type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} />
       </div>
       <input className="form-input w-full text-sm" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
       <div className="flex gap-2">
@@ -528,12 +528,12 @@ export default function OrganisationPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-2 border-b" style={{ borderColor: border.divider }}>
+      <div className="flex gap-2 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+            className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors flex-shrink-0 whitespace-nowrap"
             style={tab === t.key
               ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
               : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
@@ -609,8 +609,12 @@ export default function OrganisationPage() {
               action={canManage ? (
                 <div className="flex items-center gap-2">
                   <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
-                  <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}><FileUp size={14} /> Upload CSV</Button>
-                  <Button variant="secondary" size="sm" onClick={() => setAddingHoliday(v => !v)}><Plus size={14} /> Add Holiday</Button>
+                  <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    <FileUp size={14} /><span className="hidden sm:inline"> Upload CSV</span>
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setAddingHoliday(v => !v)}>
+                    <Plus size={14} /><span className="hidden sm:inline"> Add</span>
+                  </Button>
                 </div>
               ) : undefined}
             />
