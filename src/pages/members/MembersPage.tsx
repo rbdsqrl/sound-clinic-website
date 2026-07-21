@@ -687,12 +687,12 @@ export default function MembersPage() {
         {deleteTarget && (
           <div className="space-y-4">
             <p className="text-sm" style={{ color: colors.text.primary }}>
-              Are you sure you want to permanently delete <strong>{deleteTarget.firstName} {deleteTarget.lastName}</strong>?
-              Their account will be removed and they will no longer be able to log in.
+              Are you sure you want to deactivate <strong>{deleteTarget.firstName} {deleteTarget.lastName}</strong>?
+              They will no longer be able to log in. Their historical records (sessions, appointments, leaves) are preserved.
             </p>
             <div className="flex gap-3">
               <Button variant="danger" onClick={() => deleteMemberMut.mutate(deleteTarget.id)} loading={deleteMemberMut.isPending}>
-                <Trash2 size={14} /> Delete permanently
+                <Trash2 size={14} /> Deactivate member
               </Button>
               <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             </div>
