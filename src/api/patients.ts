@@ -32,6 +32,9 @@ export const patientsApi = {
   updateStage: (id: string, stage: PatientStage) =>
     client.patch<ApiResponse<PatientResponse>>(`/patients/${id}/stage`, { stage }).then((r) => r.data.data),
 
+  delete: (id: string) =>
+    client.delete(`/patients/${id}`),
+
   // Conditions
   addCondition: (id: string, data: AddConditionRequest) =>
     client.post<ApiResponse<PatientResponse>>(`/patients/${id}/conditions`, data).then((r) => r.data.data),

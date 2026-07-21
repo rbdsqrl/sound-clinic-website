@@ -58,6 +58,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [modelsLoading, setModelsLoading]       = useState(false)
   const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
   const [location, setLocation]                 = useState<{ lat: number; lon: number } | null>(null)
+  const [geoFenceError, setGeoFenceError]       = useState(false)
   const [enrollMode, setEnrollMode]             = useState(false)
   const [showVerifyForm, setShowVerifyForm]     = useState(false)
   const [scanStatus, setScanStatus]             = useState<'idle' | 'scanning' | 'detected'>('idle')
@@ -126,6 +127,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       return
     }
     setGeoStatus('loading')
+    setGeoFenceError(false)
     navigator.geolocation.getCurrentPosition(
       pos => {
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
@@ -261,8 +263,15 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     onSuccess: (data: AttendanceResponse) => {
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
+      if (!data.geoVerified) {
+        setGeoFenceError(true)
+        setGeoStatus('idle')
+        setLocation(null)
+        if (data.faceVerified) toast('Face verified — location check failed', 'info')
+        return
+      }
       const allGood = data.geoVerified && data.faceVerified
-      toast(allGood ? 'Verification complete' : 'Partial verification — check location/camera settings', allGood ? 'success' : 'info')
+      toast(allGood ? 'Verification complete' : 'Face verification incomplete — try again', allGood ? 'success' : 'info')
       setShowVerifyForm(false)
       stopCamera()
     },
@@ -452,8 +461,19 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 {geoStatus === 'loading' && 'Getting location…'}
                 {geoStatus === 'ok'      && 'Location captured'}
                 {geoStatus === 'denied'  && 'Retry location access'}
-                {geoStatus === 'idle'    && 'Allow location access'}
+                {geoStatus === 'idle'    && (geoFenceError ? 'Retry location' : 'Allow location access')}
               </button>
+              {geoFenceError && (
+                <div
+                  className="flex items-start gap-2 mt-2 rounded-xl px-3 py-2.5 text-sm"
+                  style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
+                >
+                  <AlertTriangle size={15} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ color: colors.text.primary }}>
+                    You're outside the clinic's geo-fence. Please move closer to the clinic and try again.
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Camera */}
@@ -469,7 +489,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 <RefreshCw size={15} />
                 Verify Now
               </Button>
-              <Button variant="secondary" onClick={() => { setShowVerifyForm(false); stopCamera(); setGeoStatus('idle'); setLocation(null) }}>
+              <Button variant="secondary" onClick={() => { setShowVerifyForm(false); stopCamera(); setGeoStatus('idle'); setLocation(null); setGeoFenceError(false) }}>
                 Cancel
               </Button>
             </div>

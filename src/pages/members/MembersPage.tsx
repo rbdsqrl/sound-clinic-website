@@ -4,12 +4,13 @@ import { useForm } from 'react-hook-form'
 import {
   Search, LayoutGrid, List, UserPlus, Briefcase,
   Mail, Phone, Users, Building2, Check, Copy,
-  Link2, CalendarDays, Send,
+  Link2, CalendarDays, Send, Trash2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '../../api/users'
 import { invitationsApi } from '../../api/invitations'
 import { clinicsApi } from '../../api/clinics'
+import { useAuth } from '../../contexts/AuthContext'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -110,8 +111,8 @@ function CopyLinkBox({ link }: { link: string }) {
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
-  member, idx, clinicName,
-}: { member: StaffMemberResponse; idx: number; clinicName: string }) {
+  member, idx, clinicName, onDelete,
+}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
@@ -168,14 +169,28 @@ function MemberCard({
         <span className="text-[11px]" style={{ color: colors.text.dim }}>
           Joined {format(new Date(member.createdAt), 'MMM yyyy')}
         </span>
-        {isClinical && (
-          <span
-            className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
-            style={{ background: accentAlpha(0.06), color: colors.accent }}
-          >
-            <Briefcase size={10} />{member.caseCount} {member.caseCount === 1 ? 'case' : 'cases'}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isClinical && (
+            <span
+              className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ background: accentAlpha(0.06), color: colors.accent }}
+            >
+              <Briefcase size={10} />{member.caseCount} {member.caseCount === 1 ? 'case' : 'cases'}
+            </span>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.error; (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Delete member"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -184,8 +199,8 @@ function MemberCard({
 // ── Member row (list view) ────────────────────────────────────────────────────
 
 function MemberRow({
-  member, idx, clinicName,
-}: { member: StaffMemberResponse; idx: number; clinicName: string }) {
+  member, idx, clinicName, onDelete,
+}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
@@ -221,14 +236,28 @@ function MemberRow({
         {isClinical ? member.caseCount : '—'}
       </td>
       <td className="px-4 py-3">
-        <span
-          className="text-[11px] font-medium px-2 py-0.5 rounded-full"
-          style={member.isActive
-            ? { background: successAlpha(0.1), color: colors.status.success }
-            : { background: dangerAlpha(0.1),  color: colors.status.error }}
-        >
-          {member.isActive ? 'Active' : 'Inactive'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+            style={member.isActive
+              ? { background: successAlpha(0.1), color: colors.status.success }
+              : { background: dangerAlpha(0.1),  color: colors.status.error }}
+          >
+            {member.isActive ? 'Active' : 'Inactive'}
+          </span>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.error; (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Delete member"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   )
@@ -239,8 +268,11 @@ function MemberRow({
 export default function MembersPage() {
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
+  const { user, activeRole } = useAuth()
+  const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
 
   const [tab, setTab]               = useState<Tab>('members')
+  const [deleteTarget, setDeleteTarget] = useState<StaffMemberResponse | null>(null)
   const [viewMode, setViewMode]     = useState<ViewMode>('grid')
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -295,6 +327,16 @@ export default function MembersPage() {
       setLinkModal(res)
     },
     onError: (err) => toast(getApiError(err, 'Failed to resend invite'), 'error'),
+  })
+
+  const deleteMemberMut = useMutation({
+    mutationFn: (id: string) => usersApi.deleteMember(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Member deleted', 'success')
+      setDeleteTarget(null)
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to delete member'), 'error'),
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
@@ -568,7 +610,7 @@ export default function MembersPage() {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {shownMembers.map((m, i) => (
-              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} />
+              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} />
             ))}
           </div>
         ) : (
@@ -584,7 +626,7 @@ export default function MembersPage() {
               </thead>
               <tbody>
                 {shownMembers.map((m, i) => (
-                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} />
+                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} />
                 ))}
               </tbody>
             </table>
@@ -635,6 +677,24 @@ export default function MembersPage() {
             <CopyLinkBox link={linkModal.acceptLink ?? ''} />
             <div className="flex justify-end">
               <Button variant="secondary" onClick={() => setLinkModal(null)}>Done</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete member confirmation */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Member">
+        {deleteTarget && (
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: colors.text.primary }}>
+              Are you sure you want to permanently delete <strong>{deleteTarget.firstName} {deleteTarget.lastName}</strong>?
+              Their account will be removed and they will no longer be able to log in.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="danger" onClick={() => deleteMemberMut.mutate(deleteTarget.id)} loading={deleteMemberMut.isPending}>
+                <Trash2 size={14} /> Delete permanently
+              </Button>
+              <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             </div>
           </div>
         )}

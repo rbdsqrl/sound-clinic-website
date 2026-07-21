@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2 } from 'lucide-react'
 import IEPTab from './IEPTab'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
@@ -1412,8 +1412,10 @@ export default function PatientDetailPage() {
   const { toasts, toast, dismiss } = useToast()
   const { user, activeRole } = useAuth()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const [editModal,        setEditModal]        = useState(false)
+  const [deleteConfirm,    setDeleteConfirm]    = useState(false)
   const [conditionModal,   setConditionModal]   = useState(false)
   const [parentModal,      setParentModal]      = useState(false)
   const [therapistModal,   setTherapistModal]   = useState(false)
@@ -1447,6 +1449,16 @@ export default function PatientDetailPage() {
   })
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['patients', id] })
+
+  // Delete patient
+  const deletePatientMut = useMutation({
+    mutationFn: () => patientsApi.delete(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      navigate('/patients')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to delete patient'), 'error'),
+  })
 
   // Stage mutation
   const stageMutation = useMutation({
@@ -1549,6 +1561,7 @@ export default function PatientDetailPage() {
   const canCreateEnrollment = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canUpdateSession    = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const canEditDetails      = ['BUSINESS_OWNER', 'ADMIN', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canDelete           = currentRole === 'BUSINESS_OWNER'
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
 
   // Shared remove-button style (hover via event handlers)
@@ -1700,26 +1713,39 @@ export default function PatientDetailPage() {
                 </h1>
                 <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
               </div>
-              {canEditDetails && (
-                <button
-                  onClick={() => {
-                    editForm.reset({
-                      firstName:   patient.firstName,
-                      lastName:    patient.lastName,
-                      dateOfBirth: patient.dateOfBirth ?? '',
-                      gender:      patient.gender ?? '',
-                      notes:       patient.notes ?? '',
-                    })
-                    setEditModal(true)
-                  }}
-                  className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
-                >
-                  <Pencil size={13} /> Edit
-                </button>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {canEditDetails && (
+                  <button
+                    onClick={() => {
+                      editForm.reset({
+                        firstName:   patient.firstName,
+                        lastName:    patient.lastName,
+                        dateOfBirth: patient.dateOfBirth ?? '',
+                        gender:      patient.gender ?? '',
+                        notes:       patient.notes ?? '',
+                      })
+                      setEditModal(true)
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                  >
+                    <Pencil size={13} /> Edit
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => setDeleteConfirm(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Read-only stage progress */}
@@ -2431,6 +2457,22 @@ export default function PatientDetailPage() {
                 <Button type="submit" loading={updatePatientMutation.isPending}>Save changes</Button>
               </div>
             </form>
+          </Modal>
+
+          {/* Delete patient confirmation */}
+          <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Patient">
+            <div className="space-y-4">
+              <p className="text-sm" style={{ color: colors.text.primary }}>
+                Are you sure you want to permanently delete <strong>{patient.firstName} {patient.lastName}</strong>?
+                This will remove all their conditions, parent links, therapist assignments, and cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="danger" onClick={() => deletePatientMut.mutate()} loading={deletePatientMut.isPending}>
+                  <Trash2 size={14} /> Delete permanently
+                </Button>
+                <Button variant="secondary" onClick={() => setDeleteConfirm(false)}>Cancel</Button>
+              </div>
+            </div>
           </Modal>
 
           <ToastContainer toasts={toasts} onDismiss={dismiss} />

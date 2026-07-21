@@ -28,6 +28,9 @@ export const usersApi = {
       .get<ApiResponse<UserResponse[]>>('/users/search', { params: { email, role } })
       .then((r) => r.data.data),
 
+  deleteMember: (id: string) =>
+    client.delete(`/users/${id}`),
+
   addRole: (role: string) =>
     client.post<ApiResponse<UserResponse>>('/users/me/roles', { role }).then((r) => r.data.data),
 
