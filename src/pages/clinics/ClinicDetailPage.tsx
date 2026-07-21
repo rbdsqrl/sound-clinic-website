@@ -2,21 +2,23 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, MapPin } from 'lucide-react'
 import { clinicsApi } from '../../api/clinics'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
+import { LocationPickerModal } from '../../components/ui/LocationPickerModal'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border } from '../../theme'
+import { colors } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
 
 export default function ClinicDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [editing, setEditing] = useState(false)
+  const [showMapPicker, setShowMapPicker] = useState(false)
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
 
@@ -26,7 +28,9 @@ export default function ClinicDetailPage() {
     enabled: !!id,
   })
 
-  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<CreateClinicRequest>()
+  const { register, handleSubmit, reset, setValue, watch, formState: { isSubmitting } } = useForm<CreateClinicRequest>()
+  const watchedLat = watch('latitude')
+  const watchedLng = watch('longitude')
 
   const mutation = useMutation({
     mutationFn: (data: Partial<CreateClinicRequest>) => clinicsApi.update(id!, data),
@@ -110,6 +114,14 @@ export default function ClinicDetailPage() {
               <Input label="Timezone" {...register('timezone')} />
               <Input label="Latitude"  type="number" step="any" placeholder="e.g. 12.9716" {...register('latitude', { valueAsNumber: true })} />
               <Input label="Longitude" type="number" step="any" placeholder="e.g. 77.5946" {...register('longitude', { valueAsNumber: true })} />
+              <div className="sm:col-span-2 flex items-center gap-3">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setShowMapPicker(true)}>
+                  <MapPin size={14} /> Pick on Map
+                </Button>
+                <span className="text-xs" style={{ color: colors.text.dim }}>
+                  or type coordinates manually above
+                </span>
+              </div>
               <Input label="Geo-fence Radius (metres)" type="number" placeholder="200" {...register('geoFenceRadiusMeters', { valueAsNumber: true })} />
             </div>
             <Input label="Address" {...register('address')} />
@@ -120,6 +132,17 @@ export default function ClinicDetailPage() {
           </form>
         )}
       </Card>
+
+      <LocationPickerModal
+        open={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        initialLat={watchedLat || undefined}
+        initialLng={watchedLng || undefined}
+        onConfirm={(lat, lng) => {
+          setValue('latitude', lat, { shouldDirty: true })
+          setValue('longitude', lng, { shouldDirty: true })
+        }}
+      />
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
