@@ -51,6 +51,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const didAutoCheckIn    = useRef(false)
   const autoScanRef       = useRef<ReturnType<typeof setInterval> | null>(null)
   const isScanningRef     = useRef(false)
+  const locationRef       = useRef<{ lat: number; lon: number } | null>(null)
+  const geoStatusRef      = useRef<'idle' | 'loading' | 'ok' | 'denied' | 'permission-denied'>('idle')
 
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [cameraActive, setCameraActive]         = useState(false)
@@ -67,6 +69,10 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   // Derive directly from context so any refresh automatically propagates
   const faceEnrolled = user?.faceEnrolled ?? false
+
+  // Keep refs in sync so the auto-scan interval always reads the latest values
+  useEffect(() => { locationRef.current  = location  }, [location])
+  useEffect(() => { geoStatusRef.current = geoStatus }, [geoStatus])
 
   // Fetch fresh user from DB on mount — localStorage may have stale faceEnrolled: false
   useEffect(() => { refreshUser() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -303,11 +309,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     onError: (err) => toast(getApiError(err, 'Face enrollment failed'), 'error'),
   })
 
-  // Auto-scan: once camera + location + models are ready, poll every 1.5s and check in when face is found
+  // Auto-scan: start as soon as camera + models are ready — geo check happens inside via ref
   useEffect(() => {
-    const canScan = cameraActive && geoStatus === 'ok' && faceEnrolled && !enrollMode
+    const canDetect = cameraActive && faceEnrolled && !enrollMode
       && today?.status !== 'CHECKED_IN' && modelsLoaded
-    if (!canScan || autoScanRef.current) return
+    if (!canDetect || autoScanRef.current) return
 
     isScanningRef.current = true
     setScanStatus('scanning')
@@ -319,17 +325,22 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         .withFaceLandmarks()
         .withFaceDescriptor()
       if (detection && isScanningRef.current) {
-        isScanningRef.current = false
         setScanStatus('detected')
-        clearInterval(autoScanRef.current!)
-        autoScanRef.current = null
-        setFaceMatchStatus('checking')
-        checkInMut.mutate(Array.from(detection.descriptor))
+        if (geoStatusRef.current === 'ok' && locationRef.current) {
+          isScanningRef.current = false
+          clearInterval(autoScanRef.current!)
+          autoScanRef.current = null
+          setFaceMatchStatus('checking')
+          checkInMut.mutate(Array.from(detection.descriptor))
+        }
+        // else: face found but location not ready yet — keep scanning
+      } else {
+        setScanStatus('scanning')
       }
     }, 1500)
 
     return () => stopAutoScan()
-  }, [cameraActive, geoStatus, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopAutoScan]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cameraActive, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopAutoScan]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loadingToday) return <PageLoader />
 
@@ -339,6 +350,42 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const needsVerification = checkedIn && today && (!today.geoVerified || !today.faceVerified)
 
   const canCheckIn = geoStatus === 'ok' && cameraActive && !!selectedClinicId
+
+  // ── Face guide SVG overlay ────────────────────────────────────────────────────
+  const ovalColor =
+    faceMatchStatus === 'matched'  ? '#86efac' :
+    faceMatchStatus === 'no-match' ? '#f87171' :
+    faceMatchStatus === 'checking' ? '#fbbf24' :
+    scanStatus === 'detected'      ? '#4ade80' :
+    'rgba(255,255,255,0.6)'
+
+  const FaceGuideOverlay = (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 400 300"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <mask id="face-oval-mask">
+          <rect width="400" height="300" fill="white" />
+          <ellipse cx="200" cy="145" rx="86" ry="116" fill="black" />
+        </mask>
+      </defs>
+      <rect width="400" height="300" fill="rgba(0,0,0,0.4)" mask="url(#face-oval-mask)" />
+      <ellipse
+        cx="200" cy="145" rx="86" ry="116"
+        fill="none"
+        stroke={ovalColor}
+        strokeWidth="2.5"
+        strokeDasharray={scanStatus === 'scanning' && faceMatchStatus === 'idle' ? '10 5' : undefined}
+      />
+      {scanStatus === 'scanning' && faceMatchStatus === 'idle' && (
+        <text x="200" y="284" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="10" fontWeight="500">
+          Position your face in the oval
+        </text>
+      )}
+    </svg>
+  )
 
   // ── Camera panel (shared between check-in, verify, enroll modes) ─────────────
 
@@ -363,6 +410,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               className="w-full h-full object-cover"
             />
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+            {!enrollMode && FaceGuideOverlay}
             <div
               className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
               style={{
@@ -381,9 +429,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               }`} />
               {faceMatchStatus === 'matched'  ? 'Face matched' :
                faceMatchStatus === 'no-match' ? 'Face not recognised' :
-               faceMatchStatus === 'checking' ? 'Verifying…' :
-               scanStatus === 'scanning' ? 'Scanning…' :
-               scanStatus === 'detected' ? 'Face detected' : 'Live'}
+               faceMatchStatus === 'checking' ? 'Matching…' :
+               scanStatus === 'detected' ? 'Face detected' :
+               scanStatus === 'scanning' ? 'Detecting face…' : 'Live'}
             </div>
           </div>
           {faceMatchStatus === 'no-match' && (
@@ -645,6 +693,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                       className="w-full h-full object-cover"
                     />
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+                    {!enrollMode && FaceGuideOverlay}
                     <div
                       className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
                       style={{
@@ -723,25 +772,32 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   <LogOut size={15} />
                   Check Out
                 </Button>
-              ) : scanStatus === 'detected' || checkInMut.isPending ? (
+              ) : faceMatchStatus === 'checking' || checkInMut.isPending ? (
+                <div className="flex items-center gap-2 text-sm" style={{ color: colors.status.success }}>
+                  <span className="h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
+                  Matching face…
+                </div>
+              ) : scanStatus === 'detected' ? (
                 <div className="flex items-center gap-2 text-sm" style={{ color: colors.status.success }}>
                   <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                  Face detected — checking in…
+                  {geoStatus === 'ok' ? 'Face detected — submitting…' : 'Face detected — waiting for location…'}
                 </div>
               ) : scanStatus === 'scanning' ? (
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2 text-sm" style={{ color: colors.text.muted }}>
                     <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                    Scanning for your face…
+                    Detecting face…
                   </div>
-                  <button
-                    onClick={() => { stopAutoScan(); checkInMut.mutate(undefined) }}
-                    disabled={!canCheckIn || isWorking}
-                    className="text-xs underline"
-                    style={{ color: colors.text.muted }}
-                  >
-                    check in manually
-                  </button>
+                  {canCheckIn && (
+                    <button
+                      onClick={() => { stopAutoScan(); checkInMut.mutate(undefined) }}
+                      disabled={isWorking}
+                      className="text-xs underline"
+                      style={{ color: colors.text.muted }}
+                    >
+                      check in manually
+                    </button>
+                  )}
                 </div>
               ) : (
                 <Button
