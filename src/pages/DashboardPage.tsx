@@ -21,6 +21,7 @@ import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../
 import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
+import { ROUTES } from '../lib/routes'
 import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek } from '../types'
 
@@ -1144,11 +1145,11 @@ export default function DashboardPage() {
 
   // Quick-action links shown for owner/admin instead of empty stat cards
   const ownerActions = [
-    { to: '/invitations',      icon: <UserPlus size={14} />,       label: 'Invite Staff' },
-    { to: '/patients',         icon: <Users size={14} />,          label: 'Patients' },
-    { to: '/calendar',         icon: <CalendarDays size={14} />,   label: 'Calendar' },
-    { to: '/leave-management', icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
-    { to: '/attendance-management', icon: <ClipboardCheck size={14} />, label: 'Attendance' },
+    { to: ROUTES.members,               icon: <UserPlus size={14} />,       label: 'Invite Staff' },
+    { to: ROUTES.patients,              icon: <Users size={14} />,          label: 'Patients' },
+    { to: ROUTES.calendar,              icon: <CalendarDays size={14} />,   label: 'Calendar' },
+    { to: ROUTES.leaveManagement,       icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
+    { to: ROUTES.attendanceManagement,  icon: <ClipboardCheck size={14} />, label: 'Attendance' },
   ]
 
   return (

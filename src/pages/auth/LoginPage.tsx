@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { colors, styles, shadow, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
 import type { LoginRequest } from '../../types'
+import { ROUTES } from '../../lib/routes'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -18,7 +19,7 @@ export default function LoginPage() {
     setError('')
     try {
       await login(data)
-      navigate('/dashboard')
+      navigate(ROUTES.dashboard)
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       setError(msg ?? 'Invalid email or password')

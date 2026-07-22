@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
 import type { AcceptInviteRequest } from '../../types'
+import { ROUTES } from '../../lib/routes'
 
 const ROLE_LABELS: Record<string, string> = {
   THERAPIST:      'Therapist',
@@ -53,7 +54,7 @@ export default function AcceptInvitePage() {
       <div className="flex min-h-screen items-center justify-center" style={{ background: gradient.loginBg }}>
         <div className="text-center">
           <p style={{ color: colors.text.muted }}>Invalid or missing sign-up link.</p>
-          <Link to="/login" className="mt-4 inline-block text-sm" style={{ color: colors.accent }}>Go to login</Link>
+          <Link to={ROUTES.login} className="mt-4 inline-block text-sm" style={{ color: colors.accent }}>Go to login</Link>
         </div>
       </div>
     )
@@ -83,7 +84,7 @@ export default function AcceptInvitePage() {
           </div>
           <h2 className="text-xl font-bold" style={{ color: colors.text.heading }}>Link unavailable</h2>
           <p className="mt-2 text-sm" style={{ color: colors.text.muted }}>{msg}</p>
-          <Link to="/login">
+          <Link to={ROUTES.login}>
             <Button className="mt-6 w-full" size="lg" variant="secondary">Go to login</Button>
           </Link>
         </div>
@@ -103,7 +104,7 @@ export default function AcceptInvitePage() {
           </div>
           <h2 className="text-xl font-bold" style={{ color: colors.text.heading }}>Account created!</h2>
           <p className="mt-2 text-sm" style={{ color: colors.text.muted }}>Your account is ready. You can now sign in.</p>
-          <Link to="/login">
+          <Link to={ROUTES.login}>
             <Button className="mt-6 w-full" size="lg">Sign in</Button>
           </Link>
         </div>

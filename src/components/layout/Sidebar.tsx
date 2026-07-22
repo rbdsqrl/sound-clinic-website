@@ -13,60 +13,61 @@ import { allRoles } from '../../types'
 import type { Role } from '../../types'
 import { clsx } from '../../lib/clsx'
 import { colors, styles, surface, border, shadow, dangerAlpha, LOGO_SRC } from '../../theme'
+import { ROUTES } from '../../lib/routes'
 
 const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.ElementType }[]> = {
   BUSINESS_OWNER: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/inquiries',    label: 'Inquiries',    icon: Inbox },
-    { to: '/organisation', label: 'Organisation', icon: Building2 },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/tasks',        label: 'Tasks',        icon: ListTodo },
-    { to: '/calendar',     label: 'Calendar',     icon: CalendarDays },
-    { to: '/workforce',    label: 'Workforce',    icon: Briefcase },
-    { to: '/members',      label: 'Members',      icon: UserCog },
+    { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
+    { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
+    { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
+    { to: ROUTES.patients,     label: 'Patients',     icon: Users },
+    { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
+    { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
+    { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
+    { to: ROUTES.members,      label: 'Members',      icon: UserCog },
   ],
   OFFICE_ADMIN: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/inquiries', label: 'Inquiries', icon: Inbox },
-    { to: '/patients',  label: 'Patients',  icon: Users },
-    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
-    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
-    { to: '/workforce', label: 'Workforce', icon: Briefcase },
+    { to: ROUTES.dashboard,  label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.inquiries,  label: 'Inquiries', icon: Inbox },
+    { to: ROUTES.patients,   label: 'Patients',  icon: Users },
+    { to: ROUTES.tasks,      label: 'My Tasks',  icon: ListTodo },
+    { to: ROUTES.calendar,   label: 'Calendar',  icon: CalendarDays },
+    { to: ROUTES.workforce,  label: 'Workforce', icon: Briefcase },
   ],
   THERAPIST: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
-    { to: '/patients',  label: 'Patients',  icon: Users },
-    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
-    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
-    { to: '/workforce', label: 'Workforce', icon: Briefcase },
+    { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
+    { to: ROUTES.patients,  label: 'Patients',  icon: Users },
+    { to: ROUTES.tasks,     label: 'My Tasks',  icon: ListTodo },
+    { to: ROUTES.calendar,  label: 'Calendar',  icon: CalendarDays },
+    { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
   DOCTOR: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/clinics',   label: 'Clinics',   icon: Stethoscope },
-    { to: '/patients',  label: 'Patients',  icon: Users },
-    { to: '/tasks',     label: 'My Tasks',  icon: ListTodo },
-    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays },
-    { to: '/workforce', label: 'Workforce', icon: Briefcase },
+    { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
+    { to: ROUTES.patients,  label: 'Patients',  icon: Users },
+    { to: ROUTES.tasks,     label: 'My Tasks',  icon: ListTodo },
+    { to: ROUTES.calendar,  label: 'Calendar',  icon: CalendarDays },
+    { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
   PARENT: [
-    { to: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-    { to: '/my-children', label: 'My Children', icon: Baby },
-    { to: '/calendar',    label: 'Calendar',    icon: CalendarDays },
+    { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },
+    { to: ROUTES.myChildren, label: 'My Children', icon: Baby },
+    { to: ROUTES.calendar,   label: 'Calendar',    icon: CalendarDays },
   ],
   ADMIN: [
-    { to: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: '/inquiries',    label: 'Inquiries',    icon: Inbox },
-    { to: '/organisation', label: 'Organisation', icon: Building2 },
-    { to: '/patients',     label: 'Patients',     icon: Users },
-    { to: '/tasks',        label: 'Tasks',        icon: ListTodo },
-    { to: '/calendar',     label: 'Calendar',     icon: CalendarDays },
-    { to: '/workforce',    label: 'Workforce',    icon: Briefcase },
-    { to: '/members',      label: 'Members',      icon: UserCog },
+    { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
+    { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
+    { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
+    { to: ROUTES.patients,     label: 'Patients',     icon: Users },
+    { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
+    { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
+    { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
+    { to: ROUTES.members,      label: 'Members',      icon: UserCog },
   ],
   PATIENT: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/workforce', label: 'Workforce', icon: Briefcase },
+    { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
 }
 
@@ -93,7 +94,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
-  const handleLogout  = async () => { await logout(); navigate('/login') }
+  const handleLogout  = async () => { await logout(); navigate(ROUTES.login) }
   const handleNavClick = () => onClose?.()
 
   const roles            = user ? allRoles(user) : []
@@ -184,7 +185,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
             {roles.map((role) => (
               <button
                 key={role}
-                onClick={() => { switchRole(role); navigate('/dashboard'); onClose?.() }}
+                onClick={() => { switchRole(role); navigate(ROUTES.dashboard); onClose?.() }}
                 className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition-all"
                 style={role === currentRole ? styles.roleChipActive : { color: colors.textLight.label, border: '1px solid transparent' }}
               >
@@ -217,8 +218,8 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
       <nav className="flex-1 space-y-0.5 px-2 overflow-y-auto pb-4">
         {navItems.map(({ to, label, icon: Icon }) => {
           const badgeCount =
-            to === '/calendar'  ? calendarBadge :
-            to === '/inquiries' ? inquiryBadge  : 0
+            to === ROUTES.calendar  ? calendarBadge :
+            to === ROUTES.inquiries ? inquiryBadge  : 0
           const showBadge = badgeCount > 0
 
           return (

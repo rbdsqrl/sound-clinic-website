@@ -10,6 +10,7 @@ import { colors, gradient, shadow, accentAlpha, ctaAlpha, border, surface, LOGO_
 import { inquiriesApi } from '../api/inquiries'
 import { publicApi } from '../api/public'
 import type { PreferredTime } from '../types'
+import { ROUTES } from '../lib/routes'
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ function Navbar() {
 
       {/* Auth button */}
       <Link
-        to={isAuthenticated ? '/dashboard' : '/login'}
+        to={isAuthenticated ? ROUTES.dashboard : ROUTES.login}
         className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all"
         style={{
           background: gradient.buttonCta,
@@ -481,7 +482,7 @@ function Footer() {
         </p>
 
         <Link
-          to={isAuthenticated ? '/dashboard' : '/login'}
+          to={isAuthenticated ? ROUTES.dashboard : ROUTES.login}
           className="text-xs font-medium transition-colors"
           style={{ color: 'rgba(255,255,255,0.50)' }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#4FB6B2'}

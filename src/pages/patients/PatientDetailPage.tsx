@@ -23,6 +23,7 @@ import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { ROUTES } from '../../lib/routes'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, palette } from '../../theme'
 import { format } from 'date-fns'
@@ -1455,7 +1456,7 @@ export default function PatientDetailPage() {
     mutationFn: () => patientsApi.delete(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
-      navigate('/patients')
+      navigate(ROUTES.patients)
     },
     onError: (err) => toast(getApiError(err, 'Failed to delete patient'), 'error'),
   })

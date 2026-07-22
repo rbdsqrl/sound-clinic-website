@@ -13,6 +13,7 @@ import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
 import type { InquiryResponse, InquiryStatus, InquiryActionOutcome } from '../../types'
 import { MiniCalendar } from './MiniCalendar'
+import { ROUTES } from '../../lib/routes'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -284,7 +285,7 @@ export function ActionModal({
             <p className="text-sm" style={{ color: colors.text.muted }}>
               This inquiry has been converted to a patient record.
             </p>
-            <Button onClick={() => { onClose(); navigate('/patients') }}>
+            <Button onClick={() => { onClose(); navigate(ROUTES.patients) }}>
               Go to Patients
             </Button>
           </div>

@@ -22,6 +22,7 @@ import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse } from '../../types'
+import { ROUTES } from '../../lib/routes'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
@@ -862,7 +863,7 @@ function EventDetailDrawer({
                   </button>
                 )}
                 <button
-                  onClick={() => { onClose(); navigate('/inquiries') }}
+                  onClick={() => { onClose(); navigate(ROUTES.inquiries) }}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                   style={{ background: accentAlpha(0.1), color: colors.accent }}>
                   Go to Inquiries <ExternalLink size={14} />
@@ -1361,7 +1362,7 @@ export default function CalendarPage() {
           onClose={() => setActionTarget(null)}
           onRequestConvert={() => {
             setActionTarget(null)
-            navigate('/inquiries')
+            navigate(ROUTES.inquiries)
           }}
         />
       )}
