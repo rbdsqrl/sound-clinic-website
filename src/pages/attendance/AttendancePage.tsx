@@ -56,13 +56,14 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [cameraActive, setCameraActive]         = useState(false)
   const [modelsLoaded, setModelsLoaded]         = useState(false)
   const [modelsLoading, setModelsLoading]       = useState(false)
-  const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
+  const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied' | 'permission-denied'>('idle')
   const [location, setLocation]                 = useState<{ lat: number; lon: number } | null>(null)
   const [geoFenceError, setGeoFenceError]       = useState(false)
   const [enrollMode, setEnrollMode]             = useState(false)
   const [showVerifyForm, setShowVerifyForm]     = useState(false)
   const [scanStatus, setScanStatus]             = useState<'idle' | 'scanning' | 'detected'>('idle')
   const [reCheckIn, setReCheckIn]               = useState(false)
+  const [faceMatchStatus, setFaceMatchStatus]   = useState<'idle' | 'checking' | 'matched' | 'no-match'>('idle')
 
   // Derive directly from context so any refresh automatically propagates
   const faceEnrolled = user?.faceEnrolled ?? false
@@ -133,9 +134,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setGeoStatus('ok')
       },
-      () => {
-        setGeoStatus('denied')
-        toast('Location access denied — please allow location in browser settings', 'error')
+      (err: GeolocationPositionError) => {
+        setGeoStatus(err.code === 1 ? 'permission-denied' : 'denied')
+        toast('Location access denied — please allow location in your device settings', 'error')
       },
     )
   }, [toast])
@@ -143,6 +144,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   // ── Camera ────────────────────────────────────────────────────────────────────
 
   const startCamera = useCallback(async () => {
+    setFaceMatchStatus('idle')
     await loadModels()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
@@ -223,6 +225,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       })
     },
     onSuccess: (data: AttendanceResponse) => {
+      setFaceMatchStatus('matched')
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
       toast('Checked in successfully', 'success')
@@ -230,7 +233,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       stopAutoScan()
       setReCheckIn(false)
     },
-    onError: (err) => toast(getApiError(err, 'Check-in failed'), 'error'),
+    onError: (err) => {
+      setFaceMatchStatus('no-match')
+      setScanStatus('idle')
+      toast(getApiError(err, 'Check-in failed'), 'error')
+    },
   })
 
   const checkOutMut = useMutation({
@@ -263,6 +270,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     onSuccess: (data: AttendanceResponse) => {
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
+      setFaceMatchStatus(data.faceVerified ? 'matched' : 'no-match')
       if (!data.geoVerified) {
         setGeoFenceError(true)
         setGeoStatus('idle')
@@ -270,12 +278,15 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         if (data.faceVerified) toast('Face verified — location check failed', 'info')
         return
       }
-      const allGood = data.geoVerified && data.faceVerified
-      toast(allGood ? 'Verification complete' : 'Face verification incomplete — try again', allGood ? 'success' : 'info')
+      if (!data.faceVerified) return
+      toast('Verification complete', 'success')
       setShowVerifyForm(false)
       stopCamera()
     },
-    onError: (err) => toast(getApiError(err, 'Verification failed'), 'error'),
+    onError: (err) => {
+      setFaceMatchStatus('no-match')
+      toast(getApiError(err, 'Verification failed'), 'error')
+    },
   })
 
   const enrollMut = useMutation({
@@ -312,6 +323,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         setScanStatus('detected')
         clearInterval(autoScanRef.current!)
         autoScanRef.current = null
+        setFaceMatchStatus('checking')
         checkInMut.mutate(Array.from(detection.descriptor))
       }
     }, 1500)
@@ -355,13 +367,36 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
               style={{
                 background: 'rgba(0,0,0,0.6)',
-                color: scanStatus === 'detected' ? '#86efac' : '#4ade80',
+                color: faceMatchStatus === 'matched'  ? '#86efac' :
+                       faceMatchStatus === 'no-match' ? '#f87171' :
+                       faceMatchStatus === 'checking' ? '#fbbf24' :
+                       '#4ade80',
               }}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${scanStatus === 'scanning' ? 'bg-green-400 animate-pulse' : 'bg-green-300'}`} />
-              {scanStatus === 'scanning' ? 'Scanning…' : scanStatus === 'detected' ? 'Face detected' : 'Live'}
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                faceMatchStatus === 'matched'  ? 'bg-green-400' :
+                faceMatchStatus === 'no-match' ? 'bg-red-400' :
+                faceMatchStatus === 'checking' ? 'bg-yellow-400 animate-pulse' :
+                scanStatus === 'scanning'      ? 'bg-green-400 animate-pulse' : 'bg-green-300'
+              }`} />
+              {faceMatchStatus === 'matched'  ? 'Face matched' :
+               faceMatchStatus === 'no-match' ? 'Face not recognised' :
+               faceMatchStatus === 'checking' ? 'Verifying…' :
+               scanStatus === 'scanning' ? 'Scanning…' :
+               scanStatus === 'detected' ? 'Face detected' : 'Live'}
             </div>
           </div>
+          {faceMatchStatus === 'no-match' && (
+            <div
+              className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
+              style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
+            >
+              <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
+              <span style={{ color: colors.text.primary }}>
+                Face not recognised. Ensure your face is well-lit and clearly visible, then tap <em>Verify Now</em> again.
+              </span>
+            </div>
+          )}
           <button onClick={stopCamera} className="text-xs" style={{ color: colors.text.muted }}>
             Close camera
           </button>
@@ -454,15 +489,25 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all min-h-[44px]"
                 style={geoStatus === 'ok'
                   ? { background: successAlpha(0.1), color: colors.status.success }
+                  : (geoStatus === 'denied' || geoStatus === 'permission-denied')
+                  ? { background: dangerAlpha(0.08), color: colors.status.error, border: `1px solid ${dangerAlpha(0.3)}` }
                   : { background: warningAlpha(0.08), color: colors.text.primary, border: `1px solid ${colors.text.dim}` }
                 }
               >
                 <MapPin size={15} />
-                {geoStatus === 'loading' && 'Getting location…'}
-                {geoStatus === 'ok'      && 'Location captured'}
-                {geoStatus === 'denied'  && 'Retry location access'}
-                {geoStatus === 'idle'    && (geoFenceError ? 'Retry location' : 'Allow location access')}
+                {geoStatus === 'loading'           && 'Getting location…'}
+                {geoStatus === 'ok'                && 'Location captured'}
+                {geoStatus === 'denied'            && 'Retry location access'}
+                {geoStatus === 'permission-denied' && 'Location access denied'}
+                {geoStatus === 'idle'              && (geoFenceError ? 'Retry location' : 'Allow location access')}
               </button>
+              {geoStatus === 'permission-denied' && (
+                <p className="text-xs mt-2" style={{ color: colors.text.muted }}>
+                  Location permission was blocked. On iPhone, go to{' '}
+                  <strong style={{ color: colors.text.primary }}>Settings → Safari (or your browser) → Location</strong>{' '}
+                  and set it to Allow. On Android, tap the lock icon in your browser address bar.
+                </p>
+              )}
               {geoFenceError && (
                 <div
                   className="flex items-start gap-2 mt-2 rounded-xl px-3 py-2.5 text-sm"
@@ -545,17 +590,27 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                     Getting location…
                   </div>
                 ) : (
-                  <button
-                    onClick={getLocation}
-                    className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all min-h-[44px]"
-                    style={geoStatus === 'denied'
-                      ? { background: dangerAlpha(0.08), color: colors.status.error, border: `1px solid ${dangerAlpha(0.3)}` }
-                      : { background: warningAlpha(0.08), color: colors.text.primary, border: `1px solid ${colors.text.dim}` }
-                    }
-                  >
-                    <MapPin size={15} />
-                    {geoStatus === 'denied' ? 'Location denied — tap to retry' : 'Allow location access'}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={getLocation}
+                      className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all min-h-[44px]"
+                      style={(geoStatus === 'denied' || geoStatus === 'permission-denied')
+                        ? { background: dangerAlpha(0.08), color: colors.status.error, border: `1px solid ${dangerAlpha(0.3)}` }
+                        : { background: warningAlpha(0.08), color: colors.text.primary, border: `1px solid ${colors.text.dim}` }
+                      }
+                    >
+                      <MapPin size={15} />
+                      {geoStatus === 'permission-denied' ? 'Location access denied' :
+                       geoStatus === 'denied' ? 'Location denied — tap to retry' : 'Allow location access'}
+                    </button>
+                    {geoStatus === 'permission-denied' && (
+                      <p className="text-xs" style={{ color: colors.text.muted }}>
+                        Location permission was blocked. On iPhone, go to{' '}
+                        <strong style={{ color: colors.text.primary }}>Settings → Safari (or your browser) → Location</strong>{' '}
+                        and set it to Allow. On Android, tap the lock icon in your browser address bar.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -594,13 +649,45 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                       className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
                       style={{
                         background: 'rgba(0,0,0,0.6)',
-                        color: scanStatus === 'detected' ? '#86efac' : '#4ade80',
+                        color: faceMatchStatus === 'matched'  ? '#86efac' :
+                               faceMatchStatus === 'no-match' ? '#f87171' :
+                               faceMatchStatus === 'checking' ? '#fbbf24' :
+                               '#4ade80',
                       }}
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full ${scanStatus === 'scanning' ? 'bg-green-400 animate-pulse' : 'bg-green-300'}`} />
-                      {scanStatus === 'scanning' ? 'Scanning…' : scanStatus === 'detected' ? 'Face detected' : 'Live'}
+                      <span className={`h-1.5 w-1.5 rounded-full ${
+                        faceMatchStatus === 'matched'  ? 'bg-green-400' :
+                        faceMatchStatus === 'no-match' ? 'bg-red-400' :
+                        faceMatchStatus === 'checking' ? 'bg-yellow-400 animate-pulse' :
+                        scanStatus === 'scanning'      ? 'bg-green-400 animate-pulse' : 'bg-green-300'
+                      }`} />
+                      {faceMatchStatus === 'matched'  ? 'Face matched' :
+                       faceMatchStatus === 'no-match' ? 'Face not recognised' :
+                       faceMatchStatus === 'checking' ? 'Verifying…' :
+                       scanStatus === 'scanning' ? 'Scanning…' :
+                       scanStatus === 'detected' ? 'Face detected' : 'Live'}
                     </div>
                   </div>
+                  {faceMatchStatus === 'no-match' && (
+                    <div
+                      className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
+                      style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
+                    >
+                      <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
+                      <div className="flex flex-col gap-1.5">
+                        <span style={{ color: colors.text.primary }}>
+                          Face not recognised. Ensure your face is well-lit and clearly visible.
+                        </span>
+                        <button
+                          onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(undefined) }}
+                          className="text-xs font-semibold text-left underline"
+                          style={{ color: colors.accent }}
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={stopCamera}
                     className="text-xs"
