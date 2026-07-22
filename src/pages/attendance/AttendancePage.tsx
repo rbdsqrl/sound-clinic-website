@@ -151,11 +151,12 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   const startCamera = useCallback(async () => {
     setFaceMatchStatus('idle')
-    await loadModels()
     try {
+      // getUserMedia must be called first — iOS Safari drops the gesture context after any await
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
       streamRef.current = stream
       setCameraActive(true)
+      await loadModels()
     } catch {
       toast('Camera access denied', 'error')
     }
@@ -186,10 +187,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   // Auto-open camera for enrollment if face not yet registered
   useEffect(() => {
+    if (asTab) return  // skip in modal — user must tap button directly (iOS gesture requirement)
     if (didAutoEnroll.current || faceEnrolled) return
     didAutoEnroll.current = true
     startCamera()
-  }, [faceEnrolled, startCamera])
+  }, [asTab, faceEnrolled, startCamera])
 
   // Auto-request location + open camera when face is enrolled and not yet checked in
   useEffect(() => {
@@ -197,8 +199,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     if (today?.status === 'CHECKED_IN' || today?.status === 'CHECKED_OUT') return
     didAutoCheckIn.current = true
     getLocation()
-    startCamera()
-  }, [faceEnrolled, loadingToday, today?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!asTab) startCamera()  // camera auto-starts on full page only; in modal user taps button
+  }, [asTab, faceEnrolled, loadingToday, today?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Capture face descriptor ───────────────────────────────────────────────────
 
