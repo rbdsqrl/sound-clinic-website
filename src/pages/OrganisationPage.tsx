@@ -14,7 +14,6 @@ import { conditionsApi } from '../api/conditions'
 import { therapiesApi } from '../api/therapies'
 import { taxesApi } from '../api/taxes'
 import { clinicsApi } from '../api/clinics'
-import IEPOrgTab from './patients/IEPOrgTab'
 import IEPLibraryTab from './patients/IEPLibraryTab'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -34,7 +33,7 @@ import type {
   ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse,
 } from '../types'
 
-type Tab = 'information' | 'clinics' | 'manage' | 'iep' | 'iep-library'
+type Tab = 'information' | 'clinics' | 'manage' | 'iep-library'
 
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
@@ -515,7 +514,6 @@ export default function OrganisationPage() {
     { key: 'information', label: 'Information' },
     { key: 'clinics',     label: 'Clinics' },
     { key: 'manage',      label: 'Manage' },
-    { key: 'iep',         label: 'IEP Plans' },
     { key: 'iep-library', label: 'IEP Library' },
   ]
 
@@ -856,9 +854,6 @@ export default function OrganisationPage() {
           </SectionCard>
         </div>
       )}
-
-      {/* ── IEP Plans tab ────────────────────────────────────────────────── */}
-      {tab === 'iep' && <IEPOrgTab />}
 
       {/* ── IEP Library tab ──────────────────────────────────────────────── */}
       {tab === 'iep-library' && <IEPLibraryTab />}
