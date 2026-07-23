@@ -105,86 +105,87 @@
 }
 
 /* ── Dark mode overrides ──────────────────────────────────────────────────── */
-/* Inspired by the Vivienne palette: deep plum (#320a28), burgundy (#511730), */
-/* terracotta (#8e443d), warm amber (#e08e45), and peachy cream (#facfad).    */
+/* Mellow warm-charcoal palette: calm, clinical, soft on the eyes.            */
+/* Backgrounds sit in the warm-slate mid-dark range (not pitch-black).        */
+/* Accent is a desaturated teal — calming, clinical, healthcare-appropriate.  */
 .dark {
-  /* Accent and CTA — cooler blue / electric highlights */
-  --color-accent:          #79B7FF;
-  --color-accent-raw:      121, 183, 255;
-  --color-cta:             #8BD8FF;
-  --color-cta-raw:         139, 216, 255;
-  --color-cta-end:         #3E79F1;
-  --color-secondary:       #9BDFFF;
-  --color-secondary-raw:   155, 223, 255;
+  /* Accent and CTA — muted clinical teal, low saturation */
+  --color-accent:          #5BABB4;
+  --color-accent-raw:      91, 171, 180;
+  --color-cta:             #74BFC4;
+  --color-cta-raw:         116, 191, 196;
+  --color-cta-end:         #469AA4;
+  --color-secondary:       #8ECECA;
+  --color-secondary-raw:   142, 206, 202;
 
-  /* Text — crisp pale blue / white hierarchy */
-  --text-heading:          #FFFFFF;        /* bright headline text             */
-  --text-primary:          #F0F4FF;        /* body text                        */
-  --text-muted:            #C0D4F0;        /* secondary labels                 */
-  --text-dim:              #8FA5C0;        /* placeholder / subtle text        */
-  --text-link:             #79B7FF;
-  --text-sidebar-primary:  #FFFFFF;
-  --text-sidebar-label:    #F0F4FF;
-  --text-sidebar-muted:    #C0D4F0;
+  /* Text — warm off-white hierarchy, reduced contrast */
+  --text-heading:          #DCE2E8;        /* soft off-white headings          */
+  --text-primary:          #B4BEC8;        /* warm grey body text              */
+  --text-muted:            #7E909C;        /* secondary labels                 */
+  --text-dim:              #526070;        /* placeholder / subtle             */
+  --text-link:             #5BABB4;
+  --text-sidebar-primary:  #DCE2E8;
+  --text-sidebar-label:    #B4BEC8;
+  --text-sidebar-muted:    #7E909C;
 
-  /* Surfaces — bluish-black canvas with soft glass touches */
-  --surface-app:           #050C18;        /* deeper midnight for contrast     */
-  --surface-card:          #0E1D37;        /* refined deep card surface        */
-  --surface-card-raw:      14, 29, 55;
-  --surface-sidebar:       #081220;        /* elegant navy sidebar             */
-  --surface-overlay:       rgba(5, 12, 25, 0.94);
-  --surface-mobile-overlay: rgba(6, 12, 26, 0.97);
-  --surface-mobile-header: rgba(8, 14, 28, 0.98);
-  --surface-footer:        rgba(121, 183, 255, 0.08);
-  --surface-filter-strip:  rgba(121, 183, 255, 0.14);
-  --surface-row-hover:     rgba(121, 183, 255, 0.14);
+  /* Surfaces — warm dark charcoal, lifted from pitch-black */
+  --surface-app:           #191D22;        /* warm dark grey, not midnight     */
+  --surface-card:          #21262D;        /* one step lighter warm grey       */
+  --surface-card-raw:      33, 38, 45;
+  --surface-sidebar:       #161A1F;        /* subtle step darker than app      */
+  --surface-overlay:       rgba(14, 17, 21, 0.90);
+  --surface-mobile-overlay: rgba(18, 22, 27, 0.95);
+  --surface-mobile-header: rgba(20, 24, 29, 0.97);
+  --surface-footer:        rgba(91, 171, 180, 0.06);
+  --surface-filter-strip:  rgba(91, 171, 180, 0.07);
+  --surface-row-hover:     rgba(91, 171, 180, 0.06);
 
-  /* Borders — crisp icy separation */
-  --border-card:           1px solid rgba(255, 255, 255, 0.12);
-  --border-divider:        rgba(121, 183, 255, 0.20);
-  --border-sidebar:        rgba(121, 183, 255, 0.20);
-  --border-medium:         1px solid rgba(255, 255, 255, 0.16);
-  --border-drag:           rgba(255, 255, 255, 0.18);
+  /* Borders — quiet, no glow */
+  --border-card:           1px solid rgba(255, 255, 255, 0.07);
+  --border-divider:        rgba(255, 255, 255, 0.08);
+  --border-sidebar:        rgba(91, 171, 180, 0.14);
+  --border-medium:         1px solid rgba(255, 255, 255, 0.09);
+  --border-drag:           rgba(255, 255, 255, 0.10);
   --border-raw:            255, 255, 255;
 
-  /* Shadows — cool glow with depth */
-  --shadow-card:           0 2px 28px rgba(0,0,0,0.60), 0 0 0 1px rgba(121, 183, 255, 0.06);
-  --shadow-glow:           0 0 24px rgba(121, 183, 255, 0.24);
-  --shadow-glow-sm:        0 0 12px rgba(121, 183, 255, 0.16);
-  --shadow-glow-lg:        0 0 52px rgba(121, 183, 255, 0.28);
-  --shadow-button-cta:     0 2px 14px rgba(139, 216, 255, 0.36);
-  --shadow-button-accent:  0 2px 14px rgba(121, 183, 255, 0.32);
-  --shadow-logo:           0 4px 20px rgba(121, 183, 255, 0.30);
-  --shadow-nav-active:     0 2px 12px rgba(121, 183, 255, 0.18);
-  --shadow-modal:          0 8px 42px rgba(0,0,0,0.68), 0 0 0 1px rgba(255,255,255,0.12);
-  --shadow-nav-dot:        0 0 10px rgba(121, 183, 255, 0.92);
+  /* Shadows — muted depth, no electric glow */
+  --shadow-card:           0 2px 14px rgba(0,0,0,0.36), 0 0 0 1px rgba(91, 171, 180, 0.04);
+  --shadow-glow:           0 0 18px rgba(91, 171, 180, 0.12);
+  --shadow-glow-sm:        0 0 10px rgba(91, 171, 180, 0.08);
+  --shadow-glow-lg:        0 0 36px rgba(91, 171, 180, 0.14);
+  --shadow-button-cta:     0 2px 10px rgba(116, 191, 196, 0.24);
+  --shadow-button-accent:  0 2px 10px rgba(91, 171, 180, 0.20);
+  --shadow-logo:           0 4px 16px rgba(91, 171, 180, 0.20);
+  --shadow-nav-active:     0 2px 8px rgba(91, 171, 180, 0.10);
+  --shadow-modal:          0 8px 32px rgba(0,0,0,0.48), 0 0 0 1px rgba(255,255,255,0.06);
+  --shadow-nav-dot:        0 0 8px rgba(91, 171, 180, 0.65);
 
-  --card-backdrop:         blur(18px);
-  --modal-backdrop:        blur(12px);
-  --header-backdrop:       blur(16px);
-  --sidebar-backdrop:      blur(28px);
+  --card-backdrop:         blur(10px);
+  --modal-backdrop:        blur(8px);
+  --header-backdrop:       blur(12px);
+  --sidebar-backdrop:      blur(16px);
 
-  --gradient-button-cta:   linear-gradient(135deg, #8BD8FF 0%, #3E79F1 100%);
-  --gradient-button-accent: linear-gradient(135deg, #79B7FF 0%, #2A6BE0 100%);
-  --gradient-logo:         linear-gradient(135deg, #79B7FF 0%, #A4D8FF 100%);
-  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(121,183,255,0.22) 0%, #040A16 60%);
-  --gradient-summary:      linear-gradient(135deg, #79B7FF, #9EE5FF);
+  --gradient-button-cta:   linear-gradient(135deg, #74BFC4 0%, #469AA4 100%);
+  --gradient-button-accent: linear-gradient(135deg, #5BABB4 0%, #3D8A94 100%);
+  --gradient-logo:         linear-gradient(135deg, #5BABB4 0%, #8ECECA 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(91,171,180,0.14) 0%, #141820 60%);
+  --gradient-summary:      linear-gradient(135deg, #5BABB4, #8ECECA);
 
-  /* Forms — cool glass with luminous text */
-  --form-bg:               #0B1831;
-  --form-border:           rgba(255, 255, 255, 0.14);
-  --form-text:             #F0F4FF;
-  --form-placeholder:      #95AFE0;
-  --form-label:            #C0D4F0;
-  --form-error:            #FF9CB3;
+  /* Forms — warm dark glass */
+  --form-bg:               #1C2128;
+  --form-border:           rgba(255, 255, 255, 0.09);
+  --form-text:             #C0CAD2;
+  --form-placeholder:      #5C7080;
+  --form-label:            #7E909C;
+  --form-error:            #D98080;
 
-  --scrollbar-thumb:       #2F567F;
-  --scrollbar-thumb-hover: #3F6B9A;
+  --scrollbar-thumb:       #374450;
+  --scrollbar-thumb-hover: #4A5C68;
 }
 
 .dark select.form-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C0D4F0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-color: rgba(var(--color-accent-raw), 0.06);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237E909C' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-color: rgba(var(--color-accent-raw), 0.05);
 }
 
 /* ── Force light mode (public landing page) ───────────────────────────────── */
@@ -240,7 +241,7 @@
   }
 
   html.dark body {
-    background-image: radial-gradient(circle, rgba(121, 183, 255, 0.06) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(91, 171, 180, 0.04) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
