@@ -249,25 +249,16 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   })
 
   const checkOutMut = useMutation({
-    mutationFn: async () => {
-      const descriptor = cameraActive ? await captureFaceDescriptor() : undefined
-      return attendanceApi.checkOut({
-        latitude: location?.lat,
-        longitude: location?.lon,
-        faceDescriptor: descriptor,
-      })
-    },
+    mutationFn: async () => attendanceApi.checkOut({
+      latitude: location?.lat,
+      longitude: location?.lon,
+    }),
     onSuccess: (data: AttendanceResponse) => {
-      if (cameraActive) setFaceMatchStatus('matched')
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
       toast('Checked out successfully', 'success')
-      stopCamera()
     },
-    onError: (err) => {
-      if (cameraActive) setFaceMatchStatus('no-match')
-      toast(getApiError(err, 'Check-out failed'), 'error')
-    },
+    onError: (err) => toast(getApiError(err, 'Check-out failed'), 'error'),
   })
 
   const verifyMut = useMutation({
@@ -315,10 +306,10 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     onError: (err) => toast(getApiError(err, 'Face enrollment failed'), 'error'),
   })
 
-  // Auto-scan: start as soon as camera + models are ready — geo check happens inside via ref
+  // Auto-scan: check-in only — geo check happens inside via ref
   useEffect(() => {
-    const canDetect = cameraActive && faceEnrolled && !enrollMode
-      && today?.status !== 'CHECKED_IN' && modelsLoaded
+    const canDetect = cameraActive && faceEnrolled && !enrollMode && modelsLoaded
+      && today?.status !== 'CHECKED_IN'
     if (!canDetect || autoScanRef.current) return
 
     isScanningRef.current = true
@@ -669,14 +660,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               </div>
             )}
 
-            {/* Camera / Face */}
+            {/* Camera / Face — only for check-in and enroll, not check-out */}
+            {!checkedIn && (
             <div>
               <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-                {enrollMode
-                  ? 'Position your face in the camera'
-                  : checkedIn
-                  ? 'Step 1 — Face verification (optional)'
-                  : 'Face verification'}
+                {enrollMode ? 'Position your face in the camera' : 'Face verification'}
               </p>
 
               {!cameraActive ? (
@@ -753,6 +741,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 </div>
               )}
             </div>
+            )}
 
             {/* Action buttons */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -772,7 +761,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 </>
               ) : checkedIn ? (
                 <Button
-                  onClick={() => { if (cameraActive) setFaceMatchStatus('checking'); checkOutMut.mutate() }}
+                  onClick={() => checkOutMut.mutate()}
                   loading={isWorking}
                 >
                   <LogOut size={15} />
