@@ -1944,18 +1944,18 @@ export default function PatientDetailPage() {
                       <div
                         key={c.id}
                         className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)' }}
+                        style={paletteStyle('blue', 0.07, 0.12)}
                       >
                         <div className="flex items-center gap-3">
-                          <Heart size={16} style={{ color: '#3b82f6' }} />
+                          <Heart size={15} style={{ color: palette.blue.text }} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
                             {c.diagnosedAt && (
-                              <p className="text-xs" style={{ color: colors.text.muted }}>
+                              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
                                 Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
                               </p>
                             )}
-                            {c.notes && <p className="text-xs italic" style={{ color: colors.text.muted }}>{c.notes}</p>}
+                            {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
                           </div>
                         </div>
                         {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
@@ -1965,10 +1965,7 @@ export default function PatientDetailPage() {
                 )}
               </Card>
 
-              {/* Divider */}
-              <div style={{ borderTop: `1px solid ${border.divider}` }} />
-
-              {/* Parents */}
+              {/* Parents / Guardians */}
               <Card>
                 <CardHeader
                   title="Parents / Guardians"
@@ -1983,13 +1980,13 @@ export default function PatientDetailPage() {
                       <div
                         key={p.id}
                         className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}
+                        style={paletteStyle('green', 0.07, 0.12)}
                       >
                         <div className="flex items-center gap-3">
-                          <Users size={16} style={{ color: '#16a34a' }} />
+                          <Users size={15} style={{ color: palette.green.text }} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
-                            <p className="text-xs" style={{ color: colors.text.muted }}>{p.email}</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
                           </div>
                         </div>
                         {removeBtn(() => unlinkParentMutation.mutate(p.id))}
@@ -1999,10 +1996,7 @@ export default function PatientDetailPage() {
                 )}
               </Card>
 
-              {/* Divider */}
-              <div style={{ borderTop: `1px solid ${border.divider}` }} />
-
-              {/* Therapists */}
+              {/* Assigned Therapists */}
               <Card>
                 <CardHeader
                   title="Assigned Therapists"
@@ -2017,13 +2011,13 @@ export default function PatientDetailPage() {
                       <div
                         key={t.id}
                         className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}
+                        style={paletteStyle('purple', 0.07, 0.12)}
                       >
                         <div className="flex items-center gap-3">
-                          <UserCheck size={16} style={{ color: '#7c3aed' }} />
+                          <UserCheck size={15} style={{ color: palette.purple.text }} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
-                            <p className="text-xs" style={{ color: colors.text.muted }}>
+                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
                               Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
                             </p>
                           </div>
@@ -2131,149 +2125,147 @@ export default function PatientDetailPage() {
                               </div>
                             </div>
 
-                            {/* Stat boxes */}
-                            <div className="grid grid-cols-3 gap-2 mb-4">
-                              <div className="rounded-xl p-3 text-center" style={{ background: accentAlpha(0.06) }}>
-                                <p className="text-xl font-bold leading-none" style={{ color: colors.text.heading }}>{sessionsCompleted}</p>
-                                <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: colors.text.dim }}>Done</p>
-                              </div>
-                              <div className="rounded-xl p-3 text-center" style={{ background: accentAlpha(0.06) }}>
-                                <p className="text-xl font-bold leading-none" style={{ color: colors.text.heading }}>{sub.numSessions}</p>
-                                <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: colors.text.dim }}>Total</p>
-                              </div>
-                              <div className="rounded-xl p-3 text-center" style={{ background: accentAlpha(0.06) }}>
-                                <p className="text-base font-bold leading-none" style={{ color: colors.text.heading }}>{formatINR(sub.amountPaid)}</p>
-                                <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: colors.text.dim }}>Paid</p>
-                              </div>
-                            </div>
-
-                            {/* Progress bar */}
+                            {/* Session progress — hero element */}
                             <div className="mb-4">
-                              <div className="flex justify-between items-center mb-1.5">
-                                <span className="text-[10px] uppercase tracking-wide" style={{ color: colors.text.dim }}>Progress</span>
-                                <span className="text-[10px] font-medium" style={{ color: colors.text.muted }}>
-                                  {sessionsCompleted} / {sub.numSessions} sessions
-                                </span>
+                              <div className="flex items-end justify-between mb-2">
+                                <div>
+                                  <p className="leading-none" style={{ color: colors.text.heading }}>
+                                    <span className="text-3xl font-bold">{sessionsCompleted}</span>
+                                    <span className="text-lg font-medium ml-1.5" style={{ color: colors.text.muted }}>
+                                      / {sub.numSessions}
+                                    </span>
+                                  </p>
+                                  <p className="text-[10px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
+                                    sessions completed
+                                  </p>
+                                </div>
+                                <p
+                                  className="text-2xl font-bold leading-none mb-0.5"
+                                  style={{
+                                    color: progressPct >= 100
+                                      ? palette.green.text
+                                      : progressPct > 0
+                                        ? colors.accent
+                                        : colors.text.dim,
+                                  }}
+                                >
+                                  {Math.round(progressPct)}%
+                                </p>
                               </div>
-                              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: accentAlpha(0.10) }}>
+                              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: accentAlpha(0.10) }}>
                                 <div
                                   className="h-full rounded-full transition-all"
                                   style={{
                                     width: `${progressPct}%`,
                                     background: progressPct >= 100 ? palette.green.text : colors.accent,
+                                    minWidth: sessionsCompleted > 0 ? '6px' : '0',
                                   }}
                                 />
                               </div>
                             </div>
 
-                            {/* Schedule info — only when enrolled */}
-                            {isEnrolled && enrollment && (
-                              <div className="flex flex-wrap gap-4 mb-4 pb-4 border-b" style={{ borderColor: border.divider }}>
-                                {[
-                                  [<CalendarDays size={11} />, `Starts ${enrollment.startDate}`],
-                                  [<Clock size={11} />, `${enrollment.startTime.slice(0, 5)} · ${enrollment.sessionDurationMinutes}min`],
-                                ].map(([icon, text], i) => (
-                                  <div key={i} className="flex items-center gap-1.5">
-                                    <span style={{ color: colors.text.dim }}>{icon as React.ReactNode}</span>
-                                    <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {/* Details strip: schedule + payment inline */}
+                            <div
+                              className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 pb-4 border-b text-xs"
+                              style={{ borderColor: border.divider, color: colors.text.muted }}
+                            >
+                              {isEnrolled && enrollment && (
+                                <>
+                                  <span className="flex items-center gap-1.5">
+                                    <CalendarDays size={11} style={{ color: colors.text.dim }} />
+                                    {enrollment.startDate}
+                                  </span>
+                                  <span className="flex items-center gap-1.5">
+                                    <Clock size={11} style={{ color: colors.text.dim }} />
+                                    {enrollment.startTime.slice(0, 5)} · {enrollment.sessionDurationMinutes}min
+                                  </span>
+                                </>
+                              )}
+                              <span className="flex items-center gap-1.5">
+                                <IndianRupee size={11} style={{ color: colors.text.dim }} />
+                                {formatINR(sub.amountPaid)} paid
+                                {sub.discountPercent > 0 && ` · ${sub.discountPercent}% off`}
+                              </span>
+                              {sub.paymentNotes && (
+                                <span className="italic">{sub.paymentNotes}</span>
+                              )}
+                            </div>
 
-                            {/* Discount / notes */}
-                            {(sub.discountPercent > 0 || sub.paymentNotes) && !isCancelled && (
-                              <div className="flex gap-4 mb-3 text-xs" style={{ color: colors.text.muted }}>
-                                {sub.discountPercent > 0 && <span>Discount: {sub.discountPercent}%</span>}
-                                {sub.paymentNotes && <span className="italic">{sub.paymentNotes}</span>}
-                              </div>
-                            )}
-
-                            {/* Actions */}
+                            {/* Actions: primary left, destructive right */}
                             {!isCancelled && (
-                              <div className="flex flex-wrap items-center gap-2">
-                                {/* Assign Therapist — paid, not yet enrolled */}
-                                {canEnroll && (
-                                  <button
-                                    onClick={() => setEnrollForSub(sub)}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                    style={{ color: '#fff', background: colors.accent }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                  >
-                                    <UserCheck size={12} />
-                                    Assign Therapist
-                                  </button>
-                                )}
-
-                                {/* View Sessions — enrolled */}
-                                {isEnrolled && enrollment && (
-                                  <button
-                                    onClick={() => setExpandedEnroll(isExpanded ? null : enrollment.id)}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
-                                    style={{ color: colors.text.muted, background: surface.filterStrip }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
-                                  >
-                                    <ClipboardList size={12} />
-                                    {isExpanded ? 'Hide Sessions' : 'View Sessions'}
-                                  </button>
-                                )}
-
-                                {/* Record Payment */}
-                                {canRecordPayment && !isPaid && (
-                                  <button
-                                    onClick={() => setPaymentTarget(sub)}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
-                                    style={{ color: colors.accent, background: accentAlpha(0.08) }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.14)}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
-                                  >
-                                    <IndianRupee size={12} />
-                                    Record Payment
-                                  </button>
-                                )}
-
-                                {/* Pay Now (parent) */}
-                                {isParent && !isPaid && (
-                                  <button
-                                    onClick={() => setMockPayTarget(sub)}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                    style={{ color: '#fff', background: colors.accent }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                  >
-                                    <CreditCard size={12} />
-                                    Pay Now
-                                  </button>
-                                )}
-
-                                {/* Cancel Enrollment */}
-                                {canManageSubs && isEnrolled && enrollment && (
-                                  <button
-                                    onClick={() => cancelEnrollmentMutation.mutate(enrollment.id)}
-                                    disabled={cancelEnrollmentMutation.isPending}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-50"
-                                    style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
-                                  >
-                                    <Ban size={12} /> Cancel Enrollment
-                                  </button>
-                                )}
-
-                                {/* Cancel Plan */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {canEnroll && (
+                                    <button
+                                      onClick={() => setEnrollForSub(sub)}
+                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                      style={{ color: '#fff', background: colors.accent }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                    >
+                                      <UserCheck size={12} /> Assign Therapist
+                                    </button>
+                                  )}
+                                  {isEnrolled && enrollment && (
+                                    <button
+                                      onClick={() => setExpandedEnroll(isExpanded ? null : enrollment.id)}
+                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                                      style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                    >
+                                      <ClipboardList size={12} />
+                                      {isExpanded ? 'Hide Sessions' : 'View Sessions'}
+                                    </button>
+                                  )}
+                                  {canRecordPayment && !isPaid && (
+                                    <button
+                                      onClick={() => setPaymentTarget(sub)}
+                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                      style={{ color: '#fff', background: colors.accent }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                    >
+                                      <IndianRupee size={12} /> Record Payment
+                                    </button>
+                                  )}
+                                  {isParent && !isPaid && (
+                                    <button
+                                      onClick={() => setMockPayTarget(sub)}
+                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                      style={{ color: '#fff', background: colors.accent }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                    >
+                                      <CreditCard size={12} /> Pay Now
+                                    </button>
+                                  )}
+                                </div>
                                 {canManageSubs && (
-                                  <button
-                                    onClick={() => cancelSubMutation.mutate(sub.id)}
-                                    disabled={cancelSubMutation.isPending}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-50 ml-auto"
-                                    style={{ color: colors.status.error, background: 'rgba(239,68,68,0.08)' }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
-                                  >
-                                    <Ban size={12} /> Cancel Plan
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    {isEnrolled && enrollment && (
+                                      <button
+                                        onClick={() => cancelEnrollmentMutation.mutate(enrollment.id)}
+                                        disabled={cancelEnrollmentMutation.isPending}
+                                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                        style={{ color: colors.status.error }}
+                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                      >
+                                        Cancel Enrollment
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => cancelSubMutation.mutate(sub.id)}
+                                      disabled={cancelSubMutation.isPending}
+                                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                      style={{ color: colors.status.error }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                    >
+                                      Cancel Plan
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             )}
