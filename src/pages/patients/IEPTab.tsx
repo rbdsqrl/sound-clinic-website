@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { iepApi } from '../../api/iep'
+import { iepTemplatesApi } from '../../api/iep-templates'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -19,7 +20,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
-  IEPGoalResponse, IEPGoalStatus, IEPGoalDomain,
+  IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse,
   CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest,
 } from '../../types'
 
@@ -421,18 +422,53 @@ function AddPlanModal({ open, onClose, patientId }: {
   patientId: string
 }) {
   const { toast } = useToast()
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<{
+  const qc = useQueryClient()
+  const [selectedTemplate, setSelectedTemplate] = useState<IEPTemplateResponse | null>(null)
+
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<{
     title: string; startDate: string; endDate: string; tags: string
   }>()
 
-  const qc = useQueryClient()
+  const { data: templates = [] } = useQuery({
+    queryKey: ['iep-templates'],
+    queryFn: iepTemplatesApi.list,
+    enabled: open,
+  })
+
+  const pickTemplate = (t: IEPTemplateResponse) => {
+    if (selectedTemplate?.id === t.id) {
+      setSelectedTemplate(null)
+      setValue('title', '')
+      setValue('tags', '')
+    } else {
+      setSelectedTemplate(t)
+      setValue('title', t.name)
+      if (t.tags.length > 0) setValue('tags', t.tags.join(', '))
+    }
+  }
+
+  const handleClose = () => { reset(); setSelectedTemplate(null); onClose() }
+
   const mut = useMutation({
-    mutationFn: (data: CreateIEPPlanRequest) => iepApi.createPlan(patientId, data),
+    mutationFn: async (data: CreateIEPPlanRequest) => {
+      const plan = await iepApi.createPlan(patientId, data)
+      if (selectedTemplate) {
+        for (const g of selectedTemplate.goals) {
+          if (!g.domain) continue
+          await iepApi.addGoal(plan.id, {
+            title: g.title,
+            domain: g.domain,
+            goalStatement: g.goalStatement,
+            baseline: g.baseline,
+            targetCriteria: g.targetCriteria,
+          })
+        }
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
       toast('IEP plan created', 'success')
-      reset()
-      onClose()
+      handleClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to create plan'), 'error'),
   })
@@ -443,7 +479,45 @@ function AddPlanModal({ open, onClose, patientId }: {
   }
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title="New IEP Plan">
+    <Modal open={open} onClose={handleClose} title="New IEP Plan" size="lg">
+      {templates.length > 0 && (
+        <div className="mb-5 pb-5 border-b" style={{ borderColor: border.divider }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: colors.text.dim }}>
+            Start from template <span className="normal-case font-normal tracking-normal" style={{ color: colors.text.muted }}>(optional)</span>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
+            {templates.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => pickTemplate(t)}
+                className="text-left rounded-xl px-3 py-2.5 transition-all"
+                style={selectedTemplate?.id === t.id
+                  ? { border: `1.5px solid ${colors.accent}`, background: accentAlpha(0.06) }
+                  : { border: `1px solid ${border.divider}`, background: surface.card }
+                }
+              >
+                <p className="text-sm font-medium truncate" style={{ color: selectedTemplate?.id === t.id ? colors.accent : colors.text.primary }}>
+                  {t.name}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
+                  {t.goalCount} goal{t.goalCount !== 1 ? 's' : ''}
+                  {t.tags.length > 0 && ` · ${t.tags.slice(0, 2).join(', ')}`}
+                </p>
+              </button>
+            ))}
+          </div>
+          {selectedTemplate && (
+            <p className="text-xs mt-2.5" style={{ color: colors.accent }}>
+              {selectedTemplate.goalCount} goal{selectedTemplate.goalCount !== 1 ? 's' : ''} will be added automatically
+              {' · '}
+              <button type="button" onClick={() => { setSelectedTemplate(null); setValue('title', ''); setValue('tags', '') }} className="underline">
+                Clear
+              </button>
+            </p>
+          )}
+        </div>
+      )}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input label="Plan title" placeholder="e.g. Annual IEP 2025" error={errors.title?.message}
           {...register('title', { required: 'Title is required' })} />
@@ -453,7 +527,7 @@ function AddPlanModal({ open, onClose, patientId }: {
         </div>
         <Input label="Tags" placeholder="speech, language, motor (comma-separated)" {...register('tags')} />
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
+          <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
           <Button type="submit" loading={isSubmitting || mut.isPending}>Create Plan</Button>
         </div>
       </form>
