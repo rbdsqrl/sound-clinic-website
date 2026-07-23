@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Plus, Trash2, ChevronDown, ChevronUp, Pencil, BookOpen } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Pencil, BookOpen, Upload } from 'lucide-react'
 import { iepTemplatesApi } from '../../api/iep-templates'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
@@ -20,6 +20,65 @@ import type {
   IEPGoalDomain,
   CreateIEPTemplateGoalRequest,
 } from '../../types'
+
+// ── CSV parser ────────────────────────────────────────────────────────────────
+
+type CsvGoal = {
+  goalTitle: string
+  domain: IEPGoalDomain
+  goalStatement: string
+  baseline: string
+  targetCriteria: string
+}
+
+type CsvTemplate = {
+  name: string
+  description: string
+  tags: string[]
+  goals: CsvGoal[]
+}
+
+const VALID_DOMAINS = new Set(['AUDITORY','SPEECH','LANGUAGE','SENSORY','MOTOR','SOCIAL','COGNITIVE','LITERACY','ADAPTIVE'])
+
+function parseCsvTemplates(text: string): CsvTemplate[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+
+  // naive CSV split that handles quoted fields
+  const splitRow = (line: string): string[] => {
+    const cols: string[] = []
+    let cur = ''
+    let inQ = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    cols.push(cur.trim())
+    return cols
+  }
+
+  const map = new Map<string, CsvTemplate>()
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitRow(lines[i])
+    const [name, description, tagsRaw, goalTitle, domainRaw, goalStatement, baseline, targetCriteria] = cols
+    if (!name || !goalTitle) continue
+    const domain = domainRaw?.toUpperCase() as IEPGoalDomain
+    if (!VALID_DOMAINS.has(domain)) continue
+
+    if (!map.has(name)) {
+      map.set(name, {
+        name,
+        description: description || '',
+        tags: tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [],
+        goals: [],
+      })
+    }
+    map.get(name)!.goals.push({ goalTitle, domain, goalStatement: goalStatement || '', baseline: baseline || '', targetCriteria: targetCriteria || '' })
+  }
+  return Array.from(map.values())
+}
 
 // ── Domain config ─────────────────────────────────────────────────────────────
 
@@ -435,6 +494,50 @@ export default function IEPLibraryTab() {
   const [modalOpen,        setModalOpen]        = useState(false)
   const [editingTemplate,  setEditingTemplate]  = useState<IEPTemplateResponse | null>(null)
   const [deletingId,       setDeletingId]       = useState<string | null>(null)
+  const [csvImporting,     setCsvImporting]     = useState(false)
+  const csvInputRef = useRef<HTMLInputElement>(null)
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    const text = await file.text()
+    const parsed = parseCsvTemplates(text)
+    if (parsed.length === 0) {
+      toast('No valid templates found in CSV', 'error')
+      return
+    }
+
+    setCsvImporting(true)
+    let created = 0
+    let failed = 0
+    for (const t of parsed) {
+      try {
+        const template = await iepTemplatesApi.create({
+          name: t.name,
+          description: t.description || undefined,
+          tags: t.tags,
+        })
+        for (const g of t.goals) {
+          try {
+            await iepTemplatesApi.addGoal(template.id, {
+              title: g.goalTitle,
+              domain: g.domain,
+              goalStatement: g.goalStatement || undefined,
+              baseline: g.baseline || undefined,
+              targetCriteria: g.targetCriteria || undefined,
+            })
+          } catch { /* skip individual goal failures */ }
+        }
+        created++
+      } catch { failed++ }
+    }
+    setCsvImporting(false)
+    qc.invalidateQueries({ queryKey: ['iep-templates'] })
+    if (created > 0) toast(`${created} template${created !== 1 ? 's' : ''} imported`, 'success')
+    if (failed > 0) toast(`${failed} template${failed !== 1 ? 's' : ''} failed`, 'error')
+  }
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ['iep-templates'],
@@ -477,9 +580,21 @@ export default function IEPLibraryTab() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => { setEditingTemplate(null); setModalOpen(true) }}>
-            <Plus size={14} /> New Template
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleCsvUpload}
+            />
+            <Button variant="secondary" loading={csvImporting} onClick={() => csvInputRef.current?.click()}>
+              <Upload size={14} /> Import CSV
+            </Button>
+            <Button onClick={() => { setEditingTemplate(null); setModalOpen(true) }}>
+              <Plus size={14} /> New Template
+            </Button>
+          </div>
         )}
       </div>
 
