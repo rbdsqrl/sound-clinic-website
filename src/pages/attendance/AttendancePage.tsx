@@ -258,12 +258,16 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       })
     },
     onSuccess: (data: AttendanceResponse) => {
+      if (cameraActive) setFaceMatchStatus('matched')
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
       toast('Checked out successfully', 'success')
       stopCamera()
     },
-    onError: (err) => toast(getApiError(err, 'Check-out failed'), 'error'),
+    onError: (err) => {
+      if (cameraActive) setFaceMatchStatus('no-match')
+      toast(getApiError(err, 'Check-out failed'), 'error')
+    },
   })
 
   const verifyMut = useMutation({
@@ -432,8 +436,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               {faceMatchStatus === 'matched'  ? 'Face matched' :
                faceMatchStatus === 'no-match' ? 'Face not recognised' :
                faceMatchStatus === 'checking' ? 'Matching…' :
-               scanStatus === 'detected' ? 'Face detected' :
-               scanStatus === 'scanning' ? 'Detecting face…' : 'Live'}
+               scanStatus === 'detected'      ? 'Face detected' :
+               scanStatus === 'scanning'      ? 'Detecting face…' : 'Live'}
             </div>
           </div>
           {faceMatchStatus === 'no-match' && (
@@ -577,7 +581,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
-                onClick={() => verifyMut.mutate()}
+                onClick={() => { setFaceMatchStatus('checking'); verifyMut.mutate() }}
                 loading={verifyMut.isPending}
                 disabled={!geoStatus || geoStatus === 'loading'}
               >
@@ -714,9 +718,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                       }`} />
                       {faceMatchStatus === 'matched'  ? 'Face matched' :
                        faceMatchStatus === 'no-match' ? 'Face not recognised' :
-                       faceMatchStatus === 'checking' ? 'Verifying…' :
-                       scanStatus === 'scanning' ? 'Scanning…' :
-                       scanStatus === 'detected' ? 'Face detected' : 'Live'}
+                       faceMatchStatus === 'checking' ? 'Matching…' :
+                       scanStatus === 'detected'      ? 'Face detected' :
+                       scanStatus === 'scanning'      ? 'Detecting face…' : 'Live'}
                     </div>
                   </div>
                   {faceMatchStatus === 'no-match' && (
@@ -768,7 +772,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 </>
               ) : checkedIn ? (
                 <Button
-                  onClick={() => checkOutMut.mutate()}
+                  onClick={() => { if (cameraActive) setFaceMatchStatus('checking'); checkOutMut.mutate() }}
                   loading={isWorking}
                 >
                   <LogOut size={15} />
