@@ -1939,15 +1939,20 @@ export default function PatientDetailPage() {
                 {!patient.conditions.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div>
                     {patient.conditions.map((c) => (
                       <div
                         key={c.id}
-                        className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={paletteStyle('blue', 0.07, 0.12)}
+                        className="flex items-start justify-between gap-3 py-3 border-b last:border-0"
+                        style={{ borderColor: border.divider }}
                       >
-                        <div className="flex items-center gap-3">
-                          <Heart size={15} style={{ color: palette.blue.text }} />
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: accentAlpha(0.08) }}
+                          >
+                            <Heart size={13} style={{ color: colors.accent }} />
+                          </div>
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
                             {c.diagnosedAt && (
@@ -1975,15 +1980,20 @@ export default function PatientDetailPage() {
                 {!patient.parents.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div>
                     {patient.parents.map((p) => (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={paletteStyle('green', 0.07, 0.12)}
+                        className="flex items-center justify-between gap-3 py-3 border-b last:border-0"
+                        style={{ borderColor: border.divider }}
                       >
                         <div className="flex items-center gap-3">
-                          <Users size={15} style={{ color: palette.green.text }} />
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                            style={styles.avatar}
+                          >
+                            {p.firstName[0]}{p.lastName[0]}
+                          </div>
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
@@ -2006,15 +2016,20 @@ export default function PatientDetailPage() {
                 {!patient.therapists.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div>
                     {patient.therapists.map((t) => (
                       <div
                         key={t.id}
-                        className="flex items-center justify-between rounded-xl px-4 py-3"
-                        style={paletteStyle('purple', 0.07, 0.12)}
+                        className="flex items-center justify-between gap-3 py-3 border-b last:border-0"
+                        style={{ borderColor: border.divider }}
                       >
                         <div className="flex items-center gap-3">
-                          <UserCheck size={15} style={{ color: palette.purple.text }} />
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                            style={styles.avatar}
+                          >
+                            {t.firstName[0]}{t.lastName[0]}
+                          </div>
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
