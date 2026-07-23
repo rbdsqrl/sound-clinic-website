@@ -532,9 +532,7 @@ export default function OrganisationPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors flex-shrink-0 whitespace-nowrap"
-            style={tab === t.key
-              ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
-              : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
+            style={tab === t.key ? styles.tabActive : styles.tabInactive}
           >
             {t.label}
           </button>
@@ -653,7 +651,7 @@ export default function OrganisationPage() {
                 <p className="text-sm" style={{ color: colors.text.muted }}>No public holidays defined yet</p>
               </div>
             ) : (
-              <div className="divide-y" style={{ borderColor: border.divider }}>
+              <div className="divide-subtle">
                 {holidays.map(h => (
                   <div key={h.id} className="flex items-center justify-between py-3">
                     <div>

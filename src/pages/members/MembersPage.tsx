@@ -397,23 +397,19 @@ export default function MembersPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => { setTab(t.key); setSearch(''); setRoleFilter(''); setClinicFilter('') }}
-              className="flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5"
-              style={tab === t.key
-                ? { background: colors.accent, color: '#fff' }
-                : { background: accentAlpha(0.07), color: colors.text.muted }}
+              className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors flex items-center gap-1.5"
+              style={tab === t.key ? styles.tabActive : styles.tabInactive}
             >
               {t.label}
               {t.count !== undefined && (
                 <span
                   className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                  style={tab === t.key
-                    ? { background: 'rgba(255,255,255,0.25)', color: '#fff' }
-                    : { background: accentAlpha(0.12), color: colors.accent }}
+                  style={{ background: accentAlpha(0.12), color: colors.accent }}
                 >
                   {t.count}
                 </span>

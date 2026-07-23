@@ -138,8 +138,7 @@ function GoalItem({
 }) {
   return (
     <div
-      className="flex items-start gap-3 py-3 px-1 border-b last:border-b-0"
-      style={{ borderColor: border.divider }}
+      className="flex items-start gap-3 py-3 px-1"
     >
       <div className="w-2 h-2 rounded-sm mt-1.5 flex-shrink-0" style={{ background: colors.accent }} />
       <div className="flex-1 min-w-0">
@@ -335,7 +334,7 @@ function TemplateCard({
 
         {/* Expanded goals */}
         {expanded && (
-          <div className="px-5 pb-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <div className="px-5 pb-4 divide-subtle" style={{ borderTop: `1px solid ${border.divider}` }}>
             {template.goals.length === 0 ? (
               <p className="text-xs py-3" style={{ color: colors.text.dim }}>
                 No goals yet.{canManage ? ' Add the first goal below.' : ''}

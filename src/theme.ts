@@ -266,6 +266,22 @@ export const styles = {
     boxShadow:  shadow.logo,
   } as React.CSSProperties,
 
+  /**
+   * Primary tab navigation (underline style).
+   * Container must have className="flex border-b" + style={{ borderColor: border.divider }}.
+   * Each button must have className="... -mb-px" so the 2px active border overlaps
+   * the container's 1px bottom border, producing a clean underline effect.
+   */
+  tabActive: {
+    color:        colors.accent,
+    borderBottom: `2px solid ${colors.accent}`,
+  } as React.CSSProperties,
+
+  tabInactive: {
+    color:        colors.text.muted,
+    borderBottom: '2px solid transparent',
+  } as React.CSSProperties,
+
   /** Active nav item */
   navActive: {
     background: accentAlpha(0.10),
@@ -305,17 +321,21 @@ export const styles = {
     color:      colors.accent,
   } as React.CSSProperties,
 
-  /** Filter tab — selected */
+  /**
+   * Filter chips — sub-filtering within a section.
+   * Both states have a visible border; active gets an accent tint.
+   * Use className="rounded-full px-3 py-1.5 text-xs font-medium transition-all".
+   */
   filterTabActive: {
-    background: accentAlpha(0.10),
+    background: accentAlpha(0.09),
     color:      colors.accent,
-    border:     `1px solid ${accentAlpha(0.22)}`,
+    border:     `1px solid ${accentAlpha(0.28)}`,
   } as React.CSSProperties,
 
-  /** Filter tab — idle */
   filterTabInactive: {
-    color:  colors.text.dim,
-    border: '1px solid transparent',
+    background: 'transparent',
+    color:      colors.text.muted,
+    border:     `1px solid ${borderAlpha(0.14)}`,
   } as React.CSSProperties,
 
   /** Appointment time block */

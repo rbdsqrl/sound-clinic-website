@@ -4,7 +4,7 @@ import AttendancePage from '../attendance/AttendancePage'
 import AttendanceManagementPage from '../attendance/AttendanceManagementPage'
 import MyLeavePage from '../leave/MyLeavePage'
 import LeaveManagementPage from '../leave/LeaveManagementPage'
-import { colors, border } from '../../theme'
+import { colors, border, styles } from '../../theme'
 import type { Role } from '../../types'
 
 type TabKey = 'my-attendance' | 'staff-attendance' | 'my-leave' | 'leave-requests'
@@ -62,9 +62,7 @@ export default function WorkforcePage() {
             key={t.key}
             onClick={() => setActiveTab(t.key)}
             className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap flex-shrink-0"
-            style={currentTab.key === t.key
-              ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
-              : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
+            style={currentTab.key === t.key ? styles.tabActive : styles.tabInactive}
           >
             {t.label}
           </button>

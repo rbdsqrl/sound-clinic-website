@@ -325,4 +325,23 @@
     border-color: rgba(var(--color-accent-raw), 0.35);
     box-shadow:   0 0 12px rgba(var(--color-accent-raw), 0.14);
   }
+
+  /*
+   * .divide-subtle  —  use this instead of Tailwind's `divide-y` whenever you
+   * need list rows separated by the theme's subtle divider.
+   *
+   * Why not `divide-y` + inline borderColor?  CSS `border-color` is NOT an
+   * inherited property, so the inline style on the parent never reaches the
+   * child borders that `divide-y` creates — they fall back to currentColor
+   * (near-white in dark mode) and look far too heavy.
+   *
+   * This class bakes `var(--border-divider)` directly into the rule so every
+   * child border automatically follows the active theme token.
+   */
+  .divide-subtle > * {
+    border-bottom: 1px solid var(--border-divider);
+  }
+  .divide-subtle > *:last-child {
+    border-bottom: none;
+  }
 }

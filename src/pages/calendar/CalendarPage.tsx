@@ -50,9 +50,11 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
     return { background: '#F59E0B20', color: '#B45309' }
   }
   if (kind === 'session') {
-    if (status === 'PENDING_RESCHEDULE') return { background: '#F59E0B18', color: '#B45309' }
+    if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309' }
     if (status === 'CANCELLATION_REQUESTED') return { background: '#EF444418', color: '#dc2626' }
-    if (status === 'CANCELLED' || status === 'NO_SHOW') return { background: '#88888818', color: '#888' }
+    if (status === 'CANCELLED')             return { background: '#88888818', color: '#888' }
+    if (status === 'NO_SHOW')               return { background: '#f9731620', color: '#ea580c' }
+    if (status === 'COMPLETED')             return { background: '#10b98118', color: '#059669' }
     return { background: `rgba(${palette.purple.raw}, 0.1)`, color: palette.purple.text }
   }
   // leave — approved = red, pending = amber, rejected = muted
@@ -65,9 +67,11 @@ function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#2B80C8'
   if (kind === 'holiday')      return '#B45309'
   if (kind === 'session') {
-    if (status === 'PENDING_RESCHEDULE') return '#B45309'
+    if (status === 'PENDING_RESCHEDULE')    return '#B45309'
     if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
-    if (status === 'CANCELLED' || status === 'NO_SHOW') return '#888'
+    if (status === 'CANCELLED')             return '#888'
+    if (status === 'NO_SHOW')               return '#f97316'
+    if (status === 'COMPLETED')             return '#10b981'
     return palette.purple.text
   }
   if (status === 'APPROVED')   return '#E05C5C'
@@ -763,7 +767,7 @@ function EventDetailDrawer({
                         <button
                           key={opt.value}
                           disabled={updateSessionMut.isPending}
-                          onClick={() => updateSessionMut.mutate({ status: opt.value })}
+                          onClick={() => updateSessionMut.mutate({ status: opt.value, notes: sessionNotes || undefined })}
                           className="text-sm font-medium px-3 py-2 rounded-xl text-left transition-colors"
                           style={kindStyle('session', opt.value)}
                           onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}

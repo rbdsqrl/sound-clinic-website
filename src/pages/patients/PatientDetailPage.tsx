@@ -1765,13 +1765,13 @@ export default function PatientDetailPage() {
           </Card>
 
           {/* ── Tab strip ────────────────────────────────────────────────────── */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
             {TABS.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-all"
-                style={activeTab === tab ? styles.filterTabActive : styles.filterTabInactive}
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+                style={activeTab === tab ? styles.tabActive : styles.tabInactive}
               >
                 {tab}
               </button>
@@ -1939,12 +1939,11 @@ export default function PatientDetailPage() {
                 {!patient.conditions.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
                 ) : (
-                  <div>
+                  <div className="divide-subtle">
                     {patient.conditions.map((c) => (
                       <div
                         key={c.id}
-                        className="flex items-start justify-between gap-3 py-3 border-b last:border-0"
-                        style={{ borderColor: border.divider }}
+                        className="flex items-start justify-between gap-3 py-3"
                       >
                         <div className="flex items-start gap-3">
                           <div
@@ -1980,12 +1979,11 @@ export default function PatientDetailPage() {
                 {!patient.parents.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
                 ) : (
-                  <div>
+                  <div className="divide-subtle">
                     {patient.parents.map((p) => (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between gap-3 py-3 border-b last:border-0"
-                        style={{ borderColor: border.divider }}
+                        className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
                           <div
@@ -2016,12 +2014,11 @@ export default function PatientDetailPage() {
                 {!patient.therapists.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
                 ) : (
-                  <div>
+                  <div className="divide-subtle">
                     {patient.therapists.map((t) => (
                       <div
                         key={t.id}
-                        className="flex items-center justify-between gap-3 py-3 border-b last:border-0"
-                        style={{ borderColor: border.divider }}
+                        className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
                           <div

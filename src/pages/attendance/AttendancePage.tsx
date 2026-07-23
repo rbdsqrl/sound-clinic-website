@@ -374,9 +374,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         fill="none"
         stroke={ovalColor}
         strokeWidth="2.5"
-        strokeDasharray={scanStatus === 'scanning' && faceMatchStatus === 'idle' ? '10 5' : undefined}
+        strokeDasharray={(scanStatus === 'scanning' || enrollMode) && faceMatchStatus === 'idle' ? '10 5' : undefined}
       />
-      {scanStatus === 'scanning' && faceMatchStatus === 'idle' && (
+      {(scanStatus === 'scanning' || enrollMode) && faceMatchStatus === 'idle' && (
         <text x="200" y="284" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="10" fontWeight="500">
           Position your face in the oval
         </text>
@@ -407,7 +407,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               className="w-full h-full object-cover"
             />
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-            {!enrollMode && FaceGuideOverlay}
+            {FaceGuideOverlay}
             <div
               className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
               style={{
@@ -687,7 +687,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                       className="w-full h-full object-cover"
                     />
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-                    {!enrollMode && FaceGuideOverlay}
+                    {FaceGuideOverlay}
                     <div
                       className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
                       style={{

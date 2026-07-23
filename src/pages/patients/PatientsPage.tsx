@@ -233,9 +233,7 @@ export default function PatientsPage() {
               key={t}
               onClick={() => setTab(t)}
               className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap"
-              style={tab === t
-                ? { color: colors.accent, borderBottom: `2px solid ${colors.accent}` }
-                : { color: colors.text.muted, borderBottom: '2px solid transparent' }}
+              style={tab === t ? styles.tabActive : styles.tabInactive}
             >
               {t === 'all' ? 'All Cases' : 'My Cases'}
             </button>
@@ -287,9 +285,7 @@ export default function PatientsPage() {
               key={key}
               onClick={() => toggleFilter(key)}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all"
-              style={active
-                ? { background: accentAlpha(0.10), color: colors.accent, border: `1px solid ${accentAlpha(0.22)}` }
-                : { background: 'transparent', color: colors.text.dim, border: `1px solid ${border.divider}` }}
+              style={active ? styles.filterTabActive : styles.filterTabInactive}
             >
               {active
                 ? <Check size={11} strokeWidth={3} />
