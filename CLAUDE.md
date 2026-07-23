@@ -4,6 +4,12 @@ Developer context for AI assistants working on this codebase.
 
 ---
 
+## IMPORTANT: Design System
+
+**Before making any UI changes, read `DESIGN.md` in this directory.** It defines the canonical rules for colours, borders, tabs, badges, typography, cards, and common anti-patterns. Violations (e.g. `borderColor: border.card`, hardcoded hex colours, raw role/status strings) are bugs.
+
+---
+
 ## Tech Stack
 
 | Layer          | Technology                                  |

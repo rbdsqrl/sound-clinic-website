@@ -16,8 +16,8 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useAuth } from '../contexts/AuthContext'
-import { roleBadge } from '../components/ui/Badge'
-import { colors, styles, border, palette, rgba, surface, accentAlpha } from '../theme'
+import { roleBadge, sessionStatusLabel } from '../components/ui/Badge'
+import { colors, styles, border, palette, rgba, surface, accentAlpha, successAlpha, dangerAlpha, warningAlpha } from '../theme'
 import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
@@ -55,9 +55,9 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
               <span key={dow}
                 className="h-6 w-6 rounded-full text-[10px] font-bold flex items-center justify-center"
                 style={{
-                  background: active ? (dateDow === dow ? '#16a34a18' : accentAlpha(0.12)) : '#f1f1f1',
-                  color: active ? (dateDow === dow ? '#16a34a' : colors.accent) : colors.text.dim,
-                  border: dateDow === dow ? `1.5px solid ${active ? '#16a34a' : '#f87171'}` : 'none',
+                  background: active ? (dateDow === dow ? successAlpha(0.12) : accentAlpha(0.12)) : accentAlpha(0.04),
+                  color: active ? (dateDow === dow ? colors.status.success : colors.accent) : colors.text.dim,
+                  border: dateDow === dow ? `1.5px solid ${active ? colors.status.success : colors.status.danger}` : 'none',
                 }}>
                 {DOW_SHORT[dow]}
               </span>
@@ -69,12 +69,12 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
       {/* Date-specific feedback */}
       {date && (
         matchedSlots.length > 0 ? (
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#16a34a' }}>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.status.success }}>
             <CheckCircle2 size={12} />
             Available {matchedSlots.map(s => `${s.startTime.slice(0,5)}–${s.endTime.slice(0,5)}`).join(', ')}
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#d97706' }}>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.status.warning }}>
             <AlertTriangle size={12} />
             Not scheduled on {dateDow ? dateDow.charAt(0) + dateDow.slice(1).toLowerCase() + 's' : 'this day'}
           </div>
@@ -85,18 +85,18 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
 }
 
 function sessionStatusIcon(status: string) {
-  if (status === 'COMPLETED') return <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
-  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={14} style={{ color: '#dc2626' }} />
-  if (status === 'PENDING_RESCHEDULE') return <AlertTriangle size={14} style={{ color: '#d97706' }} />
-  if (status === 'CANCELLATION_REQUESTED') return <XCircle size={14} style={{ color: '#dc2626' }} />
+  if (status === 'COMPLETED') return <CheckCircle2 size={14} style={{ color: colors.status.success }} />
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={14} style={{ color: colors.status.danger }} />
+  if (status === 'PENDING_RESCHEDULE') return <AlertTriangle size={14} style={{ color: colors.status.warning }} />
+  if (status === 'CANCELLATION_REQUESTED') return <XCircle size={14} style={{ color: colors.status.danger }} />
   return <Circle size={14} style={{ color: colors.text.dim }} />
 }
 
 function statusColor(status: string): string {
-  if (status === 'COMPLETED') return '#16a34a'
-  if (status === 'CANCELLED' || status === 'NO_SHOW') return '#dc2626'
-  if (status === 'PENDING_RESCHEDULE') return '#d97706'
-  if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
+  if (status === 'COMPLETED') return colors.status.success
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return colors.status.danger
+  if (status === 'PENDING_RESCHEDULE') return colors.status.warning
+  if (status === 'CANCELLATION_REQUESTED') return colors.status.danger
   return palette.purple.text
 }
 
@@ -143,7 +143,7 @@ function TodaySessions({
         </span>
         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
           style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
-          {s.status.replace(/_/g, ' ')}
+          {sessionStatusLabel(s.status)}
         </span>
       </div>
     </>
@@ -353,15 +353,15 @@ function RescheduleModal({
 function rescheduleReasonBadge(reason: RescheduleReason | null | undefined) {
   if (reason === 'PUBLIC_HOLIDAY') return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: '#2563eb18', color: '#2563eb' }}>Holiday</span>
+      style={{ background: `rgba(${palette.blue.raw}, 0.09)`, color: palette.blue.text }}>Holiday</span>
   )
   if (reason === 'PARENT_REQUEST') return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: '#7c3aed18', color: '#7c3aed' }}>Parent request</span>
+      style={{ background: `rgba(${palette.purple.raw}, 0.09)`, color: palette.purple.text }}>Parent request</span>
   )
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: '#d9770618', color: '#d97706' }}>Therapist leave</span>
+      style={{ background: warningAlpha(0.09), color: colors.status.warning }}>Therapist leave</span>
   )
 }
 
@@ -417,7 +417,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
       <button
         onClick={() => setSelected(s)}
         className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-        style={{ background: '#d9770618', color: '#d97706' }}
+        style={{ background: warningAlpha(0.09), color: colors.status.warning }}
       >
         <RefreshCw size={12} /> Reschedule
       </button>
@@ -426,16 +426,16 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
 
   return (
     <>
-      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid #d97706` }}>
+      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.warning}` }}>
         <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
           style={{ borderBottom: `1px solid ${border.divider}` }}>
           <div className="flex items-center gap-2">
-            <AlertTriangle size={16} style={{ color: '#d97706' }} />
+            <AlertTriangle size={16} style={{ color: colors.status.warning }} />
             <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
               Needs Rescheduling
             </h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-              style={{ background: '#d9770618', color: '#d97706' }}>
+              style={{ background: warningAlpha(0.09), color: colors.status.warning }}>
               {sessions.length}
             </span>
           </div>
@@ -451,7 +451,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
             <button
               onClick={() => setShowAll(true)}
               className="text-xs font-medium"
-              style={{ color: '#d97706' }}
+              style={{ color: colors.status.warning }}
             >
               View all {sessions.length} sessions
             </button>
@@ -539,14 +539,14 @@ function CancellationRequestsPanel({ sessions, onDone }: {
             disabled={approveMut.isPending || rejectMut.isPending}
             onClick={() => approveMut.mutate(s.id)}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
-            style={{ background: '#EF444418', color: '#dc2626' }}>
+            style={{ background: dangerAlpha(0.09), color: colors.status.danger }}>
             Approve
           </button>
           <button
             disabled={approveMut.isPending || rejectMut.isPending}
             onClick={() => rejectMut.mutate(s.id)}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
-            style={{ background: '#16a34a18', color: '#16a34a' }}>
+            style={{ background: successAlpha(0.09), color: colors.status.success }}>
             Reject
           </button>
         </div>
@@ -556,16 +556,16 @@ function CancellationRequestsPanel({ sessions, onDone }: {
 
   return (
     <>
-      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: '3px solid #dc2626' }}>
+      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.danger}` }}>
         <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
           style={{ borderBottom: `1px solid ${border.divider}` }}>
           <div className="flex items-center gap-2">
-            <XCircle size={16} style={{ color: '#dc2626' }} />
+            <XCircle size={16} style={{ color: colors.status.danger }} />
             <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
               Cancellation Requests
             </h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-              style={{ background: '#EF444418', color: '#dc2626' }}>
+              style={{ background: dangerAlpha(0.09), color: colors.status.danger }}>
               {sessions.length}
             </span>
           </div>
@@ -578,7 +578,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
-            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: '#dc2626' }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.status.danger }}>
               View all {sessions.length} requests
             </button>
           </div>
@@ -605,8 +605,8 @@ function dayLabel(days: number): string {
 }
 
 function dayColor(days: number): string {
-  if (days === 0) return '#16a34a'
-  if (days <= 7)  return '#d97706'
+  if (days === 0) return colors.status.success
+  if (days <= 7)  return colors.status.warning
   return palette.purple.text
 }
 
@@ -702,9 +702,9 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
 const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
 
 function scoreColor(score: number): string {
-  if (score <= 2) return '#dc2626'
-  if (score === 3) return '#d97706'
-  return '#16a34a'
+  if (score <= 2) return colors.status.danger
+  if (score === 3) return colors.status.warning
+  return colors.status.success
 }
 
 function SessionUpdateModal({
@@ -794,8 +794,8 @@ function SessionUpdateModal({
             <p className="form-label">Mark session as</p>
             <div className="flex gap-2">
               {([
-                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
-                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
+                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: colors.status.success },
+                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: colors.status.warning },
               ]).map(opt => (
                 <button
                   key={opt.value}
@@ -811,7 +811,7 @@ function SessionUpdateModal({
                 disabled={statusMut.isPending || cancelRequestMut.isPending}
                 onClick={() => cancelRequestMut.mutate()}
                 className="flex-1 text-xs font-semibold py-2.5 rounded-xl transition-opacity disabled:opacity-50"
-                style={{ background: '#EF444418', color: '#dc2626' }}
+                style={{ background: dangerAlpha(0.09), color: colors.status.danger }}
               >
                 Request Cancel
               </button>
@@ -882,8 +882,8 @@ function SessionUpdateModal({
 }
 
 function priorityColor(p: TaskPriority): string {
-  if (p === 'HIGH')   return '#dc2626'
-  if (p === 'MEDIUM') return '#d97706'
+  if (p === 'HIGH')   return colors.status.danger
+  if (p === 'MEDIUM') return colors.status.warning
   return palette.blue.text
 }
 
@@ -893,9 +893,9 @@ function dueDateLabel(dueDate: string | null): { label: string; color: string } 
   const now  = new Date()
   now.setHours(0, 0, 0, 0)
   const diff = Math.round((due.getTime() - now.getTime()) / 86400000)
-  if (diff < 0)  return { label: `${Math.abs(diff)}d overdue`, color: '#dc2626' }
-  if (diff === 0) return { label: 'Due today',   color: '#d97706' }
-  if (diff === 1) return { label: 'Due tomorrow', color: '#d97706' }
+  if (diff < 0)  return { label: `${Math.abs(diff)}d overdue`, color: colors.status.danger }
+  if (diff === 0) return { label: 'Due today',   color: colors.status.warning }
+  if (diff === 1) return { label: 'Due tomorrow', color: colors.status.warning }
   return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
 }
 

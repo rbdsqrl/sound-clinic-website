@@ -854,7 +854,7 @@ export default function InquiriesPage() {
         </div>
         {/* Main tab toggle: Inquiries | Analytics */}
         <div className="flex rounded-xl overflow-hidden border flex-shrink-0 self-start"
-          style={{ borderColor: border.card }}>
+          style={{ borderColor: border.divider }}>
           <button onClick={() => setMainTab('list')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
             style={mainTab === 'list' ? styles.filterTabActive : styles.filterTabInactive}>
@@ -886,7 +886,7 @@ export default function InquiriesPage() {
           ))}
         </div>
         <div className="flex rounded-xl overflow-hidden border flex-shrink-0"
-          style={{ borderColor: border.card }}>
+          style={{ borderColor: border.divider }}>
           <button onClick={() => setPageView('list')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
             style={pageView === 'list' ? styles.filterTabActive : styles.filterTabInactive}>

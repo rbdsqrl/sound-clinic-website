@@ -723,8 +723,8 @@ export default function OrganisationPage() {
                       <span
                         className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
                         style={clinic.isActive
-                          ? { background: 'rgba(16,185,129,0.10)', color: '#059669' }
-                          : { background: 'rgba(239,68,68,0.10)',  color: '#dc2626' }}
+                          ? { background: successAlpha(0.10), color: colors.status.success }
+                          : { background: dangerAlpha(0.10),  color: colors.status.danger }}
                       >
                         {clinic.isActive ? 'Active' : 'Inactive'}
                       </span>

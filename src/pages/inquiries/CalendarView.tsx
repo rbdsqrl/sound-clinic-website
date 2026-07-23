@@ -371,7 +371,7 @@ export function CalendarView({
         </button>
 
         {/* View toggle — hidden below sm since week view is unusable on narrow screens */}
-        <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.card }}>
+        <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
           {(['month', 'week'] as ViewMode[]).map(m => (
             <button key={m} onClick={() => setViewMode(m)}
               className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"

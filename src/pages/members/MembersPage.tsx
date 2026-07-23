@@ -206,7 +206,7 @@ function MemberRow({
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
 
   return (
-    <tr className="border-b" style={{ borderColor: border.card }}>
+    <tr className="border-b" style={{ borderColor: border.divider }}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div
@@ -564,7 +564,7 @@ export default function MembersPage() {
                 </thead>
                 <tbody>
                   {filteredInvites.map(inv => (
-                    <tr key={inv.id} className="border-b" style={{ borderColor: border.card }}>
+                    <tr key={inv.id} className="border-b" style={{ borderColor: border.divider }}>
                       <td className="px-4 py-3 max-w-[200px] truncate" style={{ color: colors.text.primary }}>{inv.email}</td>
                       <td className="px-4 py-3">{roleBadge(inv.role)}</td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.text.muted }}>{inv.clinicName ?? '—'}</td>

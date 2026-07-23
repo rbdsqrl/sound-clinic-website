@@ -25,7 +25,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
 import { useAuth } from '../../contexts/AuthContext'
-import { colors, border, surface, accentAlpha, paletteStyle, styles, palette } from '../../theme'
+import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette } from '../../theme'
 import { format } from 'date-fns'
 import type {
   AddConditionRequest,
@@ -604,7 +604,7 @@ function MockRazorpayModal({
         ) : (
           <div className="flex flex-col items-center py-6 text-center">
             <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ background: '#4CAF5022', color: '#4CAF50' }}>
+              style={{ background: successAlpha(0.13), color: colors.status.success }}>
               <ShieldCheck size={32} />
             </div>
             <h3 className="text-lg font-bold mb-1" style={{ color: colors.text.heading }}>Payment Successful!</h3>
@@ -629,9 +629,9 @@ function MockRazorpayModal({
 const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
 
 function scoreColor(score: number): string {
-  if (score <= 2) return '#dc2626'
-  if (score === 3) return '#d97706'
-  return '#16a34a'
+  if (score <= 2) return colors.status.danger
+  if (score === 3) return colors.status.warning
+  return colors.status.success
 }
 
 function ScoreSparkline({ sessions }: { sessions: TherapySessionResponse[] }) {
@@ -680,7 +680,7 @@ function MiniDonut({ done, total }: { done: number; total: number }) {
         fill="none" strokeWidth="4.5" strokeLinecap="round"
         strokeDasharray={`${dash} ${circ}`}
         transform="rotate(-90 22 22)"
-        style={{ stroke: '#16a34a', transition: 'stroke-dasharray 0.35s ease' }}
+        style={{ stroke: colors.status.success, transition: 'stroke-dasharray 0.35s ease' }}
       />
       <text x="22" y="27" textAnchor="middle" fontSize="9" fontWeight="700"
         style={{ fill: colors.text.primary, fontFamily: 'inherit' }}>
@@ -692,21 +692,21 @@ function MiniDonut({ done, total }: { done: number; total: number }) {
 
 function sessionRowIcon(status: string) {
   if (status === 'COMPLETED')
-    return <CheckCircle2 size={14} className="flex-shrink-0" style={{ color: '#16a34a' }} />
+    return <CheckCircle2 size={14} className="flex-shrink-0" style={{ color: colors.status.success }} />
   if (status === 'CANCELLED' || status === 'NO_SHOW')
-    return <XCircle size={14} className="flex-shrink-0" style={{ color: '#dc2626' }} />
+    return <XCircle size={14} className="flex-shrink-0" style={{ color: colors.status.danger }} />
   if (status === 'PENDING_RESCHEDULE')
-    return <AlertTriangle size={14} className="flex-shrink-0" style={{ color: '#d97706' }} />
+    return <AlertTriangle size={14} className="flex-shrink-0" style={{ color: colors.status.warning }} />
   if (status === 'CANCELLATION_REQUESTED')
-    return <XCircle size={14} className="flex-shrink-0" style={{ color: '#dc2626' }} />
+    return <XCircle size={14} className="flex-shrink-0" style={{ color: colors.status.danger }} />
   return <Circle size={14} className="flex-shrink-0" style={{ color: colors.text.dim }} />
 }
 
 function sessionRowStatusColor(status: string): string {
-  if (status === 'COMPLETED')              return '#16a34a'
-  if (status === 'CANCELLED' || status === 'NO_SHOW') return '#dc2626'
-  if (status === 'PENDING_RESCHEDULE')     return '#d97706'
-  if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
+  if (status === 'COMPLETED')              return colors.status.success
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return colors.status.danger
+  if (status === 'PENDING_RESCHEDULE')     return colors.status.warning
+  if (status === 'CANCELLATION_REQUESTED') return colors.status.danger
   return colors.text.dim
 }
 
@@ -772,9 +772,9 @@ function SessionList({
         <MiniDonut done={completed} total={total} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
-            <span className="text-xs font-medium" style={{ color: '#16a34a' }}>{completed} done</span>
+            <span className="text-xs font-medium" style={{ color: colors.status.success }}>{completed} done</span>
             {missed > 0 && (
-              <span className="text-xs font-medium" style={{ color: '#dc2626' }}>{missed} missed</span>
+              <span className="text-xs font-medium" style={{ color: colors.status.danger }}>{missed} missed</span>
             )}
             <span className="text-xs" style={{ color: colors.text.dim }}>{upcoming} upcoming</span>
           </div>
@@ -782,7 +782,7 @@ function SessionList({
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
               <div
                 className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: '#16a34a' }}
+                style={{ width: `${pct}%`, background: colors.status.success }}
               />
             </div>
             <span className="text-[10px] font-semibold tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
@@ -969,10 +969,10 @@ function SessionNotesModal({
             <p className="form-label">Mark session as</p>
             <div className="flex gap-2">
               {([
-                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: '#16a34a' },
-                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: '#d97706' },
+                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: colors.status.success },
+                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: colors.status.warning },
                 ...(canDirectlyCancel
-                  ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: '#dc2626' }]
+                  ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: colors.status.danger }]
                   : []),
               ]).map(opt => (
                 <button
@@ -990,7 +990,7 @@ function SessionNotesModal({
                   disabled={statusMut.isPending || cancelRequestMut.isPending}
                   onClick={() => cancelRequestMut.mutate()}
                   className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
-                  style={{ background: '#EF444418', color: '#dc2626' }}
+                  style={{ background: dangerAlpha(0.09), color: colors.status.danger }}
                 >
                   Request Cancel
                 </button>
@@ -1153,9 +1153,9 @@ const SESSION_DURATION_OPTIONS = [
 
 
 function sessionStatusIcon(status: TherapySessionStatus) {
-  if (status === 'COMPLETED') return <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
-  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={13} style={{ color: '#dc2626' }} />
-  return <Circle size={13} style={{ color: '#6b7280' }} />
+  if (status === 'COMPLETED') return <CheckCircle2 size={13} style={{ color: colors.status.success }} />
+  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={13} style={{ color: colors.status.danger }} />
+  return <Circle size={13} style={{ color: colors.text.dim }} />
 }
 
 // ── EnrollmentModal ────────────────────────────────────────────────────────────
@@ -1584,7 +1584,7 @@ export default function PatientDetailPage() {
       style={{ color: colors.text.dim }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLElement).style.color = colors.status.danger
-        ;(e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'
+        ;(e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.color = colors.text.dim
@@ -1751,7 +1751,7 @@ export default function PatientDetailPage() {
                     onClick={() => setDeleteConfirm(true)}
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
                     style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                   >
                     <Trash2 size={13} /> Delete
@@ -2261,7 +2261,7 @@ export default function PatientDetailPage() {
                                         disabled={cancelEnrollmentMutation.isPending}
                                         className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
                                         style={{ color: colors.status.error }}
-                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
                                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                                       >
                                         Cancel Enrollment
@@ -2272,7 +2272,7 @@ export default function PatientDetailPage() {
                                       disabled={cancelSubMutation.isPending}
                                       className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
                                       style={{ color: colors.status.error }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
+                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
                                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                                     >
                                       Cancel Plan

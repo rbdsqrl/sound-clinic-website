@@ -21,6 +21,7 @@ import { publicHolidaysApi } from '../../api/publicHolidays'
 import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
+import { sessionStatusLabel, labelFromEnum } from '../../components/ui/Badge'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse } from '../../types'
 import { ROUTES } from '../../lib/routes'
 
@@ -463,7 +464,7 @@ function DayView({
                       {rawSess?.status && rawSess.status !== 'SCHEDULED' && (
                         <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: 'rgba(0,0,0,0.08)' }}>
-                          {rawSess.status.replace(/_/g, ' ')}
+                          {sessionStatusLabel(rawSess.status)}
                         </span>
                       )}
                     </button>
@@ -723,7 +724,7 @@ function EventDetailDrawer({
               )}
               {rawInquiry.status && (
                 <Row icon={<Users size={14} />}
-                  label={`Status: ${rawInquiry.status.replace(/_/g, ' ')}`} />
+                  label={`Status: ${labelFromEnum(rawInquiry.status)}`} />
               )}
             </>
           )}
@@ -739,7 +740,7 @@ function EventDetailDrawer({
               <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold self-start"
                 style={kindStyle('session', rawSession.status)}>
                 <CheckCircle2 size={11} />
-                {rawSession.status.replace(/_/g, ' ')}
+                {sessionStatusLabel(rawSession.status)}
               </div>
               {canAccessNotes && (
                 <div>
@@ -1305,7 +1306,7 @@ export default function CalendarPage() {
           </button>
 
           {/* View toggle — hidden below sm */}
-          <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.card }}>
+          <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
             {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setView(m)}
                 className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
