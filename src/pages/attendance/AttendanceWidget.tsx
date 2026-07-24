@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { LogIn, LogOut, CheckCircle2, Clock } from 'lucide-react'
 import { attendanceApi } from '../../api/attendance'
-import { Modal } from '../../components/ui/Modal'
 import { colors, accentAlpha, successAlpha, dangerAlpha } from '../../theme'
-import AttendancePage from './AttendancePage'
+import { ROUTES } from '../../lib/routes'
 
 function formatTime(iso: string | null) {
   if (!iso) return '—'
@@ -12,7 +11,7 @@ function formatTime(iso: string | null) {
 }
 
 export default function AttendanceWidget() {
-  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
 
   const { data: today, isLoading } = useQuery({
     queryKey: ['attendance', 'today'],
@@ -86,7 +85,7 @@ export default function AttendanceWidget() {
 
         {!checkedOut && (
           <button
-            onClick={() => setOpen(true)}
+            onClick={() => navigate(ROUTES.workforce)}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-opacity hover:opacity-75 min-h-[32px]"
             style={checkedIn
               ? { background: accentAlpha(0.12), color: colors.accent }
@@ -98,9 +97,6 @@ export default function AttendanceWidget() {
         )}
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Attendance" size="lg">
-        <AttendancePage asTab />
-      </Modal>
     </>
   )
 }
