@@ -581,13 +581,13 @@ function TaskDetailModal({
     <>
       <Modal open title={modalTitle} onClose={onClose} size="lg">
         {/* Meta strip */}
-        <div className="flex flex-wrap gap-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <div className="flex flex-wrap items-start gap-x-5 gap-y-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
 
           {/* Status */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
             {canEdit ? (
-              <select className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
+              <select className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer border-0 outline-none"
                 style={{ background: accentAlpha(0.06), color: colors.text.primary }}
                 value={task.status} onChange={e => onStatusChange(e.target.value as TaskStatus)}>
                 {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -603,11 +603,11 @@ function TaskDetailModal({
           </div>
 
           {/* Priority */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
             {canManage ? (
               <select
-                className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
+                className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer border-0 outline-none"
                 style={{ background: accentAlpha(0.06), color: pStyle.color }}
                 value={task.priority}
                 onChange={e => updateMut.mutate({ priority: e.target.value as TaskPriority })}
@@ -617,13 +617,13 @@ function TaskDetailModal({
                 <option value="HIGH">High</option>
               </select>
             ) : (
-              <span className="text-xs font-medium px-2 py-1.5" style={{ color: pStyle.color }}>● {task.priority}</span>
+              <span className="text-xs font-medium" style={{ color: pStyle.color }}>● {task.priority}</span>
             )}
           </div>
 
-          {/* Assignees */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
+          {/* Assignees — compact chips only, full names as tooltip */}
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-1">
               <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
                 Assigned to
               </span>
@@ -637,27 +637,18 @@ function TaskDetailModal({
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {task.assignees.map(a => (
-                <div key={a.id} className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: accentAlpha(0.12), color: colors.accent }}>
-                    {a.firstName[0]}{a.lastName[0]}
-                  </span>
-                  <span className="text-xs" style={{ color: colors.text.primary }}>
-                    {a.firstName} {a.lastName}
-                  </span>
-                </div>
-              ))}
-              {task.assignees.length === 0 && (
-                <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
-              )}
-            </div>
+            {task.assignees.length === 0 ? (
+              <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
+            ) : (
+              <div title={task.assignees.map(a => `${a.firstName} ${a.lastName}`).join(', ')}>
+                <AssigneeChips assignees={task.assignees} max={5} />
+              </div>
+            )}
           </div>
 
           {/* Due date */}
           {due && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
               <span className="flex items-center gap-1 text-xs font-medium"
                 style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.muted }}>
@@ -668,7 +659,7 @@ function TaskDetailModal({
 
           {/* Completed at */}
           {task.completedAt && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Completed</span>
               <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>
                 <CheckCircle2 size={11} /> {format(new Date(task.completedAt), 'MMM d, yyyy')}
