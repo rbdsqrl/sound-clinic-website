@@ -439,6 +439,7 @@ function TaskDetailModal({
   const [descDraft, setDescDraft]       = useState(task.description ?? '')
   const [showAssigneePicker, setShowAssigneePicker] = useState(false)
   const [assigneeDraft, setAssigneeDraft] = useState<UserResponse[]>([])
+  const [detailTab, setDetailTab] = useState<'comments' | 'activity'>('comments')
 
   const { data: allMembers = [] } = useQuery({
     queryKey: ['org-members'],
@@ -750,74 +751,101 @@ function TaskDetailModal({
           </div>
         )}
 
-        {/* Comments */}
+        {/* Comments / Activity tabs */}
         <div className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
-            Comments {comments.length > 0 && `(${comments.length})`}
-          </p>
-          {comments.length === 0 ? (
-            <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No comments yet</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {comments.map((c: TaskCommentResponse) => (
-                <div key={c.id} className="flex gap-2.5 group">
-                  <span className="text-[10px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: accentAlpha(0.10), color: colors.accent }}>
-                    {initials(c.authorFirstName, c.authorLastName)}
+          {/* Tab bar */}
+          <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${border.divider}` }}>
+            {([
+              { key: 'comments', label: 'Comments', count: comments.length },
+              { key: 'activity', label: 'Activity',  count: logs.length },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setDetailTab(tab.key)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors relative"
+                style={{ color: detailTab === tab.key ? colors.accent : colors.text.muted }}
+              >
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: accentAlpha(0.08), color: colors.accent }}>
+                    {tab.count}
                   </span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
-                        {c.authorFirstName} {c.authorLastName}
-                      </span>
-                      <span className="text-[10px]" style={{ color: colors.text.dim }}>
-                        {format(new Date(c.createdAt), 'MMM d, h:mm a')}
-                      </span>
-                      {(canManage || c.authorId === currentUserId) && (
-                        <button onClick={() => deleteCommentMut.mutate(c.id)}
-                          className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                          style={{ color: colors.text.dim }}>
-                          <X size={11} />
-                        </button>
-                      )}
+                )}
+                {detailTab === tab.key && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
+                    style={{ background: colors.accent }} />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Comments panel */}
+          {detailTab === 'comments' && (
+            comments.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No comments yet</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {comments.map((c: TaskCommentResponse) => (
+                  <div key={c.id} className="flex gap-2.5 group">
+                    <span className="text-[10px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                      {initials(c.authorFirstName, c.authorLastName)}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+                          {c.authorFirstName} {c.authorLastName}
+                        </span>
+                        <span className="text-[10px]" style={{ color: colors.text.dim }}>
+                          {format(new Date(c.createdAt), 'MMM d, h:mm a')}
+                        </span>
+                        {(canManage || c.authorId === currentUserId) && (
+                          <button onClick={() => deleteCommentMut.mutate(c.id)}
+                            className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                            style={{ color: colors.text.dim }}>
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-sm mt-0.5" style={{ color: colors.text.muted, whiteSpace: 'pre-wrap' }}>{c.body}</p>
                     </div>
-                    <p className="text-sm mt-0.5" style={{ color: colors.text.muted, whiteSpace: 'pre-wrap' }}>{c.body}</p>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* Activity panel */}
+          {detailTab === 'activity' && (
+            logs.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No activity yet</p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {logs.map((log: TaskLogResponse) => (
+                  <div key={log.id} className="flex items-start gap-2.5">
+                    <span className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: accentAlpha(0.08), color: colors.text.dim }}>
+                      {logIcon(log.logType)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs leading-snug" style={{ color: colors.text.muted }}>
+                        <span className="font-medium" style={{ color: colors.text.primary }}>{log.actorName}</span>
+                        {' '}{log.details}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: colors.text.dim }}>
+                        {format(new Date(log.createdAt), 'MMM d, h:mm a')}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
 
-        {/* Activity log */}
-        {logs.length > 0 && (
-          <div className="mb-4 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
-              Activity
-            </p>
-            <div className="flex flex-col gap-2.5">
-              {logs.map((log: TaskLogResponse) => (
-                <div key={log.id} className="flex items-start gap-2.5">
-                  <span className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: accentAlpha(0.08), color: colors.text.dim }}>
-                    {logIcon(log.logType)}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs leading-snug" style={{ color: colors.text.muted }}>
-                      <span className="font-medium" style={{ color: colors.text.primary }}>{log.actorName}</span>
-                      {' '}{log.details}
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: colors.text.dim }}>
-                      {format(new Date(log.createdAt), 'MMM d, h:mm a')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Comment input */}
+        {/* Comment input — only on comments tab */}
+        {detailTab === 'comments' && (
         <div className="flex gap-2 items-end pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
           <textarea className="form-input flex-1 resize-none text-sm" rows={2} placeholder="Add a comment…"
             value={commentText} onChange={e => setCommentText(e.target.value)}
@@ -845,6 +873,7 @@ function TaskDetailModal({
             </button>
           </div>
         </div>
+        )}
       </Modal>
 
       {showAssigneePicker && (
