@@ -41,11 +41,12 @@ function priorityStyle(p: TaskPriority) {
   return { color: 'var(--text-dim)', dot: 'var(--text-dim)' }
 }
 
-function dueDateLabel(d: string | null) {
+function dueDateLabel(d: string | null, status?: TaskStatus) {
   if (!d) return null
   const date = parseISO(d)
-  if (isToday(date))      return { label: 'Today',    overdue: false }
-  if (isPast(date))       return { label: format(date, 'MMM d'), overdue: true }
+  const done = status === 'COMPLETED' || status === 'CANCELLED'
+  if (isToday(date))           return { label: 'Today',             overdue: false }
+  if (isPast(date) && !done)   return { label: format(date, 'MMM d'), overdue: true }
   return { label: format(date, 'MMM d'), overdue: false }
 }
 
@@ -281,7 +282,7 @@ function TaskCard({
   onDragStart: (e: React.DragEvent) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const due = dueDateLabel(task.dueDate)
+  const due = dueDateLabel(task.dueDate, task.status)
   const pStyle = priorityStyle(task.priority)
 
   return (
@@ -509,7 +510,7 @@ function TaskDetailModal({
     onError: (err) => toast(getApiError(err, 'Failed to delete file'), 'error'),
   })
 
-  const due = dueDateLabel(task.dueDate)
+  const due = dueDateLabel(task.dueDate, task.status)
   const pStyle = priorityStyle(task.priority)
   const canEdit = canManage || task.assignees.some(a => a.id === currentUserId)
 
@@ -1145,10 +1146,10 @@ export default function TasksPage() {
                       <span className="text-xs" style={{ color: colors.text.muted }}>
                         {task.assignees.map(a => a.firstName).join(', ') || 'Unassigned'}
                       </span>
-                      {dueDateLabel(task.dueDate) && (
+                      {dueDateLabel(task.dueDate, task.status) && (
                         <span className="flex items-center gap-1 text-xs"
-                          style={{ color: dueDateLabel(task.dueDate)!.overdue ? 'var(--color-danger)' : colors.text.dim }}>
-                          <Clock size={10} /> {dueDateLabel(task.dueDate)!.label}
+                          style={{ color: dueDateLabel(task.dueDate, task.status)!.overdue ? 'var(--color-danger)' : colors.text.dim }}>
+                          <Clock size={10} /> {dueDateLabel(task.dueDate, task.status)!.label}
                         </span>
                       )}
                     </div>
