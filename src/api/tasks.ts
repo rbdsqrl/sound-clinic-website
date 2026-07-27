@@ -4,6 +4,7 @@ import type {
   TaskResponse,
   TaskCommentResponse,
   TaskAttachmentResponse,
+  TaskLogResponse,
   CreateTaskRequest,
   UpdateTaskRequest,
   UpdateTaskStatusRequest,
@@ -51,4 +52,7 @@ export const tasksApi = {
 
   deleteAttachment: (taskId: string, attachmentId: string) =>
     client.delete<ApiResponse<void>>(`/tasks/${taskId}/attachments/${attachmentId}`).then(r => r.data.data),
+
+  listLogs: (id: string) =>
+    client.get<ApiResponse<TaskLogResponse[]>>(`/tasks/${id}/logs`).then(r => r.data.data),
 }

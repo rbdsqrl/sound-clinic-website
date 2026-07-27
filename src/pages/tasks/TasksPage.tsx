@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, CheckCircle2, Circle, Clock, MessageSquare, Paperclip,
   ChevronRight, MoreHorizontal, Trash2, X, Upload, FileText, Send,
-  ListTodo, Search, Check, Users,
+  ListTodo, Search, Check, Users, Pencil, Activity,
 } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
 import { usersApi } from '../../api/users'
@@ -21,7 +21,7 @@ import { roleLabel } from '../../components/ui/Badge'
 import { format, isPast, parseISO, isToday } from 'date-fns'
 import type {
   TaskResponse, TaskStatus, TaskPriority, TaskAssignee,
-  TaskCommentResponse, TaskAttachmentResponse,
+  TaskCommentResponse, TaskAttachmentResponse, TaskLogResponse,
   UserResponse,
 } from '../../types'
 
@@ -51,6 +51,19 @@ function dueDateLabel(d: string | null) {
 
 function initials(first: string, last: string) {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+}
+
+function logIcon(logType: TaskLogResponse['logType']) {
+  switch (logType) {
+    case 'STATUS_CHANGED':      return <CheckCircle2 size={12} />
+    case 'PRIORITY_CHANGED':    return <Circle size={12} />
+    case 'ASSIGNEE_CHANGED':    return <Users size={12} />
+    case 'ATTACHMENT_ADDED':
+    case 'ATTACHMENT_DELETED':  return <Paperclip size={12} />
+    case 'NAME_CHANGED':
+    case 'DESCRIPTION_CHANGED': return <Pencil size={12} />
+    default:                    return <Activity size={12} />
+  }
 }
 
 function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?: number }) {
@@ -407,15 +420,32 @@ function KanbanColumn({
 // ── TaskDetailModal ────────────────────────────────────────────────────────────
 
 function TaskDetailModal({
-  task, canManage, currentUserId, onClose, onStatusChange,
+  task, canManage, currentUserId, onClose, onStatusChange, onUpdate,
 }: {
   task: TaskResponse; canManage: boolean; currentUserId: string
-  onClose: () => void; onStatusChange: (status: TaskStatus) => void
+  onClose: () => void
+  onStatusChange: (status: TaskStatus) => void
+  onUpdate?: (updated: TaskResponse) => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [commentText, setCommentText] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // inline edit state
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft]     = useState(task.title)
+  const [editingDesc, setEditingDesc]   = useState(false)
+  const [descDraft, setDescDraft]       = useState(task.description ?? '')
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false)
+  const [assigneeDraft, setAssigneeDraft] = useState<UserResponse[]>([])
+
+  const { data: allMembers = [] } = useQuery({
+    queryKey: ['org-members'],
+    queryFn: usersApi.listMembers,
+    staleTime: 60_000,
+    enabled: canManage,
+  })
 
   const { data: comments = [] } = useQuery({
     queryKey: ['task-comments', task.id],
@@ -424,6 +454,22 @@ function TaskDetailModal({
   const { data: attachments = [] } = useQuery({
     queryKey: ['task-attachments', task.id],
     queryFn: () => tasksApi.listAttachments(task.id),
+  })
+  const { data: logs = [] } = useQuery({
+    queryKey: ['task-logs', task.id],
+    queryFn: () => tasksApi.listLogs(task.id),
+  })
+
+  const updateMut = useMutation({
+    mutationFn: (data: Parameters<typeof tasksApi.update>[1]) => tasksApi.update(task.id, data),
+    onSuccess: (updated) => {
+      qc.setQueryData<TaskResponse[]>(['tasks'], prev =>
+        prev?.map(t => t.id === updated.id ? updated : t) ?? [])
+      qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
+      onUpdate?.(updated)
+      toast('Updated', 'success')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update task'), 'error'),
   })
 
   const commentMut = useMutation({
@@ -447,6 +493,7 @@ function TaskDetailModal({
     mutationFn: (file: File) => tasksApi.uploadAttachment(task.id, file),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
+      qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (err) => toast(getApiError(err, 'Upload failed'), 'error'),
@@ -455,6 +502,7 @@ function TaskDetailModal({
     mutationFn: (attId: string) => tasksApi.deleteAttachment(task.id, attId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
+      qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (err) => toast(getApiError(err, 'Failed to delete file'), 'error'),
@@ -470,169 +518,343 @@ function TaskDetailModal({
     { value: 'COMPLETED',   label: 'Completed' },
   ]
 
+  const saveTitle = () => {
+    const trimmed = titleDraft.trim()
+    if (!trimmed || trimmed === task.title) { setEditingTitle(false); return }
+    updateMut.mutate({ title: trimmed })
+    setEditingTitle(false)
+  }
+
+  const saveDesc = () => {
+    const trimmed = descDraft.trim()
+    if (trimmed === (task.description ?? '')) { setEditingDesc(false); return }
+    updateMut.mutate({ description: trimmed })
+    setEditingDesc(false)
+  }
+
+  const openAssigneePicker = () => {
+    const current = allMembers.filter(m => task.assignees.some(a => a.id === m.id))
+    setAssigneeDraft(current)
+    setShowAssigneePicker(true)
+  }
+
+  const confirmAssignees = (members: UserResponse[]) => {
+    updateMut.mutate({ assignedTo: members.map(m => m.id) })
+  }
+
+  // Build modal title: editable for managers, plain text otherwise
+  const modalTitle = canManage ? (
+    editingTitle ? (
+      <div className="flex items-center gap-2 flex-1 mr-2" onClick={e => e.stopPropagation()}>
+        <input
+          autoFocus
+          className="form-input text-sm font-semibold flex-1 py-1"
+          value={titleDraft}
+          onChange={e => setTitleDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') saveTitle()
+            if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(task.title) }
+          }}
+        />
+        <button onClick={saveTitle} className="text-xs px-2 py-1 rounded-lg font-medium flex-shrink-0"
+          style={styles.buttonPrimary}>Save</button>
+        <button onClick={() => { setEditingTitle(false); setTitleDraft(task.title) }}
+          className="text-xs px-2 py-1 rounded-lg font-medium flex-shrink-0"
+          style={{ background: accentAlpha(0.06), color: colors.text.muted }}>Cancel</button>
+      </div>
+    ) : (
+      <div className="flex items-center gap-2 group/title">
+        <span>{task.title}</span>
+        <button
+          onClick={e => { e.stopPropagation(); setTitleDraft(task.title); setEditingTitle(true) }}
+          className="opacity-0 group-hover/title:opacity-100 p-0.5 rounded transition-opacity"
+          style={{ color: colors.text.dim }}>
+          <Pencil size={13} />
+        </button>
+      </div>
+    )
+  ) : task.title
+
   return (
-    <Modal open title={task.title} onClose={onClose} size="lg">
-      {/* Meta strip */}
-      <div className="flex flex-wrap gap-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
-          {canEdit ? (
-            <select className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
-              style={{ background: accentAlpha(0.06), color: colors.text.primary }}
-              value={task.status} onChange={e => onStatusChange(e.target.value as TaskStatus)}>
-              {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <span className="text-xs px-2 py-1 rounded-lg font-medium"
-              style={task.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-                : task.status === 'IN_PROGRESS' ? paletteStyle('yellow', 0.12, 0)
-                : paletteStyle('blue', 0.10, 0)}>
-              {task.status.replace('_', ' ')}
-            </span>
+    <>
+      <Modal open title={modalTitle} onClose={onClose} size="lg">
+        {/* Meta strip */}
+        <div className="flex flex-wrap gap-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
+
+          {/* Status */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
+            {canEdit ? (
+              <select className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
+                style={{ background: accentAlpha(0.06), color: colors.text.primary }}
+                value={task.status} onChange={e => onStatusChange(e.target.value as TaskStatus)}>
+                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ) : (
+              <span className="text-xs px-2 py-1 rounded-lg font-medium"
+                style={task.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
+                  : task.status === 'IN_PROGRESS' ? paletteStyle('yellow', 0.12, 0)
+                  : paletteStyle('blue', 0.10, 0)}>
+                {task.status.replace('_', ' ')}
+              </span>
+            )}
+          </div>
+
+          {/* Priority */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
+            {canManage ? (
+              <select
+                className="text-xs rounded-lg px-2 py-1.5 font-medium cursor-pointer border-0 outline-none"
+                style={{ background: accentAlpha(0.06), color: pStyle.color }}
+                value={task.priority}
+                onChange={e => updateMut.mutate({ priority: e.target.value as TaskPriority })}
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            ) : (
+              <span className="text-xs font-medium px-2 py-1.5" style={{ color: pStyle.color }}>● {task.priority}</span>
+            )}
+          </div>
+
+          {/* Assignees */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
+                Assigned to
+              </span>
+              {canManage && (
+                <button onClick={openAssigneePicker}
+                  className="p-0.5 rounded transition-colors"
+                  style={{ color: colors.text.dim }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}>
+                  <Pencil size={10} />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {task.assignees.map(a => (
+                <div key={a.id} className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                    {a.firstName[0]}{a.lastName[0]}
+                  </span>
+                  <span className="text-xs" style={{ color: colors.text.primary }}>
+                    {a.firstName} {a.lastName}
+                  </span>
+                </div>
+              ))}
+              {task.assignees.length === 0 && (
+                <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
+              )}
+            </div>
+          </div>
+
+          {/* Due date */}
+          {due && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
+              <span className="flex items-center gap-1 text-xs font-medium"
+                style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.muted }}>
+                <Clock size={11} /> {due.label}{due.overdue ? ' — overdue' : ''}
+              </span>
+            </div>
+          )}
+
+          {/* Completed at */}
+          {task.completedAt && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Completed</span>
+              <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>
+                <CheckCircle2 size={11} /> {format(new Date(task.completedAt), 'MMM d, yyyy')}
+              </span>
+            </div>
           )}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
-          <span className="text-xs font-medium px-2 py-1.5" style={{ color: pStyle.color }}>● {task.priority}</span>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
-            Assigned to
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {task.assignees.map(a => (
-              <div key={a.id} className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: accentAlpha(0.12), color: colors.accent }}>
-                  {a.firstName[0]}{a.lastName[0]}
-                </span>
-                <span className="text-xs" style={{ color: colors.text.primary }}>
-                  {a.firstName} {a.lastName}
-                </span>
-              </div>
-            ))}
-            {task.assignees.length === 0 && (
-              <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
-            )}
-          </div>
-        </div>
-
-        {due && (
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
-            <span className="flex items-center gap-1 text-xs font-medium"
-              style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.muted }}>
-              <Clock size={11} /> {due.label}{due.overdue ? ' — overdue' : ''}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {task.description && (
+        {/* Description */}
         <div className="mb-5">
-          <p className="text-sm" style={{ color: colors.text.primary, whiteSpace: 'pre-wrap' }}>{task.description}</p>
-        </div>
-      )}
-
-      {attachments.length > 0 && (
-        <div className="mb-5">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: colors.text.dim }}>Attachments</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {attachments.map((att: TaskAttachmentResponse) => (
-              <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card }}>
-                {att.contentType?.startsWith('image/') ? (
-                  <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
-                    <img src={att.fileUrl} alt={att.fileName} className="w-full h-20 object-cover" />
-                  </a>
-                ) : (
-                  <a href={att.fileUrl} target="_blank" rel="noopener noreferrer"
-                    className="w-full h-20 flex flex-col items-center justify-center gap-1"
-                    style={{ background: accentAlpha(0.04) }}>
-                    <FileText size={18} style={{ color: colors.accent }} />
-                    <p className="text-[9px] truncate px-1 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
-                  </a>
-                )}
-                {(canManage || att.uploadedBy === currentUserId) && (
-                  <button onClick={() => deleteAttMut.mutate(att.id)}
-                    className="absolute top-1 right-1 p-0.5 rounded-full"
-                    style={{ background: 'rgba(0,0,0,0.55)', color: '#fff' }}>
-                    <X size={9} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
-          Comments {comments.length > 0 && `(${comments.length})`}
-        </p>
-        {comments.length === 0 ? (
-          <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No comments yet</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {comments.map((c: TaskCommentResponse) => (
-              <div key={c.id} className="flex gap-2.5 group">
-                <span className="text-[10px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: accentAlpha(0.10), color: colors.accent }}>
-                  {initials(c.authorFirstName, c.authorLastName)}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
-                      {c.authorFirstName} {c.authorLastName}
-                    </span>
-                    <span className="text-[10px]" style={{ color: colors.text.dim }}>
-                      {format(new Date(c.createdAt), 'MMM d, h:mm a')}
-                    </span>
-                    {(canManage || c.authorId === currentUserId) && (
-                      <button onClick={() => deleteCommentMut.mutate(c.id)}
-                        className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                        style={{ color: colors.text.dim }}>
-                        <X size={11} />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm mt-0.5" style={{ color: colors.text.muted, whiteSpace: 'pre-wrap' }}>{c.body}</p>
+          {canManage ? (
+            editingDesc ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  autoFocus
+                  className="form-input w-full resize-none text-sm"
+                  rows={4}
+                  value={descDraft}
+                  onChange={e => setDescDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setEditingDesc(false); setDescDraft(task.description ?? '') } }}
+                  placeholder="Add a description…"
+                />
+                <div className="flex gap-2">
+                  <Button variant="primary" onClick={saveDesc} loading={updateMut.isPending}>Save</Button>
+                  <Button variant="ghost" onClick={() => { setEditingDesc(false); setDescDraft(task.description ?? '') }}>Cancel</Button>
                 </div>
               </div>
-            ))}
+            ) : (
+              <div className="group/desc flex items-start gap-2">
+                <div className="flex-1">
+                  {task.description ? (
+                    <p className="text-sm" style={{ color: colors.text.primary, whiteSpace: 'pre-wrap' }}>{task.description}</p>
+                  ) : (
+                    <p className="text-sm italic" style={{ color: colors.text.dim }}>No description — click to add one</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setDescDraft(task.description ?? ''); setEditingDesc(true) }}
+                  className="opacity-0 group-hover/desc:opacity-100 p-1 rounded transition-opacity flex-shrink-0"
+                  style={{ color: colors.text.dim }}>
+                  <Pencil size={13} />
+                </button>
+              </div>
+            )
+          ) : (
+            task.description && (
+              <p className="text-sm" style={{ color: colors.text.primary, whiteSpace: 'pre-wrap' }}>{task.description}</p>
+            )
+          )}
+        </div>
+
+        {/* Attachments */}
+        {attachments.length > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: colors.text.dim }}>Attachments</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {attachments.map((att: TaskAttachmentResponse) => (
+                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card }}>
+                  {att.contentType?.startsWith('image/') ? (
+                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                      <img src={att.fileUrl} alt={att.fileName} className="w-full h-20 object-cover" />
+                    </a>
+                  ) : (
+                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer"
+                      className="w-full h-20 flex flex-col items-center justify-center gap-1"
+                      style={{ background: accentAlpha(0.04) }}>
+                      <FileText size={18} style={{ color: colors.accent }} />
+                      <p className="text-[9px] truncate px-1 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
+                    </a>
+                  )}
+                  {(canManage || att.uploadedBy === currentUserId) && (
+                    <button onClick={() => deleteAttMut.mutate(att.id)}
+                      className="absolute top-1 right-1 p-0.5 rounded-full"
+                      style={{ background: 'rgba(0,0,0,0.55)', color: '#fff' }}>
+                      <X size={9} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      <div className="flex gap-2 items-end pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <textarea className="form-input flex-1 resize-none text-sm" rows={2} placeholder="Add a comment…"
-          value={commentText} onChange={e => setCommentText(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && commentText.trim()) {
-              e.preventDefault(); commentMut.mutate()
-            }
-          }} />
-        <div className="flex flex-col gap-1.5">
-          <label className="cursor-pointer p-2 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: accentAlpha(0.06), color: colors.accent }} title="Attach file">
-            {uploadMut.isPending
-              ? <div className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
-              : <Upload size={15} />}
-            <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" multiple className="hidden"
-              onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(f => uploadMut.mutate(f)) }} />
-          </label>
-          <button disabled={!commentText.trim() || commentMut.isPending}
-            onClick={() => commentMut.mutate()}
-            className="p-2 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
-            style={styles.buttonPrimary} title="Post comment (⌘+Enter)">
-            {commentMut.isPending
-              ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              : <Send size={15} />}
-          </button>
+        {/* Comments */}
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
+            Comments {comments.length > 0 && `(${comments.length})`}
+          </p>
+          {comments.length === 0 ? (
+            <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No comments yet</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {comments.map((c: TaskCommentResponse) => (
+                <div key={c.id} className="flex gap-2.5 group">
+                  <span className="text-[10px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                    {initials(c.authorFirstName, c.authorLastName)}
+                  </span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+                        {c.authorFirstName} {c.authorLastName}
+                      </span>
+                      <span className="text-[10px]" style={{ color: colors.text.dim }}>
+                        {format(new Date(c.createdAt), 'MMM d, h:mm a')}
+                      </span>
+                      {(canManage || c.authorId === currentUserId) && (
+                        <button onClick={() => deleteCommentMut.mutate(c.id)}
+                          className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                          style={{ color: colors.text.dim }}>
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm mt-0.5" style={{ color: colors.text.muted, whiteSpace: 'pre-wrap' }}>{c.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
-    </Modal>
+
+        {/* Activity log */}
+        {logs.length > 0 && (
+          <div className="mb-4 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>
+              Activity
+            </p>
+            <div className="flex flex-col gap-2.5">
+              {logs.map((log: TaskLogResponse) => (
+                <div key={log.id} className="flex items-start gap-2.5">
+                  <span className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: accentAlpha(0.08), color: colors.text.dim }}>
+                    {logIcon(log.logType)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs leading-snug" style={{ color: colors.text.muted }}>
+                      <span className="font-medium" style={{ color: colors.text.primary }}>{log.actorName}</span>
+                      {' '}{log.details}
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: colors.text.dim }}>
+                      {format(new Date(log.createdAt), 'MMM d, h:mm a')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Comment input */}
+        <div className="flex gap-2 items-end pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <textarea className="form-input flex-1 resize-none text-sm" rows={2} placeholder="Add a comment…"
+            value={commentText} onChange={e => setCommentText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && commentText.trim()) {
+                e.preventDefault(); commentMut.mutate()
+              }
+            }} />
+          <div className="flex flex-col gap-1.5">
+            <label className="cursor-pointer p-2 rounded-lg flex items-center justify-center transition-colors"
+              style={{ background: accentAlpha(0.06), color: colors.accent }} title="Attach file">
+              {uploadMut.isPending
+                ? <div className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
+                : <Upload size={15} />}
+              <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" multiple className="hidden"
+                onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(f => uploadMut.mutate(f)) }} />
+            </label>
+            <button disabled={!commentText.trim() || commentMut.isPending}
+              onClick={() => commentMut.mutate()}
+              className="p-2 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
+              style={styles.buttonPrimary} title="Post comment (⌘+Enter)">
+              {commentMut.isPending
+                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                : <Send size={15} />}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {showAssigneePicker && (
+        <MemberPickerModal
+          selected={assigneeDraft}
+          onConfirm={confirmAssignees}
+          onClose={() => setShowAssigneePicker(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -777,6 +999,7 @@ export default function TasksPage() {
       qc.setQueryData<TaskResponse[]>(['tasks'], prev =>
         prev?.map(t => t.id === updated.id ? updated : t) ?? [])
       if (selectedTask?.id === updated.id) setSelectedTask(updated)
+      qc.invalidateQueries({ queryKey: ['task-logs', updated.id] })
     },
     onError: (err) => toast(getApiError(err, 'Failed to update task'), 'error'),
   })
@@ -938,7 +1161,8 @@ export default function TasksPage() {
       {selectedTask && (
         <TaskDetailModal task={selectedTask} canManage={canManage} currentUserId={user?.id ?? ''}
           onClose={() => setSelectedTask(null)}
-          onStatusChange={status => statusMut.mutate({ id: selectedTask.id, status })} />
+          onStatusChange={status => statusMut.mutate({ id: selectedTask.id, status })}
+          onUpdate={setSelectedTask} />
       )}
     </div>
   )

@@ -641,6 +641,26 @@ export interface TaskResponse {
   attachmentCount: number
   createdAt: string
   updatedAt: string
+  completedAt: string | null
+}
+
+export type TaskLogType =
+  | 'STATUS_CHANGED'
+  | 'PRIORITY_CHANGED'
+  | 'ASSIGNEE_CHANGED'
+  | 'ATTACHMENT_ADDED'
+  | 'ATTACHMENT_DELETED'
+  | 'NAME_CHANGED'
+  | 'DESCRIPTION_CHANGED'
+
+export interface TaskLogResponse {
+  id: string
+  taskId: string
+  logType: TaskLogType
+  actorId: string
+  actorName: string
+  details: string
+  createdAt: string
 }
 
 export interface CreateTaskRequest {
