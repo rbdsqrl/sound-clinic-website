@@ -440,6 +440,7 @@ function TaskDetailModal({
   const [descDraft, setDescDraft]       = useState(task.description ?? '')
   const [showAssigneePicker, setShowAssigneePicker] = useState(false)
   const [assigneeDraft, setAssigneeDraft] = useState<UserResponse[]>([])
+  const [showAssigneeNames, setShowAssigneeNames] = useState(false)
   const [detailTab, setDetailTab] = useState<'comments' | 'activity'>('comments')
 
   const { data: allMembers = [] } = useQuery({
@@ -621,7 +622,7 @@ function TaskDetailModal({
             )}
           </div>
 
-          {/* Assignees — compact chips only, full names as tooltip */}
+          {/* Assignees */}
           <div className="flex flex-col gap-1 min-w-0">
             <div className="flex items-center gap-1">
               <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
@@ -639,9 +640,33 @@ function TaskDetailModal({
             </div>
             {task.assignees.length === 0 ? (
               <span className="text-xs" style={{ color: colors.text.dim }}>Unassigned</span>
+            ) : showAssigneeNames ? (
+              <div className="flex flex-col gap-1">
+                {task.assignees.map(a => (
+                  <div key={a.id} className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                      {a.firstName[0]}{a.lastName[0]}
+                    </span>
+                    <span className="text-xs" style={{ color: colors.text.primary }}>
+                      {a.firstName} {a.lastName}
+                    </span>
+                  </div>
+                ))}
+                <button onClick={() => setShowAssigneeNames(false)}
+                  className="text-[10px] text-left mt-0.5"
+                  style={{ color: colors.accent }}>
+                  collapse
+                </button>
+              </div>
             ) : (
-              <div title={task.assignees.map(a => `${a.firstName} ${a.lastName}`).join(', ')}>
-                <AssigneeChips assignees={task.assignees} max={5} />
+              <div className="flex items-center gap-1.5">
+                <AssigneeChips assignees={task.assignees} max={3} />
+                <button onClick={() => setShowAssigneeNames(true)}
+                  className="text-[10px]"
+                  style={{ color: colors.accent }}>
+                  expand
+                </button>
               </div>
             )}
           </div>
