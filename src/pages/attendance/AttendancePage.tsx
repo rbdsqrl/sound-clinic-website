@@ -38,6 +38,40 @@ function VerifyBadge({ ok, label }: VerifyBadgeProps) {
   )
 }
 
+// ── Camera badge helpers ──────────────────────────────────────────────────────
+
+type ScanStatus      = 'idle' | 'scanning' | 'detected'
+type FaceMatchStatus = 'idle' | 'checking' | 'matched' | 'no-match'
+
+function cameraBadgeColor(faceMatch: FaceMatchStatus, scan: ScanStatus) {
+  if (faceMatch === 'matched')  return '#86efac'
+  if (faceMatch === 'no-match') return '#f87171'
+  if (faceMatch === 'checking') return '#fbbf24'
+  if (scan === 'detected')      return '#86efac'
+  if (scan === 'scanning')      return '#fbbf24'
+  return '#4ade80'
+}
+
+function cameraBadgeDot(faceMatch: FaceMatchStatus, scan: ScanStatus) {
+  if (faceMatch === 'matched')  return 'bg-green-400'
+  if (faceMatch === 'no-match') return 'bg-red-400'
+  if (faceMatch === 'checking') return 'bg-yellow-400 animate-pulse'
+  if (scan === 'detected')      return 'bg-green-400'
+  if (scan === 'scanning')      return 'bg-yellow-400 animate-pulse'
+  return 'bg-green-300'
+}
+
+function cameraBadgeLabel(faceMatch: FaceMatchStatus, scan: ScanStatus, enrollMode: boolean) {
+  if (faceMatch === 'matched')  return 'Face matched'
+  if (faceMatch === 'no-match') return 'Face not recognised'
+  if (faceMatch === 'checking') return 'Matching…'
+  if (scan === 'detected')      return enrollMode ? 'Face captured' : 'Face detected'
+  if (scan === 'scanning')      return 'Detecting…'
+  return 'Live'
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const { user, refreshUser } = useAuth()
   const { toasts, toast, dismiss } = useToast()
@@ -65,23 +99,21 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [geoFenceError, setGeoFenceError]       = useState(false)
   const [enrollMode, setEnrollMode]             = useState(false)
   const [showVerifyForm, setShowVerifyForm]     = useState(false)
-  const [scanStatus, setScanStatus]             = useState<'idle' | 'scanning' | 'detected'>('idle')
+  const [scanStatus, setScanStatus]             = useState<ScanStatus>('idle')
+  const [enrollScanStatus, setEnrollScanStatus] = useState<ScanStatus>('idle')
+  const [capturedDescriptor, setCapturedDescriptor] = useState<number[] | null>(null)
   const [reCheckIn, setReCheckIn]               = useState(false)
-  const [faceMatchStatus, setFaceMatchStatus]   = useState<'idle' | 'checking' | 'matched' | 'no-match'>('idle')
-  const [enrollScanStatus, setEnrollScanStatus]                 = useState<'idle' | 'scanning' | 'detected'>('idle')
-  const [capturedEnrollDescriptor, setCapturedEnrollDescriptor] = useState<number[] | null>(null)
+  const [faceMatchStatus, setFaceMatchStatus]   = useState<FaceMatchStatus>('idle')
 
-  // Derive directly from context so any refresh automatically propagates
   const faceEnrolled = user?.faceEnrolled ?? false
 
-  // Keep refs in sync so the auto-scan interval always reads the latest values
   useEffect(() => { locationRef.current  = location  }, [location])
   useEffect(() => { geoStatusRef.current = geoStatus }, [geoStatus])
 
-  // Fetch fresh user from DB on mount — localStorage may have stale faceEnrolled: false
+  // Fetch fresh user on mount — localStorage may have stale faceEnrolled
   useEffect(() => { refreshUser() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync enrollMode whenever faceEnrolled changes (initial load or after refresh)
+  // Drive enrollMode from server: enter when not enrolled, exit after successful registration
   useEffect(() => {
     setEnrollMode(!faceEnrolled)
   }, [faceEnrolled])
@@ -109,7 +141,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     }
   }, [clinics, user?.clinicId, selectedClinicId])
 
-  // ── Load face-api.js models ───────────────────────────────────────────────────
+  // ── Face-api models ───────────────────────────────────────────────────────────
 
   const loadModels = useCallback(async () => {
     if (modelsLoaded) return
@@ -156,7 +188,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const startCamera = useCallback(async () => {
     setFaceMatchStatus('idle')
     try {
-      // getUserMedia must be called first — iOS Safari drops the gesture context after any await
+      // getUserMedia must come before any await — iOS Safari drops the gesture context otherwise
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
       streamRef.current = stream
       setCameraActive(true)
@@ -172,7 +204,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     setCameraActive(false)
   }, [])
 
-  const stopAutoScan = useCallback(() => {
+  const stopCheckInScan = useCallback(() => {
     if (autoScanRef.current) {
       clearInterval(autoScanRef.current)
       autoScanRef.current = null
@@ -181,7 +213,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     setScanStatus('idle')
   }, [])
 
-  useEffect(() => () => { stopCamera(); stopAutoScan() }, [stopCamera, stopAutoScan])
+  useEffect(() => () => { stopCamera(); stopCheckInScan() }, [stopCamera, stopCheckInScan])
 
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
@@ -189,24 +221,24 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     }
   }, [cameraActive])
 
-  // Auto-open camera for enrollment if face not yet registered
+  // Auto-open camera for first-time registration
   useEffect(() => {
-    if (asTab) return  // skip in modal — user must tap button directly (iOS gesture requirement)
+    if (asTab) return
     if (didAutoEnroll.current || faceEnrolled) return
     didAutoEnroll.current = true
     startCamera()
   }, [asTab, faceEnrolled, startCamera])
 
-  // Auto-request location + open camera when face is enrolled and not yet checked in
+  // Auto-request location + camera for check-in
   useEffect(() => {
     if (didAutoCheckIn.current || !faceEnrolled || loadingToday) return
     if (today?.status === 'CHECKED_IN' || today?.status === 'CHECKED_OUT') return
     didAutoCheckIn.current = true
     getLocation()
-    if (!asTab) startCamera()  // camera auto-starts on full page only; in modal user taps button
+    if (!asTab) startCamera()
   }, [asTab, faceEnrolled, loadingToday, today?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Capture face descriptor ───────────────────────────────────────────────────
+  // ── Face descriptor (live capture — used by check-in manual fallback and verify) ──
 
   const captureFaceDescriptor = useCallback(async (): Promise<number[] | undefined> => {
     if (!videoRef.current || !modelsLoaded) return undefined
@@ -214,7 +246,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options())
       .withFaceLandmarks()
       .withFaceDescriptor()
-
     if (!detection) {
       toast('No face detected — please ensure your face is clearly visible', 'error')
       return undefined
@@ -224,7 +255,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
 
-  // descriptor is pre-captured by auto-scan; falls back to live capture for manual button
   const checkInMut = useMutation({
     mutationFn: async (descriptor?: number[]) => {
       const faceDescriptor = descriptor ?? await captureFaceDescriptor()
@@ -242,7 +272,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       qc.invalidateQueries({ queryKey: ['attendance'] })
       toast('Checked in successfully', 'success')
       stopCamera()
-      stopAutoScan()
+      stopCheckInScan()
       setReCheckIn(false)
     },
     onError: (err) => {
@@ -298,18 +328,21 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   const enrollMut = useMutation({
     mutationFn: async () => {
-      if (!capturedEnrollDescriptor) throw new Error('No face detected')
-      return attendanceApi.enrollFace({ faceDescriptor: capturedEnrollDescriptor })
+      if (!capturedDescriptor) throw new Error('No face detected')
+      return attendanceApi.enrollFace({ faceDescriptor: capturedDescriptor })
     },
     onSuccess: async () => {
       toast('Face registered successfully', 'success')
       stopCamera()
-      await refreshUser()  // updates user.faceEnrolled in context → faceEnrolled derived value updates → enrollMode syncs
+      await refreshUser()  // faceEnrolled → true → useEffect sets enrollMode → false
     },
     onError: (err) => toast(getApiError(err, 'Face registration failed'), 'error'),
   })
 
-  // Auto-scan: check-in only — geo check happens inside via ref
+  // ── Auto-scan: check-in only ──────────────────────────────────────────────────
+  // Runs only when face is enrolled and not in enroll mode.
+  // Fires check-in automatically once face + location are both ready.
+
   useEffect(() => {
     const canDetect = cameraActive && faceEnrolled && !enrollMode && modelsLoaded
       && today?.status !== 'CHECKED_IN'
@@ -333,16 +366,19 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
           setFaceMatchStatus('checking')
           checkInMut.mutate(Array.from(detection.descriptor))
         }
-        // else: face found but location not ready yet — keep scanning
+        // face found but location not ready — keep scanning
       } else {
         setScanStatus('scanning')
       }
     }, 1500)
 
-    return () => stopAutoScan()
-  }, [cameraActive, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopAutoScan]) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => stopCheckInScan()
+  }, [cameraActive, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopCheckInScan]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Enrollment detection loop — runs only in enroll mode, stops once face is captured
+  // ── Enrollment scan ───────────────────────────────────────────────────────────
+  // Runs only in enroll mode. Detects once, stores descriptor, stops.
+  // Save button is enabled only after descriptor is captured.
+
   useEffect(() => {
     if (!enrollMode || !cameraActive || !modelsLoaded) {
       if (enrollScanRef.current) {
@@ -352,7 +388,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       isEnrollScanRef.current = false
       return
     }
-    if (enrollScanRef.current) return  // already running
+    if (enrollScanRef.current) return
 
     setEnrollScanStatus('scanning')
     isEnrollScanRef.current = true
@@ -367,7 +403,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         isEnrollScanRef.current = false
         clearInterval(enrollScanRef.current!)
         enrollScanRef.current = null
-        setCapturedEnrollDescriptor(Array.from(detection.descriptor))
+        setCapturedDescriptor(Array.from(detection.descriptor))
         setEnrollScanStatus('detected')
       }
     }, 1500)
@@ -379,7 +415,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       }
       isEnrollScanRef.current = false
       setEnrollScanStatus('idle')
-      setCapturedEnrollDescriptor(null)
+      setCapturedDescriptor(null)
     }
   }, [enrollMode, cameraActive, modelsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -389,17 +425,18 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const checkedOut = today?.status === 'CHECKED_OUT'
   const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending || verifyMut.isPending
   const needsVerification = checkedIn && today && (!today.geoVerified || !today.faceVerified)
-
   const canCheckIn = geoStatus === 'ok' && cameraActive && !!selectedClinicId
 
   // ── Face guide SVG overlay ────────────────────────────────────────────────────
+
+  const activeScan = enrollMode ? enrollScanStatus : scanStatus
   const ovalColor =
-    faceMatchStatus === 'matched'     ? '#86efac' :
-    faceMatchStatus === 'no-match'    ? '#f87171' :
-    faceMatchStatus === 'checking'    ? '#fbbf24' :
-    scanStatus === 'detected'         ? '#4ade80' :
-    enrollScanStatus === 'detected'   ? '#4ade80' :
+    faceMatchStatus === 'matched'  ? '#86efac' :
+    faceMatchStatus === 'no-match' ? '#f87171' :
+    faceMatchStatus === 'checking' ? '#fbbf24' :
+    activeScan === 'detected'      ? '#4ade80' :
     'rgba(255,255,255,0.6)'
+  const ovalDashed = activeScan !== 'detected' && faceMatchStatus === 'idle'
 
   const FaceGuideOverlay = (
     <svg
@@ -419,9 +456,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         fill="none"
         stroke={ovalColor}
         strokeWidth="2.5"
-        strokeDasharray={(scanStatus === 'scanning' || (enrollMode && enrollScanStatus !== 'detected')) && faceMatchStatus === 'idle' ? '10 5' : undefined}
+        strokeDasharray={ovalDashed ? '10 5' : undefined}
       />
-      {(scanStatus === 'scanning' || (enrollMode && enrollScanStatus !== 'detected')) && faceMatchStatus === 'idle' && (
+      {ovalDashed && (
         <text x="200" y="284" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="10" fontWeight="500">
           Position your face in the oval
         </text>
@@ -429,71 +466,88 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     </svg>
   )
 
-  // ── Camera panel (shared between check-in, verify, enroll modes) ─────────────
+  // ── Shared camera view ─────────────────────────────────────────────────────────
+  // Used by both the action card and the fix-verification card.
+  // `mode` controls badge label interpretation and what's shown below the video.
 
-  const CameraPanel = (
-    <div>
-      <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-        {enrollMode ? 'Position your face in the camera' : 'Face verification'}
-      </p>
-      {!cameraActive ? (
-        <Button variant="secondary" onClick={startCamera} loading={modelsLoading}>
-          <Camera size={15} />
-          {modelsLoading ? 'Loading face models…' : 'Open Camera'}
-        </Button>
-      ) : (
-        <div className="space-y-3">
-          <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 280 }}>
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-            {FaceGuideOverlay}
-            <div
-              className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
-              style={{
-                background: 'rgba(0,0,0,0.6)',
-                color: faceMatchStatus === 'matched'  ? '#86efac' :
-                       faceMatchStatus === 'no-match' ? '#f87171' :
-                       faceMatchStatus === 'checking' ? '#fbbf24' :
-                       '#4ade80',
-              }}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${
-                faceMatchStatus === 'matched'  ? 'bg-green-400' :
-                faceMatchStatus === 'no-match' ? 'bg-red-400' :
-                faceMatchStatus === 'checking' ? 'bg-yellow-400 animate-pulse' :
-                scanStatus === 'scanning'      ? 'bg-green-400 animate-pulse' : 'bg-green-300'
-              }`} />
-              {faceMatchStatus === 'matched'  ? 'Face matched' :
-               faceMatchStatus === 'no-match' ? 'Face not recognised' :
-               faceMatchStatus === 'checking' ? 'Matching…' :
-               scanStatus === 'detected'      ? 'Face detected' :
-               scanStatus === 'scanning'      ? 'Detecting face…' : 'Live'}
+  function CameraView({ mode }: { mode: 'enroll' | 'checkin' | 'verify' }) {
+    const displayScan = mode === 'enroll' ? enrollScanStatus : scanStatus
+
+    return (
+      <div>
+        <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
+          {mode === 'enroll' ? 'Position your face in the camera' : 'Face verification'}
+        </p>
+        {!cameraActive ? (
+          <Button variant="secondary" onClick={startCamera} loading={modelsLoading}>
+            <Camera size={15} />
+            {modelsLoading ? 'Loading face models…' : 'Open Camera'}
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 280 }}>
+              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+              {FaceGuideOverlay}
+              <div
+                className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
+                style={{ background: 'rgba(0,0,0,0.6)', color: cameraBadgeColor(faceMatchStatus, displayScan) }}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${cameraBadgeDot(faceMatchStatus, displayScan)}`} />
+                {cameraBadgeLabel(faceMatchStatus, displayScan, mode === 'enroll')}
+              </div>
             </div>
+
+            {/* Enroll: face captured confirmation */}
+            {mode === 'enroll' && enrollScanStatus === 'detected' && (
+              <div
+                className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm"
+                style={{ background: successAlpha(0.1), border: `1px solid ${successAlpha(0.3)}` }}
+              >
+                <CheckCircle size={14} style={{ color: colors.status.success, flexShrink: 0 }} />
+                <span style={{ color: colors.text.primary }}>
+                  Face captured — click <strong>Save</strong> to Register
+                </span>
+              </div>
+            )}
+
+            {/* Check-in / verify: face not recognised */}
+            {mode !== 'enroll' && faceMatchStatus === 'no-match' && (
+              <div
+                className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
+                style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
+              >
+                <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
+                <div className="flex flex-col gap-1.5">
+                  <span style={{ color: colors.text.primary }}>
+                    Face not recognised. Ensure your face is well-lit and clearly visible.
+                  </span>
+                  {mode === 'checkin' && (
+                    <button
+                      onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(undefined) }}
+                      className="text-xs font-semibold text-left underline"
+                      style={{ color: colors.accent }}
+                    >
+                      Try again
+                    </button>
+                  )}
+                  {mode === 'verify' && (
+                    <span className="text-xs" style={{ color: colors.text.muted }}>
+                      Then tap <em>Verify Now</em> again.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button onClick={stopCamera} className="text-xs" style={{ color: colors.text.muted }}>
+              Close camera
+            </button>
           </div>
-          {faceMatchStatus === 'no-match' && (
-            <div
-              className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
-              style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
-            >
-              <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
-              <span style={{ color: colors.text.primary }}>
-                Face not recognised. Ensure your face is well-lit and clearly visible, then tap <em>Verify Now</em> again.
-              </span>
-            </div>
-          )}
-          <button onClick={stopCamera} className="text-xs" style={{ color: colors.text.muted }}>
-            Close camera
-          </button>
-        </div>
-      )}
-    </div>
-  )
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={asTab ? 'max-w-2xl space-y-6' : 'p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6'}>
@@ -537,7 +591,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
             </div>
           </div>
 
-          {/* Retry verification prompt */}
           {needsVerification && !showVerifyForm && (
             <div
               className="flex items-center justify-between gap-3 mt-3 rounded-xl px-3 py-2.5"
@@ -560,15 +613,13 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Fix Verification card (inline retry) ── */}
+      {/* ── Fix Verification card ── */}
       {needsVerification && showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             Fix Verification
           </h2>
-
           <div className="space-y-4">
-            {/* Location */}
             <div>
               <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
                 Step 1 — Location
@@ -611,10 +662,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               )}
             </div>
 
-            {/* Camera */}
-            {CameraPanel}
+            <CameraView mode="verify" />
 
-            {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
                 onClick={() => { setFaceMatchStatus('checking'); verifyMut.mutate() }}
@@ -624,7 +673,13 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 <RefreshCw size={15} />
                 Verify Now
               </Button>
-              <Button variant="secondary" onClick={() => { setShowVerifyForm(false); stopCamera(); setGeoStatus('idle'); setLocation(null); setGeoFenceError(false) }}>
+              <Button variant="secondary" onClick={() => {
+                setShowVerifyForm(false)
+                stopCamera()
+                setGeoStatus('idle')
+                setLocation(null)
+                setGeoFenceError(false)
+              }}>
                 Cancel
               </Button>
             </div>
@@ -632,28 +687,30 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Action card ── */}
+      {/* ── Action card: Register / Check In / Check Out ── */}
       {(!checkedOut || reCheckIn || enrollMode) && !showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             {enrollMode ? 'Register Face' : checkedIn ? 'Check Out' : 'Check In'}
           </h2>
 
-          {!faceEnrolled && enrollMode && (
+          {/* First-time registration notice */}
+          {enrollMode && !faceEnrolled && (
             <div
               className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 mb-4 text-sm"
               style={{ background: warningAlpha(0.1), color: colors.text.primary }}
             >
               <AlertTriangle size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 1 }} />
               <span>
-                <span className="font-semibold">Face not registered.</span> Position your face in the camera and tap <em>Save</em> to complete setup. You only need to do this once.
+                <span className="font-semibold">Face not registered.</span>{' '}
+                Position your face in the camera and tap <em>Save</em> to complete setup. You only need to do this once.
               </span>
             </div>
           )}
 
           <div className="space-y-4">
 
-            {/* Clinic selector — only for check-in */}
+            {/* Clinic selector — check-in only */}
             {!checkedIn && !enrollMode && (
               <Select
                 label="Clinic"
@@ -663,7 +720,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               />
             )}
 
-            {/* Location status — auto-requested on mount, retry button if denied */}
+            {/* Location — check-in only */}
             {!enrollMode && !checkedIn && (
               <div>
                 <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
@@ -705,104 +762,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               </div>
             )}
 
-            {/* Camera / Face — for check-in and enroll, not check-out (unless enrollMode) */}
-            {(!checkedIn || enrollMode) && (
-            <div>
-              <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-                {enrollMode ? 'Position your face in the camera' : 'Face verification'}
-              </p>
-
-              {!cameraActive ? (
-                <Button
-                  variant="secondary"
-                  onClick={startCamera}
-                  loading={modelsLoading}
-                >
-                  <Camera size={15} />
-                  {modelsLoading ? 'Loading face models…' : 'Open Camera'}
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 280 }}>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                    <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-                    {FaceGuideOverlay}
-                    <div
-                      className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
-                      style={{
-                        background: 'rgba(0,0,0,0.6)',
-                        color: faceMatchStatus === 'matched'    ? '#86efac' :
-                               faceMatchStatus === 'no-match'   ? '#f87171' :
-                               faceMatchStatus === 'checking'   ? '#fbbf24' :
-                               enrollScanStatus === 'detected'  ? '#86efac' :
-                               enrollScanStatus === 'scanning'  ? '#fbbf24' :
-                               '#4ade80',
-                      }}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${
-                        faceMatchStatus === 'matched'    ? 'bg-green-400' :
-                        faceMatchStatus === 'no-match'   ? 'bg-red-400' :
-                        faceMatchStatus === 'checking'   ? 'bg-yellow-400 animate-pulse' :
-                        enrollScanStatus === 'detected'  ? 'bg-green-400' :
-                        enrollScanStatus === 'scanning'  ? 'bg-yellow-400 animate-pulse' :
-                        scanStatus === 'scanning'        ? 'bg-green-400 animate-pulse' : 'bg-green-300'
-                      }`} />
-                      {faceMatchStatus === 'matched'    ? 'Face matched' :
-                       faceMatchStatus === 'no-match'   ? 'Face not recognised' :
-                       faceMatchStatus === 'checking'   ? 'Matching…' :
-                       enrollScanStatus === 'detected'  ? 'Face captured' :
-                       enrollScanStatus === 'scanning'  ? 'Detecting…' :
-                       scanStatus === 'detected'        ? 'Face detected' :
-                       scanStatus === 'scanning'        ? 'Detecting face…' : 'Live'}
-                    </div>
-                  </div>
-                  {enrollMode && enrollScanStatus === 'detected' && (
-                    <div
-                      className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm"
-                      style={{ background: successAlpha(0.1), border: `1px solid ${successAlpha(0.3)}` }}
-                    >
-                      <CheckCircle size={14} style={{ color: colors.status.success, flexShrink: 0 }} />
-                      <span style={{ color: colors.text.primary }}>
-                        Face captured — click <strong>Save</strong> to Register
-                      </span>
-                    </div>
-                  )}
-                  {faceMatchStatus === 'no-match' && (
-                    <div
-                      className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
-                      style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
-                    >
-                      <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
-                      <div className="flex flex-col gap-1.5">
-                        <span style={{ color: colors.text.primary }}>
-                          Face not recognised. Ensure your face is well-lit and clearly visible.
-                        </span>
-                        <button
-                          onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(undefined) }}
-                          className="text-xs font-semibold text-left underline"
-                          style={{ color: colors.accent }}
-                        >
-                          Try again
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={stopCamera}
-                    className="text-xs"
-                    style={{ color: colors.text.muted }}
-                  >
-                    Close camera
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Camera — enroll and check-in; not check-out */}
+            {(enrollMode || !checkedIn) && (
+              <CameraView mode={enrollMode ? 'enroll' : 'checkin'} />
             )}
 
             {/* Action buttons */}
@@ -822,10 +784,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   </Button>
                 </>
               ) : checkedIn ? (
-                <Button
-                  onClick={() => checkOutMut.mutate()}
-                  loading={isWorking}
-                >
+                <Button onClick={() => checkOutMut.mutate()} loading={isWorking}>
                   <LogOut size={15} />
                   Check Out
                 </Button>
@@ -847,7 +806,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   </div>
                   {canCheckIn && (
                     <button
-                      onClick={() => { stopAutoScan(); checkInMut.mutate(undefined) }}
+                      onClick={() => { stopCheckInScan(); checkInMut.mutate(undefined) }}
                       disabled={isWorking}
                       className="text-xs underline"
                       style={{ color: colors.text.muted }}
@@ -871,8 +830,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Checked out done state ── */}
-      {checkedOut && !reCheckIn && (
+      {/* ── Done for today — only when not in enroll mode ── */}
+      {checkedOut && !reCheckIn && !enrollMode && (
         <Card>
           <div className="flex flex-col items-center gap-3 py-4 text-center">
             <CheckCircle size={40} style={{ color: colors.status.success }} />
@@ -896,7 +855,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Re-register shortcut (shown whenever face is registered and not in enroll mode) ── */}
+      {/* ── Re-register link ── */}
       {!enrollMode && faceEnrolled && (
         <p className="text-xs text-center" style={{ color: colors.text.muted }}>
           <button
@@ -909,9 +868,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </p>
       )}
 
-      {/* ── Recent history ── */}
       <RecentHistory />
-
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
@@ -923,8 +880,7 @@ function RecentHistory() {
     queryFn: () => attendanceApi.listMine(),
   })
 
-  if (isLoading) return null
-  if (records.length === 0) return null
+  if (isLoading || records.length === 0) return null
 
   const recent = records.slice(0, 7)
 
@@ -934,7 +890,6 @@ function RecentHistory() {
         Recent History
       </h2>
 
-      {/* Mobile card list */}
       <div className="flex flex-col gap-2 md:hidden">
         {recent.map(r => (
           <div key={r.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${colors.text.dim}20` }}>
@@ -955,7 +910,6 @@ function RecentHistory() {
         ))}
       </div>
 
-      {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
