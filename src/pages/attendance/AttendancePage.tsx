@@ -51,6 +51,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const didAutoCheckIn    = useRef(false)
   const autoScanRef       = useRef<ReturnType<typeof setInterval> | null>(null)
   const isScanningRef     = useRef(false)
+  const enrollScanRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isEnrollScanRef   = useRef(false)
   const locationRef       = useRef<{ lat: number; lon: number } | null>(null)
   const geoStatusRef      = useRef<'idle' | 'loading' | 'ok' | 'denied' | 'permission-denied'>('idle')
 
@@ -66,6 +68,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [scanStatus, setScanStatus]             = useState<'idle' | 'scanning' | 'detected'>('idle')
   const [reCheckIn, setReCheckIn]               = useState(false)
   const [faceMatchStatus, setFaceMatchStatus]   = useState<'idle' | 'checking' | 'matched' | 'no-match'>('idle')
+  const [enrollScanStatus, setEnrollScanStatus]                 = useState<'idle' | 'scanning' | 'detected'>('idle')
+  const [capturedEnrollDescriptor, setCapturedEnrollDescriptor] = useState<number[] | null>(null)
 
   // Derive directly from context so any refresh automatically propagates
   const faceEnrolled = user?.faceEnrolled ?? false
@@ -294,16 +298,15 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   const enrollMut = useMutation({
     mutationFn: async () => {
-      const descriptor = await captureFaceDescriptor()
-      if (!descriptor) throw new Error('No face detected')
-      return attendanceApi.enrollFace({ faceDescriptor: descriptor })
+      if (!capturedEnrollDescriptor) throw new Error('No face detected')
+      return attendanceApi.enrollFace({ faceDescriptor: capturedEnrollDescriptor })
     },
     onSuccess: async () => {
-      toast('Face enrolled successfully', 'success')
+      toast('Face registered successfully', 'success')
       stopCamera()
       await refreshUser()  // updates user.faceEnrolled in context → faceEnrolled derived value updates → enrollMode syncs
     },
-    onError: (err) => toast(getApiError(err, 'Face enrollment failed'), 'error'),
+    onError: (err) => toast(getApiError(err, 'Face registration failed'), 'error'),
   })
 
   // Auto-scan: check-in only — geo check happens inside via ref
@@ -339,6 +342,47 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     return () => stopAutoScan()
   }, [cameraActive, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopAutoScan]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Enrollment detection loop — runs only in enroll mode, stops once face is captured
+  useEffect(() => {
+    if (!enrollMode || !cameraActive || !modelsLoaded) {
+      if (enrollScanRef.current) {
+        clearInterval(enrollScanRef.current)
+        enrollScanRef.current = null
+      }
+      isEnrollScanRef.current = false
+      return
+    }
+    if (enrollScanRef.current) return  // already running
+
+    setEnrollScanStatus('scanning')
+    isEnrollScanRef.current = true
+
+    enrollScanRef.current = setInterval(async () => {
+      if (!isEnrollScanRef.current || !videoRef.current) return
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options())
+        .withFaceLandmarks()
+        .withFaceDescriptor()
+      if (detection && isEnrollScanRef.current) {
+        isEnrollScanRef.current = false
+        clearInterval(enrollScanRef.current!)
+        enrollScanRef.current = null
+        setCapturedEnrollDescriptor(Array.from(detection.descriptor))
+        setEnrollScanStatus('detected')
+      }
+    }, 1500)
+
+    return () => {
+      if (enrollScanRef.current) {
+        clearInterval(enrollScanRef.current)
+        enrollScanRef.current = null
+      }
+      isEnrollScanRef.current = false
+      setEnrollScanStatus('idle')
+      setCapturedEnrollDescriptor(null)
+    }
+  }, [enrollMode, cameraActive, modelsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loadingToday) return <PageLoader />
 
   const checkedIn  = today?.status === 'CHECKED_IN'
@@ -350,10 +394,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   // ── Face guide SVG overlay ────────────────────────────────────────────────────
   const ovalColor =
-    faceMatchStatus === 'matched'  ? '#86efac' :
-    faceMatchStatus === 'no-match' ? '#f87171' :
-    faceMatchStatus === 'checking' ? '#fbbf24' :
-    scanStatus === 'detected'      ? '#4ade80' :
+    faceMatchStatus === 'matched'     ? '#86efac' :
+    faceMatchStatus === 'no-match'    ? '#f87171' :
+    faceMatchStatus === 'checking'    ? '#fbbf24' :
+    scanStatus === 'detected'         ? '#4ade80' :
+    enrollScanStatus === 'detected'   ? '#4ade80' :
     'rgba(255,255,255,0.6)'
 
   const FaceGuideOverlay = (
@@ -374,9 +419,9 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         fill="none"
         stroke={ovalColor}
         strokeWidth="2.5"
-        strokeDasharray={(scanStatus === 'scanning' || enrollMode) && faceMatchStatus === 'idle' ? '10 5' : undefined}
+        strokeDasharray={(scanStatus === 'scanning' || (enrollMode && enrollScanStatus !== 'detected')) && faceMatchStatus === 'idle' ? '10 5' : undefined}
       />
-      {(scanStatus === 'scanning' || enrollMode) && faceMatchStatus === 'idle' && (
+      {(scanStatus === 'scanning' || (enrollMode && enrollScanStatus !== 'detected')) && faceMatchStatus === 'idle' && (
         <text x="200" y="284" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="10" fontWeight="500">
           Position your face in the oval
         </text>
@@ -591,7 +636,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       {(!checkedOut || reCheckIn) && !showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
-            {enrollMode ? 'Enroll Face' : checkedIn ? 'Check Out' : 'Check In'}
+            {enrollMode ? 'Register Face' : checkedIn ? 'Check Out' : 'Check In'}
           </h2>
 
           {!faceEnrolled && enrollMode && (
@@ -601,7 +646,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
             >
               <AlertTriangle size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 1 }} />
               <span>
-                <span className="font-semibold">Face not enrolled.</span> Position your face in the camera and tap <em>Save Face</em> to complete setup. You only need to do this once.
+                <span className="font-semibold">Face not registered.</span> Position your face in the camera and tap <em>Save</em> to complete setup. You only need to do this once.
               </span>
             </div>
           )}
@@ -692,25 +737,42 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                       className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
                       style={{
                         background: 'rgba(0,0,0,0.6)',
-                        color: faceMatchStatus === 'matched'  ? '#86efac' :
-                               faceMatchStatus === 'no-match' ? '#f87171' :
-                               faceMatchStatus === 'checking' ? '#fbbf24' :
+                        color: faceMatchStatus === 'matched'    ? '#86efac' :
+                               faceMatchStatus === 'no-match'   ? '#f87171' :
+                               faceMatchStatus === 'checking'   ? '#fbbf24' :
+                               enrollScanStatus === 'detected'  ? '#86efac' :
+                               enrollScanStatus === 'scanning'  ? '#fbbf24' :
                                '#4ade80',
                       }}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full ${
-                        faceMatchStatus === 'matched'  ? 'bg-green-400' :
-                        faceMatchStatus === 'no-match' ? 'bg-red-400' :
-                        faceMatchStatus === 'checking' ? 'bg-yellow-400 animate-pulse' :
-                        scanStatus === 'scanning'      ? 'bg-green-400 animate-pulse' : 'bg-green-300'
+                        faceMatchStatus === 'matched'    ? 'bg-green-400' :
+                        faceMatchStatus === 'no-match'   ? 'bg-red-400' :
+                        faceMatchStatus === 'checking'   ? 'bg-yellow-400 animate-pulse' :
+                        enrollScanStatus === 'detected'  ? 'bg-green-400' :
+                        enrollScanStatus === 'scanning'  ? 'bg-yellow-400 animate-pulse' :
+                        scanStatus === 'scanning'        ? 'bg-green-400 animate-pulse' : 'bg-green-300'
                       }`} />
-                      {faceMatchStatus === 'matched'  ? 'Face matched' :
-                       faceMatchStatus === 'no-match' ? 'Face not recognised' :
-                       faceMatchStatus === 'checking' ? 'Matching…' :
-                       scanStatus === 'detected'      ? 'Face detected' :
-                       scanStatus === 'scanning'      ? 'Detecting face…' : 'Live'}
+                      {faceMatchStatus === 'matched'    ? 'Face matched' :
+                       faceMatchStatus === 'no-match'   ? 'Face not recognised' :
+                       faceMatchStatus === 'checking'   ? 'Matching…' :
+                       enrollScanStatus === 'detected'  ? 'Face captured' :
+                       enrollScanStatus === 'scanning'  ? 'Detecting…' :
+                       scanStatus === 'detected'        ? 'Face detected' :
+                       scanStatus === 'scanning'        ? 'Detecting face…' : 'Live'}
                     </div>
                   </div>
+                  {enrollMode && enrollScanStatus === 'detected' && (
+                    <div
+                      className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm"
+                      style={{ background: successAlpha(0.1), border: `1px solid ${successAlpha(0.3)}` }}
+                    >
+                      <CheckCircle size={14} style={{ color: colors.status.success, flexShrink: 0 }} />
+                      <span style={{ color: colors.text.primary }}>
+                        Face captured — click <strong>Save</strong> to Register
+                      </span>
+                    </div>
+                  )}
                   {faceMatchStatus === 'no-match' && (
                     <div
                       className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
@@ -750,10 +812,10 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   <Button
                     onClick={() => enrollMut.mutate()}
                     loading={isWorking}
-                    disabled={!cameraActive}
+                    disabled={enrollScanStatus !== 'detected'}
                   >
                     <UserCheck size={15} />
-                    Save Face
+                    Save
                   </Button>
                   <Button variant="secondary" onClick={() => { setEnrollMode(false); stopCamera() }}>
                     Cancel
@@ -834,15 +896,15 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Re-enroll shortcut (only shown after already enrolled) ── */}
-      {!enrollMode && !checkedIn && !checkedOut && !reCheckIn && faceEnrolled && (
+      {/* ── Re-register shortcut (shown whenever face is registered and not in enroll mode) ── */}
+      {!enrollMode && faceEnrolled && (
         <p className="text-xs text-center" style={{ color: colors.text.muted }}>
           <button
             onClick={() => { setEnrollMode(true); startCamera() }}
             className="underline font-medium"
             style={{ color: colors.accent }}
           >
-            Re-enroll face
+            Re-register face
           </button>
         </p>
       )}
