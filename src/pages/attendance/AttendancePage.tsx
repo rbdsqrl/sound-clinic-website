@@ -633,7 +633,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       )}
 
       {/* ── Action card ── */}
-      {(!checkedOut || reCheckIn) && !showVerifyForm && (
+      {(!checkedOut || reCheckIn || enrollMode) && !showVerifyForm && (
         <Card>
           <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.heading }}>
             {enrollMode ? 'Register Face' : checkedIn ? 'Check Out' : 'Check In'}
@@ -705,8 +705,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               </div>
             )}
 
-            {/* Camera / Face — only for check-in and enroll, not check-out */}
-            {!checkedIn && (
+            {/* Camera / Face — for check-in and enroll, not check-out (unless enrollMode) */}
+            {(!checkedIn || enrollMode) && (
             <div>
               <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
                 {enrollMode ? 'Position your face in the camera' : 'Face verification'}
