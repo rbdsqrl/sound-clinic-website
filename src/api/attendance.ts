@@ -24,4 +24,7 @@ export const attendanceApi = {
 
   verify: (data: VerifyAttendanceRequest) =>
     client.patch<ApiResponse<AttendanceResponse>>('/attendance/today/verify', data).then(r => r.data.data),
+
+  reviewOverride: (id: string, approved: boolean) =>
+    client.patch<ApiResponse<AttendanceResponse>>(`/attendance/${id}/review-override`, { approved }).then(r => r.data.data),
 }

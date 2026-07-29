@@ -121,6 +121,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const [capturedEnrollDescriptor, setCapturedEnrollDescriptor]   = useState<number[] | null>(null)
   const [reCheckIn, setReCheckIn]                       = useState(false)
   const [faceMatchStatus, setFaceMatchStatus]           = useState<FaceMatchStatus>('idle')
+  const [showForceCheckIn, setShowForceCheckIn]         = useState(false)
 
   const faceEnrolled = user?.faceEnrolled ?? false
 
@@ -236,6 +237,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     isScanningRef.current = false
     setScanStatus('idle')
     setCapturedCheckInDescriptor(null)
+    setShowForceCheckIn(false)
   }, [])
 
   useEffect(() => () => { stopCamera(); stopCheckInScan() }, [stopCamera, stopCheckInScan])
@@ -292,27 +294,40 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   // ── Mutations ─────────────────────────────────────────────────────────────────
 
   const checkInMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (force: boolean) => {
       if (!capturedCheckInDescriptor) throw new Error('No face detected')
       return attendanceApi.checkIn({
         clinicId: selectedClinicId,
         latitude: location!.lat,
         longitude: location!.lon,
         faceDescriptor: capturedCheckInDescriptor,
+        forceCheckIn: force,
       })
     },
     onSuccess: (data: AttendanceResponse) => {
-      setFaceMatchStatus('matched')
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
-      toast('Checked in successfully', 'success')
+      if (data.faceOverride) {
+        setFaceMatchStatus('no-match')
+        toast('Checked in — face not matched. Your manager has been notified.', 'info')
+      } else {
+        setFaceMatchStatus('matched')
+        toast('Checked in successfully', 'success')
+      }
       stopCamera()
       stopCheckInScan()
+      setShowForceCheckIn(false)
       setReCheckIn(false)
     },
     onError: (err) => {
-      setFaceMatchStatus('no-match')
-      toast(getApiError(err, 'Check-in failed'), 'error')
+      const msg = getApiError(err, '')
+      if (msg === 'FACE_MISMATCH') {
+        setFaceMatchStatus('no-match')
+        setShowForceCheckIn(true)
+      } else {
+        setFaceMatchStatus('no-match')
+        toast(getApiError(err, 'Check-in failed'), 'error')
+      }
     },
   })
 
@@ -823,20 +838,41 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   <span className="h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
                   Verifying face…
                 </div>
-              ) : faceMatchStatus === 'no-match' ? (
+              ) : showForceCheckIn ? (
+                // Face mismatch — offer forced check-in
                 <div className="space-y-3">
                   <div
                     className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
-                    style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
+                    style={{ background: warningAlpha(0.1), border: `1px solid ${warningAlpha(0.3)}` }}
                   >
-                    <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
+                    <AlertTriangle size={14} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 1 }} />
                     <span style={{ color: colors.text.primary }}>
-                      Face not recognised. Ensure your face is well-lit and clearly visible.
+                      Your face was not recognised. You can still check in — your manager will be notified to review.
                     </span>
                   </div>
-                  <Button variant="secondary" onClick={() => setFaceMatchStatus('idle')}>
-                    Try again
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(true) }}
+                      loading={isWorking}
+                    >
+                      <LogIn size={15} />
+                      Check in anyway
+                    </Button>
+                    <Button variant="secondary" onClick={() => { setShowForceCheckIn(false); setFaceMatchStatus('idle') }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : faceMatchStatus === 'no-match' ? (
+                // Post-force check-in: face didn't match (already checked in with override)
+                <div
+                  className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
+                  style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.2)}` }}
+                >
+                  <AlertTriangle size={14} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ color: colors.text.primary }}>
+                    Checked in — face not matched. Your manager has been notified to review.
+                  </span>
                 </div>
               ) : (
                 // Readiness indicators + Check In button
@@ -846,7 +882,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                     <ReadinessPill ok={!!capturedCheckInDescriptor} icon={<Camera size={11} />} label="Face" />
                   </div>
                   <Button
-                    onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate() }}
+                    onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(false) }}
                     loading={isWorking}
                     disabled={!checkInReady}
                   >

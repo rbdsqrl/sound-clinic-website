@@ -735,6 +735,10 @@ export interface AttendanceResponse {
   checkOutTime: string | null
   geoVerified: boolean
   faceVerified: boolean
+  faceOverride: boolean
+  overrideApproved: boolean | null
+  overrideReviewedByName: string | null
+  overrideReviewedAt: string | null
   status: AttendanceStatus
   createdAt: string
 }
@@ -744,6 +748,7 @@ export interface CheckInRequest {
   latitude?: number
   longitude?: number
   faceDescriptor?: number[]
+  forceCheckIn?: boolean
 }
 
 export interface CheckOutRequest {
