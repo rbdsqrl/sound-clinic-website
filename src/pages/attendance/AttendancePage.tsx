@@ -336,7 +336,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   if (loadingToday) return <PageLoader />
 
   const checkedOut = today?.status === 'CHECKED_OUT'
-  const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending || verifyMut.isPending
+  const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending
   const needsVerification = checkedIn && today && (!today.geoVerified || !today.faceVerified)
   const checkInReady = !!checkInScan.descriptor && geoStatus === 'ok' && !!selectedClinicId
 
@@ -482,6 +482,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 setLocation(null)
                 setGeoFenceError(false)
                 setFaceMatchStatus('idle')
+                verifyMut.reset()
               }}>
                 Cancel
               </Button>
