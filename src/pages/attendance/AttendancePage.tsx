@@ -11,8 +11,11 @@ import { Card } from '../../components/ui/Card'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
+import { useFaceScan } from '../../hooks/useFaceScan'
+import type { FaceMatchStatus } from '../../hooks/useFaceScan'
 import { getApiError } from '../../lib/apiError'
 import { colors, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
+import { CameraView } from './CameraView'
 import type { AttendanceResponse } from '../../types'
 
 const MODELS_PATH = '/models'
@@ -38,41 +41,6 @@ function VerifyBadge({ ok, label }: VerifyBadgeProps) {
   )
 }
 
-// ── Camera badge helpers ──────────────────────────────────────────────────────
-
-type ScanStatus      = 'idle' | 'scanning' | 'detected'
-type FaceMatchStatus = 'idle' | 'checking' | 'matched' | 'no-match'
-
-function cameraBadgeColor(faceMatch: FaceMatchStatus, scan: ScanStatus, hasCaptured = false) {
-  if (faceMatch === 'matched')         return '#86efac'
-  if (faceMatch === 'no-match')        return '#f87171'
-  if (faceMatch === 'checking')        return '#fbbf24'
-  if (hasCaptured || scan === 'detected') return '#86efac'
-  if (scan === 'scanning')             return '#fbbf24'
-  return '#4ade80'
-}
-
-function cameraBadgeDot(faceMatch: FaceMatchStatus, scan: ScanStatus, hasCaptured = false) {
-  if (faceMatch === 'matched')         return 'bg-green-400'
-  if (faceMatch === 'no-match')        return 'bg-red-400'
-  if (faceMatch === 'checking')        return 'bg-yellow-400 animate-pulse'
-  if (hasCaptured || scan === 'detected') return 'bg-green-400'
-  if (scan === 'scanning')             return 'bg-yellow-400 animate-pulse'
-  return 'bg-green-300'
-}
-
-function cameraBadgeLabel(faceMatch: FaceMatchStatus, scan: ScanStatus, hasCaptured = false) {
-  if (faceMatch === 'matched')  return 'Face matched'
-  if (faceMatch === 'no-match') return 'Face not recognised'
-  if (faceMatch === 'checking') return 'Matching…'
-  if (hasCaptured)              return 'Face captured'
-  if (scan === 'detected')      return 'Face detected'
-  if (scan === 'scanning')      return 'Detecting…'
-  return 'Live'
-}
-
-// ── Readiness pill (location / face) ─────────────────────────────────────────
-
 function ReadinessPill({ ok, icon, label }: { ok: boolean; icon: React.ReactNode; label: string }) {
   return (
     <span
@@ -88,8 +56,6 @@ function ReadinessPill({ ok, icon, label }: { ok: boolean; icon: React.ReactNode
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const { user, refreshUser } = useAuth()
   const { toasts, toast, dismiss } = useToast()
@@ -101,34 +67,24 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const modelsLoadPromise = useRef<Promise<void> | null>(null)
   const didAutoEnroll     = useRef(false)
   const didAutoCheckIn    = useRef(false)
-  const autoScanRef       = useRef<ReturnType<typeof setInterval> | null>(null)
-  const isScanningRef     = useRef(false)
-  const enrollScanRef     = useRef<ReturnType<typeof setInterval> | null>(null)
-  const isEnrollScanRef   = useRef(false)
 
-  const [selectedClinicId, setSelectedClinicId]         = useState('')
-  const [cameraActive, setCameraActive]                 = useState(false)
-  const [modelsLoaded, setModelsLoaded]                 = useState(false)
-  const [modelsLoading, setModelsLoading]               = useState(false)
-  const [geoStatus, setGeoStatus]                       = useState<'idle' | 'loading' | 'ok' | 'denied' | 'permission-denied'>('idle')
-  const [location, setLocation]                         = useState<{ lat: number; lon: number } | null>(null)
-  const [geoFenceError, setGeoFenceError]               = useState(false)
-  const [enrollMode, setEnrollMode]                     = useState(false)
-  const [showVerifyForm, setShowVerifyForm]             = useState(false)
-  const [scanStatus, setScanStatus]                     = useState<ScanStatus>('idle')
-  const [capturedCheckInDescriptor, setCapturedCheckInDescriptor] = useState<number[] | null>(null)
-  const [enrollScanStatus, setEnrollScanStatus]         = useState<ScanStatus>('idle')
-  const [capturedEnrollDescriptor, setCapturedEnrollDescriptor]   = useState<number[] | null>(null)
-  const [reCheckIn, setReCheckIn]                       = useState(false)
-  const [faceMatchStatus, setFaceMatchStatus]           = useState<FaceMatchStatus>('idle')
-  const [showForceCheckIn, setShowForceCheckIn]         = useState(false)
+  const [selectedClinicId, setSelectedClinicId] = useState('')
+  const [cameraActive, setCameraActive]         = useState(false)
+  const [modelsLoaded, setModelsLoaded]         = useState(false)
+  const [modelsLoading, setModelsLoading]       = useState(false)
+  const [geoStatus, setGeoStatus]               = useState<'idle' | 'loading' | 'ok' | 'denied' | 'permission-denied'>('idle')
+  const [location, setLocation]                 = useState<{ lat: number; lon: number } | null>(null)
+  const [geoFenceError, setGeoFenceError]       = useState(false)
+  const [enrollMode, setEnrollMode]             = useState(false)
+  const [showVerifyForm, setShowVerifyForm]     = useState(false)
+  const [reCheckIn, setReCheckIn]               = useState(false)
+  const [faceMatchStatus, setFaceMatchStatus]   = useState<FaceMatchStatus>('idle')
+  const [showForceCheckIn, setShowForceCheckIn] = useState(false)
 
   const faceEnrolled = user?.faceEnrolled ?? false
 
-  // Fetch fresh user on mount — localStorage may have stale faceEnrolled
   useEffect(() => { refreshUser() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Drive enrollMode from server: enter when not enrolled, exit after successful registration
   useEffect(() => {
     setEnrollMode(!faceEnrolled)
   }, [faceEnrolled])
@@ -203,7 +159,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const startCamera = useCallback(async () => {
     setFaceMatchStatus('idle')
     try {
-      // getUserMedia must come before any await — iOS Safari drops the gesture context otherwise
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
       streamRef.current = stream
       setCameraActive(true)
@@ -217,11 +172,10 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     setCameraActive(false)
+    setShowForceCheckIn(false)
   }, [])
 
   // Callback ref: sets srcObject immediately whenever the <video> node mounts or remounts.
-  // Needed because CameraView is an inner function component — React creates a new function
-  // reference on every parent render, causing it to unmount/remount on state changes.
   const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node
     if (node && streamRef.current) {
@@ -229,29 +183,15 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     }
   }, [])
 
-  const stopCheckInScan = useCallback(() => {
-    if (autoScanRef.current) {
-      clearInterval(autoScanRef.current)
-      autoScanRef.current = null
-    }
-    isScanningRef.current = false
-    setScanStatus('idle')
-    setCapturedCheckInDescriptor(null)
-    setShowForceCheckIn(false)
-  }, [])
-
-  useEffect(() => () => { stopCamera(); stopCheckInScan() }, [stopCamera, stopCheckInScan])
+  useEffect(() => () => { stopCamera() }, [stopCamera])
 
   useEffect(() => {
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        stopCamera()
-        stopCheckInScan()
-      }
+      if (document.visibilityState === 'hidden') stopCamera()
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [stopCamera, stopCheckInScan])
+  }, [stopCamera])
 
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
@@ -259,7 +199,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     }
   }, [cameraActive])
 
-  // Auto-open camera for first-time registration
   useEffect(() => {
     if (asTab) return
     if (didAutoEnroll.current || faceEnrolled) return
@@ -267,7 +206,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     startCamera()
   }, [asTab, faceEnrolled, startCamera])
 
-  // Auto-request location + camera for check-in
   useEffect(() => {
     if (didAutoCheckIn.current || !faceEnrolled || loadingToday) return
     if (today?.status === 'CHECKED_IN' || today?.status === 'CHECKED_OUT') return
@@ -276,31 +214,43 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     if (!asTab) startCamera()
   }, [asTab, faceEnrolled, loadingToday, today?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Live face capture (verify only) ──────────────────────────────────────────
+  // ── Face scans — one hook per mode ───────────────────────────────────────────
+  // Hooks must appear before any conditional early returns.
 
-  const captureFaceDescriptor = useCallback(async (): Promise<number[] | undefined> => {
-    if (!videoRef.current || !modelsLoaded) return undefined
-    const detection = await faceapi
-      .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options())
-      .withFaceLandmarks()
-      .withFaceDescriptor()
-    if (!detection) {
-      toast('No face detected — please ensure your face is clearly visible', 'error')
-      return undefined
+  const checkedIn = today?.status === 'CHECKED_IN'
+
+  const checkInScan = useFaceScan(
+    cameraActive && faceEnrolled && !enrollMode && modelsLoaded && !checkedIn,
+    videoRef,
+  )
+  const enrollScan = useFaceScan(
+    enrollMode && cameraActive && modelsLoaded,
+    videoRef,
+    { oneShot: true },
+  )
+  const verifyScan = useFaceScan(
+    showVerifyForm && cameraActive && modelsLoaded,
+    videoRef,
+  )
+
+  // Reset faceMatchStatus when a face is re-detected after a failed match
+  useEffect(() => {
+    if (faceMatchStatus === 'no-match' &&
+        (checkInScan.scanStatus === 'detected' || verifyScan.scanStatus === 'detected')) {
+      setFaceMatchStatus('idle')
     }
-    return Array.from(detection.descriptor)
-  }, [modelsLoaded, toast])
+  }, [checkInScan.scanStatus, verifyScan.scanStatus, faceMatchStatus])
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
 
   const checkInMut = useMutation({
     mutationFn: async (force: boolean) => {
-      if (!capturedCheckInDescriptor) throw new Error('No face detected')
+      if (!checkInScan.descriptor) throw new Error('No face detected')
       return attendanceApi.checkIn({
         clinicId: selectedClinicId,
         latitude: location!.lat,
         longitude: location!.lon,
-        faceDescriptor: capturedCheckInDescriptor,
+        faceDescriptor: checkInScan.descriptor,
         forceCheckIn: force,
       })
     },
@@ -315,8 +265,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         toast('Checked in successfully', 'success')
       }
       stopCamera()
-      stopCheckInScan()
-      setShowForceCheckIn(false)
       setReCheckIn(false)
     },
     onError: (err) => {
@@ -345,14 +293,11 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   })
 
   const verifyMut = useMutation({
-    mutationFn: async () => {
-      const descriptor = cameraActive ? await captureFaceDescriptor() : undefined
-      return attendanceApi.verify({
-        latitude: location?.lat,
-        longitude: location?.lon,
-        faceDescriptor: descriptor,
-      })
-    },
+    mutationFn: async () => attendanceApi.verify({
+      latitude: location?.lat,
+      longitude: location?.lon,
+      faceDescriptor: verifyScan.descriptor ?? undefined,
+    }),
     onSuccess: (data: AttendanceResponse) => {
       qc.setQueryData(['attendance', 'today'], data)
       qc.invalidateQueries({ queryKey: ['attendance'] })
@@ -377,222 +322,23 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
 
   const enrollMut = useMutation({
     mutationFn: async () => {
-      if (!capturedEnrollDescriptor) throw new Error('No face detected')
-      return attendanceApi.enrollFace({ faceDescriptor: capturedEnrollDescriptor })
+      if (!enrollScan.descriptor) throw new Error('No face detected')
+      return attendanceApi.enrollFace({ faceDescriptor: enrollScan.descriptor })
     },
     onSuccess: async () => {
       toast('Face registered successfully', 'success')
       stopCamera()
-      await refreshUser()  // faceEnrolled → true → useEffect sets enrollMode → false
+      await refreshUser()
     },
     onError: (err) => toast(getApiError(err, 'Face registration failed'), 'error'),
   })
 
-  // ── Check-in scan ─────────────────────────────────────────────────────────────
-  // Runs continuously while camera is open (not in enroll mode).
-  // Updates descriptor on every detection tick — does NOT auto-submit.
-  // User sees readiness indicators and clicks Check In when both are green.
-
-  useEffect(() => {
-    const canDetect = cameraActive && faceEnrolled && !enrollMode && modelsLoaded
-      && today?.status !== 'CHECKED_IN'
-    if (!canDetect) {
-      stopCheckInScan()
-      return
-    }
-    if (autoScanRef.current) return
-
-    isScanningRef.current = true
-    setScanStatus('scanning')
-
-    autoScanRef.current = setInterval(async () => {
-      if (!isScanningRef.current || !videoRef.current) return
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options())
-        .withFaceLandmarks()
-        .withFaceDescriptor()
-      if (detection && isScanningRef.current) {
-        setScanStatus('detected')
-        setCapturedCheckInDescriptor(Array.from(detection.descriptor))
-      } else {
-        setScanStatus('scanning')
-        // Keep the last valid descriptor — brief loss of detection doesn't invalidate it
-      }
-    }, 1500)
-
-    return () => stopCheckInScan()
-  }, [cameraActive, faceEnrolled, enrollMode, today?.status, modelsLoaded, stopCheckInScan]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Enrollment scan ───────────────────────────────────────────────────────────
-  // Runs only in enroll mode. Detects once, stores descriptor, stops.
-  // Save button is enabled only after descriptor is captured.
-
-  useEffect(() => {
-    if (!enrollMode || !cameraActive || !modelsLoaded) {
-      if (enrollScanRef.current) {
-        clearInterval(enrollScanRef.current)
-        enrollScanRef.current = null
-      }
-      isEnrollScanRef.current = false
-      return
-    }
-    if (enrollScanRef.current) return
-
-    setEnrollScanStatus('scanning')
-    isEnrollScanRef.current = true
-
-    enrollScanRef.current = setInterval(async () => {
-      if (!isEnrollScanRef.current || !videoRef.current) return
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options())
-        .withFaceLandmarks()
-        .withFaceDescriptor()
-      if (detection && isEnrollScanRef.current) {
-        isEnrollScanRef.current = false
-        clearInterval(enrollScanRef.current!)
-        enrollScanRef.current = null
-        setCapturedEnrollDescriptor(Array.from(detection.descriptor))
-        setEnrollScanStatus('detected')
-      }
-    }, 1500)
-
-    return () => {
-      if (enrollScanRef.current) {
-        clearInterval(enrollScanRef.current)
-        enrollScanRef.current = null
-      }
-      isEnrollScanRef.current = false
-      setEnrollScanStatus('idle')
-      setCapturedEnrollDescriptor(null)
-    }
-  }, [enrollMode, cameraActive, modelsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
-
   if (loadingToday) return <PageLoader />
 
-  const checkedIn  = today?.status === 'CHECKED_IN'
   const checkedOut = today?.status === 'CHECKED_OUT'
   const isWorking  = checkInMut.isPending || checkOutMut.isPending || enrollMut.isPending || verifyMut.isPending
   const needsVerification = checkedIn && today && (!today.geoVerified || !today.faceVerified)
-  const checkInReady = !!capturedCheckInDescriptor && geoStatus === 'ok' && !!selectedClinicId
-
-  // ── Face guide SVG overlay ────────────────────────────────────────────────────
-
-  const hasCapturedForDisplay = enrollMode ? enrollScanStatus === 'detected' : !!capturedCheckInDescriptor
-  const ovalColor =
-    faceMatchStatus === 'matched'  ? '#86efac' :
-    faceMatchStatus === 'no-match' ? '#f87171' :
-    faceMatchStatus === 'checking' ? '#fbbf24' :
-    hasCapturedForDisplay          ? '#4ade80' :
-    'rgba(255,255,255,0.6)'
-  const ovalDashed = !hasCapturedForDisplay && faceMatchStatus === 'idle'
-
-  const FaceGuideOverlay = (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox="0 0 400 300"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <defs>
-        <mask id="face-oval-mask">
-          <rect width="400" height="300" fill="white" />
-          <ellipse cx="200" cy="145" rx="86" ry="116" fill="black" />
-        </mask>
-      </defs>
-      <rect width="400" height="300" fill="rgba(0,0,0,0.4)" mask="url(#face-oval-mask)" />
-      <ellipse
-        cx="200" cy="145" rx="86" ry="116"
-        fill="none"
-        stroke={ovalColor}
-        strokeWidth="2.5"
-        strokeDasharray={ovalDashed ? '10 5' : undefined}
-      />
-      {ovalDashed && (
-        <text x="200" y="284" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="10" fontWeight="500">
-          Position your face in the oval
-        </text>
-      )}
-    </svg>
-  )
-
-  // ── Shared camera view ────────────────────────────────────────────────────────
-
-  function CameraView({ mode }: { mode: 'enroll' | 'checkin' | 'verify' }) {
-    const isEnroll   = mode === 'enroll'
-    const isCheckin  = mode === 'checkin'
-    const displayScan      = isEnroll ? enrollScanStatus : scanStatus
-    const hasCaptured      = isEnroll ? enrollScanStatus === 'detected' : (isCheckin ? !!capturedCheckInDescriptor : false)
-
-    return (
-      <div>
-        <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
-          {isEnroll ? 'Position your face in the camera' : 'Face verification'}
-        </p>
-        {!cameraActive ? (
-          <Button variant="secondary" onClick={startCamera} loading={modelsLoading}>
-            <Camera size={15} />
-            {modelsLoading ? 'Loading face models…' : 'Open Camera'}
-          </Button>
-        ) : (
-          <div className="space-y-3">
-            <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 280 }}>
-              <video ref={setVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-              {FaceGuideOverlay}
-              <div
-                className="absolute bottom-2 right-2 rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1"
-                style={{ background: 'rgba(0,0,0,0.6)', color: cameraBadgeColor(faceMatchStatus, displayScan, hasCaptured) }}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${cameraBadgeDot(faceMatchStatus, displayScan, hasCaptured)}`} />
-                {cameraBadgeLabel(faceMatchStatus, displayScan, hasCaptured)}
-              </div>
-            </div>
-
-            {/* Enroll: face captured confirmation */}
-            {isEnroll && enrollScanStatus === 'detected' && (
-              <div
-                className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm"
-                style={{ background: successAlpha(0.1), border: `1px solid ${successAlpha(0.3)}` }}
-              >
-                <CheckCircle size={14} style={{ color: colors.status.success, flexShrink: 0 }} />
-                <span style={{ color: colors.text.primary }}>
-                  Face captured — click <strong>Save</strong> to Register
-                </span>
-              </div>
-            )}
-
-            {/* Verify: face not recognised */}
-            {mode === 'verify' && faceMatchStatus === 'no-match' && (
-              <div
-                className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
-                style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}
-              >
-                <AlertTriangle size={14} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
-                <span style={{ color: colors.text.primary }}>
-                  Face not recognised. Ensure your face is well-lit and clearly visible, then tap <em>Verify Now</em> again.
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between">
-              <button onClick={stopCamera} className="text-xs" style={{ color: colors.text.muted }}>
-                Close camera
-              </button>
-              {/* Re-register shortcut — only accessible from within check-in view */}
-              {isCheckin && faceEnrolled && (
-                <button
-                  onClick={() => { stopCheckInScan(); setEnrollMode(true) }}
-                  className="text-xs underline"
-                  style={{ color: colors.text.muted }}
-                >
-                  Re-register face
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const checkInReady = !!checkInScan.descriptor && geoStatus === 'ok' && !!selectedClinicId
 
   return (
     <div className={asTab ? 'max-w-2xl space-y-6' : 'p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6'}>
@@ -707,13 +453,24 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               )}
             </div>
 
-            <CameraView mode="verify" />
+            <CameraView
+              mode="verify"
+              scanStatus={verifyScan.scanStatus}
+              hasCaptured={!!verifyScan.descriptor}
+              faceMatchStatus={faceMatchStatus}
+              cameraActive={cameraActive}
+              modelsLoading={modelsLoading}
+              videoRef={setVideoRef}
+              canvasRef={canvasRef}
+              onOpenCamera={startCamera}
+              onClose={stopCamera}
+            />
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
                 onClick={() => { setFaceMatchStatus('checking'); verifyMut.mutate() }}
                 loading={verifyMut.isPending}
-                disabled={!geoStatus || geoStatus === 'loading'}
+                disabled={!verifyScan.descriptor || geoStatus === 'loading'}
               >
                 <RefreshCw size={15} />
                 Verify Now
@@ -724,6 +481,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 setGeoStatus('idle')
                 setLocation(null)
                 setGeoFenceError(false)
+                setFaceMatchStatus('idle')
               }}>
                 Cancel
               </Button>
@@ -739,7 +497,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
             {enrollMode ? 'Register Face' : checkedIn ? 'Check Out' : 'Check In'}
           </h2>
 
-          {/* First-time registration notice */}
           {enrollMode && !faceEnrolled && (
             <div
               className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 mb-4 text-sm"
@@ -754,8 +511,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
           )}
 
           <div className="space-y-4">
-
-            {/* Clinic selector — check-in only */}
             {!checkedIn && !enrollMode && (
               <Select
                 label="Clinic"
@@ -765,7 +520,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               />
             )}
 
-            {/* Location — check-in only */}
             {!enrollMode && !checkedIn && (
               <div>
                 <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>
@@ -807,19 +561,30 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
               </div>
             )}
 
-            {/* Camera — enroll and check-in; not check-out */}
             {(enrollMode || !checkedIn) && (
-              <CameraView mode={enrollMode ? 'enroll' : 'checkin'} />
+              <CameraView
+                mode={enrollMode ? 'enroll' : 'checkin'}
+                scanStatus={enrollMode ? enrollScan.scanStatus : checkInScan.scanStatus}
+                hasCaptured={enrollMode ? enrollScan.scanStatus === 'detected' : !!checkInScan.descriptor}
+                faceMatchStatus={faceMatchStatus}
+                cameraActive={cameraActive}
+                modelsLoading={modelsLoading}
+                videoRef={setVideoRef}
+                canvasRef={canvasRef}
+                onOpenCamera={startCamera}
+                onClose={stopCamera}
+                faceEnrolled={faceEnrolled}
+                onReRegister={() => setEnrollMode(true)}
+              />
             )}
 
-            {/* Action buttons */}
             <div className="flex flex-col gap-3 pt-2">
               {enrollMode ? (
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => enrollMut.mutate()}
                     loading={isWorking}
-                    disabled={enrollScanStatus !== 'detected'}
+                    disabled={enrollScan.scanStatus !== 'detected'}
                   >
                     <UserCheck size={15} />
                     Save
@@ -839,7 +604,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   Verifying face…
                 </div>
               ) : showForceCheckIn ? (
-                // Face mismatch — offer forced check-in
                 <div className="space-y-3">
                   <div
                     className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
@@ -864,7 +628,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   </div>
                 </div>
               ) : faceMatchStatus === 'no-match' ? (
-                // Post-force check-in: face didn't match (already checked in with override)
                 <div
                   className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
                   style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.2)}` }}
@@ -875,11 +638,10 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   </span>
                 </div>
               ) : (
-                // Readiness indicators + Check In button
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <ReadinessPill ok={geoStatus === 'ok'} icon={<MapPin size={11} />} label="Location" />
-                    <ReadinessPill ok={!!capturedCheckInDescriptor} icon={<Camera size={11} />} label="Face" />
+                    <ReadinessPill ok={!!checkInScan.descriptor} icon={<Camera size={11} />} label="Face" />
                   </div>
                   <Button
                     onClick={() => { setFaceMatchStatus('checking'); checkInMut.mutate(false) }}
@@ -896,7 +658,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
         </Card>
       )}
 
-      {/* ── Done for today — only when not in enroll mode ── */}
+      {/* ── Done for today ── */}
       {checkedOut && !reCheckIn && !enrollMode && (
         <Card>
           <div className="flex flex-col items-center gap-3 py-4 text-center">
