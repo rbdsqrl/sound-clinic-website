@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -34,6 +34,7 @@ import type {
   LinkParentRequest,
   UserResponse,
   PatientStage,
+  PatientResponse,
   SubscriptionResponse,
   CreateSubscriptionRequest,
   UpdatePaymentRequest,
@@ -1159,6 +1160,116 @@ function sessionStatusIcon(status: TherapySessionStatus) {
   return <Circle size={13} style={{ color: colors.text.dim }} />
 }
 
+// ── PatientSwitcher ────────────────────────────────────────────────────────────
+// A dropdown replacement for the old left-hand list column: same jump-to-patient
+// job, but it costs nothing until opened instead of holding a permanently
+// half-empty strip of the page.
+
+function PatientSwitcher({
+  patients,
+  currentId,
+  search,
+  onSearch,
+}: {
+  patients: PatientResponse[]
+  currentId: string
+  search: string
+  onSearch: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
+
+  const q = search.trim().toLowerCase()
+  const filtered = patients.filter(
+    p => !q || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
+  )
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+        style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+      >
+        <Users size={13} /> Switch patient
+        <span style={{ color: colors.text.dim }}>({patients.length})</span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1.5 z-30 w-64 rounded-xl overflow-hidden"
+          style={{ background: surface.card, border: border.card, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}
+        >
+          <div className="p-2" style={{ borderBottom: `1px solid ${border.divider}` }}>
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: colors.text.dim }} />
+              <input
+                autoFocus
+                className="form-input w-full pl-7 pr-2 py-1.5"
+                placeholder="Search patients…"
+                value={search}
+                onChange={e => onSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No patients found</p>
+            ) : filtered.map(p => {
+              const isActive = p.id === currentId
+              return (
+                <Link
+                  key={p.id}
+                  to={`/patients/${p.id}`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+                  style={isActive ? { background: accentAlpha(0.10) } : undefined}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  <div
+                    className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                    style={{ background: accentAlpha(isActive ? 0.20 : 0.08), color: colors.accent }}
+                  >
+                    {p.firstName[0]}{p.lastName[0]}
+                  </div>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="text-[13px] font-medium truncate"
+                      style={{ color: isActive ? colors.accent : colors.text.primary }}>
+                      {p.firstName} {p.lastName}
+                    </p>
+                    <p className="text-[11px] truncate" style={{ color: colors.text.dim }}>
+                      {STAGE_LABELS[p.stage]}
+                    </p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── EnrollmentModal ────────────────────────────────────────────────────────────
 
 function EnrollmentModal({
@@ -1675,990 +1786,903 @@ export default function PatientDetailPage() {
     </button>
   )
 
-  // Filtered sidebar patient list
-  const filteredPatients = allPatients.filter(p => {
-    const q = sidebarSearch.toLowerCase()
-    return !q || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
-  })
-
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 flex min-h-screen">
+    <div className="max-w-4xl mx-auto space-y-5">
 
-      {/* ── Left sidebar (desktop only) — hidden for PARENT, they have no list access ── */}
-      <aside
-        className={`${isParentRole ? 'hidden' : 'hidden lg:flex'} flex-col w-52 flex-shrink-0 sticky top-0 h-screen`}
-        style={{
-          background: surface.sidebar,
-          borderRight: `1px solid ${border.sidebar}`,
-        }}
-      >
-        {/* Sidebar header — search sits inline with the count so it costs one row, not two */}
-        <div className="flex items-center gap-2 px-3 pt-4 pb-3 flex-shrink-0">
-          <div className="relative flex-1 min-w-0">
-            <Search
-              size={13}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ color: colors.text.dim }}
-            />
-            <input
-              className="form-input w-full pl-7 pr-2 py-1.5"
-              placeholder="Search patients…"
-              value={sidebarSearch}
-              onChange={e => setSidebarSearch(e.target.value)}
-            />
-          </div>
-          <span
-            className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+      {/* Back link + patient switcher — replaces the old always-on list column,
+          which sat mostly empty and ate a fixed slice of the page width. */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          to="/patients"
+          className="inline-flex items-center gap-1 text-sm transition-colors"
+          style={{ color: colors.text.muted }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+        >
+          <ArrowLeft size={14} /> Patients
+        </Link>
+
+        {!isParentRole && (
+          <PatientSwitcher
+            patients={allPatients}
+            currentId={id!}
+            search={sidebarSearch}
+            onSearch={setSidebarSearch}
+          />
+        )}
+      </div>
+
+      {/* ── Page header (always visible) ─────────────────────────────────── */}
+      <Card>
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="h-10 w-10 rounded-full font-bold text-base flex items-center justify-center flex-shrink-0"
             style={{ background: accentAlpha(0.10), color: colors.accent }}
-            title={`${allPatients.length} patients`}
           >
-            {allPatients.length}
-          </span>
-        </div>
-
-        {/* Patient list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4">
-          {filteredPatients.map(p => {
-            const isActive = p.id === id
-            return (
-              <Link
-                key={p.id}
-                to={`/patients/${p.id}`}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 mb-0.5 transition-colors"
-                style={isActive
-                  ? { background: accentAlpha(0.10), border: `1px solid ${accentAlpha(0.20)}` }
-                  : { border: '1px solid transparent' }
-                }
-                onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05)
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
-                }}
-              >
-                {/* Avatar */}
-                <div
-                  className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                  style={isActive
-                    ? { background: accentAlpha(0.20), color: colors.accent }
-                    : { background: accentAlpha(0.08), color: colors.accent }
-                  }
-                >
-                  {p.firstName[0]}{p.lastName[0]}
-                </div>
-
-                {/* Name over stage — stage is plain text, a pill per row was too heavy */}
-                <div className="min-w-0 flex-1 leading-tight">
-                  <p
-                    className="text-[13px] font-medium truncate"
-                    style={{ color: isActive ? colors.accent : colors.text.primary }}
-                  >
-                    {p.firstName} {p.lastName}
-                  </p>
-                  <p className="text-[11px] truncate" style={{ color: colors.text.dim }}>
-                    {STAGE_LABELS[p.stage]}
-                  </p>
-                </div>
-              </Link>
-            )
-          })}
-
-          {filteredPatients.length === 0 && (
-            <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No patients found</p>
-          )}
-        </div>
-      </aside>
-
-      {/* ── Right panel ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0">
-        <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
-
-          {/* Mobile back link (hidden on lg) */}
-          <div className="lg:hidden">
-            <Link
-              to="/patients"
-              className="inline-flex items-center gap-1 text-sm transition-colors"
-              style={{ color: colors.text.muted }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
-            >
-              <ArrowLeft size={14} /> Patients
-            </Link>
+            {patient.firstName[0]}{patient.lastName[0]}
           </div>
-
-          {/* ── Page header (always visible) ─────────────────────────────────── */}
-          <Card>
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className="h-10 w-10 rounded-full font-bold text-base flex items-center justify-center flex-shrink-0"
-                style={{ background: accentAlpha(0.10), color: colors.accent }}
-              >
-                {patient.firstName[0]}{patient.lastName[0]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
-                  {patient.firstName} {patient.lastName}
-                </h1>
-                <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {canEditDetails && (
-                  <button
-                    onClick={() => {
-                      editForm.reset({
-                        firstName:   patient.firstName,
-                        lastName:    patient.lastName,
-                        dateOfBirth: patient.dateOfBirth ?? '',
-                        gender:      patient.gender ?? '',
-                        notes:       patient.notes ?? '',
-                      })
-                      setEditModal(true)
-                    }}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                    style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
-                  >
-                    <Pencil size={13} /> Edit
-                  </button>
-                )}
-                {canDelete && (
-                  <button
-                    onClick={() => setDeleteConfirm(true)}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                    style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <Trash2 size={13} /> Delete
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Read-only stage progress */}
-            <StageProgress current={patient.stage} />
-          </Card>
-
-          {/* ── Tab strip ────────────────────────────────────────────────────── */}
-          <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
-            {TABS.map(tab => (
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
+              {patient.firstName} {patient.lastName}
+            </h1>
+            <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {canEditDetails && (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
-                style={activeTab === tab ? styles.tabActive : styles.tabInactive}
+                onClick={() => {
+                  editForm.reset({
+                    firstName:   patient.firstName,
+                    lastName:    patient.lastName,
+                    dateOfBirth: patient.dateOfBirth ?? '',
+                    gender:      patient.gender ?? '',
+                    notes:       patient.notes ?? '',
+                  })
+                  setEditModal(true)
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
               >
-                {tab}
+                <Pencil size={13} /> Edit
               </button>
-            ))}
+            )}
+            {canDelete && (
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* ── Overview tab ─────────────────────────────────────────────────── */}
-          {activeTab === 'Overview' && (() => {
-            const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
-            const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
-            const unpaidSub          = subscriptions.find(s => s.status !== 'CANCELLED' && s.paymentStatus !== 'PAID')
+        {/* Read-only stage progress */}
+        <StageProgress current={patient.stage} />
+      </Card>
 
-            return (
-              <div className="space-y-4">
-                <JourneyCard
-                  patient={patient}
-                  subscriptions={subscriptions}
-                  enrollments={enrollments}
-                  canManage={canManageSubs || canCreateEnrollment}
-                  onAddSubscription={() => setSubModal(true)}
-                  onSetupSchedule={() => {
-                    const paidSub = subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
-                    if (paidSub) setEnrollForSub(paidSub)
-                  }}
-                  onRecordPayment={(sub) => setPaymentTarget(sub)}
-                  onPayNow={isParent ? (sub) => setMockPayTarget(sub) : undefined}
-                />
+      {/* ── Tab strip ────────────────────────────────────────────────────── */}
+      <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
+        {TABS.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+            style={activeTab === tab ? styles.tabActive : styles.tabInactive}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-                {/* ── Payment due card — shown to PARENT whenever any sub is unpaid ── */}
-                {isParent && unpaidSub && (
-                  <div className="rounded-2xl p-4 flex items-center gap-4"
-                    style={{
-                      background: 'rgba(234,179,8,0.06)',
-                      border: `1px solid rgba(234,179,8,0.25)`,
-                    }}>
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(234,179,8,0.12)' }}>
-                      <CreditCard size={18} style={{ color: '#b45309' }} />
+      {/* ── Overview tab ─────────────────────────────────────────────────── */}
+      {activeTab === 'Overview' && (() => {
+        const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
+        const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
+        const unpaidSub          = subscriptions.find(s => s.status !== 'CANCELLED' && s.paymentStatus !== 'PAID')
+
+        return (
+          <div className="space-y-4">
+            <JourneyCard
+              patient={patient}
+              subscriptions={subscriptions}
+              enrollments={enrollments}
+              canManage={canManageSubs || canCreateEnrollment}
+              onAddSubscription={() => setSubModal(true)}
+              onSetupSchedule={() => {
+                const paidSub = subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
+                if (paidSub) setEnrollForSub(paidSub)
+              }}
+              onRecordPayment={(sub) => setPaymentTarget(sub)}
+              onPayNow={isParent ? (sub) => setMockPayTarget(sub) : undefined}
+            />
+
+            {/* ── Payment due card — shown to PARENT whenever any sub is unpaid ── */}
+            {isParent && unpaidSub && (
+              <div className="rounded-2xl p-4 flex items-center gap-4"
+                style={{
+                  background: 'rgba(234,179,8,0.06)',
+                  border: `1px solid rgba(234,179,8,0.25)`,
+                }}>
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(234,179,8,0.12)' }}>
+                  <CreditCard size={18} style={{ color: '#b45309' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                    Payment due
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                    {unpaidSub.programName} · {formatINR(unpaidSub.totalAmount)}
+                    {unpaidSub.paymentStatus === 'PARTIAL' && unpaidSub.amountPaid > 0 && (
+                      <span className="ml-1.5">({formatINR(unpaidSub.amountPaid)} paid)</span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMockPayTarget(unpaidSub)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold"
+                  style={styles.buttonPrimary}
+                >
+                  <CreditCard size={12} /> Pay Now
+                </button>
+              </div>
+            )}
+
+            {/* ── Active enrollment summary ──────────────────────────── */}
+            {activeEnrollment && (
+              <Card>
+                <CardHeader title="Active Enrollment" />
+                <div className="space-y-3">
+                  {/* Program + therapist */}
+                  <div className="flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: accentAlpha(0.10) }}>
+                      <BookOpen size={16} style={{ color: colors.accent }} />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-                        Payment due
+                        {activeEnrollment.programName}
                       </p>
                       <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                        {unpaidSub.programName} · {formatINR(unpaidSub.totalAmount)}
-                        {unpaidSub.paymentStatus === 'PARTIAL' && unpaidSub.amountPaid > 0 && (
-                          <span className="ml-1.5">({formatINR(unpaidSub.amountPaid)} paid)</span>
-                        )}
+                        {activeEnrollment.therapistFirstName} {activeEnrollment.therapistLastName}
                       </p>
                     </div>
-                    <button
-                      onClick={() => setMockPayTarget(unpaidSub)}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold"
-                      style={styles.buttonPrimary}
-                    >
-                      <CreditCard size={12} /> Pay Now
-                    </button>
+                    <span className="flex-shrink-0 text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                      style={paletteStyle('teal', 0.12, 0)}>
+                      Active
+                    </span>
                   </div>
-                )}
 
-                {/* ── Active enrollment summary ──────────────────────────── */}
-                {activeEnrollment && (
-                  <Card>
-                    <CardHeader title="Active Enrollment" />
-                    <div className="space-y-3">
-                      {/* Program + therapist */}
-                      <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: accentAlpha(0.10) }}>
-                          <BookOpen size={16} style={{ color: colors.accent }} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-                            {activeEnrollment.programName}
-                          </p>
+                  {/* Progress bar */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs" style={{ color: colors.text.muted }}>Sessions completed</span>
+                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+                        {activeEnrollment.sessionsCompleted} / {activeEnrollment.totalSessions}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: border.divider }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${activeEnrollment.totalSessions > 0
+                            ? Math.min(100, (activeEnrollment.sessionsCompleted / activeEnrollment.totalSessions) * 100)
+                            : 0}%`,
+                          background: colors.accent,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Meta info grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                    {[
+                      [<CalendarDays size={11} />, `Starts ${activeEnrollment.startDate}`],
+                      [<Clock size={11} />, `${activeEnrollment.startTime.slice(0, 5)} · ${activeEnrollment.sessionDurationMinutes} min`],
+                      [<CheckCircle2 size={11} />, `${activeEnrollment.totalSessions - activeEnrollment.sessionsCompleted} remaining`],
+                    ].map(([icon, text], i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span style={{ color: colors.text.dim }}>{icon}</span>
+                        <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Patient Info */}
+            <Card>
+              <CardHeader title="Patient Info" />
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+                {[
+                  ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                  ['Gender', patient.gender?.toLowerCase()],
+                  ['Clinic', clinicName],
+                  ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                    <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
+                      {value || <span style={{ color: colors.text.dim }}>—</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {patient.notes && (
+                <div
+                  className="mt-4 rounded-xl p-3 text-sm"
+                  style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                >
+                  {patient.notes}
+                </div>
+              )}
+            </Card>
+          </div>
+        )
+      })()}
+
+      {/* ── Clinical tab ─────────────────────────────────────────────────── */}
+      {activeTab === 'Clinical' && (
+        <div className="space-y-4">
+          {/* Conditions */}
+          <Card>
+            <CardHeader
+              title="Conditions"
+              subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
+              action={canEditDetails ? <Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button> : undefined}
+            />
+            {!patient.conditions.length ? (
+              <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
+            ) : (
+              <div className="divide-subtle">
+                {patient.conditions.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-start justify-between gap-3 py-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                        style={{ background: accentAlpha(0.08) }}
+                      >
+                        <Heart size={13} style={{ color: colors.accent }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
+                        {c.diagnosedAt && (
                           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                            {activeEnrollment.therapistFirstName} {activeEnrollment.therapistLastName}
+                            Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
                           </p>
-                        </div>
-                        <span className="flex-shrink-0 text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                          style={paletteStyle('teal', 0.12, 0)}>
-                          Active
+                        )}
+                        {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
+                      </div>
+                    </div>
+                    {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Parents / Guardians */}
+          <Card>
+            <CardHeader
+              title="Parents / Guardians"
+              subtitle={`${patient.parents.length} linked`}
+              action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
+            />
+            {!patient.parents.length ? (
+              <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
+            ) : (
+              <div className="divide-subtle">
+                {patient.parents.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                        style={styles.avatar}
+                      >
+                        {p.firstName[0]}{p.lastName[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
+                      </div>
+                    </div>
+                    {removeBtn(() => unlinkParentMutation.mutate(p.id))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Assigned Therapists */}
+          <Card>
+            <CardHeader
+              title="Assigned Therapists"
+              subtitle={`${patient.therapists.length} assigned`}
+              action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
+            />
+            {!patient.therapists.length ? (
+              <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
+            ) : (
+              <div className="divide-subtle">
+                {patient.therapists.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                        style={styles.avatar}
+                      >
+                        {t.firstName[0]}{t.lastName[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
+                        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                          Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                    {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ── Therapy tab ──────────────────────────────────────────────────── */}
+      {activeTab === 'Therapy' && (
+        <div className="space-y-4">
+          {/* Programs — merged subscription + enrollment */}
+          <Card>
+            <CardHeader
+              title="Programs"
+              subtitle={`${subscriptions.length} program${subscriptions.length !== 1 ? 's' : ''}`}
+              action={
+                canManageSubs ? (
+                  <Button size="sm" onClick={() => setSubModal(true)}>
+                    <Plus size={14} /> Add
+                  </Button>
+                ) : undefined
+              }
+            />
+
+            {subscriptions.length === 0 ? (
+              <p className="text-sm" style={{ color: colors.text.dim }}>No programs yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Cancelled plans sink to the bottom and render as a single quiet line */}
+                {[...subscriptions]
+                  .sort((a, b) => Number(a.status === 'CANCELLED') - Number(b.status === 'CANCELLED'))
+                  .map(sub => {
+                  const isCancelled   = sub.status === 'CANCELLED'
+                  const enrollment    = enrollments.find(e => e.subscriptionId === sub.id && e.status === 'ACTIVE')
+                  const isEnrolled    = !!enrollment
+                  const isPaid        = sub.paymentStatus === 'PAID'
+                  const alreadyEnrolled = isEnrolled
+                  const canEnroll     = canCreateEnrollment && isPaid && !alreadyEnrolled && !isCancelled
+
+                  const sessionsCompleted = enrollment?.sessionsCompleted ?? 0
+                  const progressPct       = sub.numSessions > 0
+                    ? Math.min(100, (sessionsCompleted / sub.numSessions) * 100)
+                    : 0
+                  const isExpanded = expandedEnroll === enrollment?.id
+
+                  // A cancelled plan has no progress worth showing — a full card with a
+                  // 0% hero just reads as a live plan that isn't working. One line instead.
+                  if (isCancelled) {
+                    return (
+                      <div
+                        key={sub.id}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2"
+                        style={{ background: surface.filterStrip, border: `1px solid ${border.divider}` }}
+                      >
+                        <Ban size={13} className="flex-shrink-0" style={{ color: colors.text.dim }} />
+                        <p className="text-xs font-medium truncate flex-1" style={{ color: colors.text.muted }}>
+                          {sub.programName}
+                        </p>
+                        <span className="text-[12.65px] flex-shrink-0" style={{ color: colors.text.dim }}>
+                          {formatINR(sub.amountPaid)} paid
+                        </span>
+                        <span
+                          className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
+                          style={{ background: surface.card, color: colors.text.dim }}
+                        >
+                          Cancelled
                         </span>
                       </div>
+                    )
+                  }
 
-                      {/* Progress bar */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs" style={{ color: colors.text.muted }}>Sessions completed</span>
-                          <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
-                            {activeEnrollment.sessionsCompleted} / {activeEnrollment.totalSessions}
-                          </span>
+                  return (
+                    <div
+                      key={sub.id}
+                      className="rounded-2xl overflow-hidden"
+                      style={{ border: `1px solid ${accentAlpha(0.18)}` }}
+                    >
+                      <div className="p-4" style={{ background: accentAlpha(0.03) }}>
+                        {/* Header: icon + program name + therapist + badges */}
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                              style={{ background: accentAlpha(0.10) }}
+                            >
+                              <BookOpen size={15} style={{ color: colors.accent }} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: colors.text.heading }}>
+                                {sub.programName}
+                              </p>
+                              {enrollment && (
+                                <p className="text-xs mt-0.5 truncate" style={{ color: colors.text.muted }}>
+                                  {enrollment.therapistFirstName} {enrollment.therapistLastName}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span
+                              className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                              style={paymentStatusStyle(sub.paymentStatus)}
+                            >
+                              {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
+                            </span>
+                            {isEnrolled && (
+                              <span
+                                className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                style={paletteStyle('teal', 0.12, 0)}
+                              >
+                                Active
+                              </span>
+                            )}
+                            {!isEnrolled && isPaid && !isCancelled && (
+                              <span
+                                className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                style={paletteStyle('yellow', 0.14, 0)}
+                              >
+                                Not enrolled
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="h-2 rounded-full overflow-hidden" style={{ background: border.divider }}>
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${activeEnrollment.totalSessions > 0
-                                ? Math.min(100, (activeEnrollment.sessionsCompleted / activeEnrollment.totalSessions) * 100)
-                                : 0}%`,
-                              background: colors.accent,
-                            }}
+
+                        {/* Session progress — hero element */}
+                        <div className="mb-4">
+                          <div className="flex items-end justify-between mb-2">
+                            <div>
+                              <p className="leading-none" style={{ color: colors.text.heading }}>
+                                <span className="text-3xl font-bold">{sessionsCompleted}</span>
+                                <span className="text-lg font-medium ml-1.5" style={{ color: colors.text.muted }}>
+                                  / {sub.numSessions}
+                                </span>
+                              </p>
+                              <p className="text-[11.5px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
+                                sessions completed
+                              </p>
+                            </div>
+                            <p
+                              className="text-2xl font-bold leading-none mb-0.5"
+                              style={{
+                                color: progressPct >= 100
+                                  ? palette.green.text
+                                  : progressPct > 0
+                                    ? colors.accent
+                                    : colors.text.dim,
+                              }}
+                            >
+                              {Math.round(progressPct)}%
+                            </p>
+                          </div>
+                          <div className="h-2.5 rounded-full overflow-hidden" style={{ background: accentAlpha(0.10) }}>
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${progressPct}%`,
+                                background: progressPct >= 100 ? palette.green.text : colors.accent,
+                                minWidth: sessionsCompleted > 0 ? '6px' : '0',
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Details strip: schedule + payment inline */}
+                        <div
+                          className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 pb-4 border-b text-xs"
+                          style={{ borderColor: border.divider, color: colors.text.muted }}
+                        >
+                          {isEnrolled && enrollment && (
+                            <>
+                              <span className="flex items-center gap-1.5">
+                                <CalendarDays size={11} style={{ color: colors.text.dim }} />
+                                {enrollment.startDate}
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                <Clock size={11} style={{ color: colors.text.dim }} />
+                                {enrollment.startTime.slice(0, 5)} · {enrollment.sessionDurationMinutes}min
+                              </span>
+                            </>
+                          )}
+                          <span className="flex items-center gap-1.5">
+                            <IndianRupee size={11} style={{ color: colors.text.dim }} />
+                            {formatINR(sub.amountPaid)} paid
+                            {sub.discountPercent > 0 && ` · ${sub.discountPercent}% off`}
+                          </span>
+                          {sub.paymentNotes && (
+                            <span className="italic">{sub.paymentNotes}</span>
+                          )}
+                        </div>
+
+                        {/* Actions: primary left, destructive right */}
+                        {!isCancelled && (
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {canEnroll && (
+                                <button
+                                  onClick={() => setEnrollForSub(sub)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                  style={{ color: '#fff', background: colors.accent }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                >
+                                  <UserCheck size={12} /> Assign Therapist
+                                </button>
+                              )}
+                              {isEnrolled && enrollment && (
+                                <button
+                                  onClick={() => setExpandedEnroll(isExpanded ? null : enrollment.id)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                >
+                                  <ClipboardList size={12} />
+                                  {isExpanded ? 'Hide Sessions' : 'View Sessions'}
+                                </button>
+                              )}
+                              {canRecordPayment && !isPaid && (
+                                <button
+                                  onClick={() => setPaymentTarget(sub)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                  style={{ color: '#fff', background: colors.accent }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                >
+                                  <IndianRupee size={12} /> Record Payment
+                                </button>
+                              )}
+                              {isParent && !isPaid && (
+                                <button
+                                  onClick={() => setMockPayTarget(sub)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                  style={{ color: '#fff', background: colors.accent }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                >
+                                  <CreditCard size={12} /> Pay Now
+                                </button>
+                              )}
+                            </div>
+                            {canManageSubs && (
+                              <div className="flex items-center gap-1">
+                                {isEnrolled && enrollment && (
+                                  <button
+                                    onClick={() => cancelEnrollmentMutation.mutate(enrollment.id)}
+                                    disabled={cancelEnrollmentMutation.isPending}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                    style={{ color: colors.status.error }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                  >
+                                    Cancel Enrollment
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => cancelSubMutation.mutate(sub.id)}
+                                  disabled={cancelSubMutation.isPending}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                  style={{ color: colors.status.error }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                >
+                                  Cancel Plan
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Review meetings — available for any ongoing plan */}
+                      {isEnrolled && enrollment && (
+                        <div style={{ borderTop: `1px solid ${border.divider}` }}>
+                          <ReviewMeetingsPanel
+                            enrollmentId={enrollment.id}
+                            enrollmentStartDate={enrollment.startDate}
+                            enrollmentEndDate={enrollment.endDate}
+                            therapistId={enrollment.therapistId}
+                            currentUserId={user?.id ?? ''}
+                            canSchedule={canCreateEnrollment}
+                            canGiveTherapistFeedback={
+                              currentRole === 'THERAPIST' || currentRole === 'DOCTOR'
+                            }
+                            isParent={isParent}
                           />
                         </div>
-                      </div>
+                      )}
 
-                      {/* Meta info grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
-                        {[
-                          [<CalendarDays size={11} />, `Starts ${activeEnrollment.startDate}`],
-                          [<Clock size={11} />, `${activeEnrollment.startTime.slice(0, 5)} · ${activeEnrollment.sessionDurationMinutes} min`],
-                          [<CheckCircle2 size={11} />, `${activeEnrollment.totalSessions - activeEnrollment.sessionsCompleted} remaining`],
-                        ].map(([icon, text], i) => (
-                          <div key={i} className="flex items-center gap-1.5">
-                            <span style={{ color: colors.text.dim }}>{icon}</span>
-                            <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </Card>
-                )}
-
-                {/* Patient Info */}
-                <Card>
-                  <CardHeader title="Patient Info" />
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-                    {[
-                      ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
-                      ['Gender', patient.gender?.toLowerCase()],
-                      ['Clinic', clinicName],
-                      ['Status', patient.isActive ? 'Active' : 'Inactive'],
-                    ].map(([label, value]) => (
-                      <div key={label as string}>
-                        <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
-                        <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
-                          {value || <span style={{ color: colors.text.dim }}>—</span>}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {patient.notes && (
-                    <div
-                      className="mt-4 rounded-xl p-3 text-sm"
-                      style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                    >
-                      {patient.notes}
-                    </div>
-                  )}
-                </Card>
-              </div>
-            )
-          })()}
-
-          {/* ── Clinical tab ─────────────────────────────────────────────────── */}
-          {activeTab === 'Clinical' && (
-            <div className="space-y-4">
-              {/* Conditions */}
-              <Card>
-                <CardHeader
-                  title="Conditions"
-                  subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
-                  action={canEditDetails ? <Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button> : undefined}
-                />
-                {!patient.conditions.length ? (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
-                ) : (
-                  <div className="divide-subtle">
-                    {patient.conditions.map((c) => (
-                      <div
-                        key={c.id}
-                        className="flex items-start justify-between gap-3 py-3"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{ background: accentAlpha(0.08) }}
-                          >
-                            <Heart size={13} style={{ color: colors.accent }} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
-                            {c.diagnosedAt && (
-                              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                                Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
-                              </p>
-                            )}
-                            {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
-                          </div>
-                        </div>
-                        {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Parents / Guardians */}
-              <Card>
-                <CardHeader
-                  title="Parents / Guardians"
-                  subtitle={`${patient.parents.length} linked`}
-                  action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
-                />
-                {!patient.parents.length ? (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
-                ) : (
-                  <div className="divide-subtle">
-                    {patient.parents.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between gap-3 py-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                            style={styles.avatar}
-                          >
-                            {p.firstName[0]}{p.lastName[0]}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
-                          </div>
-                        </div>
-                        {removeBtn(() => unlinkParentMutation.mutate(p.id))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Assigned Therapists */}
-              <Card>
-                <CardHeader
-                  title="Assigned Therapists"
-                  subtitle={`${patient.therapists.length} assigned`}
-                  action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
-                />
-                {!patient.therapists.length ? (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
-                ) : (
-                  <div className="divide-subtle">
-                    {patient.therapists.map((t) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between gap-3 py-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                            style={styles.avatar}
-                          >
-                            {t.firstName[0]}{t.lastName[0]}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                              Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
-                            </p>
-                          </div>
-                        </div>
-                        {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
-
-          {/* ── Therapy tab ──────────────────────────────────────────────────── */}
-          {activeTab === 'Therapy' && (
-            <div className="space-y-4">
-              {/* Programs — merged subscription + enrollment */}
-              <Card>
-                <CardHeader
-                  title="Programs"
-                  subtitle={`${subscriptions.length} program${subscriptions.length !== 1 ? 's' : ''}`}
-                  action={
-                    canManageSubs ? (
-                      <Button size="sm" onClick={() => setSubModal(true)}>
-                        <Plus size={14} /> Add
-                      </Button>
-                    ) : undefined
-                  }
-                />
-
-                {subscriptions.length === 0 ? (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>No programs yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Cancelled plans sink to the bottom and render as a single quiet line */}
-                    {[...subscriptions]
-                      .sort((a, b) => Number(a.status === 'CANCELLED') - Number(b.status === 'CANCELLED'))
-                      .map(sub => {
-                      const isCancelled   = sub.status === 'CANCELLED'
-                      const enrollment    = enrollments.find(e => e.subscriptionId === sub.id && e.status === 'ACTIVE')
-                      const isEnrolled    = !!enrollment
-                      const isPaid        = sub.paymentStatus === 'PAID'
-                      const alreadyEnrolled = isEnrolled
-                      const canEnroll     = canCreateEnrollment && isPaid && !alreadyEnrolled && !isCancelled
-
-                      const sessionsCompleted = enrollment?.sessionsCompleted ?? 0
-                      const progressPct       = sub.numSessions > 0
-                        ? Math.min(100, (sessionsCompleted / sub.numSessions) * 100)
-                        : 0
-                      const isExpanded = expandedEnroll === enrollment?.id
-
-                      // A cancelled plan has no progress worth showing — a full card with a
-                      // 0% hero just reads as a live plan that isn't working. One line instead.
-                      if (isCancelled) {
-                        return (
-                          <div
-                            key={sub.id}
-                            className="flex items-center gap-2.5 rounded-xl px-3 py-2"
-                            style={{ background: surface.filterStrip, border: `1px solid ${border.divider}` }}
-                          >
-                            <Ban size={13} className="flex-shrink-0" style={{ color: colors.text.dim }} />
-                            <p className="text-xs font-medium truncate flex-1" style={{ color: colors.text.muted }}>
-                              {sub.programName}
-                            </p>
-                            <span className="text-[12.65px] flex-shrink-0" style={{ color: colors.text.dim }}>
-                              {formatINR(sub.amountPaid)} paid
-                            </span>
-                            <span
-                              className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
-                              style={{ background: surface.card, color: colors.text.dim }}
-                            >
-                              Cancelled
-                            </span>
-                          </div>
-                        )
-                      }
-
-                      return (
-                        <div
-                          key={sub.id}
-                          className="rounded-2xl overflow-hidden"
-                          style={{ border: `1px solid ${accentAlpha(0.18)}` }}
-                        >
-                          <div className="p-4" style={{ background: accentAlpha(0.03) }}>
-                            {/* Header: icon + program name + therapist + badges */}
-                            <div className="flex items-start justify-between gap-3 mb-4">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div
-                                  className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                  style={{ background: accentAlpha(0.10) }}
-                                >
-                                  <BookOpen size={15} style={{ color: colors.accent }} />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold truncate" style={{ color: colors.text.heading }}>
-                                    {sub.programName}
-                                  </p>
-                                  {enrollment && (
-                                    <p className="text-xs mt-0.5 truncate" style={{ color: colors.text.muted }}>
-                                      {enrollment.therapistFirstName} {enrollment.therapistLastName}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <span
-                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                  style={paymentStatusStyle(sub.paymentStatus)}
-                                >
-                                  {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
-                                </span>
-                                {isEnrolled && (
-                                  <span
-                                    className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                    style={paletteStyle('teal', 0.12, 0)}
-                                  >
-                                    Active
-                                  </span>
-                                )}
-                                {!isEnrolled && isPaid && !isCancelled && (
-                                  <span
-                                    className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                    style={paletteStyle('yellow', 0.14, 0)}
-                                  >
-                                    Not enrolled
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Session progress — hero element */}
-                            <div className="mb-4">
-                              <div className="flex items-end justify-between mb-2">
-                                <div>
-                                  <p className="leading-none" style={{ color: colors.text.heading }}>
-                                    <span className="text-3xl font-bold">{sessionsCompleted}</span>
-                                    <span className="text-lg font-medium ml-1.5" style={{ color: colors.text.muted }}>
-                                      / {sub.numSessions}
-                                    </span>
-                                  </p>
-                                  <p className="text-[11.5px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
-                                    sessions completed
-                                  </p>
-                                </div>
-                                <p
-                                  className="text-2xl font-bold leading-none mb-0.5"
-                                  style={{
-                                    color: progressPct >= 100
-                                      ? palette.green.text
-                                      : progressPct > 0
-                                        ? colors.accent
-                                        : colors.text.dim,
-                                  }}
-                                >
-                                  {Math.round(progressPct)}%
-                                </p>
-                              </div>
-                              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: accentAlpha(0.10) }}>
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${progressPct}%`,
-                                    background: progressPct >= 100 ? palette.green.text : colors.accent,
-                                    minWidth: sessionsCompleted > 0 ? '6px' : '0',
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Details strip: schedule + payment inline */}
-                            <div
-                              className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 pb-4 border-b text-xs"
-                              style={{ borderColor: border.divider, color: colors.text.muted }}
-                            >
-                              {isEnrolled && enrollment && (
-                                <>
-                                  <span className="flex items-center gap-1.5">
-                                    <CalendarDays size={11} style={{ color: colors.text.dim }} />
-                                    {enrollment.startDate}
-                                  </span>
-                                  <span className="flex items-center gap-1.5">
-                                    <Clock size={11} style={{ color: colors.text.dim }} />
-                                    {enrollment.startTime.slice(0, 5)} · {enrollment.sessionDurationMinutes}min
-                                  </span>
-                                </>
-                              )}
-                              <span className="flex items-center gap-1.5">
-                                <IndianRupee size={11} style={{ color: colors.text.dim }} />
-                                {formatINR(sub.amountPaid)} paid
-                                {sub.discountPercent > 0 && ` · ${sub.discountPercent}% off`}
-                              </span>
-                              {sub.paymentNotes && (
-                                <span className="italic">{sub.paymentNotes}</span>
-                              )}
-                            </div>
-
-                            {/* Actions: primary left, destructive right */}
-                            {!isCancelled && (
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {canEnroll && (
-                                    <button
-                                      onClick={() => setEnrollForSub(sub)}
-                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                      style={{ color: '#fff', background: colors.accent }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                    >
-                                      <UserCheck size={12} /> Assign Therapist
-                                    </button>
-                                  )}
-                                  {isEnrolled && enrollment && (
-                                    <button
-                                      onClick={() => setExpandedEnroll(isExpanded ? null : enrollment.id)}
-                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
-                                      style={{ color: colors.text.muted, background: surface.filterStrip }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
-                                    >
-                                      <ClipboardList size={12} />
-                                      {isExpanded ? 'Hide Sessions' : 'View Sessions'}
-                                    </button>
-                                  )}
-                                  {canRecordPayment && !isPaid && (
-                                    <button
-                                      onClick={() => setPaymentTarget(sub)}
-                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                      style={{ color: '#fff', background: colors.accent }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                    >
-                                      <IndianRupee size={12} /> Record Payment
-                                    </button>
-                                  )}
-                                  {isParent && !isPaid && (
-                                    <button
-                                      onClick={() => setMockPayTarget(sub)}
-                                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                      style={{ color: '#fff', background: colors.accent }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                    >
-                                      <CreditCard size={12} /> Pay Now
-                                    </button>
-                                  )}
-                                </div>
-                                {canManageSubs && (
-                                  <div className="flex items-center gap-1">
-                                    {isEnrolled && enrollment && (
-                                      <button
-                                        onClick={() => cancelEnrollmentMutation.mutate(enrollment.id)}
-                                        disabled={cancelEnrollmentMutation.isPending}
-                                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                                        style={{ color: colors.status.error }}
-                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
-                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                      >
-                                        Cancel Enrollment
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => cancelSubMutation.mutate(sub.id)}
-                                      disabled={cancelSubMutation.isPending}
-                                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                                      style={{ color: colors.status.error }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
-                                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                    >
-                                      Cancel Plan
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Review meetings — available for any ongoing plan */}
-                          {isEnrolled && enrollment && (
-                            <div style={{ borderTop: `1px solid ${border.divider}` }}>
-                              <ReviewMeetingsPanel
-                                enrollmentId={enrollment.id}
-                                enrollmentStartDate={enrollment.startDate}
-                                enrollmentEndDate={enrollment.endDate}
-                                therapistId={enrollment.therapistId}
-                                currentUserId={user?.id ?? ''}
-                                canSchedule={canCreateEnrollment}
-                                canGiveTherapistFeedback={
-                                  currentRole === 'THERAPIST' || currentRole === 'DOCTOR'
-                                }
-                                isParent={isParent}
-                              />
-                            </div>
-                          )}
-
-                          {/* Expandable session list */}
-                          {isExpanded && enrollment && (
-                            <SessionList
-                              enrollmentId={enrollment.id}
-                              canUpdate={
-                                (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
-                                  ? user?.id === enrollment.therapistId
-                                  : canUpdateSession
-                              }
-                              onOpenNotes={(s) => setNotesState({
-                                session: s,
-                                enrollmentId: enrollment.id,
-                                canEdit: (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
-                                  ? user?.id === enrollment.therapistId
-                                  : canUpdateSession,
-                              })}
-                            />
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
-
-          {/* ── IEP tab ──────────────────────────────────────────────────────── */}
-          {activeTab === 'IEP' && <IEPTab patientId={id!} />}
-
-          {/* ── Modals ───────────────────────────────────────────────────────── */}
-          {notesState && (
-            <SessionNotesModal
-              session={notesState.session}
-              canEdit={notesState.canEdit}
-              canDirectlyCancel={['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')}
-              enrollmentId={notesState.enrollmentId}
-              onClose={() => setNotesState(null)}
-            />
-          )}
-
-          <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">
-            <form
-              onSubmit={conditionForm.handleSubmit((d) =>
-                addConditionMutation.mutate({ conditionIds: selectedConditionIds, diagnosedAt: d.diagnosedAt, notes: d.notes })
-              )}
-              className="space-y-4"
-            >
-              <div>
-                <label className="form-label">Conditions</label>
-                {conditionOptions.length === 0 ? (
-                  <p className="text-sm" style={{ color: colors.text.dim }}>All conditions already added.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {conditionOptions.map(opt => {
-                      const selected = selectedConditionIds.includes(opt.value)
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setSelectedConditionIds(prev =>
-                            selected ? prev.filter(id => id !== opt.value) : [...prev, opt.value]
-                          )}
-                          className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
-                          style={selected
-                            ? { background: 'var(--color-accent)', color: '#fff' }
-                            : { background: surface.card, color: colors.text.primary, border: `1px solid ${border.divider}` }
+                      {/* Expandable session list */}
+                      {isExpanded && enrollment && (
+                        <SessionList
+                          enrollmentId={enrollment.id}
+                          canUpdate={
+                            (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
+                              ? user?.id === enrollment.therapistId
+                              : canUpdateSession
                           }
-                        >
-                          {opt.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                {selectedConditionIds.length > 0 && (
-                  <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>
-                    {selectedConditionIds.length} selected
-                  </p>
-                )}
+                          onOpenNotes={(s) => setNotesState({
+                            session: s,
+                            enrollmentId: enrollment.id,
+                            canEdit: (currentRole === 'THERAPIST' || currentRole === 'DOCTOR')
+                              ? user?.id === enrollment.therapistId
+                              : canUpdateSession,
+                          })}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <Input label="Diagnosed on (optional)" type="date" {...conditionForm.register('diagnosedAt')} />
-              <div>
-                <label className="form-label">Notes</label>
-                <textarea className="form-input resize-none min-h-[80px]" {...conditionForm.register('notes')} />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }}>Cancel</Button>
-                <Button type="submit" loading={addConditionMutation.isPending} disabled={selectedConditionIds.length === 0}>Add</Button>
-              </div>
-            </form>
-          </Modal>
-
-          <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
-            <div className="space-y-4">
-              <UserSearchPicker
-                role="PARENT"
-                selected={selectedParent}
-                onSelect={setSelectedParent}
-                onClear={() => setSelectedParent(null)}
-                label="Search parent by email"
-                placeholder="e.g. jane@example.com"
-              />
-              {!selectedParent && (
-                <p className="text-xs" style={{ color: colors.text.dim }}>
-                  The person must already have an account with the <strong>Parent</strong> role in your organisation.
-                </p>
-              )}
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
-                <Button
-                  disabled={!selectedParent}
-                  loading={linkParentMutation.isPending}
-                  onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
-                >
-                  Link Parent
-                </Button>
-              </div>
-            </div>
-          </Modal>
-
-          <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
-            <div className="space-y-4">
-              <UserSearchPicker
-                role="THERAPIST"
-                selected={selectedTherapist}
-                onSelect={setSelectedTherapist}
-                onClear={() => setSelectedTherapist(null)}
-                label="Search therapist by email"
-                placeholder="e.g. john@clinic.com"
-              />
-              {!selectedTherapist && (
-                <p className="text-xs" style={{ color: colors.text.dim }}>
-                  The person must already have an account with the <strong>Therapist</strong> role in your organisation.
-                </p>
-              )}
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); setSelectedTherapist(null) }}>Cancel</Button>
-                <Button
-                  disabled={!selectedTherapist}
-                  loading={assignTherapistMutation.isPending}
-                  onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
-                >
-                  Assign Therapist
-                </Button>
-              </div>
-            </div>
-          </Modal>
-
-          {/* Enrollment modal */}
-          {enrollForSub && (
-            <EnrollmentModal
-              subscriptions={subscriptions}
-              patientId={id!}
-              preselectedSub={enrollForSub}
-              onClose={() => setEnrollForSub(null)}
-              onCreated={() => {
-                refetchEnrollments()
-                refetchSubs()
-                toast('Enrollment created — sessions generated', 'success')
-                setEnrollForSub(null)
-              }}
-            />
-          )}
-
-          {/* Create subscription modal */}
-          {subModal && (
-            <CreateSubscriptionModal
-              patientId={id!}
-              onClose={() => setSubModal(false)}
-              onCreated={() => { refetchSubs(); toast('Subscription created', 'success'); setSubModal(false) }}
-            />
-          )}
-
-          {/* Record payment modal (staff) */}
-          {paymentTarget && (
-            <RecordPaymentModal
-              subscription={paymentTarget}
-              onClose={() => setPaymentTarget(null)}
-              onSaved={() => { refetchSubs(); toast('Payment recorded', 'success'); setPaymentTarget(null) }}
-            />
-          )}
-
-          {/* Mock Razorpay modal (PARENT) */}
-          {mockPayTarget && (
-            <MockRazorpayModal
-              subscription={mockPayTarget}
-              onClose={() => setMockPayTarget(null)}
-              onSaved={() => { refetchSubs(); refetchEnrollments() }}
-            />
-          )}
-
-          {/* Edit patient details modal */}
-          <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Patient Details">
-            <form
-              onSubmit={editForm.handleSubmit((data) => updatePatientMutation.mutate(data))}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="First name"
-                  {...editForm.register('firstName', { required: 'Required' })}
-                  error={editForm.formState.errors.firstName?.message}
-                />
-                <Input
-                  label="Last name"
-                  {...editForm.register('lastName', { required: 'Required' })}
-                  error={editForm.formState.errors.lastName?.message}
-                />
-                <Input
-                  label="Date of birth"
-                  type="date"
-                  {...editForm.register('dateOfBirth')}
-                />
-                <Select
-                  label="Gender"
-                  placeholder="Select…"
-                  options={[
-                    { value: 'MALE',   label: 'Male' },
-                    { value: 'FEMALE', label: 'Female' },
-                    { value: 'OTHER',  label: 'Other' },
-                  ]}
-                  {...editForm.register('gender')}
-                />
-              </div>
-              <div>
-                <label className="form-label">Notes</label>
-                <textarea
-                  className="form-input resize-none min-h-[80px]"
-                  placeholder="Any additional notes…"
-                  {...editForm.register('notes')}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="secondary" onClick={() => setEditModal(false)}>Cancel</Button>
-                <Button type="submit" loading={updatePatientMutation.isPending}>Save changes</Button>
-              </div>
-            </form>
-          </Modal>
-
-          {/* Delete patient confirmation */}
-          <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Patient">
-            <div className="space-y-4">
-              <p className="text-sm" style={{ color: colors.text.primary }}>
-                Are you sure you want to permanently delete <strong>{patient.firstName} {patient.lastName}</strong>?
-                This will remove all their conditions, parent links, therapist assignments, and cannot be undone.
-              </p>
-              <div className="flex gap-3">
-                <Button variant="danger" onClick={() => deletePatientMut.mutate()} loading={deletePatientMut.isPending}>
-                  <Trash2 size={14} /> Delete permanently
-                </Button>
-                <Button variant="secondary" onClick={() => setDeleteConfirm(false)}>Cancel</Button>
-              </div>
-            </div>
-          </Modal>
-
-          <ToastContainer toasts={toasts} onDismiss={dismiss} />
+            )}
+          </Card>
         </div>
-      </div>
+      )}
+
+      {/* ── IEP tab ──────────────────────────────────────────────────────── */}
+      {activeTab === 'IEP' && <IEPTab patientId={id!} />}
+
+      {/* ── Modals ───────────────────────────────────────────────────────── */}
+      {notesState && (
+        <SessionNotesModal
+          session={notesState.session}
+          canEdit={notesState.canEdit}
+          canDirectlyCancel={['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')}
+          enrollmentId={notesState.enrollmentId}
+          onClose={() => setNotesState(null)}
+        />
+      )}
+
+      <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">
+        <form
+          onSubmit={conditionForm.handleSubmit((d) =>
+            addConditionMutation.mutate({ conditionIds: selectedConditionIds, diagnosedAt: d.diagnosedAt, notes: d.notes })
+          )}
+          className="space-y-4"
+        >
+          <div>
+            <label className="form-label">Conditions</label>
+            {conditionOptions.length === 0 ? (
+              <p className="text-sm" style={{ color: colors.text.dim }}>All conditions already added.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {conditionOptions.map(opt => {
+                  const selected = selectedConditionIds.includes(opt.value)
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setSelectedConditionIds(prev =>
+                        selected ? prev.filter(id => id !== opt.value) : [...prev, opt.value]
+                      )}
+                      className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+                      style={selected
+                        ? { background: 'var(--color-accent)', color: '#fff' }
+                        : { background: surface.card, color: colors.text.primary, border: `1px solid ${border.divider}` }
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {selectedConditionIds.length > 0 && (
+              <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>
+                {selectedConditionIds.length} selected
+              </p>
+            )}
+          </div>
+          <Input label="Diagnosed on (optional)" type="date" {...conditionForm.register('diagnosedAt')} />
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea className="form-input resize-none min-h-[80px]" {...conditionForm.register('notes')} />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }}>Cancel</Button>
+            <Button type="submit" loading={addConditionMutation.isPending} disabled={selectedConditionIds.length === 0}>Add</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
+        <div className="space-y-4">
+          <UserSearchPicker
+            role="PARENT"
+            selected={selectedParent}
+            onSelect={setSelectedParent}
+            onClear={() => setSelectedParent(null)}
+            label="Search parent by email"
+            placeholder="e.g. jane@example.com"
+          />
+          {!selectedParent && (
+            <p className="text-xs" style={{ color: colors.text.dim }}>
+              The person must already have an account with the <strong>Parent</strong> role in your organisation.
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
+            <Button
+              disabled={!selectedParent}
+              loading={linkParentMutation.isPending}
+              onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
+            >
+              Link Parent
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
+        <div className="space-y-4">
+          <UserSearchPicker
+            role="THERAPIST"
+            selected={selectedTherapist}
+            onSelect={setSelectedTherapist}
+            onClear={() => setSelectedTherapist(null)}
+            label="Search therapist by email"
+            placeholder="e.g. john@clinic.com"
+          />
+          {!selectedTherapist && (
+            <p className="text-xs" style={{ color: colors.text.dim }}>
+              The person must already have an account with the <strong>Therapist</strong> role in your organisation.
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => { setTherapistModal(false); setSelectedTherapist(null) }}>Cancel</Button>
+            <Button
+              disabled={!selectedTherapist}
+              loading={assignTherapistMutation.isPending}
+              onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
+            >
+              Assign Therapist
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Enrollment modal */}
+      {enrollForSub && (
+        <EnrollmentModal
+          subscriptions={subscriptions}
+          patientId={id!}
+          preselectedSub={enrollForSub}
+          onClose={() => setEnrollForSub(null)}
+          onCreated={() => {
+            refetchEnrollments()
+            refetchSubs()
+            toast('Enrollment created — sessions generated', 'success')
+            setEnrollForSub(null)
+          }}
+        />
+      )}
+
+      {/* Create subscription modal */}
+      {subModal && (
+        <CreateSubscriptionModal
+          patientId={id!}
+          onClose={() => setSubModal(false)}
+          onCreated={() => { refetchSubs(); toast('Subscription created', 'success'); setSubModal(false) }}
+        />
+      )}
+
+      {/* Record payment modal (staff) */}
+      {paymentTarget && (
+        <RecordPaymentModal
+          subscription={paymentTarget}
+          onClose={() => setPaymentTarget(null)}
+          onSaved={() => { refetchSubs(); toast('Payment recorded', 'success'); setPaymentTarget(null) }}
+        />
+      )}
+
+      {/* Mock Razorpay modal (PARENT) */}
+      {mockPayTarget && (
+        <MockRazorpayModal
+          subscription={mockPayTarget}
+          onClose={() => setMockPayTarget(null)}
+          onSaved={() => { refetchSubs(); refetchEnrollments() }}
+        />
+      )}
+
+      {/* Edit patient details modal */}
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Patient Details">
+        <form
+          onSubmit={editForm.handleSubmit((data) => updatePatientMutation.mutate(data))}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="First name"
+              {...editForm.register('firstName', { required: 'Required' })}
+              error={editForm.formState.errors.firstName?.message}
+            />
+            <Input
+              label="Last name"
+              {...editForm.register('lastName', { required: 'Required' })}
+              error={editForm.formState.errors.lastName?.message}
+            />
+            <Input
+              label="Date of birth"
+              type="date"
+              {...editForm.register('dateOfBirth')}
+            />
+            <Select
+              label="Gender"
+              placeholder="Select…"
+              options={[
+                { value: 'MALE',   label: 'Male' },
+                { value: 'FEMALE', label: 'Female' },
+                { value: 'OTHER',  label: 'Other' },
+              ]}
+              {...editForm.register('gender')}
+            />
+          </div>
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea
+              className="form-input resize-none min-h-[80px]"
+              placeholder="Any additional notes…"
+              {...editForm.register('notes')}
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setEditModal(false)}>Cancel</Button>
+            <Button type="submit" loading={updatePatientMutation.isPending}>Save changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete patient confirmation */}
+      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Patient">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: colors.text.primary }}>
+            Are you sure you want to permanently delete <strong>{patient.firstName} {patient.lastName}</strong>?
+            This will remove all their conditions, parent links, therapist assignments, and cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="danger" onClick={() => deletePatientMut.mutate()} loading={deletePatientMut.isPending}>
+              <Trash2 size={14} /> Delete permanently
+            </Button>
+            <Button variant="secondary" onClick={() => setDeleteConfirm(false)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
