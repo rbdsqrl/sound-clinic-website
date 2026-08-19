@@ -303,7 +303,7 @@ function CreateSubscriptionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
-      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6 max-h-[92vh] overflow-y-auto" style={styles.modal}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>Add Subscription</h2>
           <button onClick={onClose} className="p-2.5 rounded-lg transition-colors" style={{ color: colors.text.muted }}
@@ -427,7 +427,7 @@ function RecordPaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
-      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6 max-h-[92vh] overflow-y-auto" style={styles.modal}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>Record Payment</h2>
           <button onClick={onClose} className="p-2.5 rounded-lg transition-colors" style={{ color: colors.text.muted }}
@@ -548,7 +548,7 @@ function MockRazorpayModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
-      <div className="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6" style={styles.modal}>
+      <div className="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-y-auto" style={styles.modal}>
         {step === 'gateway' ? (
           <>
             {/* Mock gateway header */}
@@ -1254,7 +1254,12 @@ function EnrollmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
-      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 md:p-6" style={styles.modal}>
+      {/* Wide enough for a two-column form, and capped so a long form scrolls
+          inside the card instead of running off the bottom of the screen. */}
+      <div
+        className="relative w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl p-5 md:p-6 max-h-[92vh] sm:max-h-[88vh] overflow-y-auto"
+        style={styles.modal}
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
@@ -1317,42 +1322,45 @@ function EnrollmentModal({
               </div>
             )}
 
-            {/* Duration */}
-            <div>
-              <label className="form-label">Session Duration</label>
-              <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="form-input w-full">
-                {SESSION_DURATION_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Schedule — two columns on anything wider than a phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+              {/* Duration */}
+              <div>
+                <label className="form-label">Session Duration</label>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="form-input w-full">
+                  {SESSION_DURATION_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Start date */}
-            <div>
-              <label className="form-label">Start Date</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
-              {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
-            </div>
-
-            {/* Time */}
-            <TimePicker
-              label="Start Time"
-              value={startTime}
-              onChange={setStartTime}
-              error={step1Errors.time}
-            />
-
-            {/* End date */}
-            <div>
-              <label className="form-label">End Date</label>
-              <input
-                type="date" value={endDate} min={startDate}
-                onChange={e => setEndDate(e.target.value)}
-                className="form-input w-full"
+              {/* Time */}
+              <TimePicker
+                label="Start Time"
+                value={startTime}
+                onChange={setStartTime}
+                error={step1Errors.time}
               />
-              <p className="text-[13.2px] mt-1" style={{ color: colors.text.dim }}>
-                Optional — defaults to the day the last session falls on
-              </p>
+
+              {/* Start date */}
+              <div>
+                <label className="form-label">Start Date</label>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
+              </div>
+
+              {/* End date */}
+              <div>
+                <label className="form-label">End Date</label>
+                <input
+                  type="date" value={endDate} min={startDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="form-input w-full"
+                />
+                <p className="text-[13.2px] mt-1" style={{ color: colors.text.dim }}>
+                  Optional — defaults to the last session
+                </p>
+              </div>
             </div>
 
             {/* Review meetings */}
@@ -1376,8 +1384,8 @@ function EnrollmentModal({
               </label>
 
               {wantsReviews && (
-                <div className="mt-3 pt-3 space-y-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <div>
                       <label className="form-label">Every</label>
                       <div className="flex items-center gap-2">
@@ -1386,7 +1394,7 @@ function EnrollmentModal({
                           onChange={e => setReviewIntervalWeeks(Math.max(1, Number(e.target.value)))}
                           className="form-input w-full"
                         />
-                        <span className="text-xs" style={{ color: colors.text.muted }}>weeks</span>
+                        <span className="text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>weeks</span>
                       </div>
                     </div>
                     <div>
@@ -1397,13 +1405,15 @@ function EnrollmentModal({
                           onChange={e => setReviewDuration(Math.max(15, Number(e.target.value)))}
                           className="form-input w-full"
                         />
-                        <span className="text-xs" style={{ color: colors.text.muted }}>min</span>
+                        <span className="text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>min</span>
                       </div>
                     </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <TimePicker label="Meeting time" value={reviewTime} onChange={setReviewTime} />
+                    </div>
                   </div>
-                  <TimePicker label="Meeting time" value={reviewTime} onChange={setReviewTime} />
                   {!endDate && (
-                    <p className="text-[13.2px]" style={{ color: colors.status.warning }}>
+                    <p className="text-[13.2px] mt-3" style={{ color: colors.status.warning }}>
                       Set an end date above so the review meetings know when to stop.
                     </p>
                   )}
