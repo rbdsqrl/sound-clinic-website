@@ -242,12 +242,12 @@ function CompletionRing({ completed, total }: { completed: number; total: number
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[11px] font-bold leading-none" style={{ color: colors.accent }}>
+          <span className="text-[13.2px] font-bold leading-none" style={{ color: colors.accent }}>
             {completed}/{total}
           </span>
         </div>
       </div>
-      <p className="text-[10px]" style={{ color: colors.text.dim }}>Completed</p>
+      <p className="text-[12px]" style={{ color: colors.text.dim }}>Completed</p>
     </div>
   )
 }
@@ -743,7 +743,7 @@ export default function IEPTab({ patientId }: { patientId: string }) {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>{plan.title}</p>
                       {plan.tags.map(tag => (
-                        <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.07, 0.12)}>{tag}</span>
+                        <span key={tag} className="text-[13.2px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.07, 0.12)}>{tag}</span>
                       ))}
                     </div>
                     <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: colors.text.dim }}>

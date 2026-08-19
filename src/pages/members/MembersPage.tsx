@@ -134,7 +134,7 @@ function MemberCard({
             {member.firstName} {member.lastName}
           </p>
           <span
-            className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full mt-0.5"
+            className="inline-block text-[13.2px] font-medium px-2 py-0.5 rounded-full mt-0.5"
             style={{ background: accentAlpha(0.1), color: colors.accent }}
           >
             {ROLE_LABELS[member.role] ?? member.role}
@@ -166,7 +166,7 @@ function MemberCard({
       </div>
 
       <div className="flex items-center justify-between pt-2" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <span className="text-[11px]" style={{ color: colors.text.dim }}>
+        <span className="text-[13.2px]" style={{ color: colors.text.dim }}>
           Joined {format(new Date(member.createdAt), 'MMM yyyy')}
         </span>
         <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ function MemberRow({
         </div>
       </td>
       <td className="px-4 py-3 hidden sm:table-cell">
-        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+        <span className="text-[13.2px] font-medium px-2 py-0.5 rounded-full"
           style={{ background: accentAlpha(0.1), color: colors.accent }}>
           {ROLE_LABELS[member.role] ?? member.role}
         </span>
@@ -238,7 +238,7 @@ function MemberRow({
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span
-            className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+            className="text-[13.2px] font-medium px-2 py-0.5 rounded-full"
             style={member.isActive
               ? { background: successAlpha(0.1), color: colors.status.success }
               : { background: dangerAlpha(0.1),  color: colors.status.error }}
@@ -408,7 +408,7 @@ export default function MembersPage() {
               {t.label}
               {t.count !== undefined && (
                 <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
+                  className="text-[12px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                   style={{ background: accentAlpha(0.12), color: colors.accent }}
                 >
                   {t.count}

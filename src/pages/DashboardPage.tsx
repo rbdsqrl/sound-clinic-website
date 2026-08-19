@@ -53,7 +53,7 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
             const active = availDays.has(dow)
             return (
               <span key={dow}
-                className="h-6 w-6 rounded-full text-[10px] font-bold flex items-center justify-center"
+                className="h-6 w-6 rounded-full text-[12px] font-bold flex items-center justify-center"
                 style={{
                   background: active ? (dateDow === dow ? successAlpha(0.12) : accentAlpha(0.12)) : accentAlpha(0.04),
                   color: active ? (dateDow === dow ? colors.status.success : colors.accent) : colors.text.dim,
@@ -141,7 +141,7 @@ function TodaySessions({
         <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
           #{s.sessionNumber}/{s.totalSessions}
         </span>
-        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+        <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full"
           style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
           {sessionStatusLabel(s.status)}
         </span>
@@ -352,15 +352,15 @@ function RescheduleModal({
 
 function rescheduleReasonBadge(reason: RescheduleReason | null | undefined) {
   if (reason === 'PUBLIC_HOLIDAY') return (
-    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+    <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
       style={{ background: `rgba(${palette.blue.raw}, 0.09)`, color: palette.blue.text }}>Holiday</span>
   )
   if (reason === 'PARENT_REQUEST') return (
-    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+    <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
       style={{ background: `rgba(${palette.purple.raw}, 0.09)`, color: palette.purple.text }}>Parent request</span>
   )
   return (
-    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+    <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
       style={{ background: warningAlpha(0.09), color: colors.status.warning }}>Therapist leave</span>
   )
 }
@@ -772,13 +772,13 @@ function SessionUpdateModal({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
+          <span className="text-[12px] font-semibold px-2 py-1 rounded-full"
             style={{ background: statusColor(session.status) + '18', color: statusColor(session.status) }}>
             {session.status.replace(/_/g, ' ')}
           </span>
           <Link
             to={`/patients/${session.patientId}`}
-            className="text-[10px] font-medium px-2 py-1 rounded-full"
+            className="text-[12px] font-medium px-2 py-1 rounded-full"
             style={{ background: accentAlpha(0.10), color: colors.accent }}
             onClick={onClose}
           >
@@ -831,7 +831,7 @@ function SessionUpdateModal({
                   key={val}
                   type="button"
                   onClick={() => setScore(active ? null : val)}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-semibold transition-colors"
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[12px] font-semibold transition-colors"
                   style={{
                     background: active ? scoreColor(val) + '22' : surface.filterStrip,
                     color:      active ? scoreColor(val) : colors.text.muted,
@@ -941,14 +941,14 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
 
         {/* Due date */}
         {due && (
-          <span className="text-[10px] font-medium flex-shrink-0" style={{ color: due.color }}>
+          <span className="text-[12px] font-medium flex-shrink-0" style={{ color: due.color }}>
             {due.label}
           </span>
         )}
 
         {/* Status chip */}
         <span
-          className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:block"
+          className="text-[12px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:block"
           style={
             task.status === 'IN_PROGRESS'
               ? { background: accentAlpha(0.12), color: colors.accent }
@@ -1000,14 +1000,14 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
         <Modal open title={`My Tasks (${active.length})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
             {hasBothGroups && inProgress.length > 0 && (
-              <p className="px-4 sm:px-6 py-2 text-[10px] font-semibold uppercase tracking-wide"
+              <p className="px-4 sm:px-6 py-2 text-[12px] font-semibold uppercase tracking-wide"
                 style={{ color: colors.text.dim, borderBottom: `1px solid ${border.divider}` }}>
                 In Progress
               </p>
             )}
             {inProgress.map((task, i) => taskRow(task, i, inProgress))}
             {hasBothGroups && open.length > 0 && (
-              <p className="px-4 sm:px-6 py-2 text-[10px] font-semibold uppercase tracking-wide"
+              <p className="px-4 sm:px-6 py-2 text-[12px] font-semibold uppercase tracking-wide"
                 style={{ color: colors.text.dim, borderTop: inProgress.length > 0 ? `1px solid ${border.divider}` : undefined, borderBottom: `1px solid ${border.divider}` }}>
                 Open
               </p>

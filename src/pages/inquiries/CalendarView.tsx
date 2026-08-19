@@ -58,7 +58,7 @@ function EventChip({
       <button
         onClick={e => { e.stopPropagation(); onClick() }}
         className="flex-1 min-w-0 text-left rounded-md px-2 py-1 truncate transition-opacity hover:opacity-80"
-        style={{ ...ps, fontSize: compact ? 10 : 11, fontWeight: 600 }}>
+        style={{ ...ps, fontSize: compact ? 12 : 13.2, fontWeight: 600 }}>
         <span className="truncate">{inquiry.name}</span>
         {!compact && inquiry.appointmentDate && (
           <span className="ml-1 opacity-70 font-normal">{formatTime(inquiry.appointmentDate)}</span>

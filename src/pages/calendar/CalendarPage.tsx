@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Save, Sun,
+  Activity, CheckCircle2, Zap, Save, Sun, MessageSquare,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
@@ -22,12 +22,13 @@ import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
 import { sessionStatusLabel, labelFromEnum } from '../../components/ui/Badge'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse } from '../../types'
+import { reviewMeetingsApi } from '../../api/reviewMeetings'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse } from '../../types'
 import { ROUTES } from '../../lib/routes'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
-type EventKind = 'consultation' | 'leave' | 'session' | 'holiday'
+type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review'
 
 interface CalendarEvent {
   id: string
@@ -38,7 +39,7 @@ interface CalendarEvent {
   subtitle?: string
   status?: string
   isAllDay: boolean
-  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse
+  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse | ReviewMeetingResponse
 }
 
 // ── Visual config per kind ────────────────────────────────────────────────────
@@ -49,6 +50,11 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   }
   if (kind === 'holiday') {
     return { background: '#F59E0B20', color: '#B45309' }
+  }
+  if (kind === 'review') {
+    if (status === 'CANCELLED') return { background: '#88888818', color: '#888' }
+    if (status === 'COMPLETED') return { background: '#10b98118', color: '#059669' }
+    return { background: `rgba(${palette.teal.raw}, 0.12)`, color: palette.teal.text }
   }
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309' }
@@ -67,6 +73,11 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#2B80C8'
   if (kind === 'holiday')      return '#B45309'
+  if (kind === 'review') {
+    if (status === 'CANCELLED') return '#888'
+    if (status === 'COMPLETED') return '#10b981'
+    return palette.teal.text
+  }
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE')    return '#B45309'
     if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
@@ -122,6 +133,20 @@ function toSessionEvent(s: TherapySessionResponse): CalendarEvent {
     status: s.status,
     isAllDay: false,
     raw: s,
+  }
+}
+
+function toReviewEvent(m: ReviewMeetingResponse): CalendarEvent {
+  return {
+    id: `review-${m.id}`,
+    date: m.meetingDate,
+    time: m.startTime.substring(0, 5),
+    kind: 'review',
+    title: `Review — ${m.patientName}`,
+    subtitle: `${m.therapistName} · Review ${m.meetingNumber}`,
+    status: m.status,
+    isAllDay: false,
+    raw: m,
   }
 }
 
@@ -188,7 +213,7 @@ function EventChip({
     <button
       onClick={e => { e.stopPropagation(); onClick() }}
       className="w-full text-left rounded-md px-1.5 py-0.5 truncate transition-opacity hover:opacity-75"
-      style={{ ...s, fontSize: compact ? 10 : 11, fontWeight: 600 }}>
+      style={{ ...s, fontSize: compact ? 12 : 13.2, fontWeight: 600 }}>
       {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
       <span className="truncate">{event.title}</span>
       {!compact && !event.isAllDay && event.time && (
@@ -258,7 +283,7 @@ function MonthView({
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact />
                 ))}
                 {sorted.length > 3 && (
-                  <p className="text-[10px] pl-1" style={{ color: colors.text.muted }}>
+                  <p className="text-[12px] pl-1" style={{ color: colors.text.muted }}>
                     +{sorted.length - 3} more
                   </p>
                 )}
@@ -315,7 +340,7 @@ function WeekView({
         <div className="grid border-b sticky z-10"
           style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, background: surface.card, top: 73 }}>
           <div className="px-1 pt-1 text-right">
-            <span className="text-[9px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+            <span className="text-[10.8px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
           </div>
           {days.map(day => {
             const leaves = allDayEventsOnDay(events, day)
@@ -418,7 +443,7 @@ function DayView({
         <div className="flex border-b flex-shrink-0"
           style={{ borderColor: border.divider, background: surface.card }}>
           <div className="w-16 flex-shrink-0 px-2 pt-1.5 text-right">
-            <span className="text-[9px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+            <span className="text-[10.8px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
           </div>
           <div className="flex-1 border-l p-2 flex flex-col gap-1 min-h-[32px]"
             style={{ borderColor: border.divider }}>
@@ -454,15 +479,15 @@ function DayView({
                       className="w-full text-left rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80"
                       style={{ ...s, minHeight: 52 }}>
                       <p className="text-xs font-semibold leading-tight">{ev.title}</p>
-                      <p className="text-[11px] mt-0.5 opacity-75">
+                      <p className="text-[13.2px] mt-0.5 opacity-75">
                         {ev.time}
                         {rawSess && ` – ${rawSess.endTime.substring(0, 5)}`}
                       </p>
                       {ev.subtitle && (
-                        <p className="text-[11px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
+                        <p className="text-[13.2px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
                       )}
                       {rawSess?.status && rawSess.status !== 'SCHEDULED' && (
-                        <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                        <span className="inline-block mt-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: 'rgba(0,0,0,0.08)' }}>
                           {sessionStatusLabel(rawSess.status)}
                         </span>
@@ -512,7 +537,7 @@ function UpcomingPanel({
             <div key={group.dateKey}>
               {/* Date header */}
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wide flex-shrink-0"
+                <span className="text-[13.2px] font-bold uppercase tracking-wide flex-shrink-0"
                   style={{ color: group.label === 'Today' ? colors.accent : colors.text.muted }}>
                   {group.label}
                 </span>
@@ -595,9 +620,11 @@ function EventDetailDrawer({
   const isConsultation = event.kind === 'consultation'
   const isSession      = event.kind === 'session'
   const isHolidayEv    = event.kind === 'holiday'
+  const isReview       = event.kind === 'review'
   const rawInquiry     = event.raw as InquiryResponse
   const rawLeave       = event.raw as LeaveResponse
   const rawSession     = event.raw as TherapySessionResponse
+  const rawReview      = event.raw as ReviewMeetingResponse
 
   const canAccessNotes = isSession && (canManageAll || rawSession.therapistId === currentUserId)
   const [sessionNotes, setSessionNotes] = useState(isSession ? (rawSession.notes ?? '') : '')
@@ -663,12 +690,12 @@ function EventDetailDrawer({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={s}>
-              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : <CalendarOff size={17} />}
+              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : isReview ? <MessageSquare size={17} /> : <CalendarOff size={17} />}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
                 style={{ color: s.color as string }}>
-                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : 'Leave'}
+                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
                 {event.title}
@@ -696,7 +723,7 @@ function EventDetailDrawer({
                 label={`${rawSession.startTime.substring(0, 5)} – ${rawSession.endTime.substring(0, 5)}`} />
             )}
             {event.subtitle && !isSession && (
-              <Row icon={isConsultation ? <Clock size={14} /> : <CalendarOff size={14} />}
+              <Row icon={isConsultation ? <Clock size={14} /> : isReview ? <Users size={14} /> : <CalendarOff size={14} />}
                 label={event.subtitle} />
             )}
           </div>
@@ -726,6 +753,34 @@ function EventDetailDrawer({
                 <Row icon={<Users size={14} />}
                   label={`Status: ${labelFromEnum(rawInquiry.status)}`} />
               )}
+            </>
+          )}
+
+          {/* Review-meeting-specific */}
+          {isReview && (
+            <>
+              <Row icon={<Clock size={14} />}
+                label={`${rawReview.startTime.substring(0, 5)} – ${rawReview.endTime.substring(0, 5)}`} />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
+                  style={{ color: colors.text.muted }}>Feedback</p>
+                <p className="text-sm rounded-xl px-3 py-2.5"
+                  style={{ color: colors.text.primary, background: surface.rowHover }}>
+                  {rawReview.therapistFeedbackAt && rawReview.parentFeedbackAt
+                    ? 'Both sides have shared their feedback.'
+                    : rawReview.therapistFeedbackAt
+                      ? 'The therapist has shared feedback.'
+                      : rawReview.parentFeedbackAt
+                        ? 'The parent has shared feedback.'
+                        : 'No feedback shared yet.'}
+                </p>
+              </div>
+              <button
+                onClick={() => { onClose(); navigate(`${ROUTES.patients}/${rawReview.patientId}`) }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                style={{ color: '#fff', background: colors.accent }}>
+                Open patient
+              </button>
             </>
           )}
 
@@ -830,7 +885,7 @@ function EventDetailDrawer({
           )}
 
           {/* Leave-specific */}
-          {!isConsultation && !isSession && !isHolidayEv && (
+          {!isConsultation && !isSession && !isHolidayEv && !isReview && (
             <>
               <Row icon={<Users size={14} />}
                 label={`${rawLeave.therapistFirstName} ${rawLeave.therapistLastName}`} />
@@ -921,7 +976,7 @@ function TodayEventChip({
         <p className="text-xs font-semibold truncate max-w-[130px]" style={{ color: s.color }}>
           {event.title}
         </p>
-        <p className="text-[10px] mt-0.5" style={{ color: s.color, opacity: 0.7 }}>
+        <p className="text-[12px] mt-0.5" style={{ color: s.color, opacity: 0.7 }}>
           {event.isAllDay ? (event.subtitle ?? 'All day') : event.time}
         </p>
       </div>
@@ -965,7 +1020,7 @@ function TodayPanel({
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: colors.text.muted }}>Today</span>
-              <span className="text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+              <span className="text-[12px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
                 style={{ background: colors.accent, color: '#fff' }}>
                 {todayEvents.length}
               </span>
@@ -976,7 +1031,7 @@ function TodayPanel({
             <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: border.divider }}>
               <span className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: colors.text.muted }}>Tomorrow</span>
-              <span className="text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+              <span className="text-[12px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
                 style={{ background: surface.rowHover, color: colors.text.muted }}>
                 {tomorrowEvents.length}
               </span>
@@ -1121,6 +1176,13 @@ export default function CalendarPage() {
     staleTime: 60 * 60 * 1000, // holidays rarely change; cache for 1 hour
   })
 
+  // Scoped server-side: therapists get their own, parents their children's
+  const { data: reviewMeetings = [] } = useQuery({
+    queryKey: ['review-meetings', 'mine'],
+    queryFn:  reviewMeetingsApi.listMine,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const isLoading = inquiriesLoading || leavesLoading || sessionsLoading
 
   // ── Set of holiday date keys for fast lookup ───────────────────────────────
@@ -1142,8 +1204,11 @@ export default function CalendarPage() {
     for (const l of leavesToShow) out.push(toLeaveEvent(l))
     for (const s of sessions) out.push(toSessionEvent(s))
     for (const h of publicHolidays) out.push(toHolidayEvent(h))
+    for (const m of reviewMeetings) {
+      if (m.status !== 'CANCELLED') out.push(toReviewEvent(m))
+    }
     return out
-  }, [inquiries, leaves, sessions, publicHolidays, canSeeInquiries])
+  }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, canSeeInquiries])
 
   // ── Browser notification effect ────────────────────────────────────────────
   // Fires every 60 s; notifies for timed events starting within 15 minutes.

@@ -579,7 +579,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
   }
 
   const fieldLabel: React.CSSProperties = {
-    display: 'block', fontSize: 10, fontWeight: 600,
+    display: 'block', fontSize: 12, fontWeight: 600,
     letterSpacing: '0.06em', textTransform: 'uppercase',
     color: colors.text.muted, marginBottom: 2,
   }

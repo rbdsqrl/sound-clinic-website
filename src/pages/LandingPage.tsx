@@ -88,7 +88,7 @@ function Navbar() {
           <span className="text-xl font-bold tracking-tight" style={{ color: colors.text.heading }}>
             Simple Hearing & Speech Care
           </span>
-          <div className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
+          <div className="text-[12px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
             Pune's Specialist Audiology Clinic
           </div>
         </div>

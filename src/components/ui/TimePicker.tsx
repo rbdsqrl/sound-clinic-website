@@ -105,7 +105,7 @@ export function TimePicker({ value, onChange, label, error, placeholder = 'Selec
         >
           {/* Column headers */}
           <div
-            className="grid text-[10px] font-semibold uppercase tracking-wider"
+            className="grid text-[12px] font-semibold uppercase tracking-wider"
             style={{
               gridTemplateColumns: '1fr 1fr 52px',
               borderBottom: `1px solid ${border.divider}`,

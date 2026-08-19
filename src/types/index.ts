@@ -473,12 +473,22 @@ export interface EnrollmentResponse {
   programName: string
   sessionDurationMinutes: number
   startDate: string        // "YYYY-MM-DD"
+  endDate: string | null   // "YYYY-MM-DD" — last day of the plan
   dayOfWeek: DayOfWeek
   startTime: string        // "HH:mm:ss"
   status: EnrollmentStatus
   sessionsCompleted: number
   totalSessions: number
   createdAt: string
+}
+
+/** Recurring review-meeting schedule, set up alongside a therapy plan. */
+export interface ReviewScheduleRequest {
+  startTime: string             // "HH:mm"
+  durationMinutes: number
+  intervalWeeks: number         // defaults to a fortnightly rhythm
+  firstMeetingDate?: string     // "YYYY-MM-DD"
+  endDate?: string              // "YYYY-MM-DD"
 }
 
 export interface CreateEnrollmentRequest {
@@ -488,6 +498,60 @@ export interface CreateEnrollmentRequest {
   sessionDurationMinutes: number
   startDate: string        // "YYYY-MM-DD"
   startTime: string        // "HH:mm"
+  endDate?: string         // "YYYY-MM-DD" — defaults to the last generated session
+  reviewSchedule?: ReviewScheduleRequest   // omit for no review meetings
+}
+
+export type ReviewMeetingStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
+
+export interface ReviewMeetingResponse {
+  id: string
+  orgId: string
+  enrollmentId: string
+  patientId: string
+  patientName: string
+  therapistId: string
+  therapistName: string
+  meetingNumber: number
+  meetingDate: string      // "YYYY-MM-DD"
+  startTime: string        // "HH:mm:ss"
+  endTime: string          // "HH:mm:ss"
+  status: ReviewMeetingStatus
+
+  // Withheld until the viewer has submitted their own side — see the backend's enrich()
+  parentRating: number | null
+  parentComments: string | null
+  parentFeedbackAt: string | null
+
+  therapistSummary: string | null
+  therapistProgressNotes: string | null
+  therapistFeedbackAt: string | null
+
+  cancelledReason: string | null
+  createdAt: string
+}
+
+export interface CreateReviewMeetingRequest {
+  enrollmentId: string
+  meetingDate: string      // "YYYY-MM-DD"
+  startTime: string        // "HH:mm"
+  durationMinutes: number
+}
+
+export interface RescheduleReviewRequest {
+  meetingDate: string
+  startTime: string
+  durationMinutes?: number
+}
+
+export interface ParentFeedbackRequest {
+  rating: number           // 1–5
+  comments?: string
+}
+
+export interface TherapistFeedbackRequest {
+  summary: string
+  progressNotes?: string
 }
 
 export interface AvailableTherapistResponse {

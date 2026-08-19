@@ -76,7 +76,7 @@ function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?
         <span
           key={a.id}
           title={`${a.firstName} ${a.lastName}`}
-          className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border"
+          className="text-[12px] font-bold h-5 w-5 rounded-full flex items-center justify-center border"
           style={{
             background: accentAlpha(0.12),
             color: colors.accent,
@@ -90,7 +90,7 @@ function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?
         </span>
       ))}
       {rest > 0 && (
-        <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border ml-[-4px]"
+        <span className="text-[12px] font-bold h-5 w-5 rounded-full flex items-center justify-center border ml-[-4px]"
           style={{ background: accentAlpha(0.08), color: colors.text.dim, borderColor: surface.card }}>
           +{rest}
         </span>
@@ -331,13 +331,13 @@ function TaskCard({
       <div className="flex items-center gap-2 mt-2.5">
         <AssigneeChips assignees={task.assignees} />
         {task.assignees.length > 0 && (
-          <span className="text-[11px] truncate" style={{ color: colors.text.muted }}>
+          <span className="text-[13.2px] truncate" style={{ color: colors.text.muted }}>
             {task.assignees[0].firstName}
             {task.assignees.length > 1 && ` +${task.assignees.length - 1} more`}
           </span>
         )}
         {due && (
-          <span className="ml-auto flex items-center gap-1 text-[10px] font-medium flex-shrink-0"
+          <span className="ml-auto flex items-center gap-1 text-[12px] font-medium flex-shrink-0"
             style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.dim }}>
             <Clock size={10} />
             {due.label}
@@ -349,12 +349,12 @@ function TaskCard({
       {(task.commentCount > 0 || task.attachmentCount > 0) && (
         <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: `1px solid ${border.divider}` }}>
           {task.commentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.text.dim }}>
+            <span className="flex items-center gap-1 text-[12px]" style={{ color: colors.text.dim }}>
               <MessageSquare size={10} /> {task.commentCount}
             </span>
           )}
           {task.attachmentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.text.dim }}>
+            <span className="flex items-center gap-1 text-[12px]" style={{ color: colors.text.dim }}>
               <Paperclip size={10} /> {task.attachmentCount}
             </span>
           )}
@@ -392,7 +392,7 @@ function KanbanColumn({
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full" style={{ background: colColor }} />
           <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.text.muted }}>{label}</span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+          <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-full"
             style={{ background: accentAlpha(0.08), color: colors.accent }}>{tasks.length}</span>
         </div>
         {status === 'OPEN' && onAddTask && (
@@ -590,7 +590,7 @@ function TaskDetailModal({
 
           {/* Status */}
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
+            <span className="text-[12px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Status</span>
             {canEdit ? (
               <select className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer border-0 outline-none"
                 style={{ background: accentAlpha(0.06), color: colors.text.primary }}
@@ -609,7 +609,7 @@ function TaskDetailModal({
 
           {/* Priority */}
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
+            <span className="text-[12px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
             {canEditTask ? (
               <select
                 className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer border-0 outline-none"
@@ -629,7 +629,7 @@ function TaskDetailModal({
           {/* Assignees */}
           <div className="flex flex-col gap-1 min-w-0">
             <div className="flex items-center gap-1">
-              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
+              <span className="text-[12px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
                 Assigned to
               </span>
               {canEditTask && (
@@ -648,7 +648,7 @@ function TaskDetailModal({
               <div className="flex flex-col gap-1">
                 {task.assignees.map(a => (
                   <div key={a.id} className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                    <span className="text-[12px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
                       style={{ background: accentAlpha(0.12), color: colors.accent }}>
                       {a.firstName[0]}{a.lastName[0]}
                     </span>
@@ -658,7 +658,7 @@ function TaskDetailModal({
                   </div>
                 ))}
                 <button onClick={() => setShowAssigneeNames(false)}
-                  className="text-[10px] text-left mt-0.5"
+                  className="text-[12px] text-left mt-0.5"
                   style={{ color: colors.accent }}>
                   collapse
                 </button>
@@ -667,7 +667,7 @@ function TaskDetailModal({
               <div className="flex items-center gap-1.5">
                 <AssigneeChips assignees={task.assignees} max={3} />
                 <button onClick={() => setShowAssigneeNames(true)}
-                  className="text-[10px]"
+                  className="text-[12px]"
                   style={{ color: colors.accent }}>
                   expand
                 </button>
@@ -678,7 +678,7 @@ function TaskDetailModal({
           {/* Due date */}
           {due && (
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
+              <span className="text-[12px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Due</span>
               <span className="flex items-center gap-1 text-xs font-medium"
                 style={{ color: due.overdue ? 'var(--color-danger)' : colors.text.muted }}>
                 <Clock size={11} /> {due.label}{due.overdue ? ' — overdue' : ''}
@@ -689,7 +689,7 @@ function TaskDetailModal({
           {/* Completed at */}
           {task.completedAt && (
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Completed</span>
+              <span className="text-[12px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Completed</span>
               <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>
                 <CheckCircle2 size={11} /> {format(new Date(task.completedAt), 'MMM d, yyyy')}
               </span>
@@ -756,7 +756,7 @@ function TaskDetailModal({
                       className="w-full h-20 flex flex-col items-center justify-center gap-1"
                       style={{ background: accentAlpha(0.04) }}>
                       <FileText size={18} style={{ color: colors.accent }} />
-                      <p className="text-[9px] truncate px-1 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
+                      <p className="text-[10.8px] truncate px-1 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
                     </a>
                   )}
                   {(canManage || att.uploadedBy === currentUserId) && (
@@ -788,7 +788,7 @@ function TaskDetailModal({
               >
                 {tab.label}
                 {tab.count > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-full"
                     style={{ background: accentAlpha(0.08), color: colors.accent }}>
                     {tab.count}
                   </span>
@@ -809,7 +809,7 @@ function TaskDetailModal({
               <div className="flex flex-col gap-3">
                 {comments.map((c: TaskCommentResponse) => (
                   <div key={c.id} className="flex gap-2.5 group">
-                    <span className="text-[10px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    <span className="text-[12px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                       style={{ background: accentAlpha(0.10), color: colors.accent }}>
                       {initials(c.authorFirstName, c.authorLastName)}
                     </span>
@@ -818,7 +818,7 @@ function TaskDetailModal({
                         <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
                           {c.authorFirstName} {c.authorLastName}
                         </span>
-                        <span className="text-[10px]" style={{ color: colors.text.dim }}>
+                        <span className="text-[12px]" style={{ color: colors.text.dim }}>
                           {format(new Date(c.createdAt), 'MMM d, h:mm a')}
                         </span>
                         {(canManage || c.authorId === currentUserId) && (
@@ -854,7 +854,7 @@ function TaskDetailModal({
                         <span className="font-medium" style={{ color: colors.text.primary }}>{log.actorName}</span>
                         {' '}{log.details}
                       </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: colors.text.dim }}>
+                      <p className="text-[12px] mt-0.5" style={{ color: colors.text.dim }}>
                         {format(new Date(log.createdAt), 'MMM d, h:mm a')}
                       </p>
                     </div>
@@ -1137,7 +1137,7 @@ export default function TasksPage() {
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
                 style={active ? styles.filterTabActive : styles.filterTabInactive}>
                 {col.label}
-                <span className="text-[10px] font-bold px-1 py-0.5 rounded-full"
+                <span className="text-[12px] font-bold px-1 py-0.5 rounded-full"
                   style={{ background: active ? 'rgba(255,255,255,0.25)' : accentAlpha(0.08), color: active ? '#fff' : colors.accent }}>
                   {count}
                 </span>
