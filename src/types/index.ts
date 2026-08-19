@@ -182,6 +182,20 @@ export interface LoginResponse {
   user: UserResponse
 }
 
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+export interface ResetPasswordRequest {
+  token: string
+  password: string
+  confirmPassword: string
+}
+
+export interface ResetTokenPreviewResponse {
+  maskedEmail: string
+}
+
 export interface RegisterRequest {
   orgName: string
   slug: string

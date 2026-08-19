@@ -7,6 +7,8 @@ import { ROUTES } from './lib/routes'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/auth/LoginPage'
 import AcceptInvitePage from './pages/auth/AcceptInvitePage'
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
+import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import OrganisationPage from './pages/OrganisationPage'
 import ClinicsPage from './pages/clinics/ClinicsPage'
@@ -54,6 +56,8 @@ function AppRoutes() {
       {/* Auth */}
       <Route path={ROUTES.login}        element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path={ROUTES.acceptInvite} element={<AcceptInvitePage />} />
+      <Route path={ROUTES.forgotPassword} element={<ForgotPasswordPage />} />
+      <Route path={ROUTES.resetPassword}  element={<ResetPasswordPage />} />
 
       {/* Protected app */}
       <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>

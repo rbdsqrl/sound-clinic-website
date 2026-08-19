@@ -76,14 +76,25 @@ export default function LoginPage() {
               error={errors.email?.message}
               {...register('email', { required: 'Email is required' })}
             />
-            <Input
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              error={errors.password?.message}
-              {...register('password', { required: 'Password is required' })}
-            />
+            <div>
+              <Input
+                label="Password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                error={errors.password?.message}
+                {...register('password', { required: 'Password is required' })}
+              />
+              <div className="mt-1.5 flex justify-end">
+                <Link to={ROUTES.forgotPassword} className="text-xs font-medium transition-colors"
+                  style={{ color: colors.text.dim }}
+                  onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                  onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
             <Button type="submit" className="w-full" size="lg" loading={isSubmitting}>
               Sign in
             </Button>
