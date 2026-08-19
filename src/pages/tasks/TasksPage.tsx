@@ -22,7 +22,7 @@ import { format, isPast, parseISO, isToday } from 'date-fns'
 import type {
   TaskResponse, TaskStatus, TaskPriority, TaskAssignee,
   TaskCommentResponse, TaskAttachmentResponse, TaskLogResponse,
-  UserResponse,
+  AssignableUser,
 } from '../../types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -106,17 +106,17 @@ function MemberPickerModal({
   onConfirm,
   onClose,
 }: {
-  selected: UserResponse[]
-  onConfirm: (members: UserResponse[]) => void
+  selected: AssignableUser[]
+  onConfirm: (members: AssignableUser[]) => void
   onClose: () => void
 }) {
   const [search, setSearch] = useState('')
   const [page, setPage]     = useState(0)
-  const [draft, setDraft]   = useState<UserResponse[]>(selected)
+  const [draft, setDraft]   = useState<AssignableUser[]>(selected)
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ['org-members'],
-    queryFn: usersApi.listMembers,
+    queryKey: ['assignable-users'],
+    queryFn: usersApi.listAssignable,
     staleTime: 60_000,
   })
 
@@ -128,8 +128,8 @@ function MemberPickerModal({
   const clampedPage = Math.min(page, totalPages - 1)
   const visible = filtered.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE)
 
-  const isSelected = (m: UserResponse) => draft.some(d => d.id === m.id)
-  const toggle = (m: UserResponse) =>
+  const isSelected = (m: AssignableUser) => draft.some(d => d.id === m.id)
+  const toggle = (m: AssignableUser) =>
     setDraft(prev => isSelected(m) ? prev.filter(d => d.id !== m.id) : [...prev, m])
 
   useEffect(() => setPage(0), [search])
@@ -270,13 +270,13 @@ function MemberPickerModal({
 
 function TaskCard({
   task,
-  canManage,
+  canDelete,
   onOpen,
   onDelete,
   onDragStart,
 }: {
   task: TaskResponse
-  canManage: boolean
+  canDelete: boolean
   onOpen: () => void
   onDelete: () => void
   onDragStart: (e: React.DragEvent) => void
@@ -303,7 +303,7 @@ function TaskCard({
         <p className="text-sm font-medium leading-snug flex-1 line-clamp-2" style={{ color: colors.text.primary }}>
           {task.title}
         </p>
-        {canManage && (
+        {canDelete && (
           <div className="relative flex-shrink-0" onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}>
             <button className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ color: colors.text.dim }}>
@@ -367,10 +367,11 @@ function TaskCard({
 // ── KanbanColumn ───────────────────────────────────────────────────────────────
 
 function KanbanColumn({
-  status, label, tasks, canManage, isDragOver,
+  status, label, tasks, canManage, currentUserId, isDragOver,
   onDragOver, onDragLeave, onDrop, onCardDragStart, onCardOpen, onCardDelete, onAddTask,
 }: {
-  status: TaskStatus; label: string; tasks: TaskResponse[]; canManage: boolean; isDragOver: boolean
+  status: TaskStatus; label: string; tasks: TaskResponse[]
+  canManage: boolean; currentUserId: string; isDragOver: boolean
   onDragOver: (e: React.DragEvent) => void; onDragLeave: () => void; onDrop: (e: React.DragEvent) => void
   onCardDragStart: (e: React.DragEvent, task: TaskResponse) => void
   onCardOpen: (task: TaskResponse) => void; onCardDelete: (task: TaskResponse) => void; onAddTask?: () => void
@@ -394,7 +395,7 @@ function KanbanColumn({
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
             style={{ background: accentAlpha(0.08), color: colors.accent }}>{tasks.length}</span>
         </div>
-        {canManage && status === 'OPEN' && onAddTask && (
+        {status === 'OPEN' && onAddTask && (
           <button onClick={onAddTask} className="p-1 rounded-lg transition-colors" style={{ color: colors.text.dim }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}>
@@ -404,7 +405,8 @@ function KanbanColumn({
       </div>
       <div className="flex flex-col gap-2 px-2 pb-3 flex-1">
         {tasks.map(t => (
-          <TaskCard key={t.id} task={t} canManage={canManage}
+          <TaskCard key={t.id} task={t}
+            canDelete={canManage || t.assignedBy === currentUserId}
             onOpen={() => onCardOpen(t)} onDelete={() => onCardDelete(t)}
             onDragStart={e => onCardDragStart(e, t)} />
         ))}
@@ -439,15 +441,14 @@ function TaskDetailModal({
   const [editingDesc, setEditingDesc]   = useState(false)
   const [descDraft, setDescDraft]       = useState(task.description ?? '')
   const [showAssigneePicker, setShowAssigneePicker] = useState(false)
-  const [assigneeDraft, setAssigneeDraft] = useState<UserResponse[]>([])
+  const [assigneeDraft, setAssigneeDraft] = useState<AssignableUser[]>([])
   const [showAssigneeNames, setShowAssigneeNames] = useState(false)
   const [detailTab, setDetailTab] = useState<'comments' | 'activity'>('comments')
 
   const { data: allMembers = [] } = useQuery({
-    queryKey: ['org-members'],
-    queryFn: usersApi.listMembers,
+    queryKey: ['assignable-users'],
+    queryFn: usersApi.listAssignable,
     staleTime: 60_000,
-    enabled: canManage,
   })
 
   const { data: comments = [] } = useQuery({
@@ -513,7 +514,10 @@ function TaskDetailModal({
 
   const due = dueDateLabel(task.dueDate, task.status)
   const pStyle = priorityStyle(task.priority)
-  const canEdit = canManage || task.assignees.some(a => a.id === currentUserId)
+  // Status may be moved by anyone working on the task; the task's own fields belong
+  // to whoever raised it (and to managers, who can edit anything in the org).
+  const canEditTask = canManage || task.assignedBy === currentUserId
+  const canEdit = canEditTask || task.assignees.some(a => a.id === currentUserId)
 
   const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
     { value: 'OPEN',        label: 'Open' },
@@ -541,12 +545,12 @@ function TaskDetailModal({
     setShowAssigneePicker(true)
   }
 
-  const confirmAssignees = (members: UserResponse[]) => {
+  const confirmAssignees = (members: AssignableUser[]) => {
     updateMut.mutate({ assignedTo: members.map(m => m.id) })
   }
 
-  // Build modal title: editable for managers, plain text otherwise
-  const modalTitle = canManage ? (
+  // Build modal title: editable by the task's owner, plain text otherwise
+  const modalTitle = canEditTask ? (
     editingTitle ? (
       <div className="flex items-center gap-2 flex-1 mr-2" onClick={e => e.stopPropagation()}>
         <input
@@ -606,7 +610,7 @@ function TaskDetailModal({
           {/* Priority */}
           <div className="flex flex-col gap-1 min-w-0">
             <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Priority</span>
-            {canManage ? (
+            {canEditTask ? (
               <select
                 className="text-xs rounded-lg px-2 py-1 font-medium cursor-pointer border-0 outline-none"
                 style={{ background: accentAlpha(0.06), color: pStyle.color }}
@@ -628,7 +632,7 @@ function TaskDetailModal({
               <span className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>
                 Assigned to
               </span>
-              {canManage && (
+              {canEditTask && (
                 <button onClick={openAssigneePicker}
                   className="p-0.5 rounded transition-colors"
                   style={{ color: colors.text.dim }}
@@ -695,7 +699,7 @@ function TaskDetailModal({
 
         {/* Description */}
         <div className="mb-5">
-          {canManage ? (
+          {canEditTask ? (
             editingDesc ? (
               <div className="flex flex-col gap-2">
                 <textarea
@@ -911,7 +915,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
   const { toast } = useToast()
   const [title, setTitle]             = useState('')
   const [description, setDescription] = useState('')
-  const [assignees, setAssignees]     = useState<UserResponse[]>([])
+  const [assignees, setAssignees]     = useState<AssignableUser[]>([])
   const [showPicker, setShowPicker]   = useState(false)
   const [dueDate, setDueDate]         = useState('')
   const [priority, setPriority]       = useState<TaskPriority>('MEDIUM')
@@ -1101,18 +1105,16 @@ export default function TasksPage() {
             {tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length} active
           </span>
         </div>
-        {canManage && (
-          <Button variant="primary" onClick={() => setShowCreate(true)}>
-            <Plus size={15} className="mr-1.5" /> New Task
-          </Button>
-        )}
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <Plus size={15} className="mr-1.5" /> New Task
+        </Button>
       </div>
 
       {/* ── Desktop kanban ── */}
       <div className="hidden lg:grid grid-cols-3 gap-4">
         {COLUMNS.map(col => (
           <KanbanColumn key={col.status} status={col.status} label={col.label}
-            tasks={grouped[col.status] ?? []} canManage={canManage}
+            tasks={grouped[col.status] ?? []} canManage={canManage} currentUserId={user?.id ?? ''}
             isDragOver={dragOverCol === col.status}
             onDragOver={e => handleDragOver(e, col.status)}
             onDragLeave={() => setDragOverCol(null)}
@@ -1175,7 +1177,8 @@ export default function TasksPage() {
                     <ChevronRight size={16} />
                   </button>
                 </div>
-                {(canManage || task.assignees.some(a => a.id === user?.id)) && (
+                {(canManage || task.assignedBy === user?.id
+                  || task.assignees.some(a => a.id === user?.id)) && (
                   <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
                     {task.status === 'OPEN' && (<>
                       <button onClick={() => statusMut.mutate({ id: task.id, status: 'IN_PROGRESS' })}

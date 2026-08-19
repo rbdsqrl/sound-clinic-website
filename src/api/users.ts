@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, UserResponse, StaffMemberResponse, Role } from '../types'
+import type { ApiResponse, UserResponse, StaffMemberResponse, AssignableUser, Role } from '../types'
 
 export const usersApi = {
   me: () =>
@@ -17,9 +17,19 @@ export const usersApi = {
       })
       .then((r) => r.data.data),
 
+  /** Full staff directory with personal details. BUSINESS_OWNER / ADMIN only. */
   listMembers: () =>
     client
       .get<ApiResponse<StaffMemberResponse[]>>('/users/members')
+      .then((r) => r.data.data),
+
+  /**
+   * Active staff as names + roles, for assignee pickers.
+   * Callable by any staff member, since anyone can create and assign a task.
+   */
+  listAssignable: () =>
+    client
+      .get<ApiResponse<AssignableUser[]>>('/users/assignable')
       .then((r) => r.data.data),
 
   /** Search users by partial email within the caller's organisation. */

@@ -143,6 +143,14 @@ export interface UserResponse {
   createdAt: string
 }
 
+/** Name + role only — what an assignee picker needs, readable by any staff member. */
+export interface AssignableUser {
+  id: string
+  firstName: string
+  lastName: string
+  role: Role
+}
+
 export interface StaffMemberResponse {
   id: string
   orgId: string
