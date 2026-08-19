@@ -41,20 +41,20 @@ export default {
       },
       // ── Type scale ─────────────────────────────────────────────────────────
       // Tailwind's default scale, every size (and its line height) multiplied by
-      // 1.2 for readability. Overriding here rather than bumping the root
+      // 1.15 for readability. Overriding here rather than bumping the root
       // font-size keeps rem-based spacing and layout untouched — only text grows.
       fontSize: {
-        xs:    ['0.9rem',  { lineHeight: '1.2rem' }],  // 12px → 14.4px
-        sm:    ['1.05rem', { lineHeight: '1.5rem' }],  // 14px → 16.8px
-        base:  ['1.2rem',  { lineHeight: '1.8rem' }],  // 16px → 19.2px
-        lg:    ['1.35rem', { lineHeight: '2.1rem' }],  // 18px → 21.6px
-        xl:    ['1.5rem',  { lineHeight: '2.1rem' }],  // 20px → 24px
-        '2xl': ['1.8rem',  { lineHeight: '2.4rem' }],  // 24px → 28.8px
-        '3xl': ['2.25rem', { lineHeight: '2.7rem' }],  // 30px → 36px
-        '4xl': ['2.7rem',  { lineHeight: '3rem'   }],  // 36px → 43.2px
-        '5xl': ['3.6rem',  { lineHeight: '1'      }],  // 48px → 57.6px
-        '6xl': ['4.5rem',  { lineHeight: '1'      }],  // 60px → 72px
-        '7xl': ['5.4rem',  { lineHeight: '1'      }],  // 72px → 86.4px
+        xs:    ['0.8625rem',  { lineHeight: '1.15rem'   }],  // 12px → 13.8px
+        sm:    ['1.00625rem', { lineHeight: '1.4375rem' }],  // 14px → 16.1px
+        base:  ['1.15rem',    { lineHeight: '1.725rem'  }],  // 16px → 18.4px
+        lg:    ['1.29375rem', { lineHeight: '2.0125rem' }],  // 18px → 20.7px
+        xl:    ['1.4375rem',  { lineHeight: '2.0125rem' }],  // 20px → 23px
+        '2xl': ['1.725rem',   { lineHeight: '2.3rem'    }],  // 24px → 27.6px
+        '3xl': ['2.15625rem', { lineHeight: '2.5875rem' }],  // 30px → 34.5px
+        '4xl': ['2.5875rem',  { lineHeight: '2.875rem'  }],  // 36px → 41.4px
+        '5xl': ['3.45rem',    { lineHeight: '1'         }],  // 48px → 55.2px
+        '6xl': ['4.3125rem',  { lineHeight: '1'         }],  // 60px → 69px
+        '7xl': ['5.175rem',   { lineHeight: '1'         }],  // 72px → 82.8px
       },
       // ── Glow shadows (match shadow.* in theme.ts) ──────────────────────────
       boxShadow: {

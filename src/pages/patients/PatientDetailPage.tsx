@@ -92,7 +92,7 @@ function StageProgress({ current }: { current: PatientStage }) {
                 {isPast ? '✓' : idx + 1}
               </div>
               <span
-                className="text-[10.8px] font-medium text-center whitespace-nowrap max-w-[60px] leading-tight"
+                className="text-[10.35px] font-medium text-center whitespace-nowrap max-w-[60px] leading-tight"
                 style={{ color: isCurrent ? colors.accent : isPast ? colors.text.muted : colors.text.dim }}
               >
                 {STAGE_LABELS[stage]}
@@ -559,7 +559,7 @@ function MockRazorpayModal({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>Razorpay</p>
-                <p className="text-[13.2px]" style={{ color: colors.text.dim }}>Secure Payment Gateway</p>
+                <p className="text-[12.65px]" style={{ color: colors.text.dim }}>Secure Payment Gateway</p>
               </div>
               <button onClick={onClose} className="p-2 rounded-lg" style={{ color: colors.text.muted }}>
                 <X size={16} />
@@ -598,7 +598,7 @@ function MockRazorpayModal({
               {processing ? 'Processing…' : `Pay ${formatINR(subscription.totalAmount)}`}
             </button>
 
-            <p className="text-center text-[13.2px] mt-3" style={{ color: colors.text.dim }}>
+            <p className="text-center text-[12.65px] mt-3" style={{ color: colors.text.dim }}>
               Demo only — no real transaction occurs
             </p>
           </>
@@ -786,7 +786,7 @@ function SessionList({
                 style={{ width: `${pct}%`, background: colors.status.success }}
               />
             </div>
-            <span className="text-[12px] font-semibold tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
+            <span className="text-[11.5px] font-semibold tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
               {pct}%
             </span>
           </div>
@@ -823,14 +823,14 @@ function SessionList({
                   {format(new Date(s.sessionDate + 'T00:00:00'), 'EEE d MMM')}
                 </span>
 
-                <span className="text-[13.2px] font-medium flex-shrink-0"
+                <span className="text-[12.65px] font-medium flex-shrink-0"
                   style={{ color: sessionRowStatusColor(s.status) }}>
                   {sessionRowStatusLabel(s.status)}
                 </span>
 
                 {s.performanceScore != null && (
                   <span
-                    className="text-[12px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0"
+                    className="text-[11.5px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0"
                     style={{ background: scoreColor(s.performanceScore) + '20', color: scoreColor(s.performanceScore) }}
                   >
                     {s.performanceScore}
@@ -953,7 +953,7 @@ function SessionNotesModal({
             {session.startTime.slice(0, 5)} · {session.programName}
           </p>
         </div>
-        <span className="text-[12px] px-2 py-1 rounded-full font-medium"
+        <span className="text-[11.5px] px-2 py-1 rounded-full font-medium"
           style={
             session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
             : session.status === 'CANCELLED' || session.status === 'NO_SHOW' || session.status === 'CANCELLATION_REQUESTED' ? paletteStyle('red', 0.12, 0)
@@ -1013,7 +1013,7 @@ function SessionNotesModal({
                   type="button"
                   disabled={!canEdit}
                   onClick={() => setScore(active ? null : val)}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[12px] font-semibold transition-colors"
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11.5px] font-semibold transition-colors"
                   style={{
                     background: active ? scoreColor(val) + '22' : surface.filterStrip,
                     color: active ? scoreColor(val) : colors.text.muted,
@@ -1110,7 +1110,7 @@ function SessionNotesModal({
                       className="w-full h-24 flex flex-col items-center justify-center gap-1.5 transition-colors"
                       style={{ background: accentAlpha(0.04) }}>
                       <FileText size={20} style={{ color: colors.accent }} />
-                      <p className="text-[12px] truncate px-2 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
+                      <p className="text-[11.5px] truncate px-2 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
                     </a>
                   )}
                   {canEdit && (
@@ -1183,7 +1183,6 @@ function EnrollmentModal({
   const [duration, setDuration]                 = useState<number>(45)
   const [startDate, setStartDate]               = useState('')
   const [startTime, setStartTime]               = useState('')
-  const [endDate, setEndDate]                   = useState('')
   const [step, setStep]                         = useState<1 | 2>(1)
 
   // Review meetings — opt-in, fortnightly by default
@@ -1238,13 +1237,13 @@ function EnrollmentModal({
       sessionDurationMinutes: duration,
       startDate,
       startTime,
-      endDate: endDate || undefined,
+      // No end date sent — the server derives it from the start date and the
+      // number of sessions in the plan, and the review series inherits it.
       reviewSchedule: wantsReviews
         ? {
             startTime: reviewTime,
             durationMinutes: reviewDuration,
             intervalWeeks: reviewIntervalWeeks,
-            endDate: endDate || undefined,
           }
         : undefined,
     })
@@ -1304,7 +1303,7 @@ function EnrollmentModal({
                     {preselectedSub.numSessions} sessions · {formatINR(preselectedSub.perSessionCost)}/session
                   </p>
                 </div>
-                <span className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase"
+                <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase"
                   style={{ background: accentAlpha(0.12), color: colors.accent }}>Paid</span>
               </div>
             ) : (
@@ -1342,24 +1341,11 @@ function EnrollmentModal({
                 error={step1Errors.time}
               />
 
-              {/* Start date */}
+              {/* Start date — the plan's end is derived from this plus the session count */}
               <div>
                 <label className="form-label">Start Date</label>
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
                 {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
-              </div>
-
-              {/* End date */}
-              <div>
-                <label className="form-label">End Date</label>
-                <input
-                  type="date" value={endDate} min={startDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="form-input w-full"
-                />
-                <p className="text-[13.2px] mt-1" style={{ color: colors.text.dim }}>
-                  Optional — defaults to the last session
-                </p>
               </div>
             </div>
 
@@ -1377,7 +1363,7 @@ function EnrollmentModal({
                   <span className="block text-sm font-medium" style={{ color: colors.text.primary }}>
                     Schedule review meetings
                   </span>
-                  <span className="block text-[13.2px] mt-0.5" style={{ color: colors.text.muted }}>
+                  <span className="block text-[12.65px] mt-0.5" style={{ color: colors.text.muted }}>
                     Recurring feedback meetings for the therapist and parents, with calendar invites
                   </span>
                 </span>
@@ -1412,11 +1398,9 @@ function EnrollmentModal({
                       <TimePicker label="Meeting time" value={reviewTime} onChange={setReviewTime} />
                     </div>
                   </div>
-                  {!endDate && (
-                    <p className="text-[13.2px] mt-3" style={{ color: colors.status.warning }}>
-                      Set an end date above so the review meetings know when to stop.
-                    </p>
-                  )}
+                  <p className="text-[12.65px] mt-3" style={{ color: colors.text.dim }}>
+                    Meetings run until the plan's last session.
+                  </p>
                 </div>
               )}
             </div>
@@ -1770,7 +1754,7 @@ export default function PatientDetailPage() {
                     {p.firstName} {p.lastName}
                   </p>
                   <span
-                    className="text-[12px] font-medium px-1.5 py-0.5 rounded-full"
+                    className="text-[11.5px] font-medium px-1.5 py-0.5 rounded-full"
                     style={isActive
                       ? { background: accentAlpha(0.15), color: colors.accent }
                       : { background: accentAlpha(0.06), color: colors.text.dim }
@@ -1947,7 +1931,7 @@ export default function PatientDetailPage() {
                             {activeEnrollment.therapistFirstName} {activeEnrollment.therapistLastName}
                           </p>
                         </div>
-                        <span className="flex-shrink-0 text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                        <span className="flex-shrink-0 text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
                           style={paletteStyle('teal', 0.12, 0)}>
                           Active
                         </span>
@@ -2190,11 +2174,11 @@ export default function PatientDetailPage() {
                             <p className="text-xs font-medium truncate flex-1" style={{ color: colors.text.muted }}>
                               {sub.programName}
                             </p>
-                            <span className="text-[13.2px] flex-shrink-0" style={{ color: colors.text.dim }}>
+                            <span className="text-[12.65px] flex-shrink-0" style={{ color: colors.text.dim }}>
                               {formatINR(sub.amountPaid)} paid
                             </span>
                             <span
-                              className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
+                              className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
                               style={{ background: surface.card, color: colors.text.dim }}
                             >
                               Cancelled
@@ -2232,14 +2216,14 @@ export default function PatientDetailPage() {
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 <span
-                                  className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
                                   style={paymentStatusStyle(sub.paymentStatus)}
                                 >
                                   {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
                                 </span>
                                 {isEnrolled && (
                                   <span
-                                    className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                    className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
                                     style={paletteStyle('teal', 0.12, 0)}
                                   >
                                     Active
@@ -2247,7 +2231,7 @@ export default function PatientDetailPage() {
                                 )}
                                 {!isEnrolled && isPaid && !isCancelled && (
                                   <span
-                                    className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                    className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
                                     style={paletteStyle('yellow', 0.14, 0)}
                                   >
                                     Not enrolled
@@ -2266,7 +2250,7 @@ export default function PatientDetailPage() {
                                       / {sub.numSessions}
                                     </span>
                                   </p>
-                                  <p className="text-[12px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
+                                  <p className="text-[11.5px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
                                     sessions completed
                                   </p>
                                 </div>

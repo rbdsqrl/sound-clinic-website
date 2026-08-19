@@ -213,7 +213,7 @@ function EventChip({
     <button
       onClick={e => { e.stopPropagation(); onClick() }}
       className="w-full text-left rounded-md px-1.5 py-0.5 truncate transition-opacity hover:opacity-75"
-      style={{ ...s, fontSize: compact ? 12 : 13.2, fontWeight: 600 }}>
+      style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
       {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
       <span className="truncate">{event.title}</span>
       {!compact && !event.isAllDay && event.time && (
@@ -283,7 +283,7 @@ function MonthView({
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact />
                 ))}
                 {sorted.length > 3 && (
-                  <p className="text-[12px] pl-1" style={{ color: colors.text.muted }}>
+                  <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
                     +{sorted.length - 3} more
                   </p>
                 )}
@@ -340,7 +340,7 @@ function WeekView({
         <div className="grid border-b sticky z-10"
           style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, background: surface.card, top: 73 }}>
           <div className="px-1 pt-1 text-right">
-            <span className="text-[10.8px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+            <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
           </div>
           {days.map(day => {
             const leaves = allDayEventsOnDay(events, day)
@@ -443,7 +443,7 @@ function DayView({
         <div className="flex border-b flex-shrink-0"
           style={{ borderColor: border.divider, background: surface.card }}>
           <div className="w-16 flex-shrink-0 px-2 pt-1.5 text-right">
-            <span className="text-[10.8px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+            <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
           </div>
           <div className="flex-1 border-l p-2 flex flex-col gap-1 min-h-[32px]"
             style={{ borderColor: border.divider }}>
@@ -479,15 +479,15 @@ function DayView({
                       className="w-full text-left rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80"
                       style={{ ...s, minHeight: 52 }}>
                       <p className="text-xs font-semibold leading-tight">{ev.title}</p>
-                      <p className="text-[13.2px] mt-0.5 opacity-75">
+                      <p className="text-[12.65px] mt-0.5 opacity-75">
                         {ev.time}
                         {rawSess && ` – ${rawSess.endTime.substring(0, 5)}`}
                       </p>
                       {ev.subtitle && (
-                        <p className="text-[13.2px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
+                        <p className="text-[12.65px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
                       )}
                       {rawSess?.status && rawSess.status !== 'SCHEDULED' && (
-                        <span className="inline-block mt-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full"
+                        <span className="inline-block mt-1 text-[11.5px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: 'rgba(0,0,0,0.08)' }}>
                           {sessionStatusLabel(rawSess.status)}
                         </span>
@@ -537,7 +537,7 @@ function UpcomingPanel({
             <div key={group.dateKey}>
               {/* Date header */}
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[13.2px] font-bold uppercase tracking-wide flex-shrink-0"
+                <span className="text-[12.65px] font-bold uppercase tracking-wide flex-shrink-0"
                   style={{ color: group.label === 'Today' ? colors.accent : colors.text.muted }}>
                   {group.label}
                 </span>
@@ -976,7 +976,7 @@ function TodayEventChip({
         <p className="text-xs font-semibold truncate max-w-[130px]" style={{ color: s.color }}>
           {event.title}
         </p>
-        <p className="text-[12px] mt-0.5" style={{ color: s.color, opacity: 0.7 }}>
+        <p className="text-[11.5px] mt-0.5" style={{ color: s.color, opacity: 0.7 }}>
           {event.isAllDay ? (event.subtitle ?? 'All day') : event.time}
         </p>
       </div>
@@ -1020,7 +1020,7 @@ function TodayPanel({
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: colors.text.muted }}>Today</span>
-              <span className="text-[12px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+              <span className="text-[11.5px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
                 style={{ background: colors.accent, color: '#fff' }}>
                 {todayEvents.length}
               </span>
@@ -1031,7 +1031,7 @@ function TodayPanel({
             <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: border.divider }}>
               <span className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: colors.text.muted }}>Tomorrow</span>
-              <span className="text-[12px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+              <span className="text-[11.5px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
                 style={{ background: surface.rowHover, color: colors.text.muted }}>
                 {tomorrowEvents.length}
               </span>

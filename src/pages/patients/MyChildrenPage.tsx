@@ -41,7 +41,7 @@ function ChildSessions({ childId }: { childId: string }) {
   return (
     <>
       <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <p className="text-[12px] font-medium uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>
+        <p className="text-[11.5px] font-medium uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>
           Upcoming Sessions
         </p>
 
@@ -77,7 +77,7 @@ function ChildSessions({ childId }: { childId: string }) {
 
                 {s.status === 'PENDING_RESCHEDULE' ? (
                   <span
-                    className="flex-shrink-0 text-[12px] font-semibold px-2 py-0.5 rounded-full"
+                    className="flex-shrink-0 text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
                     style={paletteStyle('amber', 0.10, 0.15)}
                   >
                     Rescheduling
@@ -86,7 +86,7 @@ function ChildSessions({ childId }: { childId: string }) {
                   <button
                     onClick={() => requestMutation.mutate(s.id)}
                     disabled={requestMutation.isPending}
-                    className="flex-shrink-0 flex items-center gap-1 text-[13.2px] font-medium px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-shrink-0 flex items-center gap-1 text-[12.65px] font-medium px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
                     style={paletteStyle('purple', 0.08, 0.12)}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = `rgba(${palette.purple.raw}, 0.14)`}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = `rgba(${palette.purple.raw}, 0.08)`}
@@ -190,7 +190,7 @@ export default function MyChildrenPage() {
                       {child.conditions.map((c) => (
                         <span
                           key={c.id}
-                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[13.2px] font-medium"
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[12.65px] font-medium"
                           style={paletteStyle('blue', 0.08, 0.14)}
                         >
                           {c.name}

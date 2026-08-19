@@ -60,7 +60,7 @@ function MiniRing({ completed, total }: { completed: number; total: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[10.8px] font-bold leading-none" style={{ color: colors.accent }}>
+        <span className="text-[10.35px] font-bold leading-none" style={{ color: colors.accent }}>
           {completed}/{total}
         </span>
       </div>

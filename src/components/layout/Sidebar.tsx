@@ -126,7 +126,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
               <span className="text-sm font-semibold tracking-tight" style={{ color: colors.textLight.primary }}>
                 SimpleHearing
               </span>
-              <div className="text-[10.8px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
+              <div className="text-[10.35px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
                 Clinic Portal
               </div>
             </div>
@@ -178,7 +178,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
       {/* ── Role switcher (hidden when collapsed) ── */}
       {hasMultipleRoles && !collapsed && (
         <div className="px-3 pb-4">
-          <p className="mb-2 px-2 text-[10.8px] font-semibold uppercase tracking-widest" style={{ color: colors.textLight.muted }}>
+          <p className="mb-2 px-2 text-[10.35px] font-semibold uppercase tracking-widest" style={{ color: colors.textLight.muted }}>
             Active Role
           </p>
           <div className="flex flex-col gap-1">
@@ -192,7 +192,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
                 <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: ROLE_COLORS[role] }} />
                 <span>{ROLE_LABELS[role]}</span>
                 {role === currentRole && (
-                  <span className="ml-auto text-[10.8px] rounded px-1.5 py-0.5" style={styles.roleActiveBadge}>
+                  <span className="ml-auto text-[10.35px] rounded px-1.5 py-0.5" style={styles.roleActiveBadge}>
                     active
                   </span>
                 )}
@@ -257,7 +257,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
 
                       {showBadge && !isActive && (
                         <span
-                          className="text-[12px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0"
+                          className="text-[11.5px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0"
                           style={{ background: colors.accent, color: '#fff' }}
                         >
                           {badgeCount > 9 ? '9+' : badgeCount}
@@ -334,7 +334,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
                   {user?.firstName} {user?.lastName}
                 </p>
                 {!hasMultipleRoles && (
-                  <p className="text-[12px] truncate" style={{ color: ROLE_COLORS[currentRole] }}>
+                  <p className="text-[11.5px] truncate" style={{ color: ROLE_COLORS[currentRole] }}>
                     {ROLE_LABELS[currentRole]}
                   </p>
                 )}

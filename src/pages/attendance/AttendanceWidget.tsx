@@ -62,7 +62,7 @@ export default function AttendanceWidget() {
           {(checkedIn || checkedOut) && (
             <div className="hidden sm:flex items-center gap-2 flex-shrink-0 ml-1">
               <span
-                className="text-[12px] font-medium px-2 py-0.5 rounded-full"
+                className="text-[11.5px] font-medium px-2 py-0.5 rounded-full"
                 style={{
                   background: today!.geoVerified ? successAlpha(0.15) : dangerAlpha(0.1),
                   color: today!.geoVerified ? colors.status.success : colors.status.error,
@@ -71,7 +71,7 @@ export default function AttendanceWidget() {
                 {today!.geoVerified ? '✓' : '✗'} Geo
               </span>
               <span
-                className="text-[12px] font-medium px-2 py-0.5 rounded-full"
+                className="text-[11.5px] font-medium px-2 py-0.5 rounded-full"
                 style={{
                   background: today!.faceVerified ? successAlpha(0.15) : dangerAlpha(0.1),
                   color: today!.faceVerified ? colors.status.success : colors.status.error,

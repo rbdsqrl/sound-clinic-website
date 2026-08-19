@@ -159,7 +159,7 @@ export default function AvailabilityPage() {
                               <p className="text-xs font-medium" style={{ color: colors.text.primary }}>
                                 {slot.startTime.slice(0,5)} – {slot.endTime.slice(0,5)}
                               </p>
-                              <span className="text-[12px] rounded-full px-1.5 py-0.5 mt-0.5 inline-block" style={durationColor(slot.slotDurationMinutes)}>
+                              <span className="text-[11.5px] rounded-full px-1.5 py-0.5 mt-0.5 inline-block" style={durationColor(slot.slotDurationMinutes)}>
                                 {slot.slotDurationMinutes} min
                               </span>
                             </div>

@@ -111,7 +111,7 @@ export function ReviewMeetingsPanel({
             Review meetings
           </p>
           {active.length > 0 && (
-            <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-full"
+            <span className="text-[11.5px] font-bold px-1.5 py-0.5 rounded-full"
               style={{ background: accentAlpha(0.10), color: colors.accent }}>
               {active.length}
             </span>
@@ -162,7 +162,7 @@ export function ReviewMeetingsPanel({
             />
           ))}
           {cancelled.length > 0 && (
-            <p className="text-[13.2px] pt-1" style={{ color: colors.text.dim }}>
+            <p className="text-[12.65px] pt-1" style={{ color: colors.text.dim }}>
               {cancelled.length} cancelled meeting{cancelled.length > 1 ? 's' : ''} hidden
             </p>
           )}
@@ -229,14 +229,14 @@ function MeetingRow({
               {meeting.startTime.slice(0, 5)}
             </span>
           </p>
-          <p className="text-[13.2px] mt-0.5" style={{ color: colors.text.dim }}>
+          <p className="text-[12.65px] mt-0.5" style={{ color: colors.text.dim }}>
             Review #{meeting.meetingNumber}
             {meeting.parentFeedbackAt && ' · parent responded'}
             {meeting.therapistFeedbackAt && ' · therapist responded'}
           </p>
         </button>
 
-        <span className="text-[12px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
+        <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
           style={meetingStatusStyle(meeting.status)}>
           {meeting.status.toLowerCase()}
         </span>
@@ -247,7 +247,7 @@ function MeetingRow({
 
           {/* Therapist's side */}
           <div className="mt-2.5">
-            <p className="text-[12px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
+            <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
               Therapist feedback
             </p>
             {meeting.therapistSummary ? (
@@ -270,7 +270,7 @@ function MeetingRow({
 
           {/* Parent's side */}
           <div className="mt-3">
-            <p className="text-[12px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
+            <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
               Parent feedback
             </p>
             {meeting.parentRating != null ? (
@@ -410,7 +410,7 @@ export function ScheduleModal({
               onChange={e => setFirstDate(e.target.value)}
               className="form-input w-full"
             />
-            <p className="text-[13.2px] mt-1" style={{ color: colors.text.dim }}>
+            <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>
               Defaults to {intervalWeeks} week{intervalWeeks > 1 ? 's' : ''} after the therapy starts
             </p>
           </div>
@@ -564,7 +564,7 @@ function FeedbackModal({
 
         {error && <p className="form-error">{error}</p>}
 
-        <p className="text-[13.2px]" style={{ color: colors.text.dim }}>
+        <p className="text-[12.65px]" style={{ color: colors.text.dim }}>
           The other side's feedback becomes visible to you once you submit yours.
         </p>
       </div>

@@ -79,7 +79,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
         </div>
 
         {leave.status !== 'PENDING' && leave.reviewedByFirstName && (
-          <p className="text-[13.2px] mt-0.5" style={{ color: colors.text.dim }}>
+          <p className="text-[12.65px] mt-0.5" style={{ color: colors.text.dim }}>
             {leave.status === 'APPROVED' ? 'Approved' : 'Rejected'} by {leave.reviewedByFirstName} {leave.reviewedByLastName}
             {leave.reviewedAt ? ` · ${format(new Date(leave.reviewedAt), 'dd MMM yyyy')}` : ''}
           </p>
@@ -178,7 +178,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
           >
             {s === '' ? 'All' : STATUS_META[s].label}
             {s === 'PENDING' && pendingCount > 0 && (
-              <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[12px] font-semibold" style={paletteStyle('yellow', 0.15)}>
+              <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[11.5px] font-semibold" style={paletteStyle('yellow', 0.15)}>
                 {pendingCount}
               </span>
             )}

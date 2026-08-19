@@ -116,7 +116,7 @@ function PatientCard({ patient, index, clinicName }: {
             </div>
           </div>
           <span
-            className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[13.2px] font-medium whitespace-nowrap"
+            className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[12.65px] font-medium whitespace-nowrap"
             style={INVITE_STYLE[status]}
           >
             {INVITE_LABEL[status]}
@@ -127,12 +127,12 @@ function PatientCard({ patient, index, clinicName }: {
         {patient.conditions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {patient.conditions.slice(0, 3).map(c => (
-              <span key={c.id} className="text-[13.2px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
+              <span key={c.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
                 {c.name}
               </span>
             ))}
             {patient.conditions.length > 3 && (
-              <span className="text-[13.2px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
+              <span className="text-[12.65px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
                 +{patient.conditions.length - 3}
               </span>
             )}
@@ -141,11 +141,11 @@ function PatientCard({ patient, index, clinicName }: {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: border.divider }}>
-          <span className="text-[13.2px] flex items-center gap-1" style={{ color: colors.text.muted }}>
+          <span className="text-[12.65px] flex items-center gap-1" style={{ color: colors.text.muted }}>
             <Users size={11} />
             {patient.therapists.length} specialist{patient.therapists.length !== 1 ? 's' : ''}
           </span>
-          <span className="text-[13.2px]" style={{ color: colors.text.dim }}>
+          <span className="text-[12.65px]" style={{ color: colors.text.dim }}>
             {format(new Date(patient.createdAt), 'dd MMM yyyy')}
           </span>
         </div>
@@ -331,14 +331,14 @@ export default function PatientsPage() {
                           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</p>
                         </div>
                       </div>
-                      <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[13.2px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                      <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
                     </div>
                     {p.conditions.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {p.conditions.slice(0, 2).map(c => (
-                          <span key={c.id} className="text-[13.2px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
+                          <span key={c.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
                         ))}
-                        {p.conditions.length > 2 && <span className="text-[13.2px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
+                        {p.conditions.length > 2 && <span className="text-[12.65px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
                       </div>
                     )}
                   </div>
@@ -386,14 +386,14 @@ export default function PatientsPage() {
                           {p.conditions.length === 0
                             ? <span style={{ color: colors.text.dim }}>—</span>
                             : p.conditions.slice(0, 2).map(c => (
-                              <span key={c.id} className="text-[13.2px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
+                              <span key={c.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>{c.name}</span>
                             ))}
-                          {p.conditions.length > 2 && <span className="text-[13.2px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
+                          {p.conditions.length > 2 && <span className="text-[12.65px]" style={{ color: colors.text.dim }}>+{p.conditions.length - 2}</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.therapists.length}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full px-2.5 py-0.5 text-[13.2px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                        <span className="rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{format(new Date(p.createdAt), 'dd MMM yyyy')}</td>
                     </tr>
