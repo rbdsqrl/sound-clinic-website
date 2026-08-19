@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search } from 'lucide-react'
 import IEPTab from './IEPTab'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
 import { patientsApi } from '../../api/patients'
@@ -1686,32 +1686,34 @@ export default function PatientDetailPage() {
 
       {/* ── Left sidebar (desktop only) — hidden for PARENT, they have no list access ── */}
       <aside
-        className={`${isParentRole ? 'hidden' : 'hidden lg:flex'} flex-col w-64 flex-shrink-0 sticky top-0 self-start overflow-y-auto`}
+        className={`${isParentRole ? 'hidden' : 'hidden lg:flex'} flex-col w-52 flex-shrink-0 sticky top-0 h-screen`}
         style={{
-          maxHeight: '100vh',
           background: surface.sidebar,
           borderRight: `1px solid ${border.sidebar}`,
         }}
       >
-        {/* Sidebar header */}
-        <div className="flex items-center justify-between px-4 pt-5 pb-3 flex-shrink-0">
-          <span className="text-sm font-semibold" style={{ color: colors.text.heading }}>Patients</span>
+        {/* Sidebar header — search sits inline with the count so it costs one row, not two */}
+        <div className="flex items-center gap-2 px-3 pt-4 pb-3 flex-shrink-0">
+          <div className="relative flex-1 min-w-0">
+            <Search
+              size={13}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ color: colors.text.dim }}
+            />
+            <input
+              className="form-input w-full pl-7 pr-2 py-1.5"
+              placeholder="Search patients…"
+              value={sidebarSearch}
+              onChange={e => setSidebarSearch(e.target.value)}
+            />
+          </div>
           <span
-            className="text-xs font-medium px-2 py-0.5 rounded-full"
+            className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ background: accentAlpha(0.10), color: colors.accent }}
+            title={`${allPatients.length} patients`}
           >
             {allPatients.length}
           </span>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 pb-3 flex-shrink-0">
-          <input
-            className="form-input w-full"
-            placeholder="Search patients…"
-            value={sidebarSearch}
-            onChange={e => setSidebarSearch(e.target.value)}
-          />
         </div>
 
         {/* Patient list */}
@@ -1722,7 +1724,7 @@ export default function PatientDetailPage() {
               <Link
                 key={p.id}
                 to={`/patients/${p.id}`}
-                className="flex items-center gap-3 rounded-xl px-2 py-2.5 mb-0.5 transition-colors"
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 mb-0.5 transition-colors"
                 style={isActive
                   ? { background: accentAlpha(0.10), border: `1px solid ${accentAlpha(0.20)}` }
                   : { border: '1px solid transparent' }
@@ -1736,7 +1738,7 @@ export default function PatientDetailPage() {
               >
                 {/* Avatar */}
                 <div
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                   style={isActive
                     ? { background: accentAlpha(0.20), color: colors.accent }
                     : { background: accentAlpha(0.08), color: colors.accent }
@@ -1745,23 +1747,17 @@ export default function PatientDetailPage() {
                   {p.firstName[0]}{p.lastName[0]}
                 </div>
 
-                {/* Name + stage */}
-                <div className="min-w-0 flex-1">
+                {/* Name over stage — stage is plain text, a pill per row was too heavy */}
+                <div className="min-w-0 flex-1 leading-tight">
                   <p
-                    className="text-sm font-medium truncate"
+                    className="text-[13px] font-medium truncate"
                     style={{ color: isActive ? colors.accent : colors.text.primary }}
                   >
                     {p.firstName} {p.lastName}
                   </p>
-                  <span
-                    className="text-[11.5px] font-medium px-1.5 py-0.5 rounded-full"
-                    style={isActive
-                      ? { background: accentAlpha(0.15), color: colors.accent }
-                      : { background: accentAlpha(0.06), color: colors.text.dim }
-                    }
-                  >
+                  <p className="text-[11px] truncate" style={{ color: colors.text.dim }}>
                     {STAGE_LABELS[p.stage]}
-                  </span>
+                  </p>
                 </div>
               </Link>
             )
