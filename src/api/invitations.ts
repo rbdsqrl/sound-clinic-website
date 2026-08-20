@@ -11,6 +11,10 @@ export const invitationsApi = {
   resend: (id: string) =>
     client.post<ApiResponse<InviteResponse>>(`/invitations/${id}/resend`).then((r) => r.data.data),
 
+  /** Withdraw an invitation that was never accepted (BUSINESS_OWNER / ADMIN) */
+  cancel: (id: string) =>
+    client.patch<ApiResponse<InviteResponse>>(`/invitations/${id}/cancel`).then((r) => r.data.data),
+
   preview: (token: string) =>
     client.get<ApiResponse<InvitePreviewResponse>>('/invitations/preview', { params: { token } }).then((r) => r.data.data),
 

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import {
   Search, LayoutGrid, List, UserPlus, Briefcase,
   Mail, Phone, Users, Building2, Check, Copy,
-  Link2, CalendarDays, Send, Trash2,
+  Link2, CalendarDays, Send, Trash2, XCircle,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '../../api/users'
@@ -69,6 +69,11 @@ const INVITABLE_ROLES: { value: Role; label: string }[] = [
 type Tab = 'members' | 'invites' | 'archived'
 type ViewMode = 'grid' | 'list'
 type InviteStatusFilter = 'ALL' | 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED'
+
+/** An invitation nobody took up — still resendable, still withdrawable. */
+function canWithdraw(status: InviteResponse['status']): boolean {
+  return status === 'PENDING' || status === 'EXPIRED'
+}
 
 // ── Copy link box ─────────────────────────────────────────────────────────────
 
@@ -280,6 +285,7 @@ export default function MembersPage() {
   const [inviteStatusFilter, setInviteStatusFilter] = useState<InviteStatusFilter>('ALL')
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [linkModal, setLinkModal]   = useState<InviteResponse | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<InviteResponse | null>(null)
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -327,6 +333,15 @@ export default function MembersPage() {
       setLinkModal(res)
     },
     onError: (err) => toast(getApiError(err, 'Failed to resend invite'), 'error'),
+  })
+
+  const cancelMut = useMutation({
+    mutationFn: (id: string) => invitationsApi.cancel(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invitations'] })
+      toast('Invitation cancelled', 'success')
+    },
+    onError: (err) => toast(getApiError(err, 'Could not cancel the invitation'), 'error'),
   })
 
   const deleteMemberMut = useMutation({
@@ -536,14 +551,23 @@ export default function MembersPage() {
                           <Link2 size={12} /> View link
                         </button>
                       )}
-                      {inv.status === 'PENDING' && (
-                        <button
-                          onClick={() => resendMut.mutate(inv.id)}
-                          disabled={resendMut.isPending && resendMut.variables === inv.id}
-                          className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
-                          style={{ color: colors.accent }}>
-                          <Send size={12} /> Resend
-                        </button>
+                      {canWithdraw(inv.status) && (
+                        <>
+                          <button
+                            onClick={() => resendMut.mutate(inv.id)}
+                            disabled={resendMut.isPending && resendMut.variables === inv.id}
+                            className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
+                            style={{ color: colors.accent }}>
+                            <Send size={12} /> Resend
+                          </button>
+                          <button
+                            onClick={() => setCancelTarget(inv)}
+                            disabled={cancelMut.isPending && cancelMut.variables === inv.id}
+                            className="flex items-center gap-1 text-xs font-medium min-h-[36px] px-2 disabled:opacity-50"
+                            style={{ color: colors.status.error }}>
+                            <XCircle size={12} /> Cancel
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -581,14 +605,23 @@ export default function MembersPage() {
                               <Link2 size={13} /> View link
                             </button>
                           )}
-                          {inv.status === 'PENDING' ? (
-                            <button
-                              onClick={() => resendMut.mutate(inv.id)}
-                              disabled={resendMut.isPending && resendMut.variables === inv.id}
-                              className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
-                              style={{ color: colors.accent }}>
-                              <Send size={13} /> Resend
-                            </button>
+                          {canWithdraw(inv.status) ? (
+                            <>
+                              <button
+                                onClick={() => resendMut.mutate(inv.id)}
+                                disabled={resendMut.isPending && resendMut.variables === inv.id}
+                                className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
+                                style={{ color: colors.accent }}>
+                                <Send size={13} /> Resend
+                              </button>
+                              <button
+                                onClick={() => setCancelTarget(inv)}
+                                disabled={cancelMut.isPending && cancelMut.variables === inv.id}
+                                className="flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
+                                style={{ color: colors.status.error }}>
+                                <XCircle size={13} /> Cancel
+                              </button>
+                            </>
                           ) : !inv.acceptLink && (
                             <span className="text-xs" style={{ color: colors.text.dim }}>—</span>
                           )}
@@ -673,6 +706,31 @@ export default function MembersPage() {
             <CopyLinkBox link={linkModal.acceptLink ?? ''} />
             <div className="flex justify-end">
               <Button variant="secondary" onClick={() => setLinkModal(null)}>Done</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Cancel invitation confirmation */}
+      <Modal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Invitation">
+        {cancelTarget && (
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: colors.text.primary }}>
+              Cancel the invitation sent to <strong>{cancelTarget.email}</strong>? The link in their
+              inbox stops working immediately. You can invite them again later.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="danger"
+                loading={cancelMut.isPending}
+                onClick={() => {
+                  cancelMut.mutate(cancelTarget.id)
+                  setCancelTarget(null)
+                }}
+              >
+                <XCircle size={14} /> Cancel invitation
+              </Button>
+              <Button variant="secondary" onClick={() => setCancelTarget(null)}>Keep it</Button>
             </div>
           </div>
         )}
