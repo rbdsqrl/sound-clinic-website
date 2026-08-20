@@ -24,6 +24,12 @@ export const enrollmentsApi = {
   create: (data: CreateEnrollmentRequest) =>
     client.post<ApiResponse<EnrollmentResponse>>('/enrollments', data).then(r => r.data.data),
 
+  /** Hand an ongoing plan to a different therapist (OFFICE_ADMIN / ADMIN / BUSINESS_OWNER) */
+  changeTherapist: (id: string, therapistId: string, reason?: string) =>
+    client
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/therapist`, { therapistId, reason })
+      .then(r => r.data.data),
+
   /** Cancel an enrollment */
   cancel: (id: string) =>
     client.patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/cancel`).then(r => r.data.data),

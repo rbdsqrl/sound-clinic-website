@@ -1148,8 +1148,8 @@ export default function DashboardPage() {
     { to: ROUTES.members,               icon: <UserPlus size={14} />,       label: 'Invite Staff' },
     { to: ROUTES.patients,              icon: <Users size={14} />,          label: 'Patients' },
     { to: ROUTES.calendar,              icon: <CalendarDays size={14} />,   label: 'Calendar' },
-    { to: ROUTES.leaveManagement,       icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
-    { to: ROUTES.attendanceManagement,  icon: <ClipboardCheck size={14} />, label: 'Attendance' },
+    { to: ROUTES.workforceTab('leave-requests'),   icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
+    { to: ROUTES.workforceTab('staff-attendance'), icon: <ClipboardCheck size={14} />, label: 'Attendance' },
   ]
 
   return (

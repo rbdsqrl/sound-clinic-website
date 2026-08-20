@@ -11,6 +11,7 @@ import { conditionsApi } from '../../api/conditions'
 import { programsApi } from '../../api/programs'
 import { subscriptionsApi } from '../../api/subscriptions'
 import { enrollmentsApi } from '../../api/enrollments'
+import { usersApi } from '../../api/users'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -1617,6 +1618,7 @@ export default function PatientDetailPage() {
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
   const [expandedEnroll,   setExpandedEnroll]   = useState<string | null>(null)
+  const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [notesState,       setNotesState]       = useState<{ session: TherapySessionResponse; enrollmentId: string; canEdit: boolean } | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [sidebarSearch,    setSidebarSearch]    = useState('')
@@ -2343,6 +2345,17 @@ export default function PatientDetailPage() {
                                   <UserCheck size={12} /> Assign Therapist
                                 </button>
                               )}
+                              {isEnrolled && enrollment && canCreateEnrollment && !isCancelled && (
+                                <button
+                                  onClick={() => setChangeTherapistFor(enrollment)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                >
+                                  <UserCheck size={12} /> Change Therapist
+                                </button>
+                              )}
                               {isEnrolled && enrollment && (
                                 <button
                                   onClick={() => setExpandedEnroll(isExpanded ? null : enrollment.id)}
@@ -2618,6 +2631,21 @@ export default function PatientDetailPage() {
         />
       )}
 
+      {/* Change the therapist on an ongoing plan */}
+      {changeTherapistFor && (
+        <ChangeTherapistModal
+          enrollment={changeTherapistFor}
+          onClose={() => setChangeTherapistFor(null)}
+          onSaved={() => {
+            refetchEnrollments()
+            queryClient.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+            queryClient.invalidateQueries({ queryKey: ['review-meetings'] })
+            toast('Therapist changed — upcoming sessions moved across', 'success')
+            setChangeTherapistFor(null)
+          }}
+        />
+      )}
+
       {/* Edit patient details modal */}
       <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Patient Details">
         <form
@@ -2684,5 +2712,89 @@ export default function PatientDetailPage() {
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
+  )
+}
+
+
+// ── Change therapist on an ongoing plan ───────────────────────────────────────
+
+function ChangeTherapistModal({
+  enrollment, onClose, onSaved,
+}: {
+  enrollment: EnrollmentResponse
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [therapistId, setTherapistId] = useState('')
+  const [reason, setReason]           = useState('')
+  const [error, setError]             = useState('')
+
+  const { data: therapists = [], isLoading } = useQuery({
+    queryKey: ['therapists'],
+    queryFn:  () => usersApi.listTherapists(),
+  })
+
+  const options = therapists
+    .filter((t: UserResponse) => t.id !== enrollment.therapistId)
+    .map((t: UserResponse) => ({
+      value: t.id,
+      label: `${t.firstName} ${t.lastName}${t.role === 'DOCTOR' ? ' (Doctor)' : ''}`,
+    }))
+
+  const mut = useMutation({
+    mutationFn: () => enrollmentsApi.changeTherapist(enrollment.id, therapistId, reason.trim() || undefined),
+    onSuccess: onSaved,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not change the therapist')),
+  })
+
+  return (
+    <Modal open title="Change therapist" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl px-3 py-2.5 text-sm"
+          style={{ background: surface.rowHover, color: colors.text.muted }}>
+          Currently with{' '}
+          <span style={{ color: colors.text.primary, fontWeight: 600 }}>
+            {enrollment.therapistFirstName} {enrollment.therapistLastName}
+          </span>
+        </div>
+
+        <Select
+          label="New therapist"
+          value={therapistId}
+          onChange={e => setTherapistId(e.target.value)}
+          placeholder={isLoading ? 'Loading…' : 'Select a therapist'}
+          options={options}
+        />
+
+        <Input
+          label="Reason (optional)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Therapist on extended leave"
+        />
+
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          Sessions and review meetings still ahead move to the new therapist. Anything already
+          completed keeps the therapist who took it, so the history stays accurate.
+        </p>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (!therapistId) { setError('Pick a therapist'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Change therapist
+        </Button>
+      </div>
+    </Modal>
   )
 }

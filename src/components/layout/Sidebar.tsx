@@ -76,7 +76,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
 
 const ROLE_LABELS: Record<Role, string> = {
   BUSINESS_OWNER: 'Business Owner',
-  OFFICE_ADMIN:   'Office Admin',
+  OFFICE_ADMIN:   'Clinic Head',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
   PARENT:         'Parent',

@@ -15,7 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
   ADMIN:          'Admin',
-  OFFICE_ADMIN:   'Office Admin',
+  OFFICE_ADMIN:   'Clinic Head',
   PARENT:         'Parent',
   PATIENT:        'Patient',
   BUSINESS_OWNER: 'Business Owner',

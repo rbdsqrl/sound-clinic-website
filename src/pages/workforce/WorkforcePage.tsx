@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import AttendancePage from '../attendance/AttendancePage'
 import AttendanceManagementPage from '../attendance/AttendanceManagementPage'
@@ -45,7 +46,18 @@ export default function WorkforcePage() {
   const { activeRole, user } = useAuth()
   const role = (activeRole ?? user?.role ?? 'BUSINESS_OWNER') as Role
   const tabs = TABS_BY_ROLE[role] ?? DEFAULT_TABS
-  const [activeTab, setActiveTab] = useState<TabKey>(tabs[0].key)
+
+  // ?tab= makes the tabs linkable from elsewhere (the dashboard quick actions).
+  // An unknown or not-permitted tab falls back to the first one this role has.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requested = searchParams.get('tab') as TabKey | null
+  const initial = tabs.some(t => t.key === requested) ? requested! : tabs[0].key
+  const [activeTab, setActiveTab] = useState<TabKey>(initial)
+
+  function selectTab(key: TabKey) {
+    setActiveTab(key)
+    setSearchParams(key === tabs[0].key ? {} : { tab: key }, { replace: true })
+  }
 
   const currentTab = tabs.find(t => t.key === activeTab) ?? tabs[0]
 
@@ -60,7 +72,7 @@ export default function WorkforcePage() {
         {tabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => selectTab(t.key)}
             className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap flex-shrink-0"
             style={currentTab.key === t.key ? styles.tabActive : styles.tabInactive}
           >
