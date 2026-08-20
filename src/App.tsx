@@ -22,6 +22,7 @@ import InquiriesPage from './pages/inquiries/InquiriesPage'
 import TasksPage from './pages/tasks/TasksPage'
 import WorkforcePage from './pages/workforce/WorkforcePage'
 import MembersPage from './pages/members/MembersPage'
+import AnalyticsPage from './pages/analytics/AnalyticsPage'
 
 // ── DEV BYPASS ────────────────────────────────────────────────────────────────
 // Set to true to skip authentication entirely during development.
@@ -74,6 +75,7 @@ function AppRoutes() {
         <Route path={ROUTES.tasks}        element={<TasksPage />} />
         <Route path={ROUTES.workforce}    element={<WorkforcePage />} />
         <Route path={ROUTES.members}      element={<MembersPage />} />
+        <Route path={ROUTES.analytics}    element={<AnalyticsPage />} />
       </Route>
 
       {/* Fallback */}

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
-  ChevronLeft, ChevronRight, ListTodo, UserCog,
+  ChevronLeft, ChevronRight, ListTodo, UserCog, TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -21,6 +21,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Patients',     icon: Users },
+    { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
     { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
@@ -30,6 +31,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.dashboard,  label: 'Dashboard', icon: LayoutDashboard },
     { to: ROUTES.inquiries,  label: 'Inquiries', icon: Inbox },
     { to: ROUTES.patients,   label: 'Patients',  icon: Users },
+    { to: ROUTES.analytics,  label: 'Analytics', icon: TrendingUp },
     { to: ROUTES.tasks,      label: 'My Tasks',  icon: ListTodo },
     { to: ROUTES.calendar,   label: 'Calendar',  icon: CalendarDays },
     { to: ROUTES.workforce,  label: 'Workforce', icon: Briefcase },
@@ -60,6 +62,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Patients',     icon: Users },
+    { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
     { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },

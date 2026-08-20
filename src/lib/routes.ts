@@ -17,6 +17,7 @@ export const ROUTES = {
   tasks:              '/tasks',
   workforce:          '/workforce',
   members:            '/members',
+  analytics:          '/analytics',
   attendance:         '/attendance',
   leaveManagement:    '/leave-management',
   attendanceManagement: '/attendance-management',

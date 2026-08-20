@@ -978,6 +978,91 @@ export interface CreateIEPTemplateGoalRequest {
   targetCriteria?: string
 }
 
+// ── Analytics ──────────────────────────────────────────────────────────────────
+
+export type Granularity = 'DAILY' | 'WEEKLY' | 'MONTHLY'
+
+export type AnalyticsSubjectType = 'PATIENT' | 'THERAPIST' | 'ORGANISATION'
+
+/** One period on the x-axis. `masteryPct` is null when nothing was logged — never 0. */
+export interface AnalyticsBucket {
+  periodStart: string
+  label: string
+  masteryPct: number | null
+  trialsPassed: number
+  trialsTotal: number
+  sessionsCompleted: number
+  sessionsNoShow: number
+  sessionsCancelled: number
+  sessionsRescheduled: number
+  sessionsLogged: number
+  avgPerformanceScore: number | null
+  avgParentRating: number | null
+}
+
+/** Per-domain mastery, aligned index-for-index with the parent series' buckets. */
+export interface DomainSeries {
+  domain: IEPGoalDomain
+  masteryPct: (number | null)[]
+  current: number | null
+  deltaPts: number | null
+  trialsTotal: number
+  plateau: boolean
+}
+
+export interface AnalyticsTotals {
+  masteryPct: number | null
+  masteryDeltaPts: number | null
+  trialsPassed: number
+  trialsTotal: number
+  sessionsScheduled: number
+  sessionsCompleted: number
+  sessionsNoShow: number
+  sessionsCancelled: number
+  sessionsLogged: number
+  coveragePct: number | null
+  goalsTotal: number
+  goalsCompleted: number
+  avgPerformanceScore: number | null
+  avgParentRating: number | null
+}
+
+export interface TimeSeriesResponse {
+  subjectType: AnalyticsSubjectType
+  subjectId: string
+  subjectName: string
+  granularity: Granularity
+  from: string
+  to: string
+  buckets: AnalyticsBucket[]
+  domains: DomainSeries[]
+  totals: AnalyticsTotals
+}
+
+export interface CaseloadPatientRow {
+  patientId: string
+  patientName: string
+  masteryPct: number | null
+  deltaPts: number | null
+  spark: (number | null)[]
+  sessionsCompleted: number
+  sessionsScheduled: number
+  sessionsNoShow: number
+  coveragePct: number | null
+  goalsTotal: number
+  goalsCompleted: number
+  plateau: boolean
+}
+
+export interface CaseloadResponse {
+  therapistId: string
+  therapistName: string
+  from: string
+  to: string
+  series: TimeSeriesResponse
+  patients: CaseloadPatientRow[]
+}
+
 // ── API wrapper ────────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
   success: boolean
