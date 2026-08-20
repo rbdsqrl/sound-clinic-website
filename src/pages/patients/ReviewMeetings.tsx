@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  MessageSquare, Plus, Star, CalendarClock, CheckCircle2, XCircle, Repeat,
+  MessageSquare, Plus, Star, CalendarClock, CheckCircle2, XCircle, Repeat, ChevronDown,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
@@ -24,6 +24,12 @@ function meetingStatusStyle(status: ReviewMeetingResponse['status']) {
   if (status === 'COMPLETED') return paletteStyle('teal', 0.12, 0)
   if (status === 'CANCELLED') return paletteStyle('red', 0.12, 0)
   return paletteStyle('blue', 0.12, 0)
+}
+
+/** Sentence case reads quieter than a bold uppercase pill on a row that is
+ *  almost always SCHEDULED. */
+function statusLabel(status: ReviewMeetingResponse['status']) {
+  return status.charAt(0) + status.slice(1).toLowerCase()
 }
 
 function StarRating({
@@ -130,7 +136,7 @@ export function ReviewMeetingsPanel({
               <button
                 onClick={() => setAddOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                style={{ color: colors.text.muted, background: surface.filterStrip }}>
+                style={{ color: colors.accent, background: accentAlpha(0.08) }}>
                 <Plus size={11} /> Add meeting
               </button>
             )}
@@ -145,7 +151,7 @@ export function ReviewMeetingsPanel({
           No review meetings scheduled for this plan.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {active.map(m => (
             <MeetingRow
               key={m.id}
@@ -217,30 +223,51 @@ function MeetingRow({
   const mine = isParent ? meeting.parentFeedbackAt : meeting.therapistFeedbackAt
   const canWrite = isParent || canGiveTherapistFeedback
 
+  const responded = [
+    meeting.therapistFeedbackAt ? 'therapist' : null,
+    meeting.parentFeedbackAt ? 'parent' : null,
+  ].filter(Boolean) as string[]
+
   return (
-    <div className="rounded-xl" style={{ background: surface.card, border: border.card }}>
-      <div className="flex items-center gap-2.5 p-3">
+    <div className="rounded-xl overflow-hidden" style={{ background: surface.card, border: border.card }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
+        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surface.rowHover)}
+        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+      >
         <CalendarClock size={14} className="flex-shrink-0" style={{ color: colors.text.dim }} />
 
-        <button onClick={() => setOpen(v => !v)} className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-            {format(parseISO(meeting.meetingDate), 'EEE, d MMM yyyy')}
-            <span className="ml-2 text-xs font-normal" style={{ color: colors.text.muted }}>
-              {meeting.startTime.slice(0, 5)}
-            </span>
-          </p>
-          <p className="text-[12.65px] mt-0.5" style={{ color: colors.text.dim }}>
-            Review #{meeting.meetingNumber}
-            {meeting.parentFeedbackAt && ' · parent responded'}
-            {meeting.therapistFeedbackAt && ' · therapist responded'}
-          </p>
-        </button>
-
-        <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
-          style={meetingStatusStyle(meeting.status)}>
-          {meeting.status.toLowerCase()}
+        {/* Date and meeting number sit together so the row reads as one unit
+            instead of stranding a lone badge on the far side of the card. */}
+        <span className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+          {format(parseISO(meeting.meetingDate), 'EEE, d MMM yyyy')}
         </span>
-      </div>
+        <span className="text-xs flex-shrink-0" style={{ color: colors.text.muted }}>
+          {meeting.startTime.slice(0, 5)}
+        </span>
+        <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
+          · Review #{meeting.meetingNumber}
+        </span>
+        {responded.length > 0 && (
+          <span className="text-xs truncate hidden sm:inline" style={{ color: colors.text.dim }}>
+            · {responded.join(' & ')} responded
+          </span>
+        )}
+
+        <span className="flex-1" />
+
+        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+          style={meetingStatusStyle(meeting.status)}>
+          {statusLabel(meeting.status)}
+        </span>
+        <ChevronDown
+          size={14}
+          className="flex-shrink-0 transition-transform"
+          style={{ color: colors.text.dim, transform: open ? 'rotate(180deg)' : 'none' }}
+        />
+      </button>
 
       {open && (
         <div className="px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
