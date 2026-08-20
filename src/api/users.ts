@@ -27,9 +27,9 @@ export const usersApi = {
    * Active staff as names + roles, for assignee pickers.
    * Callable by any staff member, since anyone can create and assign a task.
    */
-  listAssignable: () =>
+  listAssignable: (includeParents = false) =>
     client
-      .get<ApiResponse<AssignableUser[]>>('/users/assignable')
+      .get<ApiResponse<AssignableUser[]>>('/users/assignable', { params: { includeParents } })
       .then((r) => r.data.data),
 
   /** Search users by partial email within the caller's organisation. */

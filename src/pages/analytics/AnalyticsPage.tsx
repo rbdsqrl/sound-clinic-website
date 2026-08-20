@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
   }
 
   const patients = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
-  const staff = useQuery({ queryKey: ['assignable'], queryFn: usersApi.listAssignable })
+  const staff = useQuery({ queryKey: ['assignable'], queryFn: () => usersApi.listAssignable() })
 
   const therapists = useMemo(
     () => (staff.data ?? []).filter(u => u.role === 'THERAPIST' || u.role === 'DOCTOR'),

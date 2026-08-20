@@ -66,7 +66,11 @@ function OverrideBadge({ approved }: { approved: boolean | null }) {
 
 export default function AttendanceManagementPage({ asTab = false }: { asTab?: boolean }) {
   const today = new Date().toISOString().split('T')[0]
-  const [from, setFrom] = useState(today)
+  // Default to the last seven days inclusive of today — a single-day window
+  // opened on an empty table before anyone had checked in.
+  const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
+    .toISOString().split('T')[0]
+  const [from, setFrom] = useState(sevenDaysAgo)
   const [to, setTo]     = useState(today)
 
   const { toasts, toast, dismiss } = useToast()

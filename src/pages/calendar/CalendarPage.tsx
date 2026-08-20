@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Save, Sun, MessageSquare,
+  Activity, CheckCircle2, Zap, Save, Sun, MessageSquare, MapPin, Plus,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
@@ -20,15 +20,21 @@ import { therapySessionsApi } from '../../api/therapySessions'
 import { publicHolidaysApi } from '../../api/publicHolidays'
 import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
-import { colors, styles, border, surface, accentAlpha, palette } from '../../theme'
-import { sessionStatusLabel, labelFromEnum } from '../../components/ui/Badge'
+import { Modal } from '../../components/ui/Modal'
+import { Input } from '../../components/ui/Input'
+import { Button } from '../../components/ui/Button'
+import { getApiError } from '../../lib/apiError'
+import { colors, styles, border, surface, accentAlpha, dangerAlpha, palette } from '../../theme'
+import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse } from '../../types'
+import { meetingsApi } from '../../api/meetings'
+import { usersApi } from '../../api/users'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser } from '../../types'
 import { ROUTES } from '../../lib/routes'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
-type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review'
+type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review' | 'meeting'
 
 interface CalendarEvent {
   id: string
@@ -39,7 +45,7 @@ interface CalendarEvent {
   subtitle?: string
   status?: string
   isAllDay: boolean
-  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse | ReviewMeetingResponse
+  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse | ReviewMeetingResponse | MeetingResponse
 }
 
 // ── Visual config per kind ────────────────────────────────────────────────────
@@ -52,9 +58,21 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
     return { background: '#F59E0B20', color: '#B45309' }
   }
   if (kind === 'review') {
-    if (status === 'CANCELLED') return { background: '#88888818', color: '#888' }
-    if (status === 'COMPLETED') return { background: '#10b98118', color: '#059669' }
-    return { background: `rgba(${palette.teal.raw}, 0.12)`, color: palette.teal.text }
+    if (status === 'CANCELLED') return { background: '#88888818', color: '#888', borderLeft: '3px solid #888' }
+    if (status === 'COMPLETED') return { background: '#10b98118', color: '#059669', borderLeft: '3px solid #059669' }
+    return {
+      background: `rgba(${palette.teal.raw}, 0.12)`,
+      color: palette.teal.text,
+      borderLeft: `3px solid ${palette.teal.text}`,
+    }
+  }
+  if (kind === 'meeting') {
+    if (status === 'CANCELLED') return { background: '#88888818', color: '#888', borderLeft: '3px solid #888' }
+    return {
+      background: `rgba(${palette.pink.raw}, 0.12)`,
+      color: palette.pink.text,
+      borderLeft: `3px solid ${palette.pink.text}`,
+    }
   }
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309' }
@@ -77,6 +95,9 @@ function kindDot(kind: EventKind, status?: string): string {
     if (status === 'CANCELLED') return '#888'
     if (status === 'COMPLETED') return '#10b981'
     return palette.teal.text
+  }
+  if (kind === 'meeting') {
+    return status === 'CANCELLED' ? '#888' : palette.pink.text
   }
   if (kind === 'session') {
     if (status === 'PENDING_RESCHEDULE')    return '#B45309'
@@ -144,6 +165,50 @@ function toReviewEvent(m: ReviewMeetingResponse): CalendarEvent {
     kind: 'review',
     title: `Review — ${m.patientName}`,
     subtitle: `${m.therapistName} · Review ${m.meetingNumber}`,
+    status: m.status,
+    isAllDay: false,
+    raw: m,
+  }
+}
+
+/** Attendee list shared by review meetings and general meetings. */
+function ParticipantList({ participants }: { participants: MeetingParticipant[] }) {
+  if (participants.length === 0) return null
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
+        style={{ color: colors.text.muted }}>
+        Participants ({participants.length})
+      </p>
+      <div className="flex flex-col gap-1">
+        {participants.map(p => (
+          <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+            style={{ background: surface.rowHover }}>
+            <span className="min-w-0 flex flex-col">
+              <span className="text-sm truncate" style={{ color: colors.text.primary }}>
+                {p.firstName} {p.lastName}
+              </span>
+              {p.isOrganiser && (
+                <span className="text-xs" style={{ color: colors.text.dim }}>organiser</span>
+              )}
+            </span>
+            <span className="flex-shrink-0">{roleBadge(p.role)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function toMeetingEvent(m: MeetingResponse): CalendarEvent {
+  const names = m.participants.map(p => p.firstName).join(', ')
+  return {
+    id: `meeting-${m.id}`,
+    date: m.meetingDate,
+    time: m.startTime.substring(0, 5),
+    kind: 'meeting',
+    title: m.title,
+    subtitle: `${m.participants.length} participant${m.participants.length === 1 ? '' : 's'} · ${names}`,
     status: m.status,
     isAllDay: false,
     raw: m,
@@ -588,6 +653,143 @@ function UpcomingPanel({
   )
 }
 
+
+// ── Schedule a meeting ────────────────────────────────────────────────────────
+
+function NewMeetingModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [title, setTitle]         = useState('')
+  const [description, setDesc]    = useState('')
+  const [date, setDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [startTime, setStartTime] = useState('10:00')
+  const [endTime, setEndTime]     = useState('10:30')
+  const [location, setLocation]   = useState('')
+  const [picked, setPicked]       = useState<string[]>([])
+  const [search, setSearch]       = useState('')
+  const [error, setError]         = useState('')
+
+  // Parents are included: a meeting about a child usually needs one in the room.
+  const { data: people = [] } = useQuery({
+    queryKey: ['assignable', 'with-parents'],
+    queryFn:  () => usersApi.listAssignable(true),
+  })
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return people
+    return people.filter((u: AssignableUser) =>
+      `${u.firstName} ${u.lastName}`.toLowerCase().includes(q))
+  }, [people, search])
+
+  const mut = useMutation({
+    mutationFn: () => meetingsApi.create({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      meetingDate: date,
+      startTime,
+      endTime,
+      location: location.trim() || undefined,
+      participantIds: picked,
+    }),
+    onSuccess: onDone,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not schedule the meeting')),
+  })
+
+  function submit() {
+    if (!title.trim())       { setError('Give the meeting a title'); return }
+    if (picked.length === 0) { setError('Pick at least one participant'); return }
+    if (endTime <= startTime) { setError('End time must be after the start time'); return }
+    setError('')
+    mut.mutate()
+  }
+
+  return (
+    <Modal open title="Schedule a meeting" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <Input label="Title" value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="Case discussion — Aarav Sharma" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Starts</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Ends</label>
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+              className="form-input w-full" />
+          </div>
+        </div>
+
+        <Input label="Location (optional)" value={location} onChange={e => setLocation(e.target.value)}
+          placeholder="Main Clinic — Room 2" />
+
+        <div>
+          <label className="form-label">Notes (optional)</label>
+          <textarea value={description} onChange={e => setDesc(e.target.value)} rows={2}
+            className="form-input w-full" placeholder="What the meeting is for" />
+        </div>
+
+        {/* Participants */}
+        <div>
+          <label className="form-label">
+            Participants{picked.length > 0 ? ` (${picked.length} selected)` : ''}
+          </label>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search staff and parents…"
+            className="form-input w-full mb-2"
+          />
+          <div className="max-h-52 overflow-y-auto rounded-xl"
+            style={{ border: border.card }}>
+            {filtered.length === 0 ? (
+              <p className="text-xs p-3" style={{ color: colors.text.dim }}>No one matches that search.</p>
+            ) : filtered.map((u: AssignableUser) => {
+              const on = picked.includes(u.id)
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => setPicked(prev =>
+                    on ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors"
+                  style={{ background: on ? accentAlpha(0.08) : 'transparent' }}
+                >
+                  <span className="text-sm truncate" style={{ color: colors.text.primary }}>
+                    {u.firstName} {u.lastName}
+                  </span>
+                  <span className="flex items-center gap-2 flex-shrink-0">
+                    {roleBadge(u.role)}
+                    {on && <CheckCircle2 size={15} style={{ color: colors.accent }} />}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>
+            You are added automatically as the organiser.
+          </p>
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" loading={mut.isPending} onClick={submit}>
+          Schedule &amp; send invites
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Event detail drawer ───────────────────────────────────────────────────────
 
 // Status options for admin/owner (can directly cancel)
@@ -603,13 +805,16 @@ const SESSION_STATUS_OPTIONS_THERAPIST: { value: TherapySessionStatus; label: st
 ]
 
 function EventDetailDrawer({
-  event, onClose, canGoToInquiries, canUpdateSession, canManageAll, currentUserId, onLogOutcome,
+  event, onClose, canGoToInquiries, canUpdateSession, canManageAll, canCreateMeetings,
+  currentUserId, onLogOutcome,
 }: {
   event: CalendarEvent
   onClose: () => void
   canGoToInquiries: boolean
   canUpdateSession: boolean
   canManageAll: boolean
+  /** Staff can cancel a meeting; parents and patients only attend one. */
+  canCreateMeetings: boolean
   currentUserId: string
   onLogOutcome?: (inquiry: InquiryResponse) => void
 }) {
@@ -621,10 +826,12 @@ function EventDetailDrawer({
   const isSession      = event.kind === 'session'
   const isHolidayEv    = event.kind === 'holiday'
   const isReview       = event.kind === 'review'
+  const isMeeting      = event.kind === 'meeting'
   const rawInquiry     = event.raw as InquiryResponse
   const rawLeave       = event.raw as LeaveResponse
   const rawSession     = event.raw as TherapySessionResponse
   const rawReview      = event.raw as ReviewMeetingResponse
+  const rawMeeting     = event.raw as MeetingResponse
 
   const canAccessNotes = isSession && (canManageAll || rawSession.therapistId === currentUserId)
   const [sessionNotes, setSessionNotes] = useState(isSession ? (rawSession.notes ?? '') : '')
@@ -666,6 +873,14 @@ function EventDetailDrawer({
     },
   })
 
+  const cancelMeetingMut = useMutation({
+    mutationFn: (reason: string) => meetingsApi.cancel(rawMeeting.id, reason || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meetings'] })
+      onClose()
+    },
+  })
+
   const updateNotesMut = useMutation({
     mutationFn: () => therapySessionsApi.updateNotes(rawSession.id, { notes: sessionNotes } as UpdateSessionNotesRequest),
     onSuccess: () => {
@@ -690,12 +905,12 @@ function EventDetailDrawer({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={s}>
-              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : isReview ? <MessageSquare size={17} /> : <CalendarOff size={17} />}
+              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : isReview ? <MessageSquare size={17} /> : isMeeting ? <Users size={17} /> : <CalendarOff size={17} />}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
                 style={{ color: s.color as string }}>
-                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : 'Leave'}
+                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : isMeeting ? 'Meeting' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
                 {event.title}
@@ -722,7 +937,7 @@ function EventDetailDrawer({
               <Row icon={<Clock size={14} />}
                 label={`${rawSession.startTime.substring(0, 5)} – ${rawSession.endTime.substring(0, 5)}`} />
             )}
-            {event.subtitle && !isSession && (
+            {event.subtitle && !isSession && !isMeeting && (
               <Row icon={isConsultation ? <Clock size={14} /> : isReview ? <Users size={14} /> : <CalendarOff size={14} />}
                 label={event.subtitle} />
             )}
@@ -761,6 +976,7 @@ function EventDetailDrawer({
             <>
               <Row icon={<Clock size={14} />}
                 label={`${rawReview.startTime.substring(0, 5)} – ${rawReview.endTime.substring(0, 5)}`} />
+              <ParticipantList participants={rawReview.participants ?? []} />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
                   style={{ color: colors.text.muted }}>Feedback</p>
@@ -781,6 +997,40 @@ function EventDetailDrawer({
                 style={{ color: '#fff', background: colors.accent }}>
                 Open patient
               </button>
+            </>
+          )}
+
+          {/* Meeting-specific */}
+          {isMeeting && (
+            <>
+              <Row icon={<Clock size={14} />}
+                label={`${rawMeeting.startTime.substring(0, 5)} – ${rawMeeting.endTime.substring(0, 5)}`} />
+              {rawMeeting.location && (
+                <Row icon={<MapPin size={14} />} label={rawMeeting.location} />
+              )}
+              <ParticipantList participants={rawMeeting.participants ?? []} />
+              {rawMeeting.description && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: colors.text.muted }}>Notes</p>
+                  <p className="text-sm rounded-xl px-3 py-2.5 whitespace-pre-wrap"
+                    style={{ color: colors.text.primary, background: surface.rowHover }}>
+                    {rawMeeting.description}
+                  </p>
+                </div>
+              )}
+              {canCreateMeetings && rawMeeting.status === 'SCHEDULED' && (
+                <button
+                  onClick={() => {
+                    const reason = window.prompt('Reason for cancelling this meeting?')
+                    if (reason !== null) cancelMeetingMut.mutate(reason)
+                  }}
+                  disabled={cancelMeetingMut.isPending}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                  style={{ color: colors.status.danger, background: dangerAlpha(0.08) }}>
+                  Cancel meeting
+                </button>
+              )}
             </>
           )}
 
@@ -885,7 +1135,7 @@ function EventDetailDrawer({
           )}
 
           {/* Leave-specific */}
-          {!isConsultation && !isSession && !isHolidayEv && !isReview && (
+          {!isConsultation && !isSession && !isHolidayEv && !isReview && !isMeeting && (
             <>
               <Row icon={<Users size={14} />}
                 label={`${rawLeave.therapistFirstName} ${rawLeave.therapistLastName}`} />
@@ -1124,6 +1374,10 @@ export default function CalendarPage() {
   )
   const canHandleOutcomes = canSeeInquiries
   const canGoToInquiries  = canSeeInquiries
+  // Parents and patients attend meetings but never schedule them
+  const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
+  const [newMeetingOpen, setNewMeetingOpen] = useState(false)
+  const qcMain = useQueryClient()
 
   // ── Browser notification state ─────────────────────────────────────────────
   const supportsNotif = typeof window !== 'undefined' && 'Notification' in window
@@ -1183,6 +1437,13 @@ export default function CalendarPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Scoped server-side: admins get the whole org, everyone else their own meetings
+  const { data: meetings = [] } = useQuery({
+    queryKey: ['meetings', { from: visStart, to: visEnd }],
+    queryFn:  () => meetingsApi.list(visStart, visEnd),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const isLoading = inquiriesLoading || leavesLoading || sessionsLoading
 
   // ── Set of holiday date keys for fast lookup ───────────────────────────────
@@ -1207,8 +1468,11 @@ export default function CalendarPage() {
     for (const m of reviewMeetings) {
       if (m.status !== 'CANCELLED') out.push(toReviewEvent(m))
     }
+    for (const m of meetings) {
+      if (m.status !== 'CANCELLED') out.push(toMeetingEvent(m))
+    }
     return out
-  }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, canSeeInquiries])
+  }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, meetings, canSeeInquiries])
 
   // ── Browser notification effect ────────────────────────────────────────────
   // Fires every 60 s; notifies for timed events starting within 15 minutes.
@@ -1317,11 +1581,27 @@ export default function CalendarPage() {
               Session
             </span>
           )}
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: palette.teal.text }} />
+            Review
+          </span>
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: palette.pink.text }} />
+            Meeting
+          </span>
           {publicHolidays.length > 0 && (
             <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#B45309' }} />
               Holiday
             </span>
+          )}
+          {canCreateMeetings && (
+            <button
+              onClick={() => setNewMeetingOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
+              style={{ color: '#fff', background: colors.accent }}>
+              <Plus size={14} /> New meeting
+            </button>
           )}
         </div>
       </div>
@@ -1420,8 +1700,20 @@ export default function CalendarPage() {
           canGoToInquiries={canGoToInquiries}
           canUpdateSession={canUpdateSession}
           canManageAll={!!user && (hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER'))}
+          canCreateMeetings={canCreateMeetings}
           currentUserId={user?.id ?? ''}
           onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
+        />
+      )}
+
+      {/* Schedule a meeting */}
+      {newMeetingOpen && (
+        <NewMeetingModal
+          onClose={() => setNewMeetingOpen(false)}
+          onDone={() => {
+            setNewMeetingOpen(false)
+            qcMain.invalidateQueries({ queryKey: ['meetings'] })
+          }}
         />
       )}
 

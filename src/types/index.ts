@@ -528,6 +528,8 @@ export interface ReviewMeetingResponse {
   therapistFeedbackAt: string | null
 
   cancelledReason: string | null
+  /** Therapist plus every parent linked to the patient. */
+  participants: MeetingParticipant[]
   createdAt: string
 }
 
@@ -1069,4 +1071,44 @@ export interface ApiResponse<T> {
   message: string | null
   data: T
   timestamp: string
+}
+
+
+// ── Meetings ─────────────────────────────────────────────────────────────────
+
+export type MeetingStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
+
+/** Someone attending a meeting — name and role only, never personal details. */
+export interface MeetingParticipant {
+  id: string
+  firstName: string
+  lastName: string
+  role: Role
+  isOrganiser: boolean
+}
+
+export interface MeetingResponse {
+  id: string
+  orgId: string
+  title: string
+  description: string | null
+  meetingDate: string   // "YYYY-MM-DD"
+  startTime: string     // "HH:mm:ss"
+  endTime: string       // "HH:mm:ss"
+  location: string | null
+  status: MeetingStatus
+  cancelledReason: string | null
+  createdBy: string
+  createdByName: string | null
+  participants: MeetingParticipant[]
+}
+
+export interface CreateMeetingRequest {
+  title: string
+  description?: string
+  meetingDate: string
+  startTime: string
+  endTime: string
+  location?: string
+  participantIds: string[]
 }

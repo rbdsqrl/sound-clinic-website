@@ -116,7 +116,7 @@ function MemberPickerModal({
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['assignable-users'],
-    queryFn: usersApi.listAssignable,
+    queryFn: () => usersApi.listAssignable(),
     staleTime: 60_000,
   })
 
@@ -447,7 +447,7 @@ function TaskDetailModal({
 
   const { data: allMembers = [] } = useQuery({
     queryKey: ['assignable-users'],
-    queryFn: usersApi.listAssignable,
+    queryFn: () => usersApi.listAssignable(),
     staleTime: 60_000,
   })
 

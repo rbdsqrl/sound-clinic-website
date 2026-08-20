@@ -105,11 +105,17 @@ export function ReviewMeetingsPanel({
     onError: (err) => toast(getApiError(err, 'Failed to update meeting'), 'error'),
   })
 
-  const active = meetings.filter(m => m.status !== 'CANCELLED')
+  // Meetings arrive in creation order, so a meeting added for an earlier date
+  // than an existing one lands out of sequence. Order by when it actually
+  // happens and number from that, rather than trusting meetingNumber.
+  const active = meetings
+    .filter(m => m.status !== 'CANCELLED')
+    .sort((a, b) =>
+      (a.meetingDate + a.startTime).localeCompare(b.meetingDate + b.startTime))
   const cancelled = meetings.filter(m => m.status === 'CANCELLED')
 
   return (
-    <div className="px-4 pb-4">
+    <div className="p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <MessageSquare size={13} style={{ color: colors.accent }} />
@@ -152,10 +158,11 @@ export function ReviewMeetingsPanel({
         </p>
       ) : (
         <div className="space-y-1.5">
-          {active.map(m => (
+          {active.map((m, i) => (
             <MeetingRow
               key={m.id}
               meeting={m}
+              displayNumber={i + 1}
               isParent={isParent}
               canGiveTherapistFeedback={canGiveTherapistFeedback && therapistId === currentUserId}
               canManage={canSchedule}
@@ -208,9 +215,12 @@ export function ReviewMeetingsPanel({
 // ── Row ────────────────────────────────────────────────────────────────────────
 
 function MeetingRow({
-  meeting, isParent, canGiveTherapistFeedback, canManage, onFeedback, onComplete, onCancel,
+  meeting, displayNumber, isParent, canGiveTherapistFeedback, canManage,
+  onFeedback, onComplete, onCancel,
 }: {
   meeting: ReviewMeetingResponse
+  /** Position in date order — meetingNumber reflects creation order instead. */
+  displayNumber: number
   isParent: boolean
   canGiveTherapistFeedback: boolean
   canManage: boolean
@@ -248,7 +258,7 @@ function MeetingRow({
           {meeting.startTime.slice(0, 5)}
         </span>
         <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
-          · Review #{meeting.meetingNumber}
+          · Review #{displayNumber}
         </span>
         {responded.length > 0 && (
           <span className="text-xs truncate hidden sm:inline" style={{ color: colors.text.dim }}>
