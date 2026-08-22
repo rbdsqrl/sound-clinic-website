@@ -34,7 +34,7 @@ cd website
 npm run dev
 ```
 
-App runs on **http://localhost:3000**.  
+App runs on **http://localhost:4321**.  
 Vite proxies `/api/*` → `http://localhost:8080` (backend must be running).
 
 ---

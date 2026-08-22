@@ -105,9 +105,8 @@ export function ReviewMeetingsPanel({
     onError: (err) => toast(getApiError(err, 'Failed to update meeting'), 'error'),
   })
 
-  // Meetings arrive in creation order, so a meeting added for an earlier date
-  // than an existing one lands out of sequence. Order by when it actually
-  // happens and number from that, rather than trusting meetingNumber.
+  // The server numbers by date, but returns rows in creation order — sort so the
+  // list reads in the same sequence as the numbers.
   const active = meetings
     .filter(m => m.status !== 'CANCELLED')
     .sort((a, b) =>
@@ -158,11 +157,10 @@ export function ReviewMeetingsPanel({
         </p>
       ) : (
         <div className="space-y-1.5">
-          {active.map((m, i) => (
+          {active.map(m => (
             <MeetingRow
               key={m.id}
               meeting={m}
-              displayNumber={i + 1}
               isParent={isParent}
               canGiveTherapistFeedback={canGiveTherapistFeedback && therapistId === currentUserId}
               canManage={canSchedule}
@@ -215,12 +213,10 @@ export function ReviewMeetingsPanel({
 // ── Row ────────────────────────────────────────────────────────────────────────
 
 function MeetingRow({
-  meeting, displayNumber, isParent, canGiveTherapistFeedback, canManage,
+  meeting, isParent, canGiveTherapistFeedback, canManage,
   onFeedback, onComplete, onCancel,
 }: {
   meeting: ReviewMeetingResponse
-  /** Position in date order — meetingNumber reflects creation order instead. */
-  displayNumber: number
   isParent: boolean
   canGiveTherapistFeedback: boolean
   canManage: boolean
@@ -258,7 +254,7 @@ function MeetingRow({
           {meeting.startTime.slice(0, 5)}
         </span>
         <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
-          · Review #{displayNumber}
+          · Review #{meeting.meetingNumber}
         </span>
         {responded.length > 0 && (
           <span className="text-xs truncate hidden sm:inline" style={{ color: colors.text.dim }}>
