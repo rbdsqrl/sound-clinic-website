@@ -11,6 +11,7 @@ import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
 import { StatCard } from '../components/ui/Card'
 import { PageLoader } from '../components/ui/Spinner'
+import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -699,14 +700,6 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
 
 // ── Session update modal (therapist / doctor dashboard shortcut) ───────────────
 
-const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
-
-function scoreColor(score: number): string {
-  if (score <= 2) return colors.status.danger
-  if (score === 3) return colors.status.warning
-  return colors.status.success
-}
-
 function SessionUpdateModal({
   session,
   onClose,
@@ -820,31 +813,7 @@ function SessionUpdateModal({
         )}
 
         {/* Performance score */}
-        <div>
-          <label className="form-label">Performance Score</label>
-          <div className="flex gap-2">
-            {SCORE_LABELS.map((label, i) => {
-              const val    = i + 1
-              const active = score === val
-              return (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setScore(active ? null : val)}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11.5px] font-semibold transition-colors"
-                  style={{
-                    background: active ? scoreColor(val) + '22' : surface.filterStrip,
-                    color:      active ? scoreColor(val) : colors.text.muted,
-                    border:     `1.5px solid ${active ? scoreColor(val) : 'transparent'}`,
-                  }}
-                >
-                  <span className="text-sm font-bold">{val}</span>
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+        <PerformanceScoreSlider value={score} onChange={setScore} />
 
         {/* Feedback */}
         <div>

@@ -11,6 +11,7 @@ import { conditionsApi } from '../../api/conditions'
 import { programsApi } from '../../api/programs'
 import { subscriptionsApi } from '../../api/subscriptions'
 import { enrollmentsApi } from '../../api/enrollments'
+import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
 import { usersApi } from '../../api/users'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -629,14 +630,6 @@ function MockRazorpayModal({
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
-const SCORE_LABELS = ['Needs Work', 'Developing', 'On Track', 'Good', 'Excellent']
-
-function scoreColor(score: number): string {
-  if (score <= 2) return colors.status.danger
-  if (score === 3) return colors.status.warning
-  return colors.status.success
-}
-
 function ScoreSparkline({ sessions }: { sessions: TherapySessionResponse[] }) {
   const scored = sessions
     .filter(s => s.status === 'COMPLETED' && s.performanceScore != null)
@@ -653,7 +646,7 @@ function ScoreSparkline({ sessions }: { sessions: TherapySessionResponse[] }) {
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="flex-shrink-0">
       {scored.map((s, i) => {
         const score = s.performanceScore!
-        const barH  = (score / 5) * (H - 2)
+        const barH  = (score / 100) * (H - 2)
         const x     = i * (barW + gap)
         const y     = H - barH
         return (
@@ -830,14 +823,7 @@ function SessionList({
                   {sessionRowStatusLabel(s.status)}
                 </span>
 
-                {s.performanceScore != null && (
-                  <span
-                    className="text-[11.5px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0"
-                    style={{ background: scoreColor(s.performanceScore) + '20', color: scoreColor(s.performanceScore) }}
-                  >
-                    {s.performanceScore}
-                  </span>
-                )}
+                {s.performanceScore != null && <ScorePill score={s.performanceScore} />}
 
                 {hasNotes && (
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.accent }} />
@@ -1003,34 +989,7 @@ function SessionNotesModal({
         )}
 
         {/* Performance Score */}
-        <div>
-          <label className="form-label">Performance Score</label>
-          <div className="flex gap-2">
-            {SCORE_LABELS.map((label, i) => {
-              const val = i + 1
-              const active = score === val
-              return (
-                <button
-                  key={val}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => setScore(active ? null : val)}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11.5px] font-semibold transition-colors"
-                  style={{
-                    background: active ? scoreColor(val) + '22' : surface.filterStrip,
-                    color: active ? scoreColor(val) : colors.text.muted,
-                    border: `1.5px solid ${active ? scoreColor(val) : 'transparent'}`,
-                    opacity: !canEdit ? 0.6 : 1,
-                    cursor: canEdit ? 'pointer' : 'default',
-                  }}
-                >
-                  <span className="text-sm font-bold">{val}</span>
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+        <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} />
 
         {/* Feedback */}
         <div>
