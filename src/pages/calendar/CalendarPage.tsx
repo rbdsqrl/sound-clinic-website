@@ -816,7 +816,7 @@ function AdHocSessionModal({
   const [date, setDate]           = useState(slot.date)
   const [start, setStart]         = useState(slot.start)
   const [end, setEnd]             = useState(slot.end)
-  const [countsToward, setCountsToward] = useState(true)
+  const [billing, setBilling] = useState<'plan' | 'chargeable' | 'free'>('plan')
   const [notes, setNotes]         = useState('')
   const [error, setError]         = useState('')
 
@@ -839,7 +839,8 @@ function AdHocSessionModal({
       sessionDate: date,
       startTime: start,
       endTime: end,
-      countsTowardPlan: countsToward,
+      countsTowardPlan: billing === 'plan',
+      requiresPayment: billing === 'chargeable',
       notes: notes.trim() || undefined,
     }),
     onSuccess: onDone,
@@ -892,24 +893,25 @@ function AdHocSessionModal({
 
         {/* Billing decision, asked per booking */}
         <div>
-          <label className="form-label">Does this use one of the paid sessions?</label>
+          <label className="form-label">How is this session paid for?</label>
           <div className="flex flex-col gap-1.5">
-            {[
-              { v: true,  label: 'Yes — counts toward the plan', hint: 'One of the paid sessions is used' },
-              { v: false, label: 'No — extra session',           hint: 'Added on top, the plan is unaffected' },
-            ].map(o => (
+            {([
+              { v: 'plan',       label: 'From the plan',     hint: 'Uses one of the paid sessions' },
+              { v: 'chargeable', label: 'Extra — chargeable', hint: 'On top of the plan, family pays' },
+              { v: 'free',       label: 'Extra — no charge',  hint: 'On top of the plan, at no cost' },
+            ] as const).map(o => (
               <button
-                key={String(o.v)}
+                key={o.v}
                 type="button"
-                onClick={() => setCountsToward(o.v)}
+                onClick={() => setBilling(o.v)}
                 className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
                 style={{
-                  background: countsToward === o.v ? accentAlpha(0.08) : surface.filterStrip,
-                  border: `1.5px solid ${countsToward === o.v ? colors.accent : 'transparent'}`,
+                  background: billing === o.v ? accentAlpha(0.08) : surface.filterStrip,
+                  border: `1.5px solid ${billing === o.v ? colors.accent : 'transparent'}`,
                 }}
               >
                 <span className="text-sm font-medium"
-                  style={{ color: countsToward === o.v ? colors.accent : colors.text.primary }}>
+                  style={{ color: billing === o.v ? colors.accent : colors.text.primary }}>
                   {o.label}
                 </span>
                 <span className="text-xs" style={{ color: colors.text.dim }}>{o.hint}</span>

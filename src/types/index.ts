@@ -630,6 +630,8 @@ export interface TherapySessionResponse {
   adHoc: boolean
   /** False when it is an extra, on top of the sessions the family paid for. */
   countsTowardPlan: boolean
+  /** True when an extra session still has to be paid for. */
+  requiresPayment: boolean
 }
 
 export interface UpdateSessionStatusRequest {
@@ -652,6 +654,8 @@ export interface CreateAdHocSessionRequest {
   therapistId?: string
   /** True consumes one of the sessions the family paid for; false adds it as an extra. */
   countsTowardPlan: boolean
+  /** Whether an extra session is chargeable. Ignored when countsTowardPlan is true. */
+  requiresPayment?: boolean
   notes?: string
 }
 

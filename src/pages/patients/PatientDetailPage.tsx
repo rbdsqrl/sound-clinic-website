@@ -814,9 +814,31 @@ function SessionList({
                   #{s.sessionNumber}
                 </span>
 
-                <span className="text-xs flex-1 truncate" style={{ color: colors.text.muted }}>
+                <span className="text-xs truncate" style={{ color: colors.text.muted }}>
                   {format(new Date(s.sessionDate + 'T00:00:00'), 'EEE d MMM')}
                 </span>
+
+                {/* An ad-hoc session sits outside the generated block, and how it is paid
+                    for is a separate question from whether it happened. */}
+                {s.adHoc && (
+                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={paletteStyle('blue', 0.12, 0)}>
+                    Ad-hoc
+                  </span>
+                )}
+                {s.adHoc && !s.countsTowardPlan && (
+                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={s.requiresPayment
+                      ? paletteStyle('amber', 0.14, 0)
+                      : paletteStyle('green', 0.12, 0)}
+                    title={s.requiresPayment
+                      ? 'Extra session — the family is charged for this'
+                      : 'Extra session — offered at no cost'}>
+                    {s.requiresPayment ? 'Payment due' : 'No charge'}
+                  </span>
+                )}
+
+                <span className="flex-1" />
 
                 <span className="text-[12.65px] font-medium flex-shrink-0"
                   style={{ color: sessionRowStatusColor(s.status) }}>
