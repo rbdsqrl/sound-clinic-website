@@ -295,6 +295,48 @@ function EventChip({
   )
 }
 
+// ── Current time ──────────────────────────────────────────────────────────────
+
+/** Minutes since midnight, ticking each minute so the marker creeps down the grid. */
+function useNowMinutes() {
+  const [mins, setMins] = useState(() => {
+    const d = new Date()
+    return d.getHours() * 60 + d.getMinutes()
+  })
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date()
+      setMins(d.getHours() * 60 + d.getMinutes())
+    }, 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+  return mins
+}
+
+/**
+ * The red line across today, at the current time.
+ *
+ * Rendered inside the hour cell it falls in and offset by the minutes within that
+ * hour, so it stays correct whatever height the row has grown to.
+ */
+function NowLine({ minutes, innerRef }: {
+  minutes: number
+  innerRef?: React.Ref<HTMLDivElement>
+}) {
+  return (
+    <div
+      ref={innerRef}
+      className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
+      style={{ top: `${(minutes % 60) / 60 * 100}%` }}
+      aria-hidden
+    >
+      <span className="block h-2 w-2 rounded-full flex-shrink-0"
+        style={{ background: colors.status.danger, marginLeft: -3 }} />
+      <span className="block h-px flex-1" style={{ background: colors.status.danger }} />
+    </div>
+  )
+}
+
 // ── Drag-to-select a time slot ────────────────────────────────────────────────
 
 export interface SlotSelection {
@@ -434,9 +476,14 @@ function WeekView({
   onSlotSelect?: (sel: SlotSelection) => void
 }) {
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
+  const nowMins = useNowMinutes()
+  const nowRef  = useRef<HTMLDivElement>(null)
+  // 24 rows is a tall grid, so land the user on the current time rather than midnight.
+  useEffect(() => { nowRef.current?.scrollIntoView({ block: 'center' }) }, [])
+  const todayKey = format(new Date(), 'yyyy-MM-dd')
   const ws   = getWeekStart(current, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i))
-  const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
+  const HOURS = Array.from({ length: 24 }, (_, i) => i) // full day, 12 AM – 11 PM
 
   const hasAnyAllDay = days.some(d => allDayEventsOnDay(events, d).length > 0)
 
@@ -505,7 +552,7 @@ function WeekView({
               const isHolCol = holidayDates.has(dayKeyH)
               const drag     = onSlotSelect ? cellProps(dayKeyH, hour) : null
               return (
-                <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5"
+                <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 relative"
                   onMouseDown={drag?.onMouseDown}
                   onMouseEnter={drag?.onMouseEnter}
                   style={{
@@ -515,6 +562,9 @@ function WeekView({
                     cursor: onSlotSelect ? 'cell' : undefined,
                     userSelect: 'none',
                   }}>
+                  {dayKeyH === todayKey && Math.floor(nowMins / 60) === hour && (
+                    <NowLine minutes={nowMins} innerRef={nowRef} />
+                  )}
                   {timed.map(ev => (
                     <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
                   ))}
@@ -539,9 +589,13 @@ function DayView({
   onSlotSelect?: (sel: SlotSelection) => void
 }) {
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
+  const nowMins = useNowMinutes()
+  const nowRef  = useRef<HTMLDivElement>(null)
+  useEffect(() => { nowRef.current?.scrollIntoView({ block: 'center' }) }, [])
+  const showsToday = format(new Date(), 'yyyy-MM-dd') === format(current, 'yyyy-MM-dd')
   const dayKey    = format(current, 'yyyy-MM-dd')
   const isHoliday = holidayDates.has(dayKey)
-  const HOURS     = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
+  const HOURS     = Array.from({ length: 24 }, (_, i) => i) // full day, 12 AM – 11 PM
 
   const allDayEvs = allDayEventsOnDay(events, current)
 
@@ -617,7 +671,7 @@ function DayView({
                 </span>
               </div>
               {/* Events */}
-              <div className="flex-1 border-l p-2 flex flex-col gap-1.5"
+              <div className="flex-1 border-l p-2 flex flex-col gap-1.5 relative"
                 onMouseDown={onSlotSelect ? cellProps(dayKey, hour).onMouseDown : undefined}
                 onMouseEnter={onSlotSelect ? cellProps(dayKey, hour).onMouseEnter : undefined}
                 style={{
@@ -627,6 +681,9 @@ function DayView({
                   cursor: onSlotSelect ? 'cell' : undefined,
                   userSelect: 'none',
                 }}>
+                {showsToday && Math.floor(nowMins / 60) === hour && (
+                  <NowLine minutes={nowMins} innerRef={nowRef} />
+                )}
                 {timed.map(ev => {
                   const s = kindStyle(ev.kind, ev.status)
                   const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
