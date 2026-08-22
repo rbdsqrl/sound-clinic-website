@@ -4,6 +4,7 @@ import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
 import { usersApi } from '../../api/users'
 import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
+import ScoreChart from '../../components/charts/ScoreChart'
 import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
 import { Select } from '../../components/ui/Select'
@@ -12,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
 import { Delta, Metric, Panel, Tile } from './components'
+import { format, parseISO } from 'date-fns'
 
 type TabKey = 'patient' | 'therapist' | 'overview'
 
@@ -276,6 +278,51 @@ export default function AnalyticsPage() {
               </p>
             )}
           </Panel>
+
+          <Panel
+            title="Session performance over time"
+            subtitle="Average of the therapist's session score for each period. Gaps are periods with nothing scored."
+          >
+            <ScoreChart
+              points={activeSeries.buckets.map(b => ({
+                label: b.label,
+                value: b.avgPerformanceScore,
+                meta: b.sessionsCompleted > 0 ? `${b.sessionsCompleted} session${b.sessionsCompleted === 1 ? '' : 's'}` : undefined,
+              }))}
+              variant="line"
+            />
+          </Panel>
+
+          <Panel
+            title="Score by session"
+            subtitle="Every scored session in order, so a single dip stays visible rather than being averaged away."
+          >
+            <ScoreChart
+              points={(activeSeries.sessions ?? []).map(sp => ({
+                label: format(parseISO(sp.sessionDate + 'T00:00:00'), 'd MMM'),
+                value: sp.performanceScore,
+                meta: sp.adHoc ? 'ad-hoc' : `session ${sp.sessionNumber}`,
+              }))}
+              variant="bars"
+            />
+          </Panel>
+
+          {activeSeries.reschedules && (
+            <Panel
+              title="Rescheduling"
+              subtitle="Counted from moves that actually happened, not from requests still waiting."
+            >
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <Tile label="Sessions moved"   value={activeSeries.reschedules.sessionsMoved} />
+                <Tile label="Total moves"      value={activeSeries.reschedules.totalMoves}
+                      hint="a session moved twice counts twice" />
+                <Tile label="Family asked"     value={activeSeries.reschedules.parentRequested} />
+                <Tile label="Clinic moved"     value={activeSeries.reschedules.clinicInitiated} />
+                <Tile label="Awaiting action"  value={activeSeries.reschedules.awaitingAction}
+                      tone={activeSeries.reschedules.awaitingAction > 0 ? 'warn' : 'neutral'} />
+              </div>
+            </Panel>
+          )}
 
           {activeSeries.domains.length > 0 && (
             <Panel

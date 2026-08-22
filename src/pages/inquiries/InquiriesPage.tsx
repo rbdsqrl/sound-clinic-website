@@ -5,7 +5,7 @@ import {
   Inbox, Phone, Mail, Clock, CheckCircle2, XCircle, RefreshCw,
   ChevronRight, ChevronLeft, CalendarDays, X, Trash2,
   PhoneCall, MessageCircle, AtSign, FileText, UserCheck,
-  ArrowRightCircle, Zap, List, Users, BarChart2,
+  ArrowRightCircle, Zap, List, Users, BarChart2, Plus, Globe, Footprints,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { inquiriesApi } from '../../api/inquiries'
@@ -15,6 +15,8 @@ import { subscriptionsApi } from '../../api/subscriptions'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
@@ -22,8 +24,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { colors, styles, border, surface, accentAlpha, paletteStyle, borderAlpha } from '../../theme'
 import type {
   InquiryResponse, InquiryStatus, InquiryLogResponse,
-  InquiryLogType, CreateInquiryLogRequest,
+  InquiryLogType, CreateInquiryLogRequest, PreferredTime, InquirySource,
 } from '../../types'
+import { hasRole } from '../../types'
 import { ActionModal, hasNextAction, getActionLabel } from './ActionModal'
 import { MiniCalendar } from './MiniCalendar'
 import { CalendarView } from './CalendarView'
@@ -85,6 +88,26 @@ const TABS: { label: string; value: InquiryStatus | 'ALL' }[] = [
   { label: 'Converted', value: 'CONVERTED' },
   { label: 'Dropped',   value: 'DROPPED' },
 ]
+
+// ── Source ─────────────────────────────────────────────────────────────────────
+
+const SOURCE_META: Record<InquirySource, { label: string; icon: React.ElementType }> = {
+  WEBSITE: { label: 'Website', icon: Globe },
+  WALK_IN: { label: 'Walk-in', icon: Footprints },
+  PHONE:   { label: 'Phone',   icon: PhoneCall },
+}
+
+/** Quiet by design — the status badge should stay the loudest thing on the row. */
+function SourceBadge({ source }: { source: InquirySource }) {
+  const meta = SOURCE_META[source] ?? SOURCE_META.WEBSITE
+  const Icon = meta.icon
+  return (
+    <span className="inline-flex items-center gap-1 text-xs whitespace-nowrap"
+      style={{ color: colors.text.dim }} title={`Source: ${meta.label}`}>
+      <Icon size={11} />{meta.label}
+    </span>
+  )
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -805,11 +828,138 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
+
+// ── Add an inquiry taken at the clinic ────────────────────────────────────────
+
+const START_OPTIONS: {
+  key: string
+  label: string
+  hint: string
+  source: 'WALK_IN' | 'PHONE'
+  status: 'VISITED' | 'CONTACTED' | 'NEW'
+}[] = [
+  { key: 'walkin', label: 'Walk-in',            hint: 'They are at the clinic now',
+    source: 'WALK_IN', status: 'VISITED' },
+  { key: 'spoke',  label: 'Phone — spoke to them', hint: 'Call already handled',
+    source: 'PHONE',   status: 'CONTACTED' },
+  { key: 'follow', label: 'Phone — to follow up',  hint: 'Details taken, nobody has spoken yet',
+    source: 'PHONE',   status: 'NEW' },
+]
+
+function AddInquiryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [name, setName]       = useState('')
+  const [phone, setPhone]     = useState('')
+  const [email, setEmail]     = useState('')
+  const [reason, setReason]   = useState('')
+  const [preferred, setPreferred] = useState<'' | PreferredTime>('')
+  const [choice, setChoice]   = useState(START_OPTIONS[0])
+  const [error, setError]     = useState('')
+
+  const mut = useMutation({
+    mutationFn: () => inquiriesApi.addManual({
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim() || undefined,
+      reason: reason.trim() || undefined,
+      preferredTime: preferred || undefined,
+      status: choice.status,
+      source: choice.source,
+    }),
+    onSuccess: onAdded,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not add the inquiry')),
+  })
+
+  return (
+    <Modal open title="Add an inquiry" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Name" value={name} onChange={e => setName(e.target.value)}
+            placeholder="Parent or patient name" />
+          <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)}
+            placeholder="+91 98765 43210" />
+        </div>
+
+        <Input label="Email (optional)" value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="name@example.com" />
+
+        <div>
+          <label className="form-label">Reason (optional)</label>
+          <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+            className="form-input w-full" placeholder="What they came in about" />
+        </div>
+
+        <Select
+          label="Preferred time (optional)"
+          value={preferred}
+          onChange={e => setPreferred(e.target.value as PreferredTime | '')}
+          placeholder="No preference"
+          options={[
+            { value: 'MORNING',   label: 'Morning' },
+            { value: 'AFTERNOON', label: 'Afternoon' },
+            { value: 'EVENING',   label: 'Evening' },
+          ]}
+        />
+
+        {/* Where it starts in the pipeline — a walk-in is already in front of you,
+            so it should not begin at New the way a website enquiry does. */}
+        <div>
+          <label className="form-label">How did this come in?</label>
+          <div className="flex flex-col gap-1.5">
+            {START_OPTIONS.map(o => {
+              const active = choice.key === o.key
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => setChoice(o)}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                  style={{
+                    background: active ? accentAlpha(0.08) : surface.filterStrip,
+                    border: `1.5px solid ${active ? colors.accent : 'transparent'}`,
+                  }}
+                >
+                  <span className="text-sm font-medium"
+                    style={{ color: active ? colors.accent : colors.text.primary }}>
+                    {o.label}
+                  </span>
+                  <span className="text-xs" style={{ color: colors.text.dim }}>{o.hint}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (!name.trim())  { setError('Enter a name'); return }
+            if (!phone.trim()) { setError('Enter a phone number'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Add inquiry
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function InquiriesPage() {
   const navigate = useNavigate()
   const { user }  = useAuth()
 
   const canHandleOutcomes = user && ['BUSINESS_OWNER', 'DOCTOR'].includes(user.role)
+  // Routes are not role-guarded, so gate the action rather than relying on the
+  // sidebar to keep other roles off this page.
+  const canAddInquiry = !!user &&
+    (hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN'))
 
   const [mainTab,       setMainTab]       = useState<'list' | 'analytics'>('list')
   const [pageView,      setPageView]      = useState<'list' | 'calendar'>('list')
@@ -817,6 +967,8 @@ export default function InquiriesPage() {
   const [selected,      setSelected]      = useState<InquiryResponse | null>(null)
   const [actionTarget,  setActionTarget]  = useState<InquiryResponse | null>(null)
   const [convertTarget, setConvertTarget] = useState<InquiryResponse | null>(null)
+  const [addOpen,       setAddOpen]       = useState(false)
+  const qc = useQueryClient()
 
   const { data: inquiries, isLoading } = useQuery({
     queryKey: ['inquiries'],
@@ -852,8 +1004,17 @@ export default function InquiriesPage() {
             Manage consultation requests from the public website.
           </p>
         </div>
+        <div className="flex items-center gap-2 flex-shrink-0 self-start">
+        {canAddInquiry && (
+        <button
+          onClick={() => setAddOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
+          style={{ color: '#fff', background: colors.accent }}>
+          <Plus size={14} /> Add Inquiry
+        </button>
+        )}
         {/* Main tab toggle: Inquiries | Analytics */}
-        <div className="flex rounded-xl overflow-hidden border flex-shrink-0 self-start"
+        <div className="flex rounded-xl overflow-hidden border"
           style={{ borderColor: border.divider }}>
           <button onClick={() => setMainTab('list')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"
@@ -866,7 +1027,19 @@ export default function InquiriesPage() {
             <BarChart2 size={14} />Analytics
           </button>
         </div>
+        </div>
       </div>
+
+      {addOpen && (
+        <AddInquiryModal
+          onClose={() => setAddOpen(false)}
+          onAdded={() => {
+            setAddOpen(false)
+            qc.invalidateQueries({ queryKey: ['inquiries'] })
+            qc.invalidateQueries({ queryKey: ['inquiry-analytics'] })
+          }}
+        />
+      )}
 
       {/* ── Inquiries tab ──────────────────────────────────────────── */}
       {mainTab === 'list' && (<>
@@ -945,6 +1118,7 @@ export default function InquiriesPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
+                        <SourceBadge source={inq.source} />
                         {inq.appointmentDate && (
                           <p className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
                             <CalendarDays size={10} />
@@ -1007,9 +1181,12 @@ export default function InquiriesPage() {
                             <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
                             <StatusBadge status={inq.status} />
                           </div>
-                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                            {inq.phone} · {format(parseISO(inq.createdAt), 'd MMM yyyy')}
-                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs" style={{ color: colors.text.muted }}>
+                              {inq.phone} · {format(parseISO(inq.createdAt), 'd MMM yyyy')}
+                            </p>
+                            <SourceBadge source={inq.source} />
+                          </div>
                           {inq.reason && (
                             <p className="text-xs truncate mt-0.5" style={{ color: colors.text.muted }}>{inq.reason}</p>
                           )}
@@ -1084,6 +1261,52 @@ export default function InquiriesPage() {
             {analytics?.readyToConvertCount ?? '—'}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>visited stage</p>
+        </div>
+      </div>
+
+      {/* Where inquiries come from, and how well each channel converts */}
+      <div className="rounded-2xl p-5" style={styles.card}>
+        <h3 className="text-sm font-semibold mb-1" style={{ color: colors.text.primary }}>Where they come from</h3>
+        <p className="text-xs mb-4" style={{ color: colors.text.muted }}>
+          Volume and conversion by channel. A walk-in behaves differently from a website lead,
+          so the aggregate rate can hide a weak channel.
+        </p>
+        <div className="flex flex-col gap-3">
+          {(analytics?.bySource ?? []).map(row => {
+            const meta = SOURCE_META[row.source] ?? SOURCE_META.WEBSITE
+            const Icon = meta.icon
+            const share = (analytics?.totalCount ?? 0) > 0
+              ? Math.round((row.count / (analytics!.totalCount)) * 100) : 0
+            return (
+              <div key={row.source} className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 w-28 sm:w-36 flex-shrink-0">
+                  <Icon size={12} style={{ color: colors.text.muted }} />
+                  <span className="text-xs font-medium truncate" style={{ color: colors.text.muted }}>
+                    {meta.label}
+                  </span>
+                </div>
+                <div className="flex-1 rounded-full h-2 overflow-hidden" style={{ background: border.card }}>
+                  <div className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${share}%`,
+                      minWidth: row.count > 0 ? 4 : 0,
+                      background: colors.accent,
+                    }} />
+                </div>
+                <span className="text-xs tabular-nums w-10 text-right flex-shrink-0"
+                  style={{ color: colors.text.primary }}>{row.count}</span>
+                <span className="text-xs tabular-nums w-24 text-right flex-shrink-0"
+                  style={{
+                    // Green on a 0% rate would read as a good result; it is the opposite.
+                    color: row.count === 0 ? colors.text.dim
+                         : row.convertedCount > 0 ? colors.status.success
+                         : colors.text.muted,
+                  }}>
+                  {row.count > 0 ? `${row.conversionRate}% converted` : 'no leads'}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
 

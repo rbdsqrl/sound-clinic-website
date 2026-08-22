@@ -5,6 +5,7 @@ import type {
   InquiryLogResponse,
   InquiryAnalyticsResponse,
   CreateInquiryRequest,
+  CreateManualInquiryRequest,
   UpdateInquiryRequest,
   CreateInquiryLogRequest,
   ConvertInquiryRequest,
@@ -19,6 +20,10 @@ export const inquiriesApi = {
   /** Submit an inquiry from the public landing page (no auth) */
   submit: (data: CreateInquiryRequest) =>
     publicClient.post<ApiResponse<InquiryResponse>>('/inquiries', data).then(r => r.data.data),
+
+  /** Record an inquiry taken at the clinic — CLINIC_HEAD / ADMIN / BUSINESS_OWNER */
+  addManual: (data: CreateManualInquiryRequest) =>
+    client.post<ApiResponse<InquiryResponse>>('/inquiries/manual', data).then(r => r.data.data),
 
   /** List inquiries — OFFICE_ADMIN / ADMIN / BUSINESS_OWNER */
   list: (status?: InquiryStatus) =>

@@ -12,6 +12,9 @@ export type InquiryStatus =
   | 'DISCONTINUED'
   | 'DROPPED'
 export type PreferredTime = 'MORNING' | 'AFTERNOON' | 'EVENING'
+
+/** How an inquiry reached the clinic. */
+export type InquirySource = 'WEBSITE' | 'WALK_IN' | 'PHONE'
 export type PatientStage =
   | 'INQUIRY_CONVERTED'
   | 'PRE_ASSESSMENT'
@@ -30,6 +33,7 @@ export interface InquiryResponse {
   phone: string
   reason: string | null
   preferredTime: PreferredTime | null
+  source: InquirySource
   status: InquiryStatus
   adminNotes: string | null
   appointmentDate: string | null
@@ -45,6 +49,19 @@ export interface CreateInquiryRequest {
   reason?: string
   preferredTime?: PreferredTime
   orgId?: string
+}
+
+/** An inquiry entered by staff — a walk-in, or a call taken by hand. */
+export interface CreateManualInquiryRequest {
+  name: string
+  phone: string
+  email?: string
+  reason?: string
+  preferredTime?: PreferredTime
+  /** Where it starts in the pipeline. Defaults to VISITED for a walk-in. */
+  status?: 'NEW' | 'CONTACTED' | 'VISITED'
+  /** How they reached the clinic. WEBSITE is rejected by the API. */
+  source?: Exclude<InquirySource, 'WEBSITE'>
 }
 
 export interface UpdateInquiryRequest {
@@ -104,6 +121,15 @@ export interface InquiryAnalyticsResponse {
   overdueCount: number
   readyToConvertCount: number
   countByStatus: Partial<Record<InquiryStatus, number>>
+  bySource: InquirySourceBreakdown[]
+}
+
+/** Per-channel volume and conversion — a walk-in converts very differently from a web lead. */
+export interface InquirySourceBreakdown {
+  source: InquirySource
+  count: number
+  convertedCount: number
+  conversionRate: number
 }
 
 export type InquiryActionOutcome =
@@ -596,6 +622,14 @@ export interface TherapySessionResponse {
   performanceScore: number | null  // 1–5
   completedAt: string | null
   rescheduleReason: RescheduleReason | null
+  /** True once a parent has asked for this session to be moved. Never resets. */
+  parentRescheduleRequested: boolean
+  /** Sessions of this plan the parent may still ask to move. */
+  parentReschedulesRemaining: number
+  /** Booked by hand from the calendar rather than generated with the plan. */
+  adHoc: boolean
+  /** False when it is an extra, on top of the sessions the family paid for. */
+  countsTowardPlan: boolean
 }
 
 export interface UpdateSessionStatusRequest {
@@ -610,9 +644,23 @@ export interface UpdateSessionNotesRequest {
   performanceScore?: number  // 1–5
 }
 
+export interface CreateAdHocSessionRequest {
+  enrollmentId: string
+  sessionDate: string   // "YYYY-MM-DD"
+  startTime: string     // "HH:mm"
+  endTime: string       // "HH:mm"
+  therapistId?: string
+  /** True consumes one of the sessions the family paid for; false adds it as an extra. */
+  countsTowardPlan: boolean
+  notes?: string
+}
+
 export interface RescheduleSessionRequest {
   newDate?: string           // "YYYY-MM-DD"
+  newStartTime?: string      // "HH:mm" — session keeps its length
   substituteTherapistId?: string
+  /** Included in the email sent to the family and the therapist. */
+  reason?: string
 }
 
 export interface SessionAttachmentResponse {
@@ -1038,7 +1086,28 @@ export interface TimeSeriesResponse {
   to: string
   buckets: AnalyticsBucket[]
   domains: DomainSeries[]
+  /** One point per scored session, for plotting progress session by session. */
+  sessions: AnalyticsSessionPoint[]
+  reschedules: RescheduleStats
   totals: AnalyticsTotals
+}
+
+export interface AnalyticsSessionPoint {
+  sessionId: string
+  sessionDate: string
+  sessionNumber: number
+  /** 0-100, the therapist's score for that session. */
+  performanceScore: number
+  adHoc: boolean
+}
+
+/** How much moving around a plan has needed. */
+export interface RescheduleStats {
+  sessionsMoved: number
+  totalMoves: number
+  parentRequested: number
+  clinicInitiated: number
+  awaitingAction: number
 }
 
 export interface CaseloadPatientRow {

@@ -36,14 +36,28 @@ function ChildSessions({ childId }: { childId: string }) {
   })
 
   const upcoming = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
+
+  // Plan-level allowance, the same on every session of the plan.
+  const remaining = upcoming[0]?.parentReschedulesRemaining ?? null
+  const noneLeft  = remaining === 0
   const visible   = showAll ? upcoming : upcoming.slice(0, 3)
 
   return (
     <>
       <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <p className="text-[11.5px] font-medium uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>
-          Upcoming Sessions
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11.5px] font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>
+            Upcoming Sessions
+          </p>
+          {remaining !== null && (
+            <span className="text-[11.5px]"
+              style={{ color: noneLeft ? colors.status.warning : colors.text.dim }}>
+              {noneLeft
+                ? 'No reschedules left'
+                : `${remaining} reschedule${remaining === 1 ? '' : 's'} left`}
+            </span>
+          )}
+        </div>
 
         {isLoading ? (
           <p className="text-xs py-1" style={{ color: colors.text.muted }}>Loading…</p>
@@ -85,7 +99,10 @@ function ChildSessions({ childId }: { childId: string }) {
                 ) : (
                   <button
                     onClick={() => requestMutation.mutate(s.id)}
-                    disabled={requestMutation.isPending}
+                    disabled={requestMutation.isPending || (noneLeft && !s.parentRescheduleRequested)}
+                    title={noneLeft && !s.parentRescheduleRequested
+                      ? 'You have used all the reschedules on this therapy plan — contact the clinic'
+                      : undefined}
                     className="flex-shrink-0 flex items-center gap-1 text-[12.65px] font-medium px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
                     style={paletteStyle('purple', 0.08, 0.12)}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = `rgba(${palette.purple.raw}, 0.14)`}

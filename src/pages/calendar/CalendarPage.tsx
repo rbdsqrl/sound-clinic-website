@@ -22,14 +22,17 @@ import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
-import { colors, styles, border, surface, accentAlpha, dangerAlpha, palette } from '../../theme'
+import { colors, styles, border, surface, accentAlpha, dangerAlpha, warningAlpha, palette } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { meetingsApi } from '../../api/meetings'
+import { patientsApi } from '../../api/patients'
+import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
 import { ROUTES } from '../../lib/routes'
 
 // ── Event model ───────────────────────────────────────────────────────────────
@@ -150,7 +153,11 @@ function toSessionEvent(s: TherapySessionResponse): CalendarEvent {
     time: s.startTime.substring(0, 5), // "HH:mm" from "HH:mm:ss"
     kind: 'session',
     title: s.programName,
-    subtitle: `${s.therapistFirstName} ${s.therapistLastName} · Session ${s.sessionNumber}/${s.totalSessions}`,
+    // An ad-hoc session sits outside the generated block, so "#13 of 12" would read as
+    // an error. Label it instead, and note when it is an extra rather than a paid one.
+    subtitle: s.adHoc
+      ? `${s.therapistFirstName} ${s.therapistLastName} · Ad-hoc${s.countsTowardPlan ? '' : ' (extra)'}`
+      : `${s.therapistFirstName} ${s.therapistLastName} · Session ${s.sessionNumber}/${s.totalSessions}`,
     status: s.status,
     isAllDay: false,
     raw: s,
@@ -288,6 +295,59 @@ function EventChip({
   )
 }
 
+// ── Drag-to-select a time slot ────────────────────────────────────────────────
+
+export interface SlotSelection {
+  date: string        // 'yyyy-MM-dd'
+  startHour: number
+  endHour: number     // exclusive
+}
+
+/**
+ * Click-and-drag across hour cells to pick a range.
+ *
+ * The drag is pinned to the day it started on — dragging sideways across a week
+ * would otherwise select a rectangle, which is not a thing you can book.
+ */
+function useSlotDrag(onPick: (sel: SlotSelection) => void) {
+  const [anchor, setAnchor] = useState<{ date: string; hour: number } | null>(null)
+  const [hover, setHover]   = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!anchor) return
+    function finish() {
+      const endHour = hover ?? anchor!.hour
+      const lo = Math.min(anchor!.hour, endHour)
+      const hi = Math.max(anchor!.hour, endHour)
+      onPick({ date: anchor!.date, startHour: lo, endHour: hi + 1 })
+      setAnchor(null)
+      setHover(null)
+    }
+    window.addEventListener('mouseup', finish)
+    return () => window.removeEventListener('mouseup', finish)
+  }, [anchor, hover, onPick])
+
+  function cellProps(date: string, hour: number) {
+    const active = anchor?.date === date
+      && hour >= Math.min(anchor.hour, hover ?? anchor.hour)
+      && hour <= Math.max(anchor.hour, hover ?? anchor.hour)
+    return {
+      onMouseDown: (e: React.MouseEvent) => {
+        // Let a click on an event chip open it rather than starting a drag.
+        if ((e.target as HTMLElement).closest('button')) return
+        e.preventDefault()
+        setAnchor({ date, hour })
+        setHover(hour)
+      },
+      onMouseEnter: () => { if (anchor?.date === date) setHover(hour) },
+      style: active ? { background: accentAlpha(0.14) } : undefined,
+      selected: active,
+    }
+  }
+
+  return { cellProps, dragging: anchor !== null }
+}
+
 // ── Month View ────────────────────────────────────────────────────────────────
 
 function MonthView({
@@ -364,8 +424,14 @@ function MonthView({
 // ── Week View ─────────────────────────────────────────────────────────────────
 
 function WeekView({
-  current, events, onSelect, holidayDates,
-}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string> }) {
+  current, events, onSelect, holidayDates, onSlotSelect,
+}: {
+  current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void
+  holidayDates: Set<string>
+  /** Drag across hour cells to pick a slot. Omitted for roles that cannot book. */
+  onSlotSelect?: (sel: SlotSelection) => void
+}) {
+  const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
   const ws   = getWeekStart(current, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i))
   const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
@@ -435,9 +501,18 @@ function WeekView({
               const timed    = timedEventsAtHour(events, day, hour)
               const dayKeyH  = format(day, 'yyyy-MM-dd')
               const isHolCol = holidayDates.has(dayKeyH)
+              const drag     = onSlotSelect ? cellProps(dayKeyH, hour) : null
               return (
                 <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5"
-                  style={{ borderColor: border.divider, background: isHolCol ? '#FFFBEB30' : undefined }}>
+                  onMouseDown={drag?.onMouseDown}
+                  onMouseEnter={drag?.onMouseEnter}
+                  style={{
+                    borderColor: border.divider,
+                    background: drag?.selected ? accentAlpha(0.14)
+                              : isHolCol ? '#FFFBEB30' : undefined,
+                    cursor: onSlotSelect ? 'cell' : undefined,
+                    userSelect: 'none',
+                  }}>
                   {timed.map(ev => (
                     <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
                   ))}
@@ -454,8 +529,14 @@ function WeekView({
 // ── Day View ──────────────────────────────────────────────────────────────────
 
 function DayView({
-  current, events, onSelect, holidayDates,
-}: { current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string> }) {
+  current, events, onSelect, holidayDates, onSlotSelect,
+}: {
+  current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void
+  holidayDates: Set<string>
+  /** Drag across hour cells to pick a slot. Omitted for roles that cannot book. */
+  onSlotSelect?: (sel: SlotSelection) => void
+}) {
+  const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
   const dayKey    = format(current, 'yyyy-MM-dd')
   const isHoliday = holidayDates.has(dayKey)
   const HOURS     = Array.from({ length: 14 }, (_, i) => i + 7) // 7 AM – 8 PM
@@ -535,7 +616,15 @@ function DayView({
               </div>
               {/* Events */}
               <div className="flex-1 border-l p-2 flex flex-col gap-1.5"
-                style={{ borderColor: border.divider }}>
+                onMouseDown={onSlotSelect ? cellProps(dayKey, hour).onMouseDown : undefined}
+                onMouseEnter={onSlotSelect ? cellProps(dayKey, hour).onMouseEnter : undefined}
+                style={{
+                  borderColor: border.divider,
+                  background: onSlotSelect && cellProps(dayKey, hour).selected
+                    ? accentAlpha(0.14) : undefined,
+                  cursor: onSlotSelect ? 'cell' : undefined,
+                  userSelect: 'none',
+                }}>
                 {timed.map(ev => {
                   const s = kindStyle(ev.kind, ev.status)
                   const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
@@ -654,14 +743,219 @@ function UpcomingPanel({
 }
 
 
+// ── Book a one-off therapy session ────────────────────────────────────────────
+
+function AdHocSessionModal({
+  slot, onClose, onDone,
+}: {
+  slot: SlotSelection
+  onClose: () => void
+  onDone: () => void
+}) {
+  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
+  const [patientId, setPatientId] = useState('')
+  const [date, setDate]           = useState(slot.date)
+  const [start, setStart]         = useState(pad(slot.startHour))
+  const [end, setEnd]             = useState(pad(slot.endHour))
+  const [countsToward, setCountsToward] = useState(true)
+  const [notes, setNotes]         = useState('')
+  const [error, setError]         = useState('')
+
+  const { data: patients = [] } = useQuery({
+    queryKey: ['patients'],
+    queryFn:  () => patientsApi.list(),
+  })
+
+  // The session hangs off a therapy plan, so a patient without one cannot be booked.
+  const { data: enrollments = [], isFetching: loadingPlans } = useQuery({
+    queryKey: ['enrollments', patientId],
+    queryFn:  () => enrollmentsApi.listForPatient(patientId),
+    enabled:  !!patientId,
+  })
+  const activePlan = enrollments.find((e: EnrollmentResponse) => e.status !== 'CANCELLED') ?? null
+
+  const mut = useMutation({
+    mutationFn: () => therapySessionsApi.createAdHoc({
+      enrollmentId: activePlan!.id,
+      sessionDate: date,
+      startTime: start,
+      endTime: end,
+      countsTowardPlan: countsToward,
+      notes: notes.trim() || undefined,
+    }),
+    onSuccess: onDone,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not book the session')),
+  })
+
+  return (
+    <Modal open title="Book a therapy session" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <Select
+          label="Patient"
+          value={patientId}
+          onChange={e => setPatientId(e.target.value)}
+          placeholder="Choose a patient"
+          options={patients.map((pt: PatientResponse) => ({
+            value: pt.id, label: `${pt.firstName} ${pt.lastName}`,
+          }))}
+        />
+
+        {patientId && !loadingPlans && !activePlan && (
+          <p className="text-xs rounded-xl px-3 py-2.5"
+            style={{ background: warningAlpha(0.10), color: colors.status.warning }}>
+            This patient has no active therapy plan. Set one up on their record first — a session
+            has to belong to a plan.
+          </p>
+        )}
+
+        {activePlan && (
+          <div className="rounded-xl px-3 py-2.5 text-xs"
+            style={{ background: surface.rowHover, color: colors.text.muted }}>
+            Plan: <span style={{ color: colors.text.primary, fontWeight: 600 }}>{activePlan.programName}</span>
+            {' · '}with {activePlan.therapistFirstName} {activePlan.therapistLastName}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Starts</label>
+            <input type="time" value={start} onChange={e => setStart(e.target.value)} className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Ends</label>
+            <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="form-input w-full" />
+          </div>
+        </div>
+
+        {/* Billing decision, asked per booking */}
+        <div>
+          <label className="form-label">Does this use one of the paid sessions?</label>
+          <div className="flex flex-col gap-1.5">
+            {[
+              { v: true,  label: 'Yes — counts toward the plan', hint: 'One of the paid sessions is used' },
+              { v: false, label: 'No — extra session',           hint: 'Added on top, the plan is unaffected' },
+            ].map(o => (
+              <button
+                key={String(o.v)}
+                type="button"
+                onClick={() => setCountsToward(o.v)}
+                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                style={{
+                  background: countsToward === o.v ? accentAlpha(0.08) : surface.filterStrip,
+                  border: `1.5px solid ${countsToward === o.v ? colors.accent : 'transparent'}`,
+                }}
+              >
+                <span className="text-sm font-medium"
+                  style={{ color: countsToward === o.v ? colors.accent : colors.text.primary }}>
+                  {o.label}
+                </span>
+                <span className="text-xs" style={{ color: colors.text.dim }}>{o.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label">Notes (optional)</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+            className="form-input w-full" placeholder="Why this session was added" />
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (!activePlan)   { setError('Pick a patient with an active therapy plan'); return }
+            if (end <= start)  { setError('End time must be after the start time'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Book session
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── What to put in a dragged slot ─────────────────────────────────────────────
+
+function SlotChoiceModal({
+  slot, onClose, onPick,
+}: {
+  slot: SlotSelection
+  onClose: () => void
+  onPick: (what: 'meeting' | 'session') => void
+}) {
+  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
+  const when = `${format(parseISO(slot.date + 'T00:00:00'), 'EEE, d MMM')} · ${pad(slot.startHour)}–${pad(slot.endHour)}`
+
+  const options: { key: 'meeting' | 'session'; label: string; hint: string; icon: React.ElementType }[] = [
+    { key: 'session', label: 'Therapy session', hint: 'A one-off session for a patient on a plan', icon: Activity },
+    { key: 'meeting', label: 'Meeting',         hint: 'With staff and parents you choose',        icon: Users },
+  ]
+
+  return (
+    <Modal open title="Book this slot" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl px-3 py-2.5 text-sm"
+          style={{ background: surface.rowHover, color: colors.text.primary }}>
+          {when}
+        </div>
+        <div className="flex flex-col gap-2">
+          {options.map(o => {
+            const Icon = o.icon
+            return (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => onPick(o.key)}
+                className="flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors"
+                style={{ background: surface.filterStrip, border: `1.5px solid transparent` }}
+                onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.08))}
+                onMouseLeave={e => (e.currentTarget.style.background = surface.filterStrip)}
+              >
+                <Icon size={18} style={{ color: colors.accent }} />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold" style={{ color: colors.text.primary }}>
+                    {o.label}
+                  </span>
+                  <span className="block text-xs" style={{ color: colors.text.dim }}>{o.hint}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Schedule a meeting ────────────────────────────────────────────────────────
 
-function NewMeetingModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function NewMeetingModal({
+  onClose, onDone, initial,
+}: {
+  onClose: () => void
+  onDone: () => void
+  /** Prefilled when the modal was opened by dragging a slot on the calendar. */
+  initial?: SlotSelection
+}) {
+  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
   const [title, setTitle]         = useState('')
   const [description, setDesc]    = useState('')
-  const [date, setDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState('10:00')
-  const [endTime, setEndTime]     = useState('10:30')
+  const [date, setDate]           = useState(initial?.date ?? format(new Date(), 'yyyy-MM-dd'))
+  const [startTime, setStartTime] = useState(initial ? pad(initial.startHour) : '10:00')
+  const [endTime, setEndTime]     = useState(initial ? pad(initial.endHour) : '10:30')
   const [location, setLocation]   = useState('')
   const [picked, setPicked]       = useState<string[]>([])
   const [search, setSearch]       = useState('')
@@ -790,6 +1084,112 @@ function NewMeetingModal({ onClose, onDone }: { onClose: () => void; onDone: () 
   )
 }
 
+// ── Move a planned session ────────────────────────────────────────────────────
+
+function RescheduleSessionModal({
+  session, onClose, onDone,
+}: {
+  session: TherapySessionResponse
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [date, setDate]       = useState(session.sessionDate)
+  const [time, setTime]       = useState(session.startTime.substring(0, 5))
+  const [therapistId, setTherapistId] = useState('')
+  const [reason, setReason]   = useState('')
+  const [error, setError]     = useState('')
+
+  const { data: therapists = [] } = useQuery({
+    queryKey: ['therapists'],
+    queryFn:  () => usersApi.listTherapists(),
+  })
+
+  const mut = useMutation({
+    mutationFn: () => therapySessionsApi.reschedule(session.id, {
+      newDate: date !== session.sessionDate ? date : undefined,
+      newStartTime: time !== session.startTime.substring(0, 5) ? time : undefined,
+      substituteTherapistId: therapistId || undefined,
+      reason: reason.trim() || undefined,
+    }),
+    onSuccess: onDone,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not reschedule the session')),
+  })
+
+  const unchanged = date === session.sessionDate
+    && time === session.startTime.substring(0, 5)
+    && !therapistId
+
+  return (
+    <Modal open title="Reschedule session" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl px-3 py-2.5 text-sm"
+          style={{ background: surface.rowHover, color: colors.text.muted }}>
+          Currently{' '}
+          <span style={{ color: colors.text.primary, fontWeight: 600 }}>
+            {format(parseISO(session.sessionDate + 'T00:00:00'), 'EEE, d MMM yyyy')}
+            {' at '}{session.startTime.substring(0, 5)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">New date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">New time</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)}
+              className="form-input w-full" />
+          </div>
+        </div>
+        <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
+          The session keeps its current length.
+        </p>
+
+        <Select
+          label="Different therapist (optional)"
+          value={therapistId}
+          onChange={e => setTherapistId(e.target.value)}
+          placeholder="Keep the current therapist"
+          options={therapists
+            .filter((t: UserResponse) => t.id !== session.therapistId)
+            .map((t: UserResponse) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+        />
+
+        <Input
+          label="Reason (optional)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Therapist is at a conference that morning"
+        />
+
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          The family and the therapist are emailed the new time. If you swap the therapist, the one
+          coming off the session is told as well.
+        </p>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (unchanged) { setError('Change the date, the time, or the therapist'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Reschedule &amp; notify
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Event detail drawer ───────────────────────────────────────────────────────
 
 // Status options for admin/owner (can directly cancel)
@@ -806,7 +1206,7 @@ const SESSION_STATUS_OPTIONS_THERAPIST: { value: TherapySessionStatus; label: st
 
 function EventDetailDrawer({
   event, onClose, canGoToInquiries, canUpdateSession, canManageAll, canCreateMeetings,
-  currentUserId, onLogOutcome,
+  canReschedule, currentUserId, onLogOutcome,
 }: {
   event: CalendarEvent
   onClose: () => void
@@ -815,6 +1215,8 @@ function EventDetailDrawer({
   canManageAll: boolean
   /** Staff can cancel a meeting; parents and patients only attend one. */
   canCreateMeetings: boolean
+  /** Business owner, admin and clinic head may move a planned session. */
+  canReschedule: boolean
   currentUserId: string
   onLogOutcome?: (inquiry: InquiryResponse) => void
 }) {
@@ -872,6 +1274,8 @@ function EventDetailDrawer({
       onClose()
     },
   })
+
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
 
   const cancelMeetingMut = useMutation({
     mutationFn: (reason: string) => meetingsApi.cancel(rawMeeting.id, reason || undefined),
@@ -1060,6 +1464,22 @@ function EventDetailDrawer({
                   />
                 </div>
               )}
+              {/* Moving a planned session — separate from marking its outcome, since a
+                  clinic head may reschedule without being able to complete a session */}
+              {canReschedule && rawSession.status === 'SCHEDULED' && (
+                <>
+                  <div style={{ height: 1, background: border.divider }} />
+                  <button
+                    onClick={() => setRescheduleOpen(true)}
+                    className="w-full text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors"
+                    style={{ background: accentAlpha(0.10), color: colors.accent }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                    Reschedule session
+                  </button>
+                </>
+              )}
+
               {/* Status update — assigned therapist only, or admin/owner */}
               {canUpdateSession && rawSession.status === 'SCHEDULED'
                && (canManageAll || rawSession.therapistId === currentUserId) && (
@@ -1193,6 +1613,19 @@ function EventDetailDrawer({
           </div>
         )}
       </div>
+
+      {rescheduleOpen && (
+        <RescheduleSessionModal
+          session={rawSession}
+          onClose={() => setRescheduleOpen(false)}
+          onDone={() => {
+            setRescheduleOpen(false)
+            qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+            qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+            onClose()
+          }}
+        />
+      )}
     </>
   )
 }
@@ -1209,129 +1642,6 @@ function Row({
     </div>
   )
 }
-
-// ── Today / Tomorrow summary panel ───────────────────────────────────────────
-
-function TodayEventChip({
-  event, onClick,
-}: { event: CalendarEvent; onClick: () => void }) {
-  const s = kindStyle(event.kind, event.status)
-  return (
-    <button
-      onClick={onClick}
-      className="flex-shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-left transition-opacity hover:opacity-75"
-      style={{ background: s.background, border: `1px solid ${s.color}22` }}>
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-      <div className="min-w-0">
-        <p className="text-xs font-semibold truncate max-w-[130px]" style={{ color: s.color }}>
-          {event.title}
-        </p>
-        <p className="text-[11.5px] mt-0.5" style={{ color: s.color, opacity: 0.7 }}>
-          {event.isAllDay ? (event.subtitle ?? 'All day') : event.time}
-        </p>
-      </div>
-    </button>
-  )
-}
-
-function TodayPanel({
-  events,
-  onSelect,
-  notifPermission,
-  onRequestNotif,
-}: {
-  events: CalendarEvent[]
-  onSelect: (e: CalendarEvent) => void
-  notifPermission: NotificationPermission | 'unsupported'
-  onRequestNotif: () => void
-}) {
-  const todayKey    = format(new Date(), 'yyyy-MM-dd')
-  const tomorrowKey = format(addDays(new Date(), 1), 'yyyy-MM-dd')
-
-  const sort = (evs: CalendarEvent[]) =>
-    [...evs].sort((a, b) =>
-      // all-day first, then by time
-      (b.isAllDay ? 1 : 0) - (a.isAllDay ? 1 : 0) ||
-      (a.time ?? '').localeCompare(b.time ?? '')
-    )
-
-  const todayEvents    = sort(events.filter(e => e.date === todayKey))
-  const tomorrowEvents = sort(events.filter(e => e.date === tomorrowKey))
-
-  if (todayEvents.length === 0 && tomorrowEvents.length === 0) return null
-
-  return (
-    <div className="rounded-2xl p-4 flex flex-col gap-4" style={styles.card}>
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Today */}
-          {todayEvents.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider"
-                style={{ color: colors.text.muted }}>Today</span>
-              <span className="text-[11.5px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
-                style={{ background: colors.accent, color: '#fff' }}>
-                {todayEvents.length}
-              </span>
-            </div>
-          )}
-          {/* Tomorrow */}
-          {tomorrowEvents.length > 0 && (
-            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: border.divider }}>
-              <span className="text-xs font-semibold uppercase tracking-wider"
-                style={{ color: colors.text.muted }}>Tomorrow</span>
-              <span className="text-[11.5px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
-                style={{ background: surface.rowHover, color: colors.text.muted }}>
-                {tomorrowEvents.length}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Notification permission button */}
-        {notifPermission !== 'unsupported' && (
-          notifPermission === 'granted' ? (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <Bell size={12} />Notifications on
-            </span>
-          ) : notifPermission === 'default' ? (
-            <button
-              onClick={onRequestNotif}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
-              style={styles.filterTabInactive}>
-              <Bell size={12} />Enable notifications
-            </button>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <BellOff size={12} />Notifications blocked
-            </span>
-          )
-        )}
-      </div>
-
-      {/* Event chips — horizontally scrollable */}
-      {todayEvents.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
-          {todayEvents.map(ev => (
-            <TodayEventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
-          ))}
-        </div>
-      )}
-
-      {tomorrowEvents.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0"
-          style={todayEvents.length > 0 ? { borderTop: `1px solid ${border.divider}`, paddingTop: 12 } : {}}>
-          {tomorrowEvents.map(ev => (
-            <TodayEventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Placeholder for roles with no data yet ────────────────────────────────────
 
 function ProgramSessionsPlaceholder() {
   return (
@@ -1376,7 +1686,17 @@ export default function CalendarPage() {
   const canGoToInquiries  = canSeeInquiries
   // Parents and patients attend meetings but never schedule them
   const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
+  // Booking from the calendar is a front-desk action; clinical staff read the grid.
+  const canBookSlots = !!user && (
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN')
+  )
+  const canReschedule = !!user && (
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN')
+  )
   const [newMeetingOpen, setNewMeetingOpen] = useState(false)
+  const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
+  const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
+  const [upcomingOpen,   setUpcomingOpen]   = useState(false)
   const qcMain = useQueryClient()
 
   // ── Browser notification state ─────────────────────────────────────────────
@@ -1606,16 +1926,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Today / Tomorrow panel — only renders when there are events on those days */}
-      {hasAnyEvents && (
-        <TodayPanel
-          events={events}
-          onSelect={setSelected}
-          notifPermission={notifPermission}
-          onRequestNotif={requestNotifPermission}
-        />
-      )}
-
       {/* Calendar card */}
       <div className="rounded-2xl overflow-hidden flex flex-col" style={{ ...styles.card, minHeight: 600, maxHeight: 'calc(100vh - 200px)' }}>
 
@@ -1642,6 +1952,27 @@ export default function CalendarPage() {
           <span className="text-xs" style={{ color: colors.text.muted }}>
             {events.length} event{events.length !== 1 ? 's' : ''}
           </span>
+
+          {/* Notification permission — previously lived on the Today/Tomorrow strip */}
+          {notifPermission === 'default' ? (
+            <button
+              onClick={requestNotifPermission}
+              title="Get a browser notification 15 minutes before an event"
+              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
+              style={styles.filterTabInactive}>
+              <Bell size={12} />Notifications
+            </button>
+          ) : notifPermission === 'granted' ? (
+            <span className="hidden sm:flex items-center gap-1.5 text-xs"
+              style={{ color: colors.text.dim }} title="Notifications on">
+              <Bell size={12} />
+            </span>
+          ) : notifPermission === 'denied' ? (
+            <span className="hidden sm:flex items-center gap-1.5 text-xs"
+              style={{ color: colors.text.dim }} title="Notifications blocked in your browser">
+              <BellOff size={12} />
+            </span>
+          ) : null}
 
           {/* Today */}
           <button onClick={() => setCurrent(new Date())}
@@ -1673,18 +2004,38 @@ export default function CalendarPage() {
                 {view === 'month' ? (
                   <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
                 ) : view === 'week' ? (
-                  <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
+                  <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 ) : (
-                  <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
+                  <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 )}
               </div>
             </div>
 
-            {/* Upcoming sidebar — month + day views on lg+ */}
+            {/* Upcoming — collapsed by default so the grid stays the focus */}
             {(view === 'month' || view === 'day') && (
-              <div className="hidden lg:flex flex-col p-4 border-l overflow-hidden"
-                style={{ borderColor: border.divider }}>
-                <UpcomingPanel events={events} onSelect={setSelected} />
+              <div className="hidden lg:flex flex-col border-l overflow-hidden transition-all"
+                style={{ borderColor: border.divider, width: upcomingOpen ? 280 : 44, flexShrink: 0 }}>
+                <button
+                  onClick={() => setUpcomingOpen(o => !o)}
+                  aria-expanded={upcomingOpen}
+                  className="flex items-center gap-2 px-3 py-3 text-xs font-semibold uppercase tracking-wider transition-colors"
+                  style={{ color: colors.text.muted }}
+                  title={upcomingOpen ? 'Hide upcoming' : 'Show upcoming'}
+                >
+                  {/* The panel supplies its own heading when open, so this is chevron-only. */}
+                  <ChevronLeft
+                    size={14}
+                    className="transition-transform flex-shrink-0"
+                    style={{ transform: upcomingOpen ? 'rotate(180deg)' : 'none' }}
+                  />
+                </button>
+                {upcomingOpen && (
+                  <div className="flex flex-col px-4 pb-4 -mt-2 overflow-hidden">
+                    <UpcomingPanel events={events} onSelect={setSelected} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1701,8 +2052,40 @@ export default function CalendarPage() {
           canUpdateSession={canUpdateSession}
           canManageAll={!!user && (hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER'))}
           canCreateMeetings={canCreateMeetings}
+          canReschedule={canReschedule}
           currentUserId={user?.id ?? ''}
           onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
+        />
+      )}
+
+      {/* Dragged a slot — choose what goes in it */}
+      {slotSelection && !slotChoice && (
+        <SlotChoiceModal
+          slot={slotSelection}
+          onClose={() => setSlotSelection(null)}
+          onPick={setSlotChoice}
+        />
+      )}
+
+      {slotSelection && slotChoice === 'meeting' && (
+        <NewMeetingModal
+          initial={slotSelection}
+          onClose={() => { setSlotSelection(null); setSlotChoice(null) }}
+          onDone={() => {
+            setSlotSelection(null); setSlotChoice(null)
+            qcMain.invalidateQueries({ queryKey: ['meetings'] })
+          }}
+        />
+      )}
+
+      {slotSelection && slotChoice === 'session' && (
+        <AdHocSessionModal
+          slot={slotSelection}
+          onClose={() => { setSlotSelection(null); setSlotChoice(null) }}
+          onDone={() => {
+            setSlotSelection(null); setSlotChoice(null)
+            qcMain.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+          }}
         />
       )}
 

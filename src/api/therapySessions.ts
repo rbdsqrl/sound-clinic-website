@@ -1,5 +1,6 @@
 import client from './client'
 import type {
+  CreateAdHocSessionRequest,
   ApiResponse,
   TherapySessionResponse,
   UpdateSessionStatusRequest,
@@ -46,6 +47,11 @@ export const therapySessionsApi = {
       `/therapy-sessions/${id}/reschedule`,
       data,
     ).then(r => r.data.data),
+
+  /** Book a one-off session from the calendar (BUSINESS_OWNER / ADMIN / CLINIC HEAD) */
+  createAdHoc: (data: CreateAdHocSessionRequest) =>
+    client.post<ApiResponse<TherapySessionResponse>>('/therapy-sessions/ad-hoc', data)
+      .then(r => r.data.data),
 
   /** Request reschedule of a SCHEDULED session (parent role) */
   requestReschedule: (id: string) =>
