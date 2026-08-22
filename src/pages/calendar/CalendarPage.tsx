@@ -298,9 +298,9 @@ function EventChip({
 // ── Drag-to-select a time slot ────────────────────────────────────────────────
 
 export interface SlotSelection {
-  date: string        // 'yyyy-MM-dd'
-  startHour: number
-  endHour: number     // exclusive
+  date: string   // 'yyyy-MM-dd'
+  start: string  // 'HH:mm'
+  end: string    // 'HH:mm'
 }
 
 /**
@@ -319,7 +319,9 @@ function useSlotDrag(onPick: (sel: SlotSelection) => void) {
       const endHour = hover ?? anchor!.hour
       const lo = Math.min(anchor!.hour, endHour)
       const hi = Math.max(anchor!.hour, endHour)
-      onPick({ date: anchor!.date, startHour: lo, endHour: hi + 1 })
+      const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`
+      // The grid is hour-granular; the chooser lets the user tune it from here.
+      onPick({ date: anchor!.date, start: hhmm(lo), end: hhmm(hi + 1) })
       setAnchor(null)
       setHover(null)
     }
@@ -442,7 +444,7 @@ function WeekView({
     <div className="flex flex-col flex-1 overflow-auto">
       {/* Day headers */}
       <div className="grid sticky top-0 z-10 border-b"
-        style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, background: surface.card }}>
+        style={{ gridTemplateColumns: '64px repeat(7, 1fr)', borderColor: border.divider, background: surface.card }}>
         <div />
         {days.map(day => {
           const dayKey    = format(day, 'yyyy-MM-dd')
@@ -469,7 +471,7 @@ function WeekView({
       {/* All-day row (leaves) */}
       {hasAnyAllDay && (
         <div className="grid border-b sticky z-10"
-          style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, background: surface.card, top: 73 }}>
+          style={{ gridTemplateColumns: '64px repeat(7, 1fr)', borderColor: border.divider, background: surface.card, top: 73 }}>
           <div className="px-1 pt-1 text-right">
             <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
           </div>
@@ -491,9 +493,9 @@ function WeekView({
       <div className="flex-1">
         {HOURS.map(hour => (
           <div key={hour} className="grid border-b"
-            style={{ gridTemplateColumns: '52px repeat(7, 1fr)', borderColor: border.divider, minHeight: 56 }}>
+            style={{ gridTemplateColumns: '64px repeat(7, 1fr)', borderColor: border.divider, minHeight: 56 }}>
             <div className="px-2 pt-1 text-right">
-              <span className="text-xs" style={{ color: colors.text.muted }}>
+              <span className="text-xs whitespace-nowrap tabular-nums" style={{ color: colors.text.muted }}>
                 {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
               </span>
             </div>
@@ -610,7 +612,7 @@ function DayView({
                        background: isHoliday ? '#FFFBEB30' : undefined }}>
               {/* Time label */}
               <div className="w-16 flex-shrink-0 px-3 pt-2 text-right">
-                <span className="text-xs tabular-nums" style={{ color: colors.text.muted }}>
+                <span className="text-xs whitespace-nowrap tabular-nums" style={{ color: colors.text.muted }}>
                   {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                 </span>
               </div>
@@ -755,8 +757,8 @@ function AdHocSessionModal({
   const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
   const [patientId, setPatientId] = useState('')
   const [date, setDate]           = useState(slot.date)
-  const [start, setStart]         = useState(pad(slot.startHour))
-  const [end, setEnd]             = useState(pad(slot.endHour))
+  const [start, setStart]         = useState(slot.start)
+  const [end, setEnd]             = useState(slot.end)
   const [countsToward, setCountsToward] = useState(true)
   const [notes, setNotes]         = useState('')
   const [error, setError]         = useState('')
@@ -894,10 +896,33 @@ function SlotChoiceModal({
 }: {
   slot: SlotSelection
   onClose: () => void
-  onPick: (what: 'meeting' | 'session') => void
+  /** Hands back the slot as tuned here, not as originally dragged. */
+  onPick: (what: 'meeting' | 'session', tuned: SlotSelection) => void
 }) {
-  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
-  const when = `${format(parseISO(slot.date + 'T00:00:00'), 'EEE, d MMM')} · ${pad(slot.startHour)}–${pad(slot.endHour)}`
+  // The grid only drags in whole hours, so the real start and end are set here.
+  const [date, setDate]   = useState(slot.date)
+  const [start, setStart] = useState(slot.start)
+  const [end, setEnd]     = useState(slot.end)
+  const [error, setError] = useState('')
+
+  const minutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + m
+  }
+  const durationMins = minutes(end) - minutes(start)
+  const valid = durationMins > 0
+
+  function choose(what: 'meeting' | 'session') {
+    if (!valid) { setError('End time must be after the start time'); return }
+    onPick(what, { date, start, end })
+  }
+
+  function nudgeEnd(mins: number) {
+    const total = Math.max(minutes(start) + 15, minutes(end) + mins)
+    const capped = Math.min(total, 23 * 60 + 45)
+    setEnd(`${String(Math.floor(capped / 60)).padStart(2, '0')}:${String(capped % 60).padStart(2, '0')}`)
+    setError('')
+  }
 
   const options: { key: 'meeting' | 'session'; label: string; hint: string; icon: React.ElementType }[] = [
     { key: 'session', label: 'Therapy session', hint: 'A one-off session for a patient on a plan', icon: Activity },
@@ -907,10 +932,44 @@ function SlotChoiceModal({
   return (
     <Modal open title="Book this slot" onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <div className="rounded-xl px-3 py-2.5 text-sm"
-          style={{ background: surface.rowHover, color: colors.text.primary }}>
-          {when}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Starts</label>
+            <input type="time" step={900} value={start}
+              onChange={e => { setStart(e.target.value); setError('') }}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Ends</label>
+            <input type="time" step={900} value={end}
+              onChange={e => { setEnd(e.target.value); setError('') }}
+              className="form-input w-full" />
+          </div>
         </div>
+
+        {/* Quick nudges — the common case is trimming an hour-aligned drag */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs" style={{ color: colors.text.dim }}>
+            {valid
+              ? `${Math.floor(durationMins / 60) ? `${Math.floor(durationMins / 60)}h ` : ''}${durationMins % 60 ? `${durationMins % 60}m` : ''}`.trim()
+              : 'Invalid range'}
+          </span>
+          {[-30, -15, +15, +30].map(m => (
+            <button key={m} type="button" onClick={() => nudgeEnd(m)}
+              className="text-xs px-2 py-1 rounded-lg font-medium"
+              style={{ background: surface.filterStrip, color: colors.text.muted }}>
+              {m > 0 ? `+${m}` : m}m
+            </button>
+          ))}
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+
         <div className="flex flex-col gap-2">
           {options.map(o => {
             const Icon = o.icon
@@ -918,10 +977,11 @@ function SlotChoiceModal({
               <button
                 key={o.key}
                 type="button"
-                onClick={() => onPick(o.key)}
-                className="flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors"
+                onClick={() => choose(o.key)}
+                disabled={!valid}
+                className="flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors disabled:opacity-50"
                 style={{ background: surface.filterStrip, border: `1.5px solid transparent` }}
-                onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.08))}
+                onMouseEnter={e => { if (valid) e.currentTarget.style.background = accentAlpha(0.08) }}
                 onMouseLeave={e => (e.currentTarget.style.background = surface.filterStrip)}
               >
                 <Icon size={18} style={{ color: colors.accent }} />
@@ -954,8 +1014,8 @@ function NewMeetingModal({
   const [title, setTitle]         = useState('')
   const [description, setDesc]    = useState('')
   const [date, setDate]           = useState(initial?.date ?? format(new Date(), 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState(initial ? pad(initial.startHour) : '10:00')
-  const [endTime, setEndTime]     = useState(initial ? pad(initial.endHour) : '10:30')
+  const [startTime, setStartTime] = useState(initial?.start ?? '10:00')
+  const [endTime, setEndTime]     = useState(initial?.end ?? '10:30')
   const [location, setLocation]   = useState('')
   const [picked, setPicked]       = useState<string[]>([])
   const [search, setSearch]       = useState('')
@@ -2063,7 +2123,7 @@ export default function CalendarPage() {
         <SlotChoiceModal
           slot={slotSelection}
           onClose={() => setSlotSelection(null)}
-          onPick={setSlotChoice}
+          onPick={(what, tuned) => { setSlotSelection(tuned); setSlotChoice(what) }}
         />
       )}
 
