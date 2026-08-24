@@ -10,6 +10,7 @@ export const ROUTES = {
   clinic:             (id: string) => `/clinics/${id}`,
   patients:           '/patients',
   patient:            (id: string) => `/patients/${id}`,
+  enrollment:         (patientId: string, enrollmentId: string) => `/patients/${patientId}/enrollments/${enrollmentId}`,
   myChildren:         '/my-children',
   calendar:           '/calendar',
   availability:       '/availability',

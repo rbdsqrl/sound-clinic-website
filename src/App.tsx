@@ -15,6 +15,7 @@ import ClinicsPage from './pages/clinics/ClinicsPage'
 import ClinicDetailPage from './pages/clinics/ClinicDetailPage'
 import PatientsPage from './pages/patients/PatientsPage'
 import PatientDetailPage from './pages/patients/PatientDetailPage'
+import EnrollmentDetailPage from './pages/patients/EnrollmentDetailPage'
 import MyChildrenPage from './pages/patients/MyChildrenPage'
 import AvailabilityPage from './pages/availability/AvailabilityPage'
 import CalendarPage from './pages/calendar/CalendarPage'
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="/clinics/:id"        element={<ClinicDetailPage />} />
         <Route path={ROUTES.patients}     element={<PatientsPage />} />
         <Route path="/patients/:id"       element={<PatientDetailPage />} />
+        <Route path="/patients/:patientId/enrollments/:enrollmentId" element={<EnrollmentDetailPage />} />
         <Route path={ROUTES.myChildren}   element={<MyChildrenPage />} />
         <Route path={ROUTES.calendar}     element={<CalendarPage />} />
         <Route path={ROUTES.availability} element={<AvailabilityPage />} />
