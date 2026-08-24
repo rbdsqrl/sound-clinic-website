@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
+import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
+import { useAuth } from '../../contexts/AuthContext'
 import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
 import ScoreChart from '../../components/charts/ScoreChart'
 import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
@@ -10,7 +12,7 @@ import Sparkline from '../../components/charts/Sparkline'
 import { Select } from '../../components/ui/Select'
 import { Users, UserCog } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { colors, border, styles, surface, radius } from '../../theme'
+import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
 import { Delta, Metric, Panel, Tile } from './components'
 import { format, parseISO } from 'date-fns'
@@ -26,6 +28,17 @@ const TABS: { key: TabKey; label: string }[] = [
 const DOMAINS: IEPGoalDomain[] = [
   'AUDITORY', 'SPEECH', 'LANGUAGE', 'SENSORY', 'MOTOR', 'SOCIAL', 'COGNITIVE', 'LITERACY', 'ADAPTIVE',
 ]
+
+/** Admission → discharge funnel order, same labels used on the patient detail stage bar. */
+const STAGE_LABELS: Record<string, string> = {
+  INQUIRY_CONVERTED: 'Inquiry',
+  PRE_ASSESSMENT:    'Pre-Assessment',
+  ASSESSMENT_DONE:   'Assessment Done',
+  ENROLLMENT:        'Enrollment',
+  ENROLLED:          'Enrolled',
+  THERAPY_ACTIVE:    'Therapy Active',
+  DISCHARGED:        'Discharged',
+}
 
 /** Sparklines share this band so domains can be compared against each other, not just themselves. */
 const SPARK_MIN = 0
@@ -43,12 +56,19 @@ function defaultWindow(granularity: Granularity) {
 }
 
 export default function AnalyticsPage() {
+  const { activeRole } = useAuth()
+  const isParentUser = activeRole === 'PARENT'
+
   const [tab, setTab] = useState<TabKey>('patient')
-  const [granularity, setGranularity] = useState<Granularity>('WEEKLY')
+  const [granularity, setGranularity] = useState<Granularity>('DAILY')
   const [domain, setDomain] = useState<IEPGoalDomain | ''>('')
   const [patientId, setPatientId] = useState('')
   const [therapistId, setTherapistId] = useState('')
-  const [range, setRange] = useState(() => defaultWindow('WEEKLY'))
+  const [range, setRange] = useState(() => defaultWindow('DAILY'))
+
+  // Parents only ever see their own children's progress — caseload and clinic-wide rollups
+  // are staff views and the backend rejects them for this role.
+  const visibleTabs = isParentUser ? TABS.filter(t => t.key === 'patient') : TABS
 
   // Overview has no daily series — the API rejects it, so the control must not offer it.
   const allowedGranularities: Granularity[] =
@@ -57,8 +77,13 @@ export default function AnalyticsPage() {
   const effectiveGranularity: Granularity =
     allowedGranularities.includes(granularity) ? granularity : 'WEEKLY'
 
+  // Once a patient's date range has been anchored to their program start, further granularity
+  // changes shouldn't reset it back to a fixed lookback window.
+  const anchoredPatientRef = useRef<string | null>(null)
+
   const changeGranularity = (g: Granularity) => {
     setGranularity(g)
+    if (tab === 'patient' && patientId && anchoredPatientRef.current === patientId) return
     setRange(defaultWindow(g))
   }
 
@@ -69,8 +94,45 @@ export default function AnalyticsPage() {
     ...(domain ? { domain } : {}),
   }
 
-  const patients = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
-  const staff = useQuery({ queryKey: ['assignable'], queryFn: () => usersApi.listAssignable() })
+  const patients = useQuery({
+    queryKey: isParentUser ? ['my-children'] : ['patients'],
+    queryFn: isParentUser ? patientsApi.myChildren : patientsApi.list,
+  })
+  const staff = useQuery({
+    queryKey: ['assignable'],
+    queryFn: () => usersApi.listAssignable(),
+    enabled: !isParentUser,
+  })
+
+  const enrollmentsQuery = useQuery({
+    queryKey: ['enrollments', 'analytics', patientId],
+    queryFn: () => enrollmentsApi.listForPatient(patientId),
+    enabled: tab === 'patient' && !!patientId,
+  })
+
+  // Anchor the default 'from' to the child's earliest program start date rather than a fixed
+  // lookback — a lookback window can start before therapy did, showing a run of empty days.
+  useEffect(() => {
+    if (tab !== 'patient' || !patientId) return
+    if (anchoredPatientRef.current === patientId) return
+    if (!enrollmentsQuery.data) return
+
+    anchoredPatientRef.current = patientId
+    const starts = enrollmentsQuery.data.map(e => e.startDate).filter(Boolean).sort()
+    setRange({ from: starts[0] ?? defaultWindow(granularity).from, to: iso(new Date()) })
+  }, [tab, patientId, enrollmentsQuery.data, granularity])
+
+  // If the role is switched while this page is open, fall back to the one tab parents may view.
+  useEffect(() => {
+    if (isParentUser && tab !== 'patient') setTab('patient')
+  }, [isParentUser, tab])
+
+  // A parent with just the one child shouldn't have to pick them from a dropdown.
+  useEffect(() => {
+    if (isParentUser && !patientId && patients.data?.length === 1) {
+      setPatientId(patients.data[0].id)
+    }
+  }, [isParentUser, patientId, patients.data])
 
   const therapists = useMemo(
     () => (staff.data ?? []).filter(u => u.role === 'THERAPIST' || u.role === 'DOCTOR'),
@@ -89,6 +151,12 @@ export default function AnalyticsPage() {
     enabled: tab === 'patient' && !!patientId,
   })
 
+  const frequencyQuery = useQuery({
+    queryKey: ['analytics', 'patient-frequency', patientId, range.from, range.to],
+    queryFn: () => analyticsApi.patientFrequency(patientId, range.from, range.to),
+    enabled: tab === 'patient' && !!patientId,
+  })
+
   const caseloadQuery = useQuery({
     queryKey: ['analytics', 'therapist', therapistId, params],
     queryFn: () => analyticsApi.therapistCaseload(therapistId, params),
@@ -98,6 +166,14 @@ export default function AnalyticsPage() {
   const overviewQuery = useQuery({
     queryKey: ['analytics', 'overview', params],
     queryFn: () => analyticsApi.overview(params),
+    enabled: tab === 'overview',
+  })
+
+  // Clinical-outcome rollup — duration, program mix, funnel. Not windowed, so it's independent
+  // of the granularity/date-range controls above.
+  const snapshotQuery = useQuery({
+    queryKey: ['analytics', 'snapshot'],
+    queryFn: () => analyticsApi.orgSnapshot(),
     enabled: tab === 'overview',
   })
 
@@ -116,33 +192,39 @@ export default function AnalyticsPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 lg:p-8">
       <div>
-        <h1 className="text-lg font-bold md:text-xl" style={{ color: colors.text.heading }}>Progress Analytics</h1>
+        <h1 className="text-lg font-bold md:text-xl" style={{ color: colors.text.heading }}>
+          {isParentUser ? "Your Child's Progress" : 'Progress Analytics'}
+        </h1>
         <p className="mt-0.5 text-sm" style={{ color: colors.text.muted }}>
-          Daily, weekly and monthly trends from therapist session and IEP goal records
+          {isParentUser
+            ? 'Daily, weekly and monthly progress trends from session and goal records'
+            : 'Daily, weekly and monthly trends from therapist session and IEP goal records'}
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b" style={{ borderColor: border.divider }}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className="-mb-px flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors"
-            style={tab === t.key ? styles.tabActive : styles.tabInactive}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {visibleTabs.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto border-b" style={{ borderColor: border.divider }}>
+          {visibleTabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="-mb-px flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors"
+              style={tab === t.key ? styles.tabActive : styles.tabInactive}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filters — one row above the charts */}
       <div className="flex flex-wrap items-end gap-3">
         {tab === 'patient' && (
           <div className="min-w-[200px]">
             <Select
-              label="Patient"
-              placeholder="Select a patient"
+              label={isParentUser ? 'Child' : 'Patient'}
+              placeholder={isParentUser ? 'Select a child' : 'Select a patient'}
               value={patientId}
               onChange={e => setPatientId(e.target.value)}
               options={(patients.data ?? []).map(p => ({
@@ -209,7 +291,11 @@ export default function AnalyticsPage() {
 
       {/* Empty prompts */}
       {tab === 'patient' && !patientId && (
-        <EmptyState icon={<Users size={22} />} title="Choose a patient" description="Progress trends are built per child." />
+        <EmptyState
+          icon={<Users size={22} />}
+          title={isParentUser ? 'Choose a child' : 'Choose a patient'}
+          description="Progress trends are built per child."
+        />
       )}
       {tab === 'therapist' && !therapistId && (
         <EmptyState icon={<UserCog size={22} />} title="Choose a therapist" description="Caseload trends are built per therapist." />
@@ -217,6 +303,84 @@ export default function AnalyticsPage() {
 
       {loading && (
         <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>Loading…</p>
+      )}
+
+      {tab === 'overview' && snapshotQuery.data && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Tile
+              label="Avg. therapy duration"
+              value={
+                snapshotQuery.data.avgTherapyDurationWeeks !== null
+                  ? `${snapshotQuery.data.avgTherapyDurationWeeks}w`
+                  : '—'
+              }
+              hint={
+                snapshotQuery.data.enrollmentsWithDuration > 0
+                  ? `${snapshotQuery.data.enrollmentsWithDuration} completed/scheduled plan${snapshotQuery.data.enrollmentsWithDuration === 1 ? '' : 's'}`
+                  : 'No plans with an end date yet'
+              }
+            />
+          </div>
+
+          <Panel
+            title="Children by therapy type"
+            subtitle="Distinct children on each program, across every enrollment on record"
+          >
+            {snapshotQuery.data.programBreakdown.length === 0 ? (
+              <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
+                No enrollments recorded yet.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {(() => {
+                  const max = Math.max(1, ...snapshotQuery.data.programBreakdown.map(p => p.patientCount))
+                  return snapshotQuery.data.programBreakdown.map(p => (
+                    <div key={p.programName} className="flex items-center gap-3">
+                      <span className="w-32 flex-shrink-0 truncate text-sm md:w-44" style={{ color: colors.text.primary }}>
+                        {p.programName}
+                      </span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${(p.patientCount / max) * 100}%`, background: colors.accent }}
+                        />
+                      </div>
+                      <span
+                        className="w-10 flex-shrink-0 text-right text-sm font-semibold"
+                        style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        {p.patientCount}
+                      </span>
+                    </div>
+                  ))
+                })()}
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            title="Admission → discharge"
+            subtitle="Where every patient in the org sits right now, by stage"
+          >
+            <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-4 lg:grid-cols-7">
+              {snapshotQuery.data.stageCounts.map((s, i) => (
+                <div
+                  key={s.stage}
+                  className="w-32 flex-shrink-0 p-3 md:w-auto"
+                  style={{ background: surface.rowHover, borderRadius: radius.sm }}
+                >
+                  <p className="text-xs" style={{ color: colors.text.dim }}>
+                    {i + 1}. {STAGE_LABELS[s.stage] ?? s.stage}
+                  </p>
+                  <p className="mt-1 text-xl font-bold" style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}>
+                    {s.count}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
       )}
 
       {activeSeries && totals && !loading && (
@@ -236,7 +400,9 @@ export default function AnalyticsPage() {
                   <span style={{ color: colors.text.dim, fontSize: '1.1rem' }}>/{totals.sessionsScheduled}</span>
                 </>
               }
-              hint={`${totals.sessionsNoShow} no-show · ${totals.sessionsCancelled} cancelled`}
+              hint={totals.sessionsScheduled > 0
+                ? `${Math.round((totals.sessionsNoShow / totals.sessionsScheduled) * 100)}% no-show · ${Math.round((totals.sessionsCancelled / totals.sessionsScheduled) * 100)}% cancelled`
+                : 'No sessions in this window'}
             />
             <Tile
               label="Goals closed"
@@ -299,6 +465,23 @@ export default function AnalyticsPage() {
             />
           </Panel>
 
+          <Panel
+            title="Attendance over time"
+            subtitle="Completed ÷ (completed + no-show + cancelled) per period. Gaps are periods with no finalised sessions."
+          >
+            <ScoreChart
+              points={activeSeries.buckets.map(b => {
+                const finalised = b.sessionsCompleted + b.sessionsNoShow + b.sessionsCancelled
+                return {
+                  label: b.label,
+                  value: finalised > 0 ? Math.round((b.sessionsCompleted / finalised) * 100) : null,
+                  meta: finalised > 0 ? `${b.sessionsCompleted}/${finalised} attended` : undefined,
+                }
+              })}
+              variant="bars"
+            />
+          </Panel>
+
           {tab === 'patient' && activityProgressQuery.data && (
             <Panel
               title="Assigned Activities"
@@ -333,6 +516,72 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                   )}
+                </>
+              )}
+            </Panel>
+          )}
+
+          {tab === 'patient' && frequencyQuery.data && (
+            <Panel
+              title="Session Frequency"
+              subtitle="Sessions per week, folded across every program this child is enrolled in at once"
+            >
+              {frequencyQuery.data.weekly.length === 0 ? (
+                <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+                  No sessions in this range.
+                </p>
+              ) : (
+                <>
+                  {frequencyQuery.data.byProgram.length > 1 && (
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {frequencyQuery.data.byProgram.map(p => (
+                        <span
+                          key={p.programName}
+                          className="rounded-full px-2.5 py-1 text-[11.5px] font-medium"
+                          style={{ background: accentAlpha(0.08), color: colors.text.primary }}
+                        >
+                          {p.programName} · {p.totalSessions}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    {frequencyQuery.data.weekly.map(w => {
+                      const max = Math.max(1, ...frequencyQuery.data!.weekly.map(x => x.totalSessions))
+                      return (
+                        <div key={w.weekStart} className="flex items-center gap-3">
+                          <span className="w-16 flex-shrink-0 text-xs" style={{ color: colors.text.dim }}>
+                            {format(parseISO(w.weekStart + 'T00:00:00'), 'd MMM')}
+                          </span>
+                          <div className="h-5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
+                            <div className="flex h-full">
+                              <div
+                                className="h-full"
+                                style={{ width: `${(w.planSessions / max) * 100}%`, background: colors.accent }}
+                                title={`${w.planSessions} plan session${w.planSessions === 1 ? '' : 's'}`}
+                              />
+                              <div
+                                className="h-full"
+                                style={{ width: `${(w.adHocSessions / max) * 100}%`, background: palette.purple.text }}
+                                title={`${w.adHocSessions} ad-hoc session${w.adHocSessions === 1 ? '' : 's'}`}
+                              />
+                            </div>
+                          </div>
+                          <span className="w-6 flex-shrink-0 text-right text-xs font-semibold" style={{ color: colors.text.primary }}>
+                            {w.totalSessions}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3 flex items-center gap-4 text-[11.5px]" style={{ color: colors.text.dim }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} /> Plan
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ background: palette.purple.text }} /> Ad-hoc
+                    </span>
+                  </div>
                 </>
               )}
             </Panel>

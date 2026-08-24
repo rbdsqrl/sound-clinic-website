@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
@@ -12,6 +12,8 @@ import { conditionsApi } from '../../api/conditions'
 import { programsApi } from '../../api/programs'
 import { subscriptionsApi } from '../../api/subscriptions'
 import { enrollmentsApi } from '../../api/enrollments'
+import { concernsApi } from '../../api/concerns'
+import { dischargeApi } from '../../api/discharge'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
 import { usersApi } from '../../api/users'
 import { therapySessionsApi } from '../../api/therapySessions'
@@ -1082,6 +1084,214 @@ function EnrollmentModal({
 const TABS = ['Overview', 'Clinical', 'Therapy', 'IEP', 'Activities'] as const
 type Tab = typeof TABS[number]
 
+// ── Concerns banner ──────────────────────────────────────────────────────────
+
+function ConcernsBanner({ patientId, canAct }: { patientId: string; canAct: boolean }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+
+  const { data: concerns = [] } = useQuery({
+    queryKey: ['enrollment-concerns', patientId],
+    queryFn: () => concernsApi.list({ patientId }),
+  })
+  const open = concerns.filter(c => c.status !== 'RESOLVED')
+
+  const ackMut = useMutation({
+    mutationFn: (id: string) => concernsApi.acknowledge(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['enrollment-concerns', patientId] }); toast('Concern acknowledged', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to acknowledge'), 'error'),
+  })
+  const resolveMut = useMutation({
+    mutationFn: (id: string) => concernsApi.resolve(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['enrollment-concerns', patientId] }); toast('Concern resolved', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to resolve'), 'error'),
+  })
+
+  if (open.length === 0) return null
+
+  return (
+    <div className="rounded-xl p-4 space-y-3" style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}` }}>
+      <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: colors.status.warning }}>
+        <AlertTriangle size={13} /> {open.length} open concern{open.length === 1 ? '' : 's'}
+      </p>
+      <div className="space-y-2">
+        {open.map(c => (
+          <div key={c.id} className="rounded-lg p-3" style={{ background: surface.card }}>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold" style={{ color: colors.text.heading }}>{c.programName}</p>
+                <p className="text-sm mt-0.5" style={{ color: colors.text.primary }}>{c.description}</p>
+                <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
+                  Raised {format(new Date(c.raisedAt), 'MMM d, yyyy')} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
+                </p>
+              </div>
+              {canAct && (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {c.status === 'OPEN' && (
+                    <button
+                      onClick={() => ackMut.mutate(c.id)}
+                      className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
+                      style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                    >
+                      Acknowledge
+                    </button>
+                  )}
+                  <button
+                    onClick={() => resolveMut.mutate(c.id)}
+                    className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
+                    style={{ color: colors.status.success, background: successAlpha(0.10) }}
+                  >
+                    Resolve
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Discharge ─────────────────────────────────────────────────────────────────
+
+function CriteriaChip({ label, value, met }: { label: string; value: string; met: boolean | null }) {
+  return (
+    <div className="rounded-lg p-2.5" style={{ background: accentAlpha(0.05) }}>
+      <p className="text-[11px]" style={{ color: colors.text.dim }}>{label}</p>
+      <p className="text-sm font-semibold" style={{ color: met ? palette.green.text : colors.text.primary }}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function DischargeModal({ patientId, patientName, onClose }: { patientId: string; patientName: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const [notes, setNotes] = useState('')
+
+  const { data: preview, isLoading } = useQuery({
+    queryKey: ['discharge-preview', patientId],
+    queryFn: () => dischargeApi.preview(patientId),
+  })
+
+  const dischargeMut = useMutation({
+    mutationFn: () => dischargeApi.create(patientId, notes || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patients', patientId] })
+      qc.invalidateQueries({ queryKey: ['discharge-history', patientId] })
+      toast('Patient discharged', 'success')
+      onClose()
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to discharge patient'), 'error'),
+  })
+
+  return (
+    <Modal open onClose={onClose} title={`Discharge ${patientName}`} size="lg">
+      {isLoading ? (
+        <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>Loading…</p>
+      ) : !preview || preview.enrollments.length === 0 ? (
+        <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>
+          This patient has no active or completed programs to discharge.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {!preview.allCriteriaMet && (
+            <div className="rounded-lg p-3 flex items-start gap-2" style={{ background: warningAlpha(0.10) }}>
+              <AlertTriangle size={15} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 2 }} />
+              <p className="text-xs" style={{ color: colors.text.primary }}>
+                Not every program in this episode meets its success criteria yet. You can still discharge — this will be reflected in the report.
+              </p>
+            </div>
+          )}
+          <div className="space-y-3">
+            {preview.enrollments.map(e => (
+              <div key={e.enrollmentId} className="rounded-xl p-3" style={{ background: surface.rowHover }}>
+                <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{e.programName}</p>
+                <p className="text-xs mb-2" style={{ color: colors.text.muted }}>{e.therapistName}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <CriteriaChip label="Goal mastery" met={e.criteria.goalMasteryMet}
+                    value={e.criteria.goalMasteryPct !== null ? `${e.criteria.goalMasteryPct}%` : 'No data'} />
+                  <CriteriaChip label="Parent satisfaction" met={e.criteria.parentSatisfactionMet}
+                    value={e.criteria.parentSatisfactionPct !== null ? `${Math.round(e.criteria.parentSatisfactionPct)}%` : 'No data'} />
+                  <CriteriaChip label="Therapist sign-off" met={e.criteria.therapistSignedOff}
+                    value={e.criteria.therapistSignedOff ? 'Confirmed' : 'Pending'} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="form-label">Discharge notes (optional)</label>
+            <textarea
+              className="form-input"
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Anything worth recording about this discharge"
+            />
+          </div>
+          <div className="flex items-center gap-2 justify-end pt-2 border-t" style={{ borderColor: border.divider }}>
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button variant="danger" onClick={() => dischargeMut.mutate()} loading={dischargeMut.isPending}>
+              Confirm Discharge
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function DischargeHistoryPanel({ patientId }: { patientId: string }) {
+  const { toast } = useToast()
+  const { data: records = [] } = useQuery({
+    queryKey: ['discharge-history', patientId],
+    queryFn: () => dischargeApi.list(patientId),
+  })
+
+  const downloadMut = useMutation({
+    mutationFn: (dischargeId: string) => dischargeApi.pdfUrl(patientId, dischargeId),
+    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onError: (err) => toast(getApiError(err, 'Failed to prepare PDF'), 'error'),
+  })
+
+  if (records.length === 0) return null
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: colors.text.heading }}>
+        <LogOut size={14} /> Discharge History
+      </h2>
+      <div className="space-y-2">
+        {records.map(r => (
+          <div key={r.id} className="rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: surface.rowHover }}>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
+                {format(new Date(r.dischargeDate), 'd MMM yyyy')}
+                <span className="ml-2 text-xs font-normal" style={{ color: r.overallSuccessful ? palette.green.text : colors.text.muted }}>
+                  {r.overallSuccessful ? 'Successful Completion' : 'Discharged'}
+                </span>
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                {r.enrollments.map(e => e.programName).join(', ') || 'No programs on record'} · by {r.dischargedByName}
+              </p>
+            </div>
+            <button
+              onClick={() => downloadMut.mutate(r.id)}
+              disabled={downloadMut.isPending}
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+              style={{ color: colors.accent, background: accentAlpha(0.10) }}
+            >
+              <Download size={12} /> PDF
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PatientDetailPage() {
@@ -1104,6 +1314,7 @@ export default function PatientDetailPage() {
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [sidebarSearch,    setSidebarSearch]    = useState('')
+  const [dischargeModal,   setDischargeModal]   = useState(false)
 
   // Derive role early so queries can use it as a gate
   const currentRoleEarly = activeRole ?? user?.role
@@ -1295,6 +1506,8 @@ export default function PatientDetailPage() {
         )}
       </div>
 
+      <ConcernsBanner patientId={id!} canAct={!isParentRole} />
+
       {/* ── Page header (always visible) ─────────────────────────────────── */}
       <Card>
         <div className="flex items-center gap-3 mb-4">
@@ -1331,6 +1544,15 @@ export default function PatientDetailPage() {
                 <Pencil size={13} /> Edit
               </button>
             )}
+            {canChangeStage && patient.stage !== 'DISCHARGED' && (
+              <button
+                onClick={() => setDischargeModal(true)}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
+              >
+                <LogOut size={13} /> Discharge Patient
+              </button>
+            )}
             {canDelete && (
               <button
                 onClick={() => setDeleteConfirm(true)}
@@ -1348,6 +1570,16 @@ export default function PatientDetailPage() {
         {/* Read-only stage progress */}
         <StageProgress current={patient.stage} />
       </Card>
+
+      <DischargeHistoryPanel patientId={id!} />
+
+      {dischargeModal && (
+        <DischargeModal
+          patientId={id!}
+          patientName={`${patient.firstName} ${patient.lastName}`}
+          onClose={() => setDischargeModal(false)}
+        />
+      )}
 
       {/* ── Tab strip ────────────────────────────────────────────────────── */}
       <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>

@@ -1,17 +1,90 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Baby, ChevronRight, Clock, RefreshCw, UserCheck } from 'lucide-react'
+import { Baby, ChevronRight, Clock, RefreshCw, UserCheck, AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { patientsApi } from '../../api/patients'
 import { therapySessionsApi } from '../../api/therapySessions'
+import { enrollmentsApi } from '../../api/enrollments'
+import { concernsApi } from '../../api/concerns'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
+import { Modal } from '../../components/ui/Modal'
+import { Select } from '../../components/ui/Select'
+import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, palette, paletteStyle } from '../../theme'
+
+function RaiseConcernModal({ childId, childName, onClose }: { childId: string; childName: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const [enrollmentId, setEnrollmentId] = useState('')
+  const [description, setDescription] = useState('')
+
+  const { data: enrollments = [], isLoading } = useQuery({
+    queryKey: ['enrollments', childId],
+    queryFn: () => enrollmentsApi.listForPatient(childId),
+  })
+  const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE')
+
+  const raiseMut = useMutation({
+    mutationFn: () => concernsApi.raise(enrollmentId, description),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollment-concerns', childId] })
+      toast('Concern sent to the clinic', 'success')
+      onClose()
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to send concern'), 'error'),
+  })
+
+  return (
+    <Modal open onClose={onClose} title={`Raise a concern — ${childName}`}>
+      {isLoading ? (
+        <p className="text-sm py-4" style={{ color: colors.text.muted }}>Loading programs…</p>
+      ) : activeEnrollments.length === 0 ? (
+        <p className="text-sm py-4" style={{ color: colors.text.muted }}>
+          {childName} has no active program to raise a concern about right now.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          <Select
+            label="Which program?"
+            value={enrollmentId}
+            onChange={e => setEnrollmentId(e.target.value)}
+            placeholder="Select a program"
+            options={activeEnrollments.map(e => ({
+              value: e.id,
+              label: `${e.programName} — ${e.therapistFirstName} ${e.therapistLastName}`,
+            }))}
+          />
+          <div className="space-y-1">
+            <label className="form-label">What's on your mind?</label>
+            <textarea
+              className="form-input"
+              rows={4}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Tell us what's concerning you about this program — the therapist and clinic admins will see this."
+            />
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              onClick={() => raiseMut.mutate()}
+              disabled={!enrollmentId || !description.trim()}
+              loading={raiseMut.isPending}
+            >
+              Send to clinic
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
 
 function ChildSessions({ childId }: { childId: string }) {
   const qc = useQueryClient()
@@ -136,6 +209,7 @@ export default function MyChildrenPage() {
     queryKey: ['my-children'],
     queryFn: patientsApi.myChildren,
   })
+  const [concernFor, setConcernFor] = useState<{ id: string; name: string } | null>(null)
 
   if (isLoading) return <PageLoader />
 
@@ -179,13 +253,22 @@ export default function MyChildrenPage() {
                     <p className="font-semibold text-sm" style={{ color: colors.text.heading }}>
                       {child.firstName} {child.lastName}
                     </p>
-                    <Link
-                      to={`/patients/${child.id}`}
-                      className="flex-shrink-0 flex items-center gap-0.5 text-xs font-medium transition-opacity hover:opacity-75"
-                      style={{ color: colors.accent }}
-                    >
-                      View profile <ChevronRight size={13} />
-                    </Link>
+                    <div className="flex-shrink-0 flex items-center gap-3">
+                      <button
+                        onClick={() => setConcernFor({ id: child.id, name: `${child.firstName} ${child.lastName}` })}
+                        className="flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-75"
+                        style={{ color: colors.status.warning }}
+                      >
+                        <AlertTriangle size={12} /> Raise a concern
+                      </button>
+                      <Link
+                        to={`/patients/${child.id}`}
+                        className="flex items-center gap-0.5 text-xs font-medium transition-opacity hover:opacity-75"
+                        style={{ color: colors.accent }}
+                      >
+                        View profile <ChevronRight size={13} />
+                      </Link>
+                    </div>
                   </div>
 
                   {/* DOB + therapists inline */}
@@ -223,6 +306,14 @@ export default function MyChildrenPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {concernFor && (
+        <RaiseConcernModal
+          childId={concernFor.id}
+          childName={concernFor.name}
+          onClose={() => setConcernFor(null)}
+        />
       )}
     </div>
   )

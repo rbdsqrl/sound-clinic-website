@@ -5,6 +5,7 @@ import type {
   CreateEnrollmentRequest,
   AvailableTherapistResponse,
   AvailableTherapistsQuery,
+  EnrollmentCareStatus,
 } from '../types'
 
 export const enrollmentsApi = {
@@ -33,4 +34,16 @@ export const enrollmentsApi = {
   /** Cancel an enrollment */
   cancel: (id: string) =>
     client.patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/cancel`).then(r => r.data.data),
+
+  /** Set the clinical-health signal on an active enrollment (assigned therapist or admin-tier roles) */
+  updateCareStatus: (id: string, careStatus: EnrollmentCareStatus, note?: string) =>
+    client
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/care-status`, { careStatus, note })
+      .then(r => r.data.data),
+
+  /** Assigned therapist confirms the program's goals were met — only once care status is Review or Program Completed */
+  therapistSignoff: (id: string, notes?: string) =>
+    client
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/therapist-signoff`, { notes })
+      .then(r => r.data.data),
 }

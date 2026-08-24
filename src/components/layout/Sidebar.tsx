@@ -58,6 +58,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   PARENT: [
     { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },
     { to: ROUTES.myChildren, label: 'My Children', icon: Baby },
+    { to: ROUTES.analytics,  label: 'Progress',    icon: TrendingUp },
     { to: ROUTES.calendar,   label: 'Calendar',    icon: CalendarDays },
   ],
   ADMIN: [

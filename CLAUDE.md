@@ -193,7 +193,7 @@ THERAPIST / DOCTOR:
   Dashboard, Clinics, Patients, Calendar, My Leave
 
 PARENT:
-  Dashboard, My Children, Calendar
+  Dashboard, My Children, Progress, Calendar
 
 PATIENT:
   Dashboard

@@ -1,23 +1,41 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, BookOpen, CalendarDays, Clock } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ChevronRight, BookOpen, CalendarDays, Clock, CheckCircle2, Circle } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
+import { analyticsApi } from '../../api/analytics'
 import { SessionList, SessionNotesModal } from './EnrollmentSessions'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
+import { Select } from '../../components/ui/Select'
+import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../hooks/useToast'
 import { ROUTES } from '../../lib/routes'
-import { colors, accentAlpha, paletteStyle, palette } from '../../theme'
-import type { TherapySessionResponse } from '../../types'
+import { colors, accentAlpha, paletteStyle, palette, border } from '../../theme'
+import type { TherapySessionResponse, EnrollmentCareStatus } from '../../types'
 
 const STATUS_VARIANT: Record<string, { label: string; style: React.CSSProperties }> = {
   ACTIVE:    { label: 'Active',    style: paletteStyle('teal', 0.12, 0) },
   COMPLETED: { label: 'Completed', style: paletteStyle('green', 0.12, 0) },
   CANCELLED: { label: 'Cancelled', style: paletteStyle('red', 0.12, 0) },
 }
+
+const CARE_STATUS_VARIANT: Record<EnrollmentCareStatus, { label: string; style: React.CSSProperties }> = {
+  ON_TRACK:          { label: 'On Track',          style: paletteStyle('green', 0.12, 0) },
+  NEEDS_ATTENTION:   { label: 'Needs Attention',   style: paletteStyle('amber', 0.12, 0) },
+  REVIEW:            { label: 'Review',            style: paletteStyle('amber', 0.12, 0) },
+  PROGRAM_COMPLETED: { label: 'Program Completed', style: paletteStyle('teal', 0.12, 0) },
+}
+
+const CARE_STATUS_OPTIONS = [
+  { value: 'ON_TRACK', label: 'On Track' },
+  { value: 'NEEDS_ATTENTION', label: 'Needs Attention' },
+  { value: 'REVIEW', label: 'Review' },
+  { value: 'PROGRAM_COMPLETED', label: 'Program Completed' },
+]
 
 export default function EnrollmentDetailPage() {
   const { patientId, enrollmentId } = useParams<{ patientId: string; enrollmentId: string }>()
@@ -26,6 +44,39 @@ export default function EnrollmentDetailPage() {
   const canUpdateSession = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
 
   const [notesState, setNotesState] = useState<{ session: TherapySessionResponse; canEdit: boolean } | null>(null)
+  const [editingCareStatus, setEditingCareStatus] = useState(false)
+  const [careDraft, setCareDraft] = useState<EnrollmentCareStatus>('ON_TRACK')
+  const [careNote, setCareNote] = useState('')
+
+  const qc = useQueryClient()
+  const { toast } = useToast()
+
+  const careStatusMut = useMutation({
+    mutationFn: (payload: { careStatus: EnrollmentCareStatus; note: string }) =>
+      enrollmentsApi.updateCareStatus(enrollmentId!, payload.careStatus, payload.note || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+      toast('Care status updated', 'success')
+      setEditingCareStatus(false)
+    },
+    onError: () => toast('Failed to update care status', 'error'),
+  })
+
+  const signoffMut = useMutation({
+    mutationFn: () => enrollmentsApi.therapistSignoff(enrollmentId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+      qc.invalidateQueries({ queryKey: ['success-criteria', enrollmentId] })
+      toast('Sign-off recorded', 'success')
+    },
+    onError: () => toast('Failed to record sign-off', 'error'),
+  })
+
+  const { data: successCriteria } = useQuery({
+    queryKey: ['success-criteria', enrollmentId],
+    queryFn: () => analyticsApi.successCriteria(enrollmentId!),
+    enabled: !!enrollmentId,
+  })
 
   const { data: patient } = useQuery({
     queryKey: ['patient', patientId],
@@ -56,6 +107,12 @@ export default function EnrollmentDetailPage() {
     ? user?.id === enrollment.therapistId
     : canUpdateSession
 
+  const canUpdateCareStatus = currentRole === 'THERAPIST'
+    ? user?.id === enrollment.therapistId
+    : ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+
+  const careStatus = CARE_STATUS_VARIANT[enrollment.careStatus] ?? CARE_STATUS_VARIANT.ON_TRACK
+
   const progressPct = enrollment.totalSessions > 0
     ? Math.min(100, (enrollment.sessionsCompleted / enrollment.totalSessions) * 100)
     : 0
@@ -85,10 +142,109 @@ export default function EnrollmentDetailPage() {
               </p>
             </div>
           </div>
-          <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0" style={status.style}>
-            {status.label}
-          </span>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide" style={status.style}>
+              {status.label}
+            </span>
+            {enrollment.status === 'ACTIVE' && (
+              <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide" style={careStatus.style}>
+                {careStatus.label}
+              </span>
+            )}
+          </div>
         </div>
+
+        {enrollment.status === 'ACTIVE' && canUpdateCareStatus && (
+          <div className="mb-4 pb-4 border-b" style={{ borderColor: border.divider }}>
+            {!editingCareStatus ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  {enrollment.careStatusNote && (
+                    <p className="text-xs" style={{ color: colors.text.muted }}>{enrollment.careStatusNote}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                  onClick={() => { setCareDraft(enrollment.careStatus); setCareNote(enrollment.careStatusNote ?? ''); setEditingCareStatus(true) }}
+                >
+                  Update care status
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Select
+                  label="Care status"
+                  options={CARE_STATUS_OPTIONS}
+                  value={careDraft}
+                  onChange={e => setCareDraft(e.target.value as EnrollmentCareStatus)}
+                />
+                <div className="space-y-1">
+                  <label className="form-label">Note (optional)</label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    value={careNote}
+                    onChange={e => setCareNote(e.target.value)}
+                    placeholder="What should staff know?"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => careStatusMut.mutate({ careStatus: careDraft, note: careNote })}
+                    loading={careStatusMut.isPending}
+                  >
+                    Save
+                  </Button>
+                  <Button variant="ghost" onClick={() => setEditingCareStatus(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(enrollment.careStatus === 'REVIEW' || enrollment.careStatus === 'PROGRAM_COMPLETED') && successCriteria && (
+          <div className="mb-4 pb-4 border-b space-y-2" style={{ borderColor: border.divider }}>
+            <p className="text-[11.5px] uppercase tracking-wider font-semibold" style={{ color: colors.text.dim }}>
+              Discharge readiness
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-lg p-2.5" style={{ background: accentAlpha(0.05) }}>
+                <p className="text-[11px]" style={{ color: colors.text.dim }}>Goal mastery</p>
+                <p className="text-sm font-semibold" style={{ color: successCriteria.goalMasteryMet ? palette.green.text : colors.text.primary }}>
+                  {successCriteria.goalMasteryPct !== null ? `${successCriteria.goalMasteryPct}%` : 'No data'}
+                </p>
+              </div>
+              <div className="rounded-lg p-2.5" style={{ background: accentAlpha(0.05) }}>
+                <p className="text-[11px]" style={{ color: colors.text.dim }}>Parent satisfaction</p>
+                <p className="text-sm font-semibold" style={{ color: successCriteria.parentSatisfactionMet ? palette.green.text : colors.text.primary }}>
+                  {successCriteria.parentSatisfactionPct !== null ? `${Math.round(successCriteria.parentSatisfactionPct)}%` : 'No data'}
+                </p>
+              </div>
+              <div className="rounded-lg p-2.5 flex items-center justify-between" style={{ background: accentAlpha(0.05) }}>
+                <div>
+                  <p className="text-[11px]" style={{ color: colors.text.dim }}>Therapist sign-off</p>
+                  <p className="text-sm font-semibold flex items-center gap-1" style={{ color: successCriteria.therapistSignedOff ? palette.green.text : colors.text.primary }}>
+                    {successCriteria.therapistSignedOff
+                      ? <><CheckCircle2 size={13} /> Confirmed</>
+                      : <><Circle size={13} /> Pending</>}
+                  </p>
+                </div>
+                {!successCriteria.therapistSignedOff && currentRole === 'THERAPIST' && user?.id === enrollment.therapistId && (
+                  <button
+                    onClick={() => signoffMut.mutate()}
+                    disabled={signoffMut.isPending}
+                    className="text-[11.5px] font-semibold px-2 py-1 rounded-lg flex-shrink-0"
+                    style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                  >
+                    Confirm
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-4">
           <div className="flex items-end justify-between mb-2">

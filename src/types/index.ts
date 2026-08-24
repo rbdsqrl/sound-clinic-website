@@ -495,6 +495,7 @@ export interface ReviewLeaveRequest {
 
 // ── Enrollments ────────────────────────────────────────────────────────────────
 export type EnrollmentStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+export type EnrollmentCareStatus = 'ON_TRACK' | 'NEEDS_ATTENTION' | 'REVIEW' | 'PROGRAM_COMPLETED'
 
 export interface EnrollmentResponse {
   id: string
@@ -510,9 +511,35 @@ export interface EnrollmentResponse {
   dayOfWeek: DayOfWeek
   startTime: string        // "HH:mm:ss"
   status: EnrollmentStatus
+  careStatus: EnrollmentCareStatus
+  careStatusNote: string | null
+  therapistSignedOff: boolean
+  therapistSignoffNotes: string | null
   sessionsCompleted: number
   totalSessions: number
   createdAt: string
+}
+
+// ── Enrollment Concerns ──────────────────────────────────────────────────────
+export type ConcernStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
+
+export interface ConcernResponse {
+  id: string
+  enrollmentId: string
+  programName: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  raisedBy: string
+  raisedAt: string
+  description: string
+  status: ConcernStatus
+  acknowledgedAt: string | null
+  resolutionNotes: string | null
+  resolvedAt: string | null
 }
 
 /** Recurring review-meeting schedule, set up alongside a therapy plan. */
@@ -552,7 +579,8 @@ export interface ReviewMeetingResponse {
   status: ReviewMeetingStatus
 
   // Withheld until the viewer has submitted their own side — see the backend's enrich()
-  parentRating: number | null
+  communicationRating: number | null  // 1-5 stars
+  progressRatingPct: number | null    // 0-100
   parentComments: string | null
   parentFeedbackAt: string | null
 
@@ -580,7 +608,8 @@ export interface RescheduleReviewRequest {
 }
 
 export interface ParentFeedbackRequest {
-  rating: number           // 1–5
+  communicationRating: number   // 1–5
+  progressRatingPct: number     // 0–100
   comments?: string
 }
 
@@ -1365,4 +1394,73 @@ export interface ActivityProgressResponse {
   discontinuedCount: number
   completionRatePct: number | null
   weeklyAttempts: { weekStart: string; attempts: number }[]
+}
+
+// ── Session frequency (cadence across concurrent enrollments) ──────────────────
+export interface FrequencyResponse {
+  weekly: {
+    weekStart: string
+    totalSessions: number
+    planSessions: number
+    adHocSessions: number
+    byProgram: { programName: string; count: number }[]
+  }[]
+  byProgram: { programName: string; totalSessions: number }[]
+}
+
+// ── Discharge episodes ───────────────────────────────────────────────────────────
+export interface DischargeEnrollmentSummary {
+  enrollmentId: string
+  programName: string
+  therapistName: string
+  startDate: string | null
+  endDate: string | null
+}
+
+export interface DischargeRecordResponse {
+  id: string
+  patientId: string
+  dischargeDate: string
+  dischargedBy: string
+  dischargedByName: string
+  episodeStartDate: string | null
+  avgCommunicationRating: number | null
+  avgProgressRatingPct: number | null
+  goalMasteryPct: number | null
+  goalMasteryMet: boolean | null
+  therapistSignoffMet: boolean
+  parentSatisfactionMet: boolean | null
+  overallSuccessful: boolean
+  notes: string | null
+  pdfAvailable: boolean
+  enrollments: DischargeEnrollmentSummary[]
+  createdAt: string
+}
+
+export interface DischargePreviewResponse {
+  enrollments: {
+    enrollmentId: string
+    programName: string
+    therapistName: string
+    criteria: SuccessCriteriaResponse
+  }[]
+  allCriteriaMet: boolean
+}
+
+// ── Discharge success criteria ──────────────────────────────────────────────────
+export interface SuccessCriteriaResponse {
+  goalMasteryPct: number | null
+  goalMasteryMet: boolean | null
+  therapistSignedOff: boolean
+  parentSatisfactionPct: number | null
+  parentSatisfactionMet: boolean | null
+  overallSuccessful: boolean
+}
+
+// ── Org snapshot (clinical outcomes) ────────────────────────────────────────────
+export interface OrgSnapshotResponse {
+  avgTherapyDurationWeeks: number | null
+  enrollmentsWithDuration: number
+  programBreakdown: { programName: string; patientCount: number; enrollmentCount: number }[]
+  stageCounts: { stage: PatientStage; count: number }[]
 }

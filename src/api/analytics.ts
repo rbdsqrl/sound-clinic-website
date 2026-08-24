@@ -1,7 +1,8 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  DomainSeries, Granularity, IEPGoalDomain, TimeSeriesResponse,
+  DomainSeries, FrequencyResponse, Granularity, IEPGoalDomain, OrgSnapshotResponse,
+  SuccessCriteriaResponse, TimeSeriesResponse,
 } from '../types'
 
 export interface AnalyticsWindow {
@@ -16,7 +17,7 @@ export interface AnalyticsWindow {
  * than sent as null. Left alone that turns "not logged" into `undefined`, and every consumer
  * would have to guard both. Normalising once here keeps the components checking one thing.
  */
-const num = (v: number | null | undefined): number | null => (v === undefined ? null : v)
+export const num = (v: number | null | undefined): number | null => (v === undefined ? null : v)
 
 const normaliseBucket = (b: AnalyticsBucket): AnalyticsBucket => ({
   ...b,
@@ -85,4 +86,29 @@ export const analyticsApi = {
     client
       .get<ApiResponse<ActivityProgressResponse>>(`/analytics/patients/${patientId}/activities`, { params: { from, to } })
       .then(r => r.data.data),
+
+  /** Org-wide clinical-outcome rollup — avg therapy duration, program breakdown, admission→discharge funnel. */
+  orgSnapshot: () =>
+    client.get<ApiResponse<OrgSnapshotResponse>>('/analytics/snapshot').then(r => r.data.data),
+
+  /** Session cadence for one patient, folded across every concurrent enrollment. */
+  patientFrequency: (patientId: string, from: string, to: string) =>
+    client
+      .get<ApiResponse<FrequencyResponse>>(`/analytics/patients/${patientId}/frequency`, { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** Discharge success-criteria composite for one enrollment. */
+  successCriteria: (enrollmentId: string) =>
+    client
+      .get<ApiResponse<SuccessCriteriaResponse>>(`/analytics/enrollments/${enrollmentId}/success-criteria`)
+      .then(r => {
+        const d = r.data.data
+        return {
+          ...d,
+          goalMasteryPct: num(d.goalMasteryPct),
+          goalMasteryMet: d.goalMasteryMet ?? null,
+          parentSatisfactionPct: num(d.parentSatisfactionPct),
+          parentSatisfactionMet: d.parentSatisfactionMet ?? null,
+        }
+      }),
 }

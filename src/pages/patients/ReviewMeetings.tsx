@@ -306,9 +306,20 @@ function MeetingRow({
             <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
               Parent feedback
             </p>
-            {meeting.parentRating != null ? (
+            {meeting.communicationRating != null ? (
               <>
-                <StarRating value={meeting.parentRating} readOnly />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px]" style={{ color: colors.text.dim }}>Communication</span>
+                    <StarRating value={meeting.communicationRating} readOnly />
+                  </div>
+                  {meeting.progressRatingPct != null && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px]" style={{ color: colors.text.dim }}>Perceived progress</span>
+                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>{meeting.progressRatingPct}%</span>
+                    </div>
+                  )}
+                </div>
                 {meeting.parentComments && (
                   <p className="text-sm mt-1" style={{ color: colors.text.primary }}>{meeting.parentComments}</p>
                 )}
@@ -528,7 +539,8 @@ function FeedbackModal({
   onDone: () => void
 }) {
   const { toast } = useToast()
-  const [rating, setRating] = useState(meeting.parentRating ?? 0)
+  const [communicationRating, setCommunicationRating] = useState(meeting.communicationRating ?? 0)
+  const [progressRatingPct, setProgressRatingPct] = useState(meeting.progressRatingPct ?? 50)
   const [comments, setComments] = useState(meeting.parentComments ?? '')
   const [summary, setSummary] = useState(meeting.therapistSummary ?? '')
   const [progressNotes, setProgressNotes] = useState(meeting.therapistProgressNotes ?? '')
@@ -536,14 +548,14 @@ function FeedbackModal({
 
   const mut = useMutation({
     mutationFn: () => isParent
-      ? reviewMeetingsApi.submitParentFeedback(meeting.id, { rating, comments })
+      ? reviewMeetingsApi.submitParentFeedback(meeting.id, { communicationRating, progressRatingPct, comments })
       : reviewMeetingsApi.submitTherapistFeedback(meeting.id, { summary, progressNotes }),
     onSuccess: () => { toast('Feedback saved', 'success'); onDone() },
     onError: (err) => toast(getApiError(err, 'Failed to save feedback'), 'error'),
   })
 
   const submit = () => {
-    if (isParent && rating < 1) { setError('Pick a rating'); return }
+    if (isParent && communicationRating < 1) { setError('Pick a rating'); return }
     if (!isParent && !summary.trim()) { setError('A summary is required'); return }
     setError('')
     mut.mutate()
@@ -559,8 +571,21 @@ function FeedbackModal({
         {isParent ? (
           <>
             <div>
-              <label className="form-label">How was the therapy?</label>
-              <StarRating value={rating} onChange={setRating} />
+              <label className="form-label">How do you feel about the therapist?</label>
+              <StarRating value={communicationRating} onChange={setCommunicationRating} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="form-label mb-0">How much progress do you see?</label>
+                <span className="text-sm font-semibold" style={{ color: colors.accent }}>{progressRatingPct}%</span>
+              </div>
+              <input
+                type="range" min={0} max={100} step={5}
+                value={progressRatingPct}
+                onChange={e => setProgressRatingPct(Number(e.target.value))}
+                className="w-full mt-2"
+                style={{ accentColor: colors.accent }}
+              />
             </div>
             <div>
               <label className="form-label">Comments</label>
