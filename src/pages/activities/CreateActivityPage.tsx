@@ -66,6 +66,7 @@ export default function CreateActivityPage() {
   const isEdit = !!id
   const navigate = useNavigate()
   const { toasts, toast, dismiss } = useToast()
+  const qc = useQueryClient()
 
   const { data: existing, isLoading: loadingExisting } = useQuery({
     queryKey: ['activity', id],
@@ -189,6 +190,18 @@ export default function CreateActivityPage() {
       toast(getApiError(err, 'Magic fill failed'), 'error')
     } finally {
       setMagicFillLoading(null)
+    }
+  }
+
+  const handleCreateProp = async (name: string) => {
+    try {
+      const created = await propsApi.create(name)
+      qc.invalidateQueries({ queryKey: ['activity-props'] })
+      toast(`Added "${created.name}"`, 'success')
+      return { value: created.id, label: created.name }
+    } catch (err) {
+      toast(getApiError(err, 'Failed to add prop'), 'error')
+      throw err
     }
   }
 
@@ -370,7 +383,8 @@ export default function CreateActivityPage() {
               options={propsList.map((p) => ({ value: p.id, label: p.name }))}
               selected={propIds}
               onChange={setPropIds}
-              emptyMessage="No props set up yet — a Business Owner or Admin can add them in Organisation → Manage."
+              onCreate={handleCreateProp}
+              emptyMessage="No props set up yet — type a name below to add one."
             />
             <div>
               <label className="form-label">Tips and Suggestions</label>
