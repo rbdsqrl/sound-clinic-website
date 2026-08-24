@@ -240,6 +240,8 @@ export interface RegisterRequest {
 }
 
 // ── Organisation ───────────────────────────────────────────────────────────────
+export type AiProvider = 'ANTHROPIC' | 'OPENAI' | 'GEMINI'
+
 export interface OrganisationResponse {
   id: string
   name: string
@@ -250,6 +252,8 @@ export interface OrganisationResponse {
   logoUrl: string | null
   timezone: string
   isActive: boolean
+  aiProvider: AiProvider | null
+  aiKeyConfigured: boolean
   createdAt: string
 }
 
@@ -260,6 +264,9 @@ export interface UpdateOrganisationRequest {
   address?: string
   logoUrl?: string
   timezone?: string
+  aiProvider?: AiProvider
+  /** Write-only. Omit to leave the stored key unchanged; pass '' to clear it. */
+  aiApiKey?: string
 }
 
 // ── Clinic ─────────────────────────────────────────────────────────────────────
@@ -1184,4 +1191,178 @@ export interface CreateMeetingRequest {
   endTime: string
   location?: string
   participantIds: string[]
+}
+
+// ── Activities ───────────────────────────────────────────────────────────────
+
+export type ActivityDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
+export type AgeUnit = 'MONTH' | 'YEAR'
+export type ChecklistQuestionType = 'SINGLE_CHOICE' | 'MULTI_CHOICE' | 'TEXT'
+export type AssignmentStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'DISCONTINUED'
+
+export interface SkillResponse { id: string; name: string; isActive: boolean }
+export interface LanguageResponse { id: string; name: string; isActive: boolean }
+export interface PropResponse { id: string; name: string; isActive: boolean }
+
+export interface ChecklistOptionResponse {
+  id: string
+  optionText: string
+}
+
+export interface ChecklistQuestionResponse {
+  id: string
+  questionText: string
+  questionType: ChecklistQuestionType
+  options: ChecklistOptionResponse[]
+}
+
+export interface ChecklistQuestionInput {
+  questionText: string
+  questionType: ChecklistQuestionType
+  options: string[]
+}
+
+export interface ActivityResourceResponse {
+  id: string
+  fileName: string
+  fileUrl: string
+  contentType: string | null
+  fileSizeBytes: number | null
+}
+
+export interface ActivityResponse {
+  id: string
+  orgId: string
+  orgName: string | null
+  mine: boolean
+  title: string
+  aboutActivity: string
+  therapyId: string | null
+  therapyName: string | null
+  skills: SkillResponse[]
+  languages: LanguageResponse[]
+  durationWeeks: number
+  ageMinValue: number
+  ageMinUnit: AgeUnit
+  ageMaxValue: number
+  ageMaxUnit: AgeUnit
+  difficulty: ActivityDifficulty
+  instructions: string[]
+  checklist: ChecklistQuestionResponse[]
+  props: PropResponse[]
+  tipsAndSuggestions: string | null
+  resources: ActivityResourceResponse[]
+  links: string[]
+  isShared: boolean
+  sourceActivityId: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateActivityRequest {
+  title: string
+  aboutActivity: string
+  therapyId?: string
+  skillIds?: string[]
+  languageIds?: string[]
+  durationWeeks: number
+  ageMinValue: number
+  ageMinUnit: AgeUnit
+  ageMaxValue: number
+  ageMaxUnit: AgeUnit
+  difficulty?: ActivityDifficulty
+  instructions?: string[]
+  checklist?: ChecklistQuestionInput[]
+  propIds?: string[]
+  tipsAndSuggestions?: string
+  links?: string[]
+  isShared?: boolean
+}
+
+export type UpdateActivityRequest = Partial<CreateActivityRequest> & { isActive?: boolean }
+
+export interface UpdateAssignmentStatusRequest {
+  status: AssignmentStatus
+}
+
+export interface AssignActivityRequest {
+  patientId: string
+  assignedTherapistId?: string
+  startDate?: string
+}
+
+export interface ActivityAssignmentResponse {
+  id: string
+  activityId: string
+  activityTitle: string | null
+  patientId: string
+  patientName: string | null
+  assignedBy: string
+  assignedByName: string | null
+  assignedTherapistId: string | null
+  assignedTherapistName: string | null
+  status: AssignmentStatus
+  startDate: string | null
+  dueDate: string | null
+  attemptCount: number
+  createdAt: string
+}
+
+export interface AttemptAnswerInput {
+  questionId: string
+  selectedOptionIds?: string[]
+  textAnswer?: string
+}
+
+export interface LogAttemptRequest {
+  attemptDate: string
+  note?: string
+  answers: AttemptAnswerInput[]
+}
+
+export interface AttemptAnswerResponse {
+  questionId: string
+  questionText: string | null
+  selectedOptionIds: string[]
+  selectedOptionTexts: string[]
+  textAnswer: string | null
+}
+
+export interface ActivityAttemptResponse {
+  id: string
+  assignmentId: string
+  loggedBy: string
+  loggedByName: string | null
+  attemptDate: string
+  note: string | null
+  answers: AttemptAnswerResponse[]
+  createdAt: string
+}
+
+export interface MagicFillRequest {
+  title: string
+  aboutActivity?: string
+  therapyName?: string
+  skillNames?: string[]
+  ageMinValue?: number
+  ageMinUnit?: string
+  ageMaxValue?: number
+  ageMaxUnit?: string
+  difficulty?: string
+  section: 'instructions' | 'checklist'
+}
+
+export interface MagicFillResponse {
+  instructions: string[]
+  checklist: ChecklistQuestionInput[]
+}
+
+export interface ActivityProgressResponse {
+  assignedCount: number
+  inProgressCount: number
+  completedCount: number
+  discontinuedCount: number
+  completionRatePct: number | null
+  weeklyAttempts: { weekStart: string; attempts: number }[]
 }

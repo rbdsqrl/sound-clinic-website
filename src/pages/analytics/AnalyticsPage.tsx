@@ -83,6 +83,12 @@ export default function AnalyticsPage() {
     enabled: tab === 'patient' && !!patientId,
   })
 
+  const activityProgressQuery = useQuery({
+    queryKey: ['analytics', 'patient-activities', patientId, range.from, range.to],
+    queryFn: () => analyticsApi.patientActivityProgress(patientId, range.from, range.to),
+    enabled: tab === 'patient' && !!patientId,
+  })
+
   const caseloadQuery = useQuery({
     queryKey: ['analytics', 'therapist', therapistId, params],
     queryFn: () => analyticsApi.therapistCaseload(therapistId, params),
@@ -292,6 +298,43 @@ export default function AnalyticsPage() {
               variant="line"
             />
           </Panel>
+
+          {tab === 'patient' && activityProgressQuery.data && (
+            <Panel
+              title="Assigned Activities"
+              subtitle="Completion status and attempts logged for activities assigned to this child"
+            >
+              {activityProgressQuery.data.assignedCount + activityProgressQuery.data.inProgressCount
+                + activityProgressQuery.data.completedCount + activityProgressQuery.data.discontinuedCount === 0 ? (
+                <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+                  No activities assigned to this child yet.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <Tile label="Assigned" value={activityProgressQuery.data.assignedCount} />
+                    <Tile label="In Progress" value={activityProgressQuery.data.inProgressCount} />
+                    <Tile label="Completed" value={activityProgressQuery.data.completedCount} tone="good" />
+                    <Tile
+                      label="Completion Rate"
+                      value={activityProgressQuery.data.completionRatePct !== null ? `${Math.round(activityProgressQuery.data.completionRatePct)}%` : '—'}
+                    />
+                  </div>
+                  {activityProgressQuery.data.weeklyAttempts.length > 0 && (
+                    <div className="mt-4">
+                      <p className="mb-2 text-xs font-medium" style={{ color: colors.text.dim }}>Attempts logged per week</p>
+                      <Sparkline
+                        values={activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts)}
+                        min={0}
+                        max={Math.max(1, ...activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts))}
+                        width={280}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </Panel>
+          )}
 
           <Panel
             title="Score by session"

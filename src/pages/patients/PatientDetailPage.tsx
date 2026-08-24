@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search } from 'lucide-react'
 import IEPTab from './IEPTab'
+import ActivitiesTab from './ActivitiesTab'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
@@ -1576,7 +1577,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Clinical', 'Therapy', 'IEP'] as const
+const TABS = ['Overview', 'Clinical', 'Therapy', 'IEP', 'Activities'] as const
 type Tab = typeof TABS[number]
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -2449,6 +2450,8 @@ export default function PatientDetailPage() {
 
       {/* ── IEP tab ──────────────────────────────────────────────────────── */}
       {activeTab === 'IEP' && <IEPTab patientId={id!} />}
+
+      {activeTab === 'Activities' && <ActivitiesTab patientId={id!} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       {notesState && (

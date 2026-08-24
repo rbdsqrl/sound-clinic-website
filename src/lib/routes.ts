@@ -20,4 +20,8 @@ export const ROUTES = {
   workforceTab:       (tab: string) => `/workforce?tab=${tab}`,
   members:            '/members',
   analytics:          '/analytics',
+  activities:         '/activities',
+  activity:           (id: string) => `/activities/${id}`,
+  createActivity:     '/activities/new',
+  editActivity:       (id: string) => `/activities/${id}/edit`,
 } as const

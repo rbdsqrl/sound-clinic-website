@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
   Building2, CalendarOff, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
-  ToggleLeft, ToggleRight, IndianRupee, Stethoscope, HeartPulse, Receipt,
+  ToggleLeft, ToggleRight, IndianRupee, Stethoscope, HeartPulse, Receipt, Sparkles,
+  Target, Languages as LanguagesIcon, Box,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { organisationApi } from '../api/organisation'
@@ -14,6 +15,7 @@ import { conditionsApi } from '../api/conditions'
 import { therapiesApi } from '../api/therapies'
 import { taxesApi } from '../api/taxes'
 import { clinicsApi } from '../api/clinics'
+import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
 import IEPLibraryTab from './patients/IEPLibraryTab'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -30,10 +32,10 @@ import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
-  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse,
+  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse, AiProvider,
 } from '../types'
 
-type Tab = 'information' | 'clinics' | 'manage' | 'iep-library'
+type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
 
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
@@ -308,6 +310,9 @@ export default function OrganisationPage() {
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
   const [showClinicModal, setShowClinicModal] = useState(false)
+  const [aiEditing, setAiEditing]   = useState(false)
+  const [aiProvider, setAiProvider] = useState<AiProvider | ''>('')
+  const [aiApiKey, setAiApiKey]     = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { toasts, toast, dismiss } = useToast()
@@ -336,16 +341,34 @@ export default function OrganisationPage() {
     enabled: tab === 'manage',
   })
 
-  const { data: therapies = [] } = useQuery({
-    queryKey: ['therapies'],
-    queryFn: therapiesApi.list,
-    enabled: tab === 'manage',
-  })
-
   const { data: taxes = [] } = useQuery({
     queryKey: ['taxes'],
     queryFn: taxesApi.list,
     enabled: tab === 'manage',
+  })
+
+  const { data: therapies = [] } = useQuery({
+    queryKey: ['therapies'],
+    queryFn: therapiesApi.list,
+    enabled: tab === 'activity-library',
+  })
+
+  const { data: skills = [] } = useQuery({
+    queryKey: ['skills'],
+    queryFn: skillsApi.list,
+    enabled: tab === 'activity-library',
+  })
+
+  const { data: languages = [] } = useQuery({
+    queryKey: ['languages'],
+    queryFn: languagesApi.list,
+    enabled: tab === 'activity-library',
+  })
+
+  const { data: propsList = [] } = useQuery({
+    queryKey: ['activity-props'],
+    queryFn: propsApi.list,
+    enabled: tab === 'activity-library',
   })
 
   const { data: clinics = [] } = useQuery({
@@ -380,6 +403,33 @@ export default function OrganisationPage() {
   const startEdit = () => {
     if (org) reset({ name: org.name, contactEmail: org.contactEmail ?? '', contactPhone: org.contactPhone ?? '', address: org.address ?? '', logoUrl: org.logoUrl ?? '', timezone: org.timezone })
     setEditing(true)
+  }
+
+  const aiMut = useMutation({
+    mutationFn: organisationApi.update,
+    onSuccess: (updated) => {
+      qc.setQueryData(['organisation'], updated)
+      toast('AI assistant settings saved', 'success')
+      setAiEditing(false)
+      setAiApiKey('')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to save AI assistant settings'), 'error'),
+  })
+
+  const startAiEdit = () => {
+    setAiProvider(org?.aiProvider ?? '')
+    setAiApiKey('')
+    setAiEditing(true)
+  }
+
+  const saveAi = () => {
+    if (!aiProvider) { toast('Choose a provider first', 'error'); return }
+    aiMut.mutate({ aiProvider, ...(aiApiKey ? { aiApiKey } : {}) })
+  }
+
+  const clearAi = () => {
+    if (!window.confirm('Turn off the AI assistant for this organisation? Magic Fill will no longer be available in Activities.')) return
+    aiMut.mutate({ aiApiKey: '' })
   }
 
   // ── Holiday mutations ────────────────────────────────────────────────────────
@@ -454,6 +504,40 @@ export default function OrganisationPage() {
     onError: (err) => toast(getApiError(err, 'Failed to remove therapy'), 'error'),
   })
 
+  // ── Activity library mutations (Skills / Languages / Props) ──────────────────
+  const createSkillMut = useMutation({
+    mutationFn: skillsApi.create,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }); toast('Skill added', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to add skill'), 'error'),
+  })
+  const deleteSkillMut = useMutation({
+    mutationFn: skillsApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }); toast('Skill removed', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to remove skill'), 'error'),
+  })
+
+  const createLanguageMut = useMutation({
+    mutationFn: languagesApi.create,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['languages'] }); toast('Language added', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to add language'), 'error'),
+  })
+  const deleteLanguageMut = useMutation({
+    mutationFn: languagesApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['languages'] }); toast('Language removed', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to remove language'), 'error'),
+  })
+
+  const createPropMut = useMutation({
+    mutationFn: propsApi.create,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['activity-props'] }); toast('Prop added', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to add prop'), 'error'),
+  })
+  const deletePropMut = useMutation({
+    mutationFn: propsApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['activity-props'] }); toast('Prop removed', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to remove prop'), 'error'),
+  })
+
   // ── Taxes mutations ──────────────────────────────────────────────────────────
   const createTaxMut = useMutation({
     mutationFn: ({ name, rate }: { name: string; rate: number }) => taxesApi.create(name, rate),
@@ -513,8 +597,9 @@ export default function OrganisationPage() {
   const TABS: { key: Tab; label: string }[] = [
     { key: 'information', label: 'Information' },
     { key: 'clinics',     label: 'Clinics' },
-    { key: 'manage',      label: 'Manage' },
-    { key: 'iep-library', label: 'IEP Library' },
+    { key: 'manage',           label: 'Manage' },
+    { key: 'activity-library', label: 'Activity Library' },
+    { key: 'iep-library',      label: 'IEP Library' },
   ]
 
   return (
@@ -596,6 +681,64 @@ export default function OrganisationPage() {
               </div>
             </dl>
           </Card>
+
+          {user?.role === 'BUSINESS_OWNER' && (
+            <Card>
+              <CardHeader
+                title="AI Assistant (Magic Fill)"
+                subtitle="Lets staff auto-draft Activity instructions and checklists. Off until a provider and key are set here."
+                action={!aiEditing ? (
+                  <Button variant="secondary" size="sm" onClick={startAiEdit}><Pencil size={14} /> {org?.aiKeyConfigured ? 'Change' : 'Set up'}</Button>
+                ) : undefined}
+              />
+              {!aiEditing ? (
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} style={{ color: org?.aiKeyConfigured ? colors.text.primary : colors.text.dim }} />
+                  {org?.aiKeyConfigured ? (
+                    <p className="text-sm" style={{ color: colors.text.primary }}>
+                      Enabled — using <span className="font-medium">{org?.aiProvider}</span>. The API key is hidden once saved.
+                    </p>
+                  ) : (
+                    <p className="text-sm" style={{ color: colors.text.dim }}>Not configured — Magic Fill is hidden in Activities.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Select
+                      label="Provider"
+                      placeholder="Select a provider…"
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value as AiProvider)}
+                      options={[
+                        { value: 'ANTHROPIC', label: 'Anthropic (Claude)' },
+                        { value: 'OPENAI', label: 'OpenAI (ChatGPT)' },
+                        { value: 'GEMINI', label: 'Google (Gemini)' },
+                      ]}
+                    />
+                    <Input
+                      label="API Key"
+                      type="password"
+                      autoComplete="off"
+                      placeholder={org?.aiKeyConfigured ? 'Leave blank to keep the current key' : 'Paste the provider API key'}
+                      value={aiApiKey}
+                      onChange={(e) => setAiApiKey(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs" style={{ color: colors.text.dim }}>
+                    The key is stored server-side only — it is never shown again after saving.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={saveAi} loading={aiMut.isPending}>Save</Button>
+                    <Button variant="secondary" onClick={() => setAiEditing(false)}>Cancel</Button>
+                    {org?.aiKeyConfigured && (
+                      <Button variant="danger" onClick={clearAi} loading={aiMut.isPending}>Turn off</Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Public Holidays */}
           <Card>
@@ -784,28 +927,6 @@ export default function OrganisationPage() {
             )}
           </SectionCard>
 
-          {/* Therapies */}
-          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
-            {therapies.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
-            )}
-            {therapies.map(t => (
-              <ItemRow
-                key={t.id}
-                name={t.name}
-                onDelete={() => deleteTherapyMut.mutate(t.id)}
-                canDelete={canManage}
-              />
-            ))}
-            {canManage && (
-              <AddRow
-                placeholder="e.g. Occupational Therapy"
-                loading={createTherapyMut.isPending}
-                onAdd={(name) => createTherapyMut.mutate(name)}
-              />
-            )}
-          </SectionCard>
-
           {/* Conditions */}
           <SectionCard title="Conditions" icon={<HeartPulse size={18} />}>
             {conditions.length === 0 && (
@@ -847,6 +968,86 @@ export default function OrganisationPage() {
                 loading={createTaxMut.isPending}
                 extraInput={{ placeholder: 'Rate %', label: 'Rate' }}
                 onAdd={(name, rate) => createTaxMut.mutate({ name, rate: parseFloat(rate ?? '0') })}
+              />
+            )}
+          </SectionCard>
+
+        </div>
+      )}
+
+      {/* ── Activity Library tab ────────────────────────────────────────────── */}
+      {tab === 'activity-library' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+          {/* Therapies */}
+          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
+            {therapies.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
+            )}
+            {therapies.map(t => (
+              <ItemRow
+                key={t.id}
+                name={t.name}
+                onDelete={() => deleteTherapyMut.mutate(t.id)}
+                canDelete={canManage}
+              />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Occupational Therapy"
+                loading={createTherapyMut.isPending}
+                onAdd={(name) => createTherapyMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
+          {/* Activity Skills */}
+          <SectionCard title="Activity Skills" icon={<Target size={18} />}>
+            {skills.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No skills yet.</p>
+            )}
+            {skills.map(s => (
+              <ItemRow key={s.id} name={s.name} onDelete={() => deleteSkillMut.mutate(s.id)} canDelete={canManage} />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Fine Motor, Attention…"
+                loading={createSkillMut.isPending}
+                onAdd={(name) => createSkillMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
+          {/* Activity Languages */}
+          <SectionCard title="Activity Languages" icon={<LanguagesIcon size={18} />}>
+            {languages.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No languages yet.</p>
+            )}
+            {languages.map(l => (
+              <ItemRow key={l.id} name={l.name} onDelete={() => deleteLanguageMut.mutate(l.id)} canDelete={canManage} />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. English, Hindi…"
+                loading={createLanguageMut.isPending}
+                onAdd={(name) => createLanguageMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
+          {/* Activity Props */}
+          <SectionCard title="Activity Props Required" icon={<Box size={18} />}>
+            {propsList.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No props yet.</p>
+            )}
+            {propsList.map(p => (
+              <ItemRow key={p.id} name={p.name} onDelete={() => deletePropMut.mutate(p.id)} canDelete={canManage} />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Building Blocks, Flashcards…"
+                loading={createPropMut.isPending}
+                onAdd={(name) => createPropMut.mutate(name)}
               />
             )}
           </SectionCard>

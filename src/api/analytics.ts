@@ -1,6 +1,6 @@
 import client from './client'
 import type {
-  AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
+  ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
   DomainSeries, Granularity, IEPGoalDomain, TimeSeriesResponse,
 } from '../types'
 
@@ -79,4 +79,10 @@ export const analyticsApi = {
     client
       .get<ApiResponse<TimeSeriesResponse>>('/analytics/overview', { params })
       .then(r => normaliseSeries(r.data.data)),
+
+  /** Activity assignment/attempt counts for one patient — additive to patientProgress. */
+  patientActivityProgress: (patientId: string, from: string, to: string) =>
+    client
+      .get<ApiResponse<ActivityProgressResponse>>(`/analytics/patients/${patientId}/activities`, { params: { from, to } })
+      .then(r => r.data.data),
 }
