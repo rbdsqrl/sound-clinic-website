@@ -21,11 +21,11 @@ export const inquiriesApi = {
   submit: (data: CreateInquiryRequest) =>
     publicClient.post<ApiResponse<InquiryResponse>>('/inquiries', data).then(r => r.data.data),
 
-  /** Record an inquiry taken at the clinic — CLINIC_HEAD / ADMIN / BUSINESS_OWNER */
+  /** Record an inquiry taken at the clinic — CLINIC_HEAD / BUSINESS_OWNER */
   addManual: (data: CreateManualInquiryRequest) =>
     client.post<ApiResponse<InquiryResponse>>('/inquiries/manual', data).then(r => r.data.data),
 
-  /** List inquiries — OFFICE_ADMIN / ADMIN / BUSINESS_OWNER */
+  /** List inquiries — CLINIC_HEAD / BUSINESS_OWNER */
   list: (status?: InquiryStatus) =>
     client.get<ApiResponse<InquiryResponse[]>>('/inquiries', {
       params: status ? { status } : {},

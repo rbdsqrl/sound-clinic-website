@@ -48,7 +48,7 @@ export const therapySessionsApi = {
       data,
     ).then(r => r.data.data),
 
-  /** Book a one-off session from the calendar (BUSINESS_OWNER / ADMIN / CLINIC HEAD) */
+  /** Book a one-off session from the calendar (BUSINESS_OWNER / CLINIC_HEAD) */
   createAdHoc: (data: CreateAdHocSessionRequest) =>
     client.post<ApiResponse<TherapySessionResponse>>('/therapy-sessions/ad-hoc', data)
       .then(r => r.data.data),

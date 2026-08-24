@@ -80,11 +80,10 @@ export const colors = {
   /** Role dot colours — static, not mode-dependent */
   role: {
     BUSINESS_OWNER: '#E0A840',   // warm amber
-    OFFICE_ADMIN:   '#2B80C8',   // blue
+    CLINIC_HEAD:    '#D96060',   // coral-red
     THERAPIST:      '#9864DC',   // soft purple
     DOCTOR:         '#2B80C8',   // blue (matches accent)
     PARENT:         '#DC64A0',   // soft pink
-    ADMIN:          '#D96060',   // coral-red
     PATIENT:        '#6B8499',   // slate
   },
 } as const

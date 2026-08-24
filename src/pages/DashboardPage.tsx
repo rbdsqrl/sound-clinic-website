@@ -992,9 +992,9 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
-  const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'ADMIN'
-  const canReschedule      = isOwnerOrAdmin || activeRole === 'OFFICE_ADMIN'
-  const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR' || activeRole === 'OFFICE_ADMIN'
+  const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  const canReschedule      = isOwnerOrAdmin
+  const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
   const canUpdateSession   = activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
 
   const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)

@@ -105,7 +105,7 @@ src/
     ├── DashboardPage.tsx            # Role-scoped summary cards + recent data
     ├── InvitationsPage.tsx          # Invite by email+role; list sent invites
     ├── LandingPage.tsx              # Public marketing page — always light mode (force-light class)
-    ├── OrganisationPage.tsx         # View/edit org profile (BUSINESS_OWNER, ADMIN)
+    ├── OrganisationPage.tsx         # View/edit org profile (BUSINESS_OWNER, CLINIC_HEAD)
     │
     ├── appointments/
     │   ├── AppointmentsPage.tsx     # List appointments (role-scoped view)
@@ -133,7 +133,7 @@ src/
     │   └── MiniCalendar.tsx         # Mini calendar component
     │
     ├── leave/
-    │   ├── LeaveManagementPage.tsx  # BUSINESS_OWNER/ADMIN: review + approve/reject leave requests
+    │   ├── LeaveManagementPage.tsx  # BUSINESS_OWNER/CLINIC_HEAD: review + approve/reject leave requests
     │   └── MyLeavePage.tsx          # THERAPIST/DOCTOR: apply + view own leave requests
     │
     ├── patients/
@@ -183,11 +183,8 @@ src/
 ## Sidebar Navigation by Role (`Sidebar.tsx`)
 
 ```
-BUSINESS_OWNER / ADMIN:
+BUSINESS_OWNER / CLINIC_HEAD:
   Dashboard, Inquiries, Organisation, Clinics, Therapists, Patients, Programs, Calendar, Leave Requests, Add Members
-
-OFFICE_ADMIN:
-  Dashboard, Inquiries, Patients, Calendar
 
 THERAPIST / DOCTOR:
   Dashboard, Clinics, Patients, Calendar, My Leave
@@ -206,7 +203,7 @@ Dark/Light mode toggle lives at the **bottom** of the sidebar as a full-width na
 ## Types (`src/types/index.ts`)
 
 Key types and enums (see file for full list):
-- `Role`: User roles (BUSINESS_OWNER, ADMIN, THERAPIST, etc.)
+- `Role`: User roles (BUSINESS_OWNER, CLINIC_HEAD, THERAPIST, etc.)
 - `PatientResponse`: Patient with conditions, parents, therapists
 - `InquiryStatus`: Lead status enum
 - `AppointmentStatus`: Booking states

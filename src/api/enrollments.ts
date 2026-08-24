@@ -21,11 +21,11 @@ export const enrollmentsApi = {
       params,
     }).then(r => r.data.data),
 
-  /** Create an enrollment (OFFICE_ADMIN / ADMIN / BUSINESS_OWNER) */
+  /** Create an enrollment (CLINIC_HEAD / BUSINESS_OWNER) */
   create: (data: CreateEnrollmentRequest) =>
     client.post<ApiResponse<EnrollmentResponse>>('/enrollments', data).then(r => r.data.data),
 
-  /** Hand an ongoing plan to a different therapist (OFFICE_ADMIN / ADMIN / BUSINESS_OWNER) */
+  /** Hand an ongoing plan to a different therapist (CLINIC_HEAD / BUSINESS_OWNER) */
   changeTherapist: (id: string, therapistId: string, reason?: string) =>
     client
       .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/therapist`, { therapistId, reason })

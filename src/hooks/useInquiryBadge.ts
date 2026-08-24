@@ -14,7 +14,7 @@ export function useInquiryBadge(): number {
   const { user } = useAuth()
 
   const canSee = !!user && (
-    hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
 
   const { data: newInquiries = [] } = useQuery({

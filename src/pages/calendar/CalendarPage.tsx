@@ -1786,20 +1786,20 @@ type ViewMode = 'month' | 'week' | 'day'
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
   const navigate = useNavigate()
-  const [view,         setView]         = useState<ViewMode>('month')
+  const [view,         setView]         = useState<ViewMode>('day')
   const [current,      setCurrent]      = useState(new Date())
   const [selected,     setSelected]     = useState<CalendarEvent | null>(null)
   const [actionTarget, setActionTarget] = useState<InquiryResponse | null>(null)
 
   const currentRole = activeRole ?? user?.role
   const canSeeInquiries  = !!user && (
-    hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
   const canSeeLeaves     = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
   const canSeeSessions   = !!user && !hasRole(user, 'PATIENT')
   const canUpdateSession = !!user && (
     hasRole(user, 'THERAPIST') || hasRole(user, 'DOCTOR') ||
-    hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER')
+    hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER')
   )
   const canHandleOutcomes = canSeeInquiries
   const canGoToInquiries  = canSeeInquiries
@@ -1807,10 +1807,10 @@ export default function CalendarPage() {
   const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
   // Booking from the calendar is a front-desk action; clinical staff read the grid.
   const canBookSlots = !!user && (
-    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
   const canReschedule = !!user && (
-    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
   const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
@@ -2169,7 +2169,7 @@ export default function CalendarPage() {
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
           canUpdateSession={canUpdateSession}
-          canManageAll={!!user && (hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER'))}
+          canManageAll={!!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))}
           canCreateMeetings={canCreateMeetings}
           canReschedule={canReschedule}
           currentUserId={user?.id ?? ''}

@@ -1029,7 +1029,7 @@ export default function TasksPage() {
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
 
-  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
+  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD'
 
   const [showCreate, setShowCreate]     = useState(false)
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null)

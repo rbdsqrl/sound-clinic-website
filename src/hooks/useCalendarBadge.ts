@@ -18,7 +18,7 @@ export function useCalendarBadge(): number {
   const { user } = useAuth()
 
   const canSeeInquiries = !!user && (
-    hasRole(user, 'ADMIN') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
   const canSeeLeaves   = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
   const canSeeSessions = !!user && !hasRole(user, 'PATIENT')

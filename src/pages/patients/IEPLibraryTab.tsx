@@ -488,7 +488,7 @@ export default function IEPLibraryTab() {
   const qc = useQueryClient()
 
   const currentRole = activeRole ?? user?.role
-  const canManage = currentRole === 'BUSINESS_OWNER' || currentRole === 'ADMIN'
+  const canManage = currentRole === 'BUSINESS_OWNER' || currentRole === 'CLINIC_HEAD'
 
   const [modalOpen,        setModalOpen]        = useState(false)
   const [editingTemplate,  setEditingTemplate]  = useState<IEPTemplateResponse | null>(null)

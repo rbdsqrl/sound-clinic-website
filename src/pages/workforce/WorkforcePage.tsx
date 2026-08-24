@@ -17,7 +17,7 @@ const TABS_BY_ROLE: Partial<Record<Role, { key: TabKey; label: string }[]>> = {
     { key: 'my-leave',         label: 'My Leave' },
     { key: 'leave-requests',   label: 'Leave Requests' },
   ],
-  ADMIN: [
+  CLINIC_HEAD: [
     { key: 'my-attendance',    label: 'My Attendance' },
     { key: 'staff-attendance', label: 'Staff Attendance' },
     { key: 'my-leave',         label: 'My Leave' },
@@ -28,10 +28,6 @@ const TABS_BY_ROLE: Partial<Record<Role, { key: TabKey; label: string }[]>> = {
     { key: 'my-leave',      label: 'My Leave' },
   ],
   DOCTOR: [
-    { key: 'my-attendance', label: 'My Attendance' },
-    { key: 'my-leave',      label: 'My Leave' },
-  ],
-  OFFICE_ADMIN: [
     { key: 'my-attendance', label: 'My Attendance' },
     { key: 'my-leave',      label: 'My Leave' },
   ],

@@ -14,8 +14,7 @@ import { ROUTES } from '../../lib/routes'
 const ROLE_LABELS: Record<string, string> = {
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
-  ADMIN:          'Admin',
-  OFFICE_ADMIN:   'Clinic Head',
+  CLINIC_HEAD:    'Clinic Head',
   PARENT:         'Parent',
   PATIENT:        'Patient',
   BUSINESS_OWNER: 'Business Owner',

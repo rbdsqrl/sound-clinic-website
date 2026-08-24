@@ -8,7 +8,7 @@ export const usersApi = {
   /**
    * All THERAPIST and DOCTOR users in the org.
    * Pass clinicId to scope to a single clinic.
-   * Only callable by BUSINESS_OWNER / ADMIN.
+   * Only callable by BUSINESS_OWNER / CLINIC_HEAD.
    */
   listTherapists: (clinicId?: string) =>
     client
@@ -17,7 +17,7 @@ export const usersApi = {
       })
       .then((r) => r.data.data),
 
-  /** Full staff directory with personal details. BUSINESS_OWNER / ADMIN only. */
+  /** Full staff directory with personal details. BUSINESS_OWNER / CLINIC_HEAD only. */
   listMembers: () =>
     client
       .get<ApiResponse<StaffMemberResponse[]>>('/users/members')

@@ -1453,11 +1453,11 @@ export default function PatientDetailPage() {
 
   const currentRole = currentRoleEarly
   const isParent            = isParentRole
-  const canChangeStage      = ['BUSINESS_OWNER', 'ADMIN', 'DOCTOR'].includes(currentRole ?? '')
-  const canManageSubs       = ['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')
-  const canRecordPayment    = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
-  const canCreateEnrollment = ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
-  const canEditDetails      = ['BUSINESS_OWNER', 'ADMIN', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'DOCTOR'].includes(currentRole ?? '')
+  const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')
+  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')
   const canDelete           = currentRole === 'BUSINESS_OWNER'
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
 

@@ -44,22 +44,19 @@ function avatarColor(idx: number) { return AVATAR_COLORS[idx % AVATAR_COLORS.len
 
 const ROLE_LABELS: Partial<Record<Role, string>> = {
   BUSINESS_OWNER: 'Business Owner',
-  ADMIN:          'Admin',
-  OFFICE_ADMIN:   'Clinic Head',
+  CLINIC_HEAD:    'Clinic Head',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
 }
 
 const STAFF_ROLES: { value: string; label: string }[] = [
-  { value: 'ADMIN',        label: 'Admin' },
-  { value: 'OFFICE_ADMIN', label: 'Clinic Head' },
-  { value: 'THERAPIST',    label: 'Therapist' },
-  { value: 'DOCTOR',       label: 'Doctor' },
+  { value: 'CLINIC_HEAD', label: 'Clinic Head' },
+  { value: 'THERAPIST',   label: 'Therapist' },
+  { value: 'DOCTOR',      label: 'Doctor' },
 ]
 
 const INVITABLE_ROLES: { value: Role; label: string }[] = [
-  { value: 'ADMIN',          label: 'Admin' },
-  { value: 'OFFICE_ADMIN',   label: 'Clinic Head' },
+  { value: 'CLINIC_HEAD',    label: 'Clinic Head' },
   { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },
   { value: 'PARENT',         label: 'Parent' },

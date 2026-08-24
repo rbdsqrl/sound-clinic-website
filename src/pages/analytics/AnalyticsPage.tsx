@@ -272,21 +272,25 @@ export default function AnalyticsPage() {
           />
         </div>
 
-        <div className="space-y-1">
-          <label className="form-label" htmlFor="from">From</label>
-          <input
-            id="from" type="date" className="form-input" value={range.from}
-            onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
-          />
-        </div>
+        {tab !== 'patient' && (
+          <>
+            <div className="space-y-1">
+              <label className="form-label" htmlFor="from">From</label>
+              <input
+                id="from" type="date" className="form-input" value={range.from}
+                onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
+              />
+            </div>
 
-        <div className="space-y-1">
-          <label className="form-label" htmlFor="to">To</label>
-          <input
-            id="to" type="date" className="form-input" value={range.to}
-            onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
-          />
-        </div>
+            <div className="space-y-1">
+              <label className="form-label" htmlFor="to">To</label>
+              <input
+                id="to" type="date" className="form-input" value={range.to}
+                onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Empty prompts */}

@@ -41,7 +41,7 @@ export default function EnrollmentDetailPage() {
   const { patientId, enrollmentId } = useParams<{ patientId: string; enrollmentId: string }>()
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
-  const canUpdateSession = ['THERAPIST', 'DOCTOR', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canUpdateSession = ['THERAPIST', 'DOCTOR', 'CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
 
   const [notesState, setNotesState] = useState<{ session: TherapySessionResponse; canEdit: boolean } | null>(null)
   const [editingCareStatus, setEditingCareStatus] = useState(false)
@@ -109,7 +109,7 @@ export default function EnrollmentDetailPage() {
 
   const canUpdateCareStatus = currentRole === 'THERAPIST'
     ? user?.id === enrollment.therapistId
-    : ['OFFICE_ADMIN', 'ADMIN', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+    : ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
 
   const careStatus = CARE_STATUS_VARIANT[enrollment.careStatus] ?? CARE_STATUS_VARIANT.ON_TRACK
 
@@ -301,7 +301,7 @@ export default function EnrollmentDetailPage() {
         <SessionNotesModal
           session={notesState.session}
           canEdit={notesState.canEdit}
-          canDirectlyCancel={['BUSINESS_OWNER', 'ADMIN'].includes(currentRole ?? '')}
+          canDirectlyCancel={['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')}
           enrollmentId={enrollment.id}
           onClose={() => setNotesState(null)}
         />

@@ -19,9 +19,8 @@ export function Badge({ children, variant = 'slate' }: BadgeProps) {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN:          'Admin',
   BUSINESS_OWNER: 'Business Owner',
-  OFFICE_ADMIN:   'Clinic Head',
+  CLINIC_HEAD:    'Clinic Head',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
   PARENT:         'Parent',

@@ -540,7 +540,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
   const { user }  = useAuth()
 
   const canConvert = user
-    && ['BUSINESS_OWNER', 'ADMIN', 'OFFICE_ADMIN'].includes(user.role)
+    && ['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(user.role)
     && inquiry.status !== 'CONVERTED'
 
   const [status,       setStatus]       = useState<InquiryStatus>(inquiry.status)
@@ -959,7 +959,7 @@ export default function InquiriesPage() {
   // Routes are not role-guarded, so gate the action rather than relying on the
   // sidebar to keep other roles off this page.
   const canAddInquiry = !!user &&
-    (hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'ADMIN') || hasRole(user, 'OFFICE_ADMIN'))
+    (hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD'))
 
   const [mainTab,       setMainTab]       = useState<'list' | 'analytics'>('list')
   const [pageView,      setPageView]      = useState<'list' | 'calendar'>('list')

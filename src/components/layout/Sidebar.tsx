@@ -28,15 +28,17 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
     { to: ROUTES.members,      label: 'Members',      icon: UserCog },
   ],
-  OFFICE_ADMIN: [
-    { to: ROUTES.dashboard,  label: 'Dashboard', icon: LayoutDashboard },
-    { to: ROUTES.inquiries,  label: 'Inquiries', icon: Inbox },
-    { to: ROUTES.patients,   label: 'Patients',  icon: Users },
-    { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
-    { to: ROUTES.analytics,  label: 'Analytics', icon: TrendingUp },
-    { to: ROUTES.tasks,      label: 'My Tasks',  icon: ListTodo },
-    { to: ROUTES.calendar,   label: 'Calendar',  icon: CalendarDays },
-    { to: ROUTES.workforce,  label: 'Workforce', icon: Briefcase },
+  CLINIC_HEAD: [
+    { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
+    { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
+    { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
+    { to: ROUTES.patients,     label: 'Patients',     icon: Users },
+    { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
+    { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
+    { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
+    { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
+    { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
+    { to: ROUTES.members,      label: 'Members',      icon: UserCog },
   ],
   THERAPIST: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
@@ -61,18 +63,6 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.analytics,  label: 'Progress',    icon: TrendingUp },
     { to: ROUTES.calendar,   label: 'Calendar',    icon: CalendarDays },
   ],
-  ADMIN: [
-    { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
-    { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
-    { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
-    { to: ROUTES.patients,     label: 'Patients',     icon: Users },
-    { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
-    { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
-    { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
-    { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
-    { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
-    { to: ROUTES.members,      label: 'Members',      icon: UserCog },
-  ],
   PATIENT: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
@@ -81,11 +71,10 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
 
 const ROLE_LABELS: Record<Role, string> = {
   BUSINESS_OWNER: 'Business Owner',
-  OFFICE_ADMIN:   'Clinic Head',
+  CLINIC_HEAD:    'Clinic Head',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
   PARENT:         'Parent',
-  ADMIN:          'Admin',
   PATIENT:        'Patient',
 }
 

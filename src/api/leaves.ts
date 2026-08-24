@@ -16,7 +16,7 @@ export const leavesApi = {
       params: status ? { status } : {},
     }).then(r => r.data.data),
 
-  /** Approve or reject a leave request (BUSINESS_OWNER / ADMIN) */
+  /** Approve or reject a leave request (BUSINESS_OWNER / CLINIC_HEAD) */
   review: (id: string, data: ReviewLeaveRequest) =>
     client.patch<ApiResponse<LeaveResponse>>(`/leaves/${id}/review`, data).then(r => r.data.data),
 

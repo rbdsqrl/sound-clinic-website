@@ -13,15 +13,15 @@ export const subscriptionsApi = {
       params: { patientId },
     }).then(r => r.data.data),
 
-  /** Allocate a subscription to a patient (BUSINESS_OWNER / ADMIN) */
+  /** Allocate a subscription to a patient (BUSINESS_OWNER / CLINIC_HEAD) */
   create: (data: CreateSubscriptionRequest) =>
     client.post<ApiResponse<SubscriptionResponse>>('/subscriptions', data).then(r => r.data.data),
 
-  /** Record payment and discount (OFFICE_ADMIN / ADMIN / BUSINESS_OWNER) */
+  /** Record payment and discount (CLINIC_HEAD / BUSINESS_OWNER) */
   recordPayment: (id: string, data: UpdatePaymentRequest) =>
     client.patch<ApiResponse<SubscriptionResponse>>(`/subscriptions/${id}/payment`, data).then(r => r.data.data),
 
-  /** Cancel a subscription (BUSINESS_OWNER / ADMIN) */
+  /** Cancel a subscription (BUSINESS_OWNER / CLINIC_HEAD) */
   cancel: (id: string) =>
     client.patch<ApiResponse<SubscriptionResponse>>(`/subscriptions/${id}/cancel`).then(r => r.data.data),
 }

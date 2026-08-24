@@ -318,7 +318,7 @@ export default function OrganisationPage() {
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
   const { user } = useAuth()
-  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN'
+  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD'
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: org, isLoading } = useQuery({ queryKey: ['organisation'], queryFn: organisationApi.get })
