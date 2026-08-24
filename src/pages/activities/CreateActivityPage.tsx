@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { Plus, Trash2, Sparkles, Upload, Link2, GripVertical, ChevronRight } from 'lucide-react'
 import { activitiesApi } from '../../api/activities'
-import { therapiesApi } from '../../api/therapies'
+import { programsApi } from '../../api/programs'
 import { skillsApi, languagesApi, propsApi } from '../../api/activityLookups'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -24,7 +24,7 @@ import type {
 interface FormFields {
   title: string
   aboutActivity: string
-  therapyId: string
+  programId: string
   durationWeeks: number
   ageMinValue: number
   ageMinUnit: AgeUnit
@@ -44,7 +44,7 @@ const newKey = () => Math.random().toString(36).slice(2)
 function SectionCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: colors.text.dim }}>{title}</h3>
         {action}
       </div>
@@ -73,7 +73,7 @@ export default function CreateActivityPage() {
     enabled: isEdit,
   })
 
-  const { data: therapies = [] } = useQuery({ queryKey: ['therapies'], queryFn: therapiesApi.list })
+  const { data: programs = [] } = useQuery({ queryKey: ['programs-active'], queryFn: () => programsApi.listActive() })
   const { data: skills = [] } = useQuery({ queryKey: ['skills'], queryFn: skillsApi.list })
   const { data: languages = [] } = useQuery({ queryKey: ['languages'], queryFn: languagesApi.list })
   const { data: propsList = [] } = useQuery({ queryKey: ['activity-props'], queryFn: propsApi.list })
@@ -100,7 +100,7 @@ export default function CreateActivityPage() {
     reset({
       title: existing.title,
       aboutActivity: existing.aboutActivity,
-      therapyId: existing.therapyId ?? '',
+      programId: existing.programId ?? '',
       durationWeeks: existing.durationWeeks,
       ageMinValue: existing.ageMinValue,
       ageMinUnit: existing.ageMinUnit,
@@ -142,7 +142,7 @@ export default function CreateActivityPage() {
     saveMut.mutate({
       title: d.title,
       aboutActivity: d.aboutActivity,
-      therapyId: d.therapyId || undefined,
+      programId: d.programId || undefined,
       skillIds,
       languageIds,
       durationWeeks: Number(d.durationWeeks),
@@ -169,7 +169,7 @@ export default function CreateActivityPage() {
       const result = await activitiesApi.magicFill({
         title: values.title || 'Untitled activity',
         aboutActivity: values.aboutActivity,
-        therapyName: therapies.find((t) => t.id === values.therapyId)?.name,
+        programName: programs.find((p) => p.id === values.programId)?.name,
         skillNames: skills.filter((s) => skillIds.includes(s.id)).map((s) => s.name),
         ageMinValue: Number(values.ageMinValue), ageMinUnit: values.ageMinUnit,
         ageMaxValue: Number(values.ageMaxValue), ageMaxUnit: values.ageMaxUnit,
@@ -217,8 +217,8 @@ export default function CreateActivityPage() {
 
         <Card>
           <div className="space-y-4">
-            <Select label="Therapy" placeholder="Select a therapy…" options={therapies.map((t) => ({ value: t.id, label: t.name }))}
-              {...register('therapyId')} />
+            <Select label="Therapy" placeholder="Select a therapy…" options={programs.map((p) => ({ value: p.id, label: p.name }))}
+              {...register('programId')} />
             <MultiSelectChips
               label="Skills"
               options={skills.map((s) => ({ value: s.id, label: s.name }))}
@@ -230,13 +230,13 @@ export default function CreateActivityPage() {
               {...register('durationWeeks', { required: true, valueAsNumber: true, min: 1 })} />
             <div>
               <label className="form-label">Age Group *</label>
-              <div className="grid grid-cols-2 sm:grid-cols-[1fr_auto_1fr] gap-3 items-end">
-                <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
                   <Input type="number" min={0} {...register('ageMinValue', { valueAsNumber: true, min: 0 })} />
                   <Select options={[{ value: 'YEAR', label: 'Year' }, { value: 'MONTH', label: 'Month' }]} {...register('ageMinUnit')} />
                 </div>
-                <span className="hidden sm:block text-sm text-center" style={{ color: colors.text.dim }}>to</span>
-                <div className="grid grid-cols-2 gap-2 col-span-2 sm:col-span-1">
+                <span className="text-sm text-center sm:flex-shrink-0" style={{ color: colors.text.dim }}>to</span>
+                <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
                   <Input type="number" min={0} {...register('ageMaxValue', { valueAsNumber: true, min: 0 })} />
                   <Select options={[{ value: 'YEAR', label: 'Year' }, { value: 'MONTH', label: 'Month' }]} {...register('ageMaxUnit')} />
                 </div>
@@ -282,7 +282,7 @@ export default function CreateActivityPage() {
                   onChange={(e) => setInstructions((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
                 />
                 <button type="button" onClick={() => setInstructions((prev) => prev.filter((_, idx) => idx !== i))}
-                  style={{ color: colors.text.dim }}>
+                  className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -302,7 +302,8 @@ export default function CreateActivityPage() {
               <div key={q._key} className="rounded-xl p-4" style={{ border: `1px solid ${border.divider}` }}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold" style={{ color: colors.accent }}>Question {qi + 1}</p>
-                  <button type="button" onClick={() => setChecklist((prev) => prev.filter((v) => v._key !== q._key))} style={{ color: colors.text.dim }}>
+                  <button type="button" onClick={() => setChecklist((prev) => prev.filter((v) => v._key !== q._key))}
+                    className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -338,7 +339,7 @@ export default function CreateActivityPage() {
                           onChange={(e) => setChecklist((prev) => prev.map((v) =>
                             v._key === q._key ? { ...v, options: v.options.map((o, idx) => (idx === oi ? e.target.value : o)) } : v))}
                         />
-                        <button type="button" style={{ color: colors.text.dim }}
+                        <button type="button" className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}
                           onClick={() => setChecklist((prev) => prev.map((v) =>
                             v._key === q._key ? { ...v, options: v.options.filter((_, idx) => idx !== oi) } : v))}>
                           <Trash2 size={14} />
@@ -398,9 +399,10 @@ export default function CreateActivityPage() {
           {stagedFiles.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {stagedFiles.map((f, i) => (
-                <li key={i} className="flex items-center justify-between text-sm">
-                  <span style={{ color: colors.text.primary }}>{f.name}</span>
-                  <button type="button" onClick={() => setStagedFiles((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: colors.text.dim }}>
+                <li key={i} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate" style={{ color: colors.text.primary }}>{f.name}</span>
+                  <button type="button" onClick={() => setStagedFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                     <Trash2 size={14} />
                   </button>
                 </li>
@@ -420,7 +422,8 @@ export default function CreateActivityPage() {
                     value={url}
                     onChange={(e) => setLinks((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
                   />
-                  <button type="button" onClick={() => setLinks((prev) => prev.filter((_, idx) => idx !== i))} style={{ color: colors.text.dim }}>
+                  <button type="button" onClick={() => setLinks((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -477,9 +480,10 @@ function ResourcesEditor({ activityId, resources }: { activityId: string; resour
       {resources.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {resources.map((r) => (
-            <li key={r.id} className="flex items-center justify-between text-sm">
-              <span style={{ color: colors.text.primary }}>{r.fileName}</span>
-              <button type="button" onClick={() => deleteMut.mutate(r.id)} style={{ color: colors.text.dim }}>
+            <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate" style={{ color: colors.text.primary }}>{r.fileName}</span>
+              <button type="button" onClick={() => deleteMut.mutate(r.id)}
+                className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
                 <Trash2 size={14} />
               </button>
             </li>

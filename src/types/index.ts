@@ -1237,8 +1237,8 @@ export interface ActivityResponse {
   mine: boolean
   title: string
   aboutActivity: string
-  therapyId: string | null
-  therapyName: string | null
+  programId: string | null
+  programName: string | null
   skills: SkillResponse[]
   languages: LanguageResponse[]
   durationWeeks: number
@@ -1263,7 +1263,7 @@ export interface ActivityResponse {
 export interface CreateActivityRequest {
   title: string
   aboutActivity: string
-  therapyId?: string
+  programId?: string
   skillIds?: string[]
   languageIds?: string[]
   durationWeeks: number
@@ -1343,7 +1343,7 @@ export interface ActivityAttemptResponse {
 export interface MagicFillRequest {
   title: string
   aboutActivity?: string
-  therapyName?: string
+  programName?: string
   skillNames?: string[]
   ageMinValue?: number
   ageMinUnit?: string

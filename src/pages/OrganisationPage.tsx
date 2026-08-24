@@ -350,7 +350,7 @@ export default function OrganisationPage() {
   const { data: therapies = [] } = useQuery({
     queryKey: ['therapies'],
     queryFn: therapiesApi.list,
-    enabled: tab === 'activity-library',
+    enabled: tab === 'manage',
   })
 
   const { data: skills = [] } = useQuery({
@@ -927,6 +927,28 @@ export default function OrganisationPage() {
             )}
           </SectionCard>
 
+          {/* Therapies */}
+          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
+            {therapies.length === 0 && (
+              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
+            )}
+            {therapies.map(t => (
+              <ItemRow
+                key={t.id}
+                name={t.name}
+                onDelete={() => deleteTherapyMut.mutate(t.id)}
+                canDelete={canManage}
+              />
+            ))}
+            {canManage && (
+              <AddRow
+                placeholder="e.g. Occupational Therapy"
+                loading={createTherapyMut.isPending}
+                onAdd={(name) => createTherapyMut.mutate(name)}
+              />
+            )}
+          </SectionCard>
+
           {/* Conditions */}
           <SectionCard title="Conditions" icon={<HeartPulse size={18} />}>
             {conditions.length === 0 && (
@@ -978,28 +1000,6 @@ export default function OrganisationPage() {
       {/* ── Activity Library tab ────────────────────────────────────────────── */}
       {tab === 'activity-library' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-          {/* Therapies */}
-          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
-            {therapies.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
-            )}
-            {therapies.map(t => (
-              <ItemRow
-                key={t.id}
-                name={t.name}
-                onDelete={() => deleteTherapyMut.mutate(t.id)}
-                canDelete={canManage}
-              />
-            ))}
-            {canManage && (
-              <AddRow
-                placeholder="e.g. Occupational Therapy"
-                loading={createTherapyMut.isPending}
-                onAdd={(name) => createTherapyMut.mutate(name)}
-              />
-            )}
-          </SectionCard>
 
           {/* Activity Skills */}
           <SectionCard title="Activity Skills" icon={<Target size={18} />}>

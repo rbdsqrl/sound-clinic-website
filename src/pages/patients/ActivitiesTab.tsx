@@ -92,7 +92,7 @@ export default function ActivitiesTab({ patientId }: { patientId: string }) {
                   </div>
                   <Button size="sm" onClick={() => setLogFor(a)}>Log Attempt</Button>
                   <button
-                    className="inline-flex items-center gap-1 text-xs font-medium"
+                    className="inline-flex items-center gap-1 text-xs font-medium py-2.5 px-1 -m-1"
                     style={{ color: colors.accent }}
                     onClick={() => setExpanded((prev) => (prev === a.id ? null : a.id))}
                   >

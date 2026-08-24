@@ -29,8 +29,8 @@ function ActivityCard({ activity, footer }: { activity: ActivityResponse; footer
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold truncate" style={{ color: colors.text.primary }}>{activity.title}</p>
-          {activity.therapyName && (
-            <p className="text-xs mt-0.5 truncate" style={{ color: colors.text.dim }}>{activity.therapyName}</p>
+          {activity.programName && (
+            <p className="text-xs mt-0.5 truncate" style={{ color: colors.text.dim }}>{activity.programName}</p>
           )}
         </div>
         <Badge variant={DIFFICULTY_VARIANT[activity.difficulty]}>{activity.difficulty}</Badge>

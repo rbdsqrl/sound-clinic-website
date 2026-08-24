@@ -62,10 +62,10 @@ export default function ActivityDetailPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
-      <div className="flex items-center gap-1.5 text-sm" style={{ color: colors.text.dim }}>
-        <Link to={ROUTES.activities} className="hover:underline">My Activities</Link>
-        <ChevronRight size={14} />
-        <span style={{ color: colors.text.primary }}>{activity.title}</span>
+      <div className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: colors.text.dim }}>
+        <Link to={ROUTES.activities} className="hover:underline flex-shrink-0">My Activities</Link>
+        <ChevronRight size={14} className="flex-shrink-0" />
+        <span className="truncate" style={{ color: colors.text.primary }}>{activity.title}</span>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -75,9 +75,9 @@ export default function ActivityDetailPage() {
             <Badge variant={DIFFICULTY_VARIANT[activity.difficulty]}>{activity.difficulty}</Badge>
             {activity.isShared && <Badge variant="blue"><Globe size={11} className="inline mr-1" />Shared</Badge>}
           </div>
-          {activity.therapyName && <p className="text-sm mt-1" style={{ color: colors.text.dim }}>{activity.therapyName}</p>}
+          {activity.programName && <p className="text-sm mt-1" style={{ color: colors.text.dim }}>{activity.programName}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link to={ROUTES.editActivity(activity.id)}>
             <Button variant="secondary"><Pencil size={14} /> Edit</Button>
           </Link>
@@ -205,14 +205,16 @@ function PatientAssignmentsList({ activityId }: { activityId: string }) {
         <Link
           key={a.id}
           to={ROUTES.patient(a.patientId)}
-          className="flex items-center justify-between rounded-xl p-3 hover:opacity-80 transition-opacity"
+          className="flex items-center justify-between gap-3 rounded-xl p-3 hover:opacity-80 transition-opacity"
           style={{ border: `1px solid ${border.divider}` }}
         >
-          <div>
-            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{a.patientName}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{a.patientName}</p>
             <p className="text-xs" style={{ color: colors.text.dim }}>{a.attemptCount} attempt{a.attemptCount !== 1 ? 's' : ''} logged</p>
           </div>
-          <Badge variant={STATUS_VARIANT[a.status]}>{a.status.replace('_', ' ')}</Badge>
+          <div className="flex-shrink-0">
+            <Badge variant={STATUS_VARIANT[a.status]}>{a.status.replace('_', ' ')}</Badge>
+          </div>
         </Link>
       ))}
     </div>

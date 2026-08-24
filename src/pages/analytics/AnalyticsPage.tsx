@@ -323,12 +323,14 @@ export default function AnalyticsPage() {
                   {activityProgressQuery.data.weeklyAttempts.length > 0 && (
                     <div className="mt-4">
                       <p className="mb-2 text-xs font-medium" style={{ color: colors.text.dim }}>Attempts logged per week</p>
-                      <Sparkline
-                        values={activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts)}
-                        min={0}
-                        max={Math.max(1, ...activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts))}
-                        width={280}
-                      />
+                      <div className="overflow-x-auto">
+                        <Sparkline
+                          values={activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts)}
+                          min={0}
+                          max={Math.max(1, ...activityProgressQuery.data.weeklyAttempts.map((w) => w.attempts))}
+                          width={260}
+                        />
+                      </div>
                     </div>
                   )}
                 </>
