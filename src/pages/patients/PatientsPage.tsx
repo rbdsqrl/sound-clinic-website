@@ -87,6 +87,7 @@ function PatientCard({ patient, index, clinicName }: {
   const av      = AVATAR_STYLES[index % AVATAR_STYLES.length]
   const status  = inviteStatus(patient)
   const initials = `${patient.firstName[0] ?? ''}${patient.lastName[0] ?? ''}`.toUpperCase()
+  const therapies = patient.therapies ?? []
 
   return (
     <Link to={`/patients/${patient.id}`} className="block">
@@ -125,16 +126,16 @@ function PatientCard({ patient, index, clinicName }: {
 
         {/* Therapies — fixed height for ~2 rows so every card lines up */}
         <div className="flex flex-wrap content-start gap-1.5 overflow-hidden" style={{ minHeight: 58, maxHeight: 58 }}>
-          {patient.therapies.length > 0 ? (
+          {therapies.length > 0 ? (
             <>
-              {patient.therapies.slice(0, 4).map(t => (
+              {therapies.slice(0, 4).map(t => (
                 <span key={t.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
                   {t.name}
                 </span>
               ))}
-              {patient.therapies.length > 4 && (
+              {therapies.length > 4 && (
                 <span className="text-[12.65px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
-                  +{patient.therapies.length - 4}
+                  +{therapies.length - 4}
                 </span>
               )}
             </>
