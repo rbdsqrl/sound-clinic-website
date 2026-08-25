@@ -253,6 +253,15 @@ function allDayEventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] 
   return events.filter(e => e.isAllDay && e.date === key)
 }
 
+/** Which staff-column(s) an event belongs to — used by the per-therapist Staff view. */
+function eventOwnerIds(ev: CalendarEvent): string[] {
+  if (ev.kind === 'session') return [(ev.raw as TherapySessionResponse).therapistId]
+  if (ev.kind === 'leave')   return [(ev.raw as LeaveResponse).therapistId]
+  if (ev.kind === 'review')  return [(ev.raw as ReviewMeetingResponse).therapistId]
+  if (ev.kind === 'meeting') return (ev.raw as MeetingResponse).participants.map(p => p.id)
+  return [] // consultations and holidays aren't owned by a specific therapist
+}
+
 function upcomingEvents(events: CalendarEvent[], limit = 40): CalendarEvent[] {
   const todayKey = format(new Date(), 'yyyy-MM-dd')
   return events
@@ -488,7 +497,7 @@ function WeekView({
   const hasAnyAllDay = days.some(d => allDayEventsOnDay(events, d).length > 0)
 
   return (
-    <div className="flex flex-col flex-1 overflow-auto">
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       {/* Day headers */}
       <div className="grid sticky top-0 z-10 border-b"
         style={{ gridTemplateColumns: '64px repeat(7, 1fr)', borderColor: border.divider, background: surface.card }}>
@@ -565,9 +574,14 @@ function WeekView({
                   {dayKeyH === todayKey && Math.floor(nowMins / 60) === hour && (
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
-                  {timed.map(ev => (
+                  {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')).slice(0, 3).map(ev => (
                     <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
                   ))}
+                  {timed.length > 3 && (
+                    <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
+                      +{timed.length - 3} more
+                    </p>
+                  )}
                 </div>
               )
             })}
@@ -600,7 +614,7 @@ function DayView({
   const allDayEvs = allDayEventsOnDay(events, current)
 
   return (
-    <div className="flex flex-col flex-1 overflow-auto">
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
 
       {/* Day header */}
       <div className="sticky top-0 z-10 flex items-stretch border-b flex-shrink-0"
@@ -684,7 +698,7 @@ function DayView({
                 {showsToday && Math.floor(nowMins / 60) === hour && (
                   <NowLine minutes={nowMins} innerRef={nowRef} />
                 )}
-                {timed.map(ev => {
+                {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')).slice(0, 3).map(ev => {
                   const s = kindStyle(ev.kind, ev.status)
                   const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
                   return (
@@ -708,10 +722,122 @@ function DayView({
                     </button>
                   )
                 })}
+                {timed.length > 3 && (
+                  <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
+                    +{timed.length - 3} other events
+                  </p>
+                )}
               </div>
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Staff (per-therapist) Day View ──────────────────────────────────────────
+
+interface StaffColumn {
+  id: string
+  firstName: string
+  lastName: string
+  label: string
+}
+
+function StaffDayView({
+  current, events, columns, onSelect, holidayDates,
+}: {
+  current: Date; events: CalendarEvent[]; columns: StaffColumn[]
+  onSelect: (e: CalendarEvent) => void
+  holidayDates: Set<string>
+}) {
+  const nowMins = useNowMinutes()
+  const nowRef  = useRef<HTMLDivElement>(null)
+  useEffect(() => { nowRef.current?.scrollIntoView({ block: 'center' }) }, [])
+  const showsToday = format(new Date(), 'yyyy-MM-dd') === format(current, 'yyyy-MM-dd')
+  const dayKey    = format(current, 'yyyy-MM-dd')
+  const isHoliday = holidayDates.has(dayKey)
+  const HOURS     = Array.from({ length: 24 }, (_, i) => i)
+
+  const dayEvents = eventsOnDay(events, current)
+  const gridCols  = `64px repeat(${columns.length}, minmax(200px, 1fr))`
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+      {/* Column headers */}
+      <div className="grid sticky top-0 z-10 border-b"
+        style={{ gridTemplateColumns: gridCols, borderColor: border.divider, background: surface.card }}>
+        <div />
+        {columns.map(col => (
+          <div key={col.id} className="py-2 px-1 text-center border-l flex flex-col items-center gap-1"
+            style={{ borderColor: border.divider }}>
+            <div className="h-7 w-7 rounded-full text-xs font-bold flex items-center justify-center"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {col.firstName[0]}{col.lastName[0] ?? ''}
+            </div>
+            <p className="text-xs font-semibold truncate w-full" style={{ color: colors.text.primary }}>
+              {col.label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* All-day row (leave) */}
+      <div className="grid border-b sticky z-10"
+        style={{ gridTemplateColumns: gridCols, borderColor: border.divider, background: surface.card, top: 73 }}>
+        <div className="px-1 pt-1 text-right">
+          <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
+        </div>
+        {columns.map(col => {
+          const allDay = dayEvents.filter(e => e.isAllDay && eventOwnerIds(e).includes(col.id))
+          return (
+            <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px]"
+              style={{ borderColor: border.divider }}>
+              {allDay.map(ev => (
+                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
+              ))}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Hour rows */}
+      <div className="flex-1">
+        {HOURS.map(hour => (
+          <div key={hour} className="grid border-b"
+            style={{ gridTemplateColumns: gridCols, borderColor: border.divider, minHeight: 56,
+                     background: isHoliday ? '#FFFBEB30' : undefined }}>
+            <div className="px-2 pt-1 text-right">
+              <span className="text-xs whitespace-nowrap tabular-nums" style={{ color: colors.text.muted }}>
+                {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+              </span>
+            </div>
+            {columns.map(col => {
+              const timed = dayEvents.filter(e =>
+                !e.isAllDay && e.time != null && parseInt(e.time.split(':')[0]) === hour &&
+                eventOwnerIds(e).includes(col.id)
+              )
+              const sorted = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
+              return (
+                <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 relative"
+                  style={{ borderColor: border.divider }}>
+                  {showsToday && col === columns[0] && Math.floor(nowMins / 60) === hour && (
+                    <NowLine minutes={nowMins} innerRef={nowRef} />
+                  )}
+                  {sorted.slice(0, 3).map(ev => (
+                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
+                  ))}
+                  {sorted.length > 3 && (
+                    <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
+                      +{sorted.length - 3} other events
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1781,7 +1907,7 @@ function ProgramSessionsPlaceholder() {
 
 // ── Main CalendarPage ─────────────────────────────────────────────────────────
 
-type ViewMode = 'month' | 'week' | 'day'
+type ViewMode = 'month' | 'week' | 'day' | 'staff'
 
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
@@ -1812,10 +1938,14 @@ export default function CalendarPage() {
   const canReschedule = !!user && (
     hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
   )
+  // Seeing every therapist's schedule side by side is an org-management view.
+  const canSeeStaffView = canBookSlots
   const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
   const [upcomingOpen,   setUpcomingOpen]   = useState(false)
+  const [caseFilter,     setCaseFilter]     = useState('')
+  const [programFilter,  setProgramFilter]  = useState('')
   const qcMain = useQueryClient()
 
   // ── Browser notification state ─────────────────────────────────────────────
@@ -1833,12 +1963,12 @@ export default function CalendarPage() {
 
   // ── Visible date range ─────────────────────────────────────────────────────
   const visStart = useMemo(() => {
-    if (view === 'day')   return format(current, 'yyyy-MM-dd')
+    if (view === 'day' || view === 'staff') return format(current, 'yyyy-MM-dd')
     if (view === 'week')  return format(getWeekStart(current, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return format(startOfWeek(startOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   }, [current, view])
   const visEnd = useMemo(() => {
-    if (view === 'day')   return format(current, 'yyyy-MM-dd')
+    if (view === 'day' || view === 'staff') return format(current, 'yyyy-MM-dd')
     if (view === 'week')  return format(addDays(getWeekStart(current, { weekStartsOn: 1 }), 6), 'yyyy-MM-dd')
     return format(endOfWeek(endOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   }, [current, view])
@@ -1867,6 +1997,13 @@ export default function CalendarPage() {
     queryKey: ['public-holidays'],
     queryFn:  publicHolidaysApi.list,
     staleTime: 60 * 60 * 1000, // holidays rarely change; cache for 1 hour
+  })
+
+  const { data: staffTherapists = [] } = useQuery({
+    queryKey: ['therapists'],
+    queryFn:  () => usersApi.listTherapists(),
+    enabled:  canSeeStaffView,
+    staleTime: 5 * 60 * 1000,
   })
 
   // Scoped server-side: therapists get their own, parents their children's
@@ -1912,6 +2049,46 @@ export default function CalendarPage() {
     }
     return out
   }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, meetings, canSeeInquiries])
+
+  // ── Staff view: columns + Case/Program filters ─────────────────────────────
+  const staffColumns = useMemo<StaffColumn[]>(() => {
+    const me: StaffColumn = {
+      id: user?.id ?? '', firstName: user?.firstName ?? '', lastName: user?.lastName ?? '', label: 'Me',
+    }
+    return [me, ...staffTherapists.map(t => ({
+      id: t.id, firstName: t.firstName, lastName: t.lastName, label: `${t.firstName} ${t.lastName}`,
+    }))]
+  }, [user, staffTherapists])
+
+  const caseOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const s of sessions) byId.set(s.patientId, `${s.patientFirstName} ${s.patientLastName}`)
+    for (const r of reviewMeetings) byId.set(r.patientId, r.patientName)
+    return [...byId.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [sessions, reviewMeetings])
+
+  const programOptions = useMemo(() => {
+    const names = new Set(sessions.map(s => s.programName).filter(Boolean))
+    return [...names].sort().map(p => ({ value: p, label: p }))
+  }, [sessions])
+
+  const staffEvents = useMemo(() => {
+    if (view !== 'staff' || (!caseFilter && !programFilter)) return events
+    return events.filter(ev => {
+      if (caseFilter) {
+        if (ev.kind === 'session') { if ((ev.raw as TherapySessionResponse).patientId !== caseFilter) return false }
+        else if (ev.kind === 'review') { if ((ev.raw as ReviewMeetingResponse).patientId !== caseFilter) return false }
+        else return false // leave/meeting/holiday/consultation aren't tied to a case
+      }
+      if (programFilter) {
+        if (ev.kind === 'session') { if ((ev.raw as TherapySessionResponse).programName !== programFilter) return false }
+        else return false // only sessions carry a program
+      }
+      return true
+    })
+  }, [events, view, caseFilter, programFilter])
 
   // ── Browser notification effect ────────────────────────────────────────────
   // Fires every 60 s; notifies for timed events starting within 15 minutes.
@@ -1966,7 +2143,7 @@ export default function CalendarPage() {
 
   const title = view === 'month'
     ? format(current, 'MMMM yyyy')
-    : view === 'day'
+    : (view === 'day' || view === 'staff')
     ? format(current, 'EEEE, d MMMM yyyy')
     : (() => {
         const ws = getWeekStart(current, { weekStartsOn: 1 })
@@ -2102,15 +2279,30 @@ export default function CalendarPage() {
 
           {/* View toggle — hidden below sm */}
           <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
-            {(['day', 'week', 'month'] as ViewMode[]).map(m => (
+            {([...(['day', 'week', 'month'] as ViewMode[]), ...(canSeeStaffView ? ['staff'] as ViewMode[] : [])]).map(m => (
               <button key={m} onClick={() => setView(m)}
                 className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
                 style={view === m ? styles.filterTabActive : styles.filterTabInactive}>
-                {m}
+                {m === 'staff' ? 'Staff' : m}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Staff view filters — Case / Program */}
+        {view === 'staff' && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b flex-shrink-0"
+            style={{ borderColor: border.divider }}>
+            <div className="w-44">
+              <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
+                options={caseOptions} placeholder="All Cases" />
+            </div>
+            <div className="w-44">
+              <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
+                options={programOptions} placeholder="All Programs" />
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         {!hasAnyEvents ? (
@@ -2118,13 +2310,16 @@ export default function CalendarPage() {
         ) : (
           <div className="flex flex-1 min-h-0 overflow-hidden gap-4 p-0">
             {/* Calendar grid */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col">
-              <div className={`flex flex-col flex-1 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
+            <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto flex flex-col">
+              <div className={`flex flex-col flex-1 min-h-0 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
                 {view === 'month' ? (
                   <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
                 ) : view === 'week' ? (
                   <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
+                ) : view === 'staff' ? (
+                  <StaffDayView current={current} events={staffEvents} columns={staffColumns}
+                    onSelect={setSelected} holidayDates={holidayDates} />
                 ) : (
                   <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
