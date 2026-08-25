@@ -181,9 +181,9 @@ function TodaySessions({
           </Link>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {sessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <div className="h-full flex flex-col items-center justify-center gap-2">
               <CalendarDays size={28} style={{ color: colors.text.dim }} />
               <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
             </div>
@@ -455,13 +455,15 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Leave · Holiday · Parent request</p>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {sessions.length === 0 ? (
-            <EmptyState
-              icon={<AlertTriangle size={22} />}
-              title="Nothing to reschedule"
-              description="Sessions affected by leave, holidays, or parent requests will show up here."
-            />
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<AlertTriangle size={22} />}
+                title="Nothing to reschedule"
+                description="Sessions affected by leave, holidays, or parent requests will show up here."
+              />
+            </div>
           ) : (
             <div>
               {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
@@ -596,13 +598,15 @@ function CancellationRequestsPanel({ sessions, onDone }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Awaiting your approval</p>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {sessions.length === 0 ? (
-            <EmptyState
-              icon={<XCircle size={22} />}
-              title="No cancellation requests"
-              description="Requests from therapists or doctors to cancel a session will show up here for approval."
-            />
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<XCircle size={22} />}
+                title="No cancellation requests"
+                description="Requests from therapists or doctors to cancel a session will show up here for approval."
+              />
+            </div>
           ) : (
             <div>
               {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
@@ -708,13 +712,15 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
           <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {birthdays.length === 0 ? (
-            <EmptyState
-              icon={<Cake size={22} />}
-              title="No birthdays coming up"
-              description="Patients with a birthday in the next 30 days will show up here."
-            />
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<Cake size={22} />}
+                title="No birthdays coming up"
+                description="Patients with a birthday in the next 30 days will show up here."
+              />
+            </div>
           ) : (
             <div>
               {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
@@ -997,13 +1003,15 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
           </Link>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {active.length === 0 ? (
-            <EmptyState
-              icon={<ListTodo size={22} />}
-              title="No open tasks"
-              description="Tasks assigned to you will show up here."
-            />
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<ListTodo size={22} />}
+                title="No open tasks"
+                description="Tasks assigned to you will show up here."
+              />
+            </div>
           ) : (
             <div>
               {shown.map((task, i) => taskRow(task, i, shown))}
@@ -1105,13 +1113,15 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
           </Link>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex-1">
           {posts.length === 0 ? (
-            <EmptyState
-              icon={<Newspaper size={22} />}
-              title="No posts yet"
-              description="Clinic updates from Business Owner and Clinic Head will show up here."
-            />
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<Newspaper size={22} />}
+                title="No posts yet"
+                description="Clinic updates from Business Owner and Clinic Head will show up here."
+              />
+            </div>
           ) : (
             <div>
               {shown.map((post, i) => postRow(post, i, shown))}
