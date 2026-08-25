@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import {
   Plus, Upload, Download, ChevronDown, ChevronUp, Check,
   Target, Trash2, FileText, AlertCircle, CheckCircle2,
-  Clock, PauseCircle, ShieldCheck, CalendarDays,
+  Clock, PauseCircle, ShieldCheck, CalendarDays, Pencil,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { iepApi } from '../../api/iep'
@@ -249,6 +249,56 @@ function CompletionRing({ completed, total }: { completed: number; total: number
       </div>
       <p className="text-[11.5px]" style={{ color: colors.text.dim }}>Completed</p>
     </div>
+  )
+}
+
+// ── Plan therapist badge (view / assign / reassign) ─────────────────────────────
+
+function PlanTherapistBadge({ therapistName, therapists, canAssign, onAssign }: {
+  therapistName: string | null
+  therapists: TherapistSummary[]
+  canAssign: boolean
+  onAssign: (therapistId: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        defaultValue=""
+        onClick={e => e.stopPropagation()}
+        onBlur={() => setEditing(false)}
+        onChange={e => {
+          e.stopPropagation()
+          if (e.target.value) onAssign(e.target.value)
+          setEditing(false)
+        }}
+        className="text-xs rounded-full px-2 py-0.5 border outline-none cursor-pointer"
+        style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.accent }}
+      >
+        <option value="" disabled>Select therapist…</option>
+        {therapists.map(t => (
+          <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+        ))}
+      </select>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      {therapistName ?? 'No therapist assigned'}
+      {canAssign && therapists.length > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); setEditing(true) }}
+          className="hover:opacity-70 transition-opacity"
+          style={{ color: colors.text.dim }}
+          title={therapistName ? 'Change therapist' : 'Assign therapist'}
+        >
+          <Pencil size={10} />
+        </button>
+      )}
+    </span>
   )
 }
 
@@ -781,27 +831,12 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                       ))}
                     </div>
                     <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: colors.text.dim }}>
-                      {plan.therapistName ? (
-                        <span>{plan.therapistName}</span>
-                      ) : isAdmin && therapists.length > 0 ? (
-                        <select
-                          defaultValue=""
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => {
-                            e.stopPropagation()
-                            if (e.target.value) assignTherapistMut.mutate({ planId: plan.id, therapistId: e.target.value })
-                          }}
-                          className="text-xs rounded-full px-2 py-0.5 border outline-none cursor-pointer"
-                          style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.accent }}
-                        >
-                          <option value="" disabled>Assign therapist…</option>
-                          {therapists.map(t => (
-                            <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span>No therapist assigned</span>
-                      )}
+                      <PlanTherapistBadge
+                        therapistName={plan.therapistName}
+                        therapists={therapists}
+                        canAssign={isAdmin}
+                        onAssign={therapistId => assignTherapistMut.mutate({ planId: plan.id, therapistId })}
+                      />
                       {plan.startDate && plan.endDate && (
                         <span>{format(new Date(plan.startDate), 'dd MMM yyyy')} – {format(new Date(plan.endDate), 'dd MMM yyyy')}</span>
                       )}
