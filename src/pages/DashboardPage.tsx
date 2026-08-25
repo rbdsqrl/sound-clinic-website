@@ -1336,33 +1336,41 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Uniform 2-column tile grid — Calendar and Feed lead, then any alerts, then Birthdays/Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TodaySessions
-          sessions={todaySessions}
-          showTherapist={isOwnerOrAdmin}
-          onSessionClick={canUpdateSession ? setEditingSession : undefined}
-        />
+      {/* Uniform 2-column tile grid. Reschedule/Cancellation are on-demand alerts — they only
+          take a slot when there's an active request, and lead the grid when they do. */}
+      {(() => {
+        const hasReschedule   = canReschedule && pendingReschedule.length > 0
+        const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
 
-        <FeedPanel posts={feedPosts} />
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {hasReschedule && (
+              <PendingReschedulePanel
+                sessions={pendingReschedule}
+                onRescheduled={() => refetchPending()}
+              />
+            )}
 
-        {canReschedule && (
-          <PendingReschedulePanel
-            sessions={pendingReschedule}
-            onRescheduled={() => refetchPending()}
-          />
-        )}
+            {hasCancellation && (
+              <CancellationRequestsPanel
+                sessions={cancellationRequests}
+                onDone={() => refetchCancelRequests()}
+              />
+            )}
 
-        {isOwnerOrAdmin && (
-          <CancellationRequestsPanel
-            sessions={cancellationRequests}
-            onDone={() => refetchCancelRequests()}
-          />
-        )}
+            <TodaySessions
+              sessions={todaySessions}
+              showTherapist={isOwnerOrAdmin}
+              onSessionClick={canUpdateSession ? setEditingSession : undefined}
+            />
 
-        <UpcomingBirthdays birthdays={upcomingBirthdays} />
-        <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
-      </div>
+            <FeedPanel posts={feedPosts} />
+
+            <UpcomingBirthdays birthdays={upcomingBirthdays} />
+            <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
+          </div>
+        )
+      })()}
 
       {editingSession && (
         <SessionUpdateModal
