@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
   Building2, CalendarOff, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
-  ToggleLeft, ToggleRight, IndianRupee, Stethoscope, HeartPulse, Receipt, Sparkles,
+  ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
   Target, Languages as LanguagesIcon, Box,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -12,7 +12,6 @@ import { organisationApi } from '../api/organisation'
 import { publicHolidaysApi } from '../api/publicHolidays'
 import { programsApi } from '../api/programs'
 import { conditionsApi } from '../api/conditions'
-import { therapiesApi } from '../api/therapies'
 import { taxesApi } from '../api/taxes'
 import { clinicsApi } from '../api/clinics'
 import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
@@ -32,7 +31,7 @@ import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
-  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse, AiProvider, DayOfWeek,
+  ProgramResponse, ConditionResponse, TaxResponse, AiProvider, DayOfWeek,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
@@ -216,6 +215,13 @@ function ProgramRow({
               <IndianRupee size={10} />
               {Number(program.perSessionCost).toLocaleString('en-IN')}
             </span>
+            {program.taxName && (
+              <span className="text-xs" style={{ color: colors.text.muted }}>
+                {program.priceIncludesTax
+                  ? `incl. ${program.taxName}`
+                  : `+ ${program.taxName} = ₹${Number(program.totalCost).toLocaleString('en-IN')}`}
+              </span>
+            )}
           </div>
           {program.description && (
             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{program.description}</p>
@@ -251,16 +257,36 @@ function ProgramRow({
 }
 
 // ── Add program inline ─────────────────────────────────────────────────────────
-function AddProgramRow({ onAdd, loading }: { onAdd: (name: string, cost: string, desc: string) => void; loading: boolean }) {
+function AddProgramRow({ onAdd, loading, taxes }: {
+  onAdd: (name: string, cost: string, desc: string, taxId: string, priceIncludesTax: boolean) => void
+  loading: boolean
+  taxes: TaxResponse[]
+}) {
   const [name, setName] = useState('')
   const [cost, setCost] = useState('')
   const [desc, setDesc] = useState('')
+  const [taxId, setTaxId] = useState('')
+  const [priceIncludesTax, setPriceIncludesTax] = useState(true)
   const [open, setOpen] = useState(false)
+
+  const selectedTax = taxes.find(t => t.id === taxId)
+  const costNum = parseFloat(cost)
+  const hasPreview = !!selectedTax && !isNaN(costNum)
+  const taxAmount = hasPreview
+    ? priceIncludesTax
+      ? costNum - costNum / (1 + selectedTax!.rate / 100)
+      : costNum * (selectedTax!.rate / 100)
+    : 0
+  const totalCost = priceIncludesTax ? costNum : costNum + taxAmount
+
+  const reset = () => {
+    setName(''); setCost(''); setDesc(''); setTaxId(''); setPriceIncludesTax(true); setOpen(false)
+  }
 
   const submit = () => {
     if (!name.trim() || !cost) return
-    onAdd(name.trim(), cost, desc.trim())
-    setName(''); setCost(''); setDesc(''); setOpen(false)
+    onAdd(name.trim(), cost, desc.trim(), taxId, priceIncludesTax)
+    reset()
   }
 
   if (!open) {
@@ -285,11 +311,52 @@ function AddProgramRow({ onAdd, loading }: { onAdd: (name: string, cost: string,
         <input className="form-input w-full sm:w-28 text-sm" placeholder="₹ price" type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} />
       </div>
       <input className="form-input w-full text-sm" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
+
+      {taxes.length > 0 && (
+        <Select
+          className="text-sm"
+          placeholder="No tax"
+          value={taxId}
+          onChange={e => setTaxId(e.target.value)}
+          options={taxes.map(t => ({ value: t.id, label: `${t.name} (${t.rate}%)` }))}
+        />
+      )}
+
+      {selectedTax && (
+        <>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={priceIncludesTax ? styles.filterTabActive : styles.filterTabInactive}
+              onClick={() => setPriceIncludesTax(true)}
+            >
+              Price includes tax
+            </button>
+            <button
+              type="button"
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={!priceIncludesTax ? styles.filterTabActive : styles.filterTabInactive}
+              onClick={() => setPriceIncludesTax(false)}
+            >
+              Tax will be added
+            </button>
+          </div>
+          {hasPreview && (
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              {priceIncludesTax
+                ? `₹${costNum.toLocaleString('en-IN')} includes ${selectedTax.name} of ₹${taxAmount.toFixed(2)} (base ₹${(costNum - taxAmount).toFixed(2)})`
+                : `+ ${selectedTax.name} (₹${taxAmount.toFixed(2)}) = ₹${totalCost.toFixed(2)} total`}
+            </p>
+          )}
+        </>
+      )}
+
       <div className="flex gap-2">
         <Button size="sm" onClick={submit} loading={loading} disabled={!name.trim() || !cost}>
           <Plus size={13} /> Add
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => { setOpen(false); setName(''); setCost(''); setDesc('') }}>
+        <Button size="sm" variant="secondary" onClick={reset}>
           Cancel
         </Button>
       </div>
@@ -354,12 +421,6 @@ export default function OrganisationPage() {
   const { data: taxes = [] } = useQuery({
     queryKey: ['taxes'],
     queryFn: taxesApi.list,
-    enabled: tab === 'manage',
-  })
-
-  const { data: therapies = [] } = useQuery({
-    queryKey: ['therapies'],
-    queryFn: therapiesApi.list,
     enabled: tab === 'manage',
   })
 
@@ -481,7 +542,7 @@ export default function OrganisationPage() {
 
   // ── Programs mutations ───────────────────────────────────────────────────────
   const createProgramMut = useMutation({
-    mutationFn: (p: { name: string; description?: string; perSessionCost: number }) => programsApi.create(p),
+    mutationFn: (p: { name: string; description?: string; perSessionCost: number; taxId?: string; priceIncludesTax?: boolean }) => programsApi.create(p),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program added', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to add program'), 'error'),
   })
@@ -516,19 +577,6 @@ export default function OrganisationPage() {
     mutationFn: conditionsApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['conditions'] }); toast('Condition removed', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to remove condition'), 'error'),
-  })
-
-  // ── Therapies mutations ──────────────────────────────────────────────────────
-  const createTherapyMut = useMutation({
-    mutationFn: therapiesApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy type added', 'success') },
-    onError: (err) => toast(getApiError(err, 'Failed to add therapy'), 'error'),
-  })
-
-  const deleteTherapyMut = useMutation({
-    mutationFn: therapiesApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['therapies'] }); toast('Therapy removed', 'success') },
-    onError: (err) => toast(getApiError(err, 'Failed to remove therapy'), 'error'),
   })
 
   // ── Activity library mutations (Skills / Languages / Props) ──────────────────
@@ -970,33 +1018,14 @@ export default function OrganisationPage() {
             {canManage && (
               <AddProgramRow
                 loading={createProgramMut.isPending}
-                onAdd={(name, cost, desc) => createProgramMut.mutate({
+                taxes={taxes}
+                onAdd={(name, cost, desc, taxId, priceIncludesTax) => createProgramMut.mutate({
                   name,
                   description: desc || undefined,
                   perSessionCost: parseFloat(cost),
+                  taxId: taxId || undefined,
+                  priceIncludesTax: taxId ? priceIncludesTax : undefined,
                 })}
-              />
-            )}
-          </SectionCard>
-
-          {/* Therapies */}
-          <SectionCard title="Therapies" icon={<Stethoscope size={18} />}>
-            {therapies.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No therapy types yet.</p>
-            )}
-            {therapies.map(t => (
-              <ItemRow
-                key={t.id}
-                name={t.name}
-                onDelete={() => deleteTherapyMut.mutate(t.id)}
-                canDelete={canManage}
-              />
-            ))}
-            {canManage && (
-              <AddRow
-                placeholder="e.g. Occupational Therapy"
-                loading={createTherapyMut.isPending}
-                onAdd={(name) => createTherapyMut.mutate(name)}
               />
             )}
           </SectionCard>

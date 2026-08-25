@@ -759,6 +759,11 @@ export interface ProgramResponse {
   name: string
   description: string | null
   perSessionCost: number
+  taxId: string | null
+  taxName: string | null
+  taxRate: number | null
+  priceIncludesTax: boolean
+  totalCost: number
   isActive: boolean
   createdAt: string
 }
@@ -767,6 +772,8 @@ export interface CreateProgramRequest {
   name: string
   description?: string
   perSessionCost: number
+  taxId?: string
+  priceIncludesTax?: boolean
 }
 
 export interface UpdateProgramRequest {
@@ -774,15 +781,6 @@ export interface UpdateProgramRequest {
   description?: string
   perSessionCost?: number
   isActive?: boolean
-}
-
-// ── Therapies ──────────────────────────────────────────────────────────────────
-export interface TherapyResponse {
-  id: string
-  orgId: string
-  name: string
-  isActive: boolean
-  createdAt: string
 }
 
 // ── Taxes ──────────────────────────────────────────────────────────────────────
