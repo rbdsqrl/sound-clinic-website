@@ -32,10 +32,20 @@ import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
-  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse, AiProvider,
+  ProgramResponse, ConditionResponse, TherapyResponse, TaxResponse, AiProvider, DayOfWeek,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
+
+const WEEK_DAYS: { value: DayOfWeek; label: string }[] = [
+  { value: 'MONDAY', label: 'Mon' },
+  { value: 'TUESDAY', label: 'Tue' },
+  { value: 'WEDNESDAY', label: 'Wed' },
+  { value: 'THURSDAY', label: 'Thu' },
+  { value: 'FRIDAY', label: 'Fri' },
+  { value: 'SATURDAY', label: 'Sat' },
+  { value: 'SUNDAY', label: 'Sun' },
+]
 
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
@@ -432,6 +442,23 @@ export default function OrganisationPage() {
     aiMut.mutate({ aiApiKey: '' })
   }
 
+  // ── Weekly off days ──────────────────────────────────────────────────────────
+  const weeklyOffMut = useMutation({
+    mutationFn: organisationApi.update,
+    onSuccess: (updated) => {
+      qc.setQueryData(['organisation'], updated)
+      toast('Weekly off days updated', 'success')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update weekly off days'), 'error'),
+  })
+
+  const toggleWeeklyOffDay = (day: DayOfWeek) => {
+    if (!org) return
+    const current = org.weeklyOffDays ?? []
+    const next = current.includes(day) ? current.filter(d => d !== day) : [...current, day]
+    weeklyOffMut.mutate({ weeklyOffDays: next })
+  }
+
   // ── Holiday mutations ────────────────────────────────────────────────────────
   const createHolidayMut = useMutation({
     mutationFn: (data: CreatePublicHolidayRequest) => publicHolidaysApi.create(data),
@@ -810,6 +837,31 @@ export default function OrganisationPage() {
                 ))}
               </div>
             )}
+          </Card>
+
+          {/* Weekly Off Days */}
+          <Card>
+            <CardHeader
+              title="Weekly Off Days"
+              subtitle="Autoscheduling skips these days every week — ad-hoc sessions can still be booked on them"
+            />
+            <div className="flex flex-wrap gap-2">
+              {WEEK_DAYS.map(d => {
+                const active = (org?.weeklyOffDays ?? []).includes(d.value)
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    disabled={!canManage || weeklyOffMut.isPending}
+                    onClick={() => toggleWeeklyOffDay(d.value)}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                    style={active ? styles.filterTabActive : styles.filterTabInactive}
+                  >
+                    {d.label}
+                  </button>
+                )
+              })}
+            </div>
           </Card>
         </>
       )}

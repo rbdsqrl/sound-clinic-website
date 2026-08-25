@@ -254,6 +254,8 @@ export interface OrganisationResponse {
   isActive: boolean
   aiProvider: AiProvider | null
   aiKeyConfigured: boolean
+  /** Days autoscheduling (therapy sessions, review meetings) skips every week. Ad-hoc sessions are unaffected. */
+  weeklyOffDays: DayOfWeek[]
   createdAt: string
 }
 
@@ -267,6 +269,8 @@ export interface UpdateOrganisationRequest {
   aiProvider?: AiProvider
   /** Write-only. Omit to leave the stored key unchanged; pass '' to clear it. */
   aiApiKey?: string
+  /** Omit to leave unchanged; pass [] to clear all weekly off days. */
+  weeklyOffDays?: DayOfWeek[]
 }
 
 // ── Clinic ─────────────────────────────────────────────────────────────────────
