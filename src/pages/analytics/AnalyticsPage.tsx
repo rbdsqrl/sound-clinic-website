@@ -15,6 +15,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
 import { Delta, Metric, Panel, Tile } from './components'
+import { StarRating } from '../patients/ReviewMeetings'
 import { format, parseISO, addDays } from 'date-fns'
 
 type TabKey = 'patient' | 'therapist' | 'overview'
@@ -699,6 +700,52 @@ export default function AnalyticsPage() {
           >
             <OutcomeRibbon buckets={activeSeries.buckets} />
           </Panel>
+
+          {/* Consolidated parent feedback — staff-only; individual review meetings stay confidential */}
+          {tab === 'therapist' && (
+            <Panel
+              title="Parent Feedback"
+              subtitle="Consolidated from review meetings — visible to clinic staff only"
+            >
+              {totals.parentFeedbackCount > 0 ? (
+                <div className="flex flex-wrap gap-8">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: colors.text.dim }}>
+                      Communication
+                    </p>
+                    {totals.avgParentRating != null ? (
+                      <div className="flex items-center gap-2">
+                        <StarRating value={Math.round(totals.avgParentRating)} readOnly />
+                        <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
+                          {totals.avgParentRating.toFixed(1)}/5
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm" style={{ color: colors.text.dim }}>—</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: colors.text.dim }}>
+                      Perceived progress
+                    </p>
+                    <span className="text-lg font-bold" style={{ color: colors.text.primary }}>
+                      <Metric value={totals.avgParentProgressPct} suffix="%" empty="—" />
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: colors.text.dim }}>
+                      Based on
+                    </p>
+                    <span className="text-sm" style={{ color: colors.text.muted }}>
+                      {totals.parentFeedbackCount} review{totals.parentFeedbackCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: colors.text.dim }}>No parent feedback in this window yet.</p>
+              )}
+            </Panel>
+          )}
 
           {/* Caseload table */}
           {tab === 'therapist' && caseloadQuery.data && (

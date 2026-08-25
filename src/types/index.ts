@@ -1158,6 +1158,7 @@ export interface AnalyticsBucket {
   sessionsLogged: number
   avgPerformanceScore: number | null
   avgParentRating: number | null
+  avgParentProgressPct: number | null
 }
 
 /** Per-domain mastery, aligned index-for-index with the parent series' buckets. */
@@ -1185,6 +1186,9 @@ export interface AnalyticsTotals {
   goalsCompleted: number
   avgPerformanceScore: number | null
   avgParentRating: number | null
+  avgParentProgressPct: number | null
+  /** How many review meetings the average(s) above are drawn from. */
+  parentFeedbackCount: number
 }
 
 export interface TimeSeriesResponse {

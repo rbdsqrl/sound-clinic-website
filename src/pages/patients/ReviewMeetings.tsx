@@ -278,60 +278,62 @@ function MeetingRow({
       {open && (
         <div className="px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
 
-          {/* Therapist's side */}
-          <div className="mt-2.5">
-            <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
-              Therapist feedback
-            </p>
-            {meeting.therapistSummary ? (
-              <>
-                <p className="text-sm" style={{ color: colors.text.primary }}>{meeting.therapistSummary}</p>
-                {meeting.therapistProgressNotes && (
-                  <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
-                    {meeting.therapistProgressNotes}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs" style={{ color: colors.text.dim }}>
-                {meeting.therapistFeedbackAt
-                  ? 'Shared — visible once you add your own feedback'
-                  : 'Not yet shared'}
+          {/* Therapist's side — staff see it always; a therapist sees only their own */}
+          {(canManage || canGiveTherapistFeedback) && (
+            <div className="mt-2.5">
+              <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
+                {canManage ? 'Therapist feedback' : 'Your feedback'}
               </p>
-            )}
-          </div>
-
-          {/* Parent's side */}
-          <div className="mt-3">
-            <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
-              Parent feedback
-            </p>
-            {meeting.communicationRating != null ? (
-              <>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px]" style={{ color: colors.text.dim }}>Communication</span>
-                    <StarRating value={meeting.communicationRating} readOnly />
-                  </div>
-                  {meeting.progressRatingPct != null && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px]" style={{ color: colors.text.dim }}>Perceived progress</span>
-                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>{meeting.progressRatingPct}%</span>
-                    </div>
+              {meeting.therapistSummary ? (
+                <>
+                  <p className="text-sm" style={{ color: colors.text.primary }}>{meeting.therapistSummary}</p>
+                  {meeting.therapistProgressNotes && (
+                    <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
+                      {meeting.therapistProgressNotes}
+                    </p>
                   )}
-                </div>
-                {meeting.parentComments && (
-                  <p className="text-sm mt-1" style={{ color: colors.text.primary }}>{meeting.parentComments}</p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs" style={{ color: colors.text.dim }}>
-                {meeting.parentFeedbackAt
-                  ? 'Shared — visible once you add your own feedback'
-                  : 'Not yet shared'}
+                </>
+              ) : (
+                <p className="text-xs" style={{ color: colors.text.dim }}>Not yet shared</p>
+              )}
+            </div>
+          )}
+
+          {/* Parent's side — staff see it always; a parent sees only their own */}
+          {(canManage || isParent) && (
+            <div className="mt-3">
+              <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
+                {canManage ? 'Parent feedback' : 'Your feedback'}
               </p>
-            )}
-          </div>
+              {meeting.communicationRating != null ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px]" style={{ color: colors.text.dim }}>Communication</span>
+                      <StarRating value={meeting.communicationRating} readOnly />
+                    </div>
+                    {meeting.progressRatingPct != null && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px]" style={{ color: colors.text.dim }}>Perceived progress</span>
+                        <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>{meeting.progressRatingPct}%</span>
+                      </div>
+                    )}
+                  </div>
+                  {meeting.parentComments && (
+                    <p className="text-sm mt-1" style={{ color: colors.text.primary }}>{meeting.parentComments}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs" style={{ color: colors.text.dim }}>Not yet shared</p>
+              )}
+            </div>
+          )}
+
+          {!canManage && (
+            <p className="text-xs mt-3" style={{ color: colors.text.dim }}>
+              {isParent ? "The therapist's feedback" : "The parent's feedback"} is only visible to clinic staff.
+            </p>
+          )}
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -623,7 +625,7 @@ function FeedbackModal({
         {error && <p className="form-error">{error}</p>}
 
         <p className="text-[12.65px]" style={{ color: colors.text.dim }}>
-          The other side's feedback becomes visible to you once you submit yours.
+          This stays between you and clinic staff — {isParent ? 'the therapist' : 'the parent'} won't see it.
         </p>
       </div>
 
