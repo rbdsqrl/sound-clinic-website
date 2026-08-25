@@ -128,6 +128,7 @@ function JourneyCard({
   onSetupSchedule,
   onRecordPayment,
   onPayNow,
+  onOpenDetails,
 }: {
   patient: { stage: PatientStage; firstName: string; lastName: string }
   subscriptions: import('../../types').SubscriptionResponse[]
@@ -137,6 +138,8 @@ function JourneyCard({
   onSetupSchedule: () => void
   onRecordPayment: (sub: import('../../types').SubscriptionResponse) => void
   onPayNow?: (sub: import('../../types').SubscriptionResponse) => void
+  /** Opens the Therapy tab for full enrollment/payment detail — the card itself is clickable. */
+  onOpenDetails: () => void
 }) {
   const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
   const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
@@ -201,7 +204,11 @@ function JourneyCard({
 
   return (
     <div
-      className="rounded-2xl p-4 flex items-start gap-4"
+      onClick={onOpenDetails}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onOpenDetails() }}
+      className="rounded-2xl p-4 flex items-start gap-4 cursor-pointer transition-opacity hover:opacity-90"
       style={{
         background: step === 'active' || step === 'done'
           ? surface.filterStrip
@@ -221,7 +228,7 @@ function JourneyCard({
       </div>
       {config.cta && canManage && (
         <button
-          onClick={config.action ?? undefined}
+          onClick={e => { e.stopPropagation(); config.action?.() }}
           className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
           style={{ background: accentAlpha(0.10), color: colors.accent }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.18)}
@@ -233,7 +240,7 @@ function JourneyCard({
       )}
       {step === 'payment' && !canManage && onPayNow && activeSubscription && (
         <button
-          onClick={() => onPayNow(activeSubscription)}
+          onClick={e => { e.stopPropagation(); onPayNow(activeSubscription) }}
           className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
           style={{ background: palette.green.text + '1A', color: palette.green.text }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = palette.green.text + '30'}
@@ -1081,7 +1088,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Clinical', 'Therapy', 'IEP', 'Activities'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities'] as const
 type Tab = typeof TABS[number]
 
 // ── Concerns banner ──────────────────────────────────────────────────────────
@@ -1596,12 +1603,7 @@ export default function PatientDetailPage() {
       </div>
 
       {/* ── Overview tab ─────────────────────────────────────────────────── */}
-      {activeTab === 'Overview' && (() => {
-        const activeEnrollment   = enrollments.find(e => e.status === 'ACTIVE')
-        const activeSubscription = subscriptions.find(s => s.status === 'ACTIVE')
-        const unpaidSub          = subscriptions.find(s => s.status !== 'CANCELLED' && s.paymentStatus !== 'PAID')
-
-        return (
+      {activeTab === 'Overview' && (
           <div className="space-y-4">
             <JourneyCard
               patient={patient}
@@ -1615,102 +1617,8 @@ export default function PatientDetailPage() {
               }}
               onRecordPayment={(sub) => setPaymentTarget(sub)}
               onPayNow={isParent ? (sub) => setMockPayTarget(sub) : undefined}
+              onOpenDetails={() => setActiveTab('Therapy')}
             />
-
-            {/* ── Payment due card — shown to PARENT whenever any sub is unpaid ── */}
-            {isParent && unpaidSub && (
-              <div className="rounded-2xl p-4 flex items-center gap-4"
-                style={{
-                  background: 'rgba(234,179,8,0.06)',
-                  border: `1px solid rgba(234,179,8,0.25)`,
-                }}>
-                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(234,179,8,0.12)' }}>
-                  <CreditCard size={18} style={{ color: '#b45309' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-                    Payment due
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                    {unpaidSub.programName} · {formatINR(unpaidSub.totalAmount)}
-                    {unpaidSub.paymentStatus === 'PARTIAL' && unpaidSub.amountPaid > 0 && (
-                      <span className="ml-1.5">({formatINR(unpaidSub.amountPaid)} paid)</span>
-                    )}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setMockPayTarget(unpaidSub)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold"
-                  style={styles.buttonPrimary}
-                >
-                  <CreditCard size={12} /> Pay Now
-                </button>
-              </div>
-            )}
-
-            {/* ── Active enrollment summary ──────────────────────────── */}
-            {activeEnrollment && (
-              <Card>
-                <CardHeader title="Active Enrollment" />
-                <div className="space-y-3">
-                  {/* Program + therapist */}
-                  <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: accentAlpha(0.10) }}>
-                      <BookOpen size={16} style={{ color: colors.accent }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-                        {activeEnrollment.programName}
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                        {activeEnrollment.therapistFirstName} {activeEnrollment.therapistLastName}
-                      </p>
-                    </div>
-                    <span className="flex-shrink-0 text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                      style={paletteStyle('teal', 0.12, 0)}>
-                      Active
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs" style={{ color: colors.text.muted }}>Sessions completed</span>
-                      <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
-                        {activeEnrollment.sessionsCompleted} / {activeEnrollment.totalSessions}
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: border.divider }}>
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${activeEnrollment.totalSessions > 0
-                            ? Math.min(100, (activeEnrollment.sessionsCompleted / activeEnrollment.totalSessions) * 100)
-                            : 0}%`,
-                          background: colors.accent,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Meta info grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
-                    {[
-                      [<CalendarDays size={11} />, `Starts ${activeEnrollment.startDate}`],
-                      [<Clock size={11} />, `${activeEnrollment.startTime.slice(0, 5)} · ${activeEnrollment.sessionDurationMinutes} min`],
-                      [<CheckCircle2 size={11} />, `${activeEnrollment.totalSessions - activeEnrollment.sessionsCompleted} remaining`],
-                    ].map(([icon, text], i) => (
-                      <div key={i} className="flex items-center gap-1.5">
-                        <span style={{ color: colors.text.dim }}>{icon}</span>
-                        <span className="text-xs" style={{ color: colors.text.muted }}>{text as string}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
 
             {/* Patient Info */}
             <Card>
@@ -1739,14 +1647,8 @@ export default function PatientDetailPage() {
                 </div>
               )}
             </Card>
-          </div>
-        )
-      })()}
 
-      {/* ── Clinical tab ─────────────────────────────────────────────────── */}
-      {activeTab === 'Clinical' && (
-        <div className="space-y-4">
-          {/* Conditions */}
+            {/* Conditions */}
           <Card>
             <CardHeader
               title="Conditions"
