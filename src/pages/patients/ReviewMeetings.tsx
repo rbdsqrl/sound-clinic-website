@@ -32,7 +32,7 @@ function statusLabel(status: ReviewMeetingResponse['status']) {
   return status.charAt(0) + status.slice(1).toLowerCase()
 }
 
-function StarRating({
+export function StarRating({
   value, onChange, readOnly = false,
 }: { value: number; onChange?: (v: number) => void; readOnly?: boolean }) {
   return (

@@ -5,11 +5,12 @@ import {
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
+import { StarRating } from './ReviewMeetings'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha, dangerAlpha, paletteStyle } from '../../theme'
+import { colors, border, surface, accentAlpha, paletteStyle, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { format } from 'date-fns'
 import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse } from '../../types'
 
@@ -278,48 +279,37 @@ export function SessionNotesModal({
   const qc = useQueryClient()
   const { toast } = useToast()
 
-  const [feedback, setFeedback]             = useState(session.feedback ?? '')
+  const parsedRating = session.feedback ? parseInt(session.feedback, 10) : NaN
+  const [rating, setRating]                 = useState(Number.isNaN(parsedRating) ? 0 : parsedRating)
   const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
-  const [notes, setNotes]                   = useState(session.notes ?? '')
   const [score, setScore]                   = useState<number | null>(session.performanceScore ?? null)
+  const [pendingAction, setPendingAction]   = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
 
   const { data: attachments = [], isLoading: attLoading } = useQuery({
     queryKey: ['session-attachments', session.id],
     queryFn: () => therapySessionsApi.listAttachments(session.id),
   })
 
-  const notesMut = useMutation({
-    mutationFn: () => therapySessionsApi.updateNotes(session.id, {
-      feedback, progressReport, notes,
-      ...(score !== null ? { performanceScore: score } : {}),
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
-      toast('Notes saved', 'success')
-      onClose()
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (pendingAction === 'REQUEST_CANCEL') {
+        await therapySessionsApi.requestCancellation(session.id)
+      } else if (pendingAction) {
+        await therapySessionsApi.updateStatus(session.id, { status: pendingAction })
+      }
+      return therapySessionsApi.updateNotes(session.id, {
+        feedback: rating > 0 ? String(rating) : undefined,
+        progressReport,
+        ...(score !== null ? { performanceScore: score } : {}),
+      })
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save notes'), 'error'),
-  })
-
-  const statusMut = useMutation({
-    mutationFn: (status: TherapySessionStatus) => therapySessionsApi.updateStatus(session.id, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
       qc.invalidateQueries({ queryKey: ['enrollments'] })
-      toast('Session updated', 'success')
+      toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session updated', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to update session'), 'error'),
-  })
-
-  const cancelRequestMut = useMutation({
-    mutationFn: () => therapySessionsApi.requestCancellation(session.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
-      toast('Cancellation request sent', 'success')
-      onClose()
-    },
-    onError: (err) => toast(getApiError(err, 'Failed to send request'), 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to save'), 'error'),
   })
 
   const uploadMut = useMutation({
@@ -360,56 +350,18 @@ export function SessionNotesModal({
       </div>
 
       <div className="flex flex-col gap-4">
-        {/* Status update — only for scheduled sessions */}
-        {canEdit && session.status === 'SCHEDULED' && (
-          <div>
-            <p className="form-label">Mark session as</p>
-            <div className="flex gap-2">
-              {([
-                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: colors.status.success },
-                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: colors.status.warning },
-                ...(canDirectlyCancel
-                  ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: colors.status.danger }]
-                  : []),
-              ]).map(opt => (
-                <button
-                  key={opt.value}
-                  disabled={statusMut.isPending || cancelRequestMut.isPending}
-                  onClick={() => statusMut.mutate(opt.value)}
-                  className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
-                  style={{ background: opt.color + '18', color: opt.color }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              {!canDirectlyCancel && (
-                <button
-                  disabled={statusMut.isPending || cancelRequestMut.isPending}
-                  onClick={() => cancelRequestMut.mutate()}
-                  className="flex-1 text-xs font-semibold py-2 rounded-xl transition-opacity disabled:opacity-50"
-                  style={{ background: dangerAlpha(0.09), color: colors.status.danger }}
-                >
-                  Request Cancel
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Performance Score */}
         <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} />
 
-        {/* Feedback */}
+        {/* Rating */}
         <div>
-          <label className="form-label">Feedback</label>
-          <textarea
-            className="form-input w-full resize-none"
-            rows={3}
-            placeholder={canEdit ? 'Add session feedback…' : 'No feedback recorded'}
-            value={feedback}
-            onChange={e => setFeedback(e.target.value)}
-            readOnly={!canEdit}
-          />
+          <label className="form-label">Rating</label>
+          <div className="flex items-center gap-2">
+            <StarRating value={rating} onChange={canEdit ? setRating : undefined} readOnly={!canEdit} />
+            {!canEdit && rating === 0 && (
+              <span className="text-xs" style={{ color: colors.text.dim }}>Not rated</span>
+            )}
+          </div>
         </div>
 
         {/* Progress Report */}
@@ -421,19 +373,6 @@ export function SessionNotesModal({
             placeholder={canEdit ? 'Describe patient progress…' : 'No progress report recorded'}
             value={progressReport}
             onChange={e => setProgressReport(e.target.value)}
-            readOnly={!canEdit}
-          />
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="form-label">Notes</label>
-          <textarea
-            className="form-input w-full resize-none"
-            rows={2}
-            placeholder={canEdit ? 'Any additional notes…' : 'No notes recorded'}
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
             readOnly={!canEdit}
           />
         </div>
@@ -500,13 +439,47 @@ export function SessionNotesModal({
       </div>
 
       {/* Footer */}
-      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <Button variant="ghost" onClick={onClose}>Close</Button>
-        {canEdit && (
-          <Button variant="primary" loading={notesMut.isPending} onClick={() => notesMut.mutate()}>
-            Save Notes
-          </Button>
+      <div className="mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        {canEdit && session.status === 'SCHEDULED' && (
+          <div className="mb-4">
+            <p className="form-label">Mark session as</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: colors.status.success, alpha: successAlpha },
+                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: colors.status.warning, alpha: warningAlpha },
+                ...(canDirectlyCancel
+                  ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: colors.status.danger, alpha: dangerAlpha }]
+                  : [{ value: 'REQUEST_CANCEL' as const, label: 'Request Cancel', color: colors.status.danger, alpha: dangerAlpha }]),
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPendingAction(prev => prev === opt.value ? null : opt.value)}
+                  className="flex-1 text-xs font-semibold py-2 rounded-xl border transition-all"
+                  style={pendingAction === opt.value
+                    ? { background: opt.color, color: '#fff', border: `1px solid ${opt.color}` }
+                    : { background: opt.alpha(0.12), color: opt.color, border: `1px solid ${opt.alpha(0.35)}` }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {pendingAction && (
+              <p className="text-xs mt-2" style={{ color: colors.text.dim }}>
+                Will be {pendingAction === 'REQUEST_CANCEL' ? 'requested for cancellation' : `marked ${pendingAction.replace('_', ' ').toLowerCase()}`} when you save.
+              </p>
+            )}
+          </div>
         )}
+
+        <div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+          {canEdit && (
+            <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+              Save
+            </Button>
+          )}
+        </div>
       </div>
     </Modal>
   )
