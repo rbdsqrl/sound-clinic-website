@@ -23,8 +23,8 @@ export function UserSearchPicker({
   onSelect,
   selected,
   onClear,
-  label = 'Search by email',
-  placeholder = 'Type email address…',
+  label = 'Search by name or email',
+  placeholder = 'Type a name or email…',
 }: UserSearchPickerProps) {
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -95,7 +95,7 @@ export function UserSearchPicker({
           <Search size={15} />
         </span>
         <input
-          type="email"
+          type="text"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}

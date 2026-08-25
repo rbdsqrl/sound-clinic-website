@@ -2169,8 +2169,8 @@ export default function PatientDetailPage() {
             selected={selectedParent}
             onSelect={setSelectedParent}
             onClear={() => setSelectedParent(null)}
-            label="Search parent by email"
-            placeholder="e.g. jane@example.com"
+            label="Search parent by name or email"
+            placeholder="e.g. Jane or jane@example.com"
           />
           {!selectedParent && (
             <p className="text-xs" style={{ color: colors.text.dim }}>
@@ -2197,8 +2197,8 @@ export default function PatientDetailPage() {
             selected={selectedTherapist}
             onSelect={setSelectedTherapist}
             onClear={() => setSelectedTherapist(null)}
-            label="Search therapist by email"
-            placeholder="e.g. john@clinic.com"
+            label="Search therapist by name or email"
+            placeholder="e.g. John or john@clinic.com"
           />
           {!selectedTherapist && (
             <p className="text-xs" style={{ color: colors.text.dim }}>

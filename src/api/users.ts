@@ -32,10 +32,10 @@ export const usersApi = {
       .get<ApiResponse<AssignableUser[]>>('/users/assignable', { params: { includeParents } })
       .then((r) => r.data.data),
 
-  /** Search users by partial email within the caller's organisation. */
-  search: (email: string, role?: Role) =>
+  /** Search users by partial name or email within the caller's organisation. */
+  search: (q: string, role?: Role) =>
     client
-      .get<ApiResponse<UserResponse[]>>('/users/search', { params: { email, role } })
+      .get<ApiResponse<UserResponse[]>>('/users/search', { params: { q, role } })
       .then((r) => r.data.data),
 
   deleteMember: (id: string) =>
