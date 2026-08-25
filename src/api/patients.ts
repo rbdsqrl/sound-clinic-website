@@ -5,6 +5,8 @@ import type {
   CreatePatientRequest,
   AddConditionRequest,
   LinkParentRequest,
+  InviteParentRequest,
+  InviteParentResponse,
   AssignTherapistRequest,
   PatientStage,
   UpcomingBirthdayResponse,
@@ -48,6 +50,10 @@ export const patientsApi = {
 
   unlinkParent: (id: string, parentId: string) =>
     client.delete(`/patients/${id}/parents/${parentId}`),
+
+  /** Invites someone who doesn't have an account yet; auto-linked as this patient's parent on accept. */
+  inviteParent: (id: string, data: InviteParentRequest) =>
+    client.post<ApiResponse<InviteParentResponse>>(`/patients/${id}/parents/invite`, data).then((r) => r.data.data),
 
   // Therapists
   assignTherapist: (id: string, data: AssignTherapistRequest) =>

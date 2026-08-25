@@ -372,6 +372,14 @@ export interface LinkParentRequest {
   parentId: string
 }
 
+export interface InviteParentRequest {
+  email: string
+}
+
+export interface InviteParentResponse {
+  inviteLink: string
+}
+
 export interface AssignTherapistRequest {
   therapistId: string
 }

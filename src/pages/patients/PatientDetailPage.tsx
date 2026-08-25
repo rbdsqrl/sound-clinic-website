@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Copy, Check, Mail } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
@@ -1398,6 +1398,27 @@ export default function PatientDetailPage() {
     onSuccess: () => { refresh(); toast('Parent unlinked', 'success') },
   })
 
+  // Parent invite (for someone without an account yet)
+  const [parentMode,   setParentMode]   = useState<'existing' | 'invite'>('existing')
+  const [inviteEmail,  setInviteEmail]  = useState('')
+  const [inviteLink,   setInviteLink]   = useState<string | null>(null)
+  const [inviteCopied, setInviteCopied] = useState(false)
+  const inviteParentMutation = useMutation({
+    mutationFn: (email: string) => patientsApi.inviteParent(id!, { email }),
+    onSuccess: (res) => { setInviteLink(res.inviteLink); toast('Invite sent', 'success') },
+    onError: (e) => toast(getApiError(e, 'Failed to send invite'), 'error'),
+  })
+  const closeParentModal = () => {
+    setParentModal(false); setSelectedParent(null)
+    setParentMode('existing'); setInviteEmail(''); setInviteLink(null); setInviteCopied(false)
+  }
+  const copyInviteLink = async () => {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(`${window.location.origin}${inviteLink}`)
+    setInviteCopied(true)
+    setTimeout(() => setInviteCopied(false), 2500)
+  }
+
   // Therapist mutations
   const [selectedTherapist, setSelectedTherapist] = useState<UserResponse | null>(null)
   const assignTherapistMutation = useMutation({
@@ -2162,31 +2183,109 @@ export default function PatientDetailPage() {
         </form>
       </Modal>
 
-      <Modal open={parentModal} onClose={() => { setParentModal(false); setSelectedParent(null) }} title="Link a Parent">
+      <Modal open={parentModal} onClose={closeParentModal} title="Link a Parent">
         <div className="space-y-4">
-          <UserSearchPicker
-            role="PARENT"
-            selected={selectedParent}
-            onSelect={setSelectedParent}
-            onClear={() => setSelectedParent(null)}
-            label="Search parent by name or email"
-            placeholder="e.g. Jane or jane@example.com"
-          />
-          {!selectedParent && (
-            <p className="text-xs" style={{ color: colors.text.dim }}>
-              The person must already have an account with the <strong>Parent</strong> role in your organisation.
-            </p>
+          {!inviteLink && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={parentMode === 'existing' ? styles.filterTabActive : styles.filterTabInactive}
+                onClick={() => setParentMode('existing')}
+              >
+                Existing account
+              </button>
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={parentMode === 'invite' ? styles.filterTabActive : styles.filterTabInactive}
+                onClick={() => setParentMode('invite')}
+              >
+                Invite by email
+              </button>
+            </div>
           )}
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setParentModal(false); setSelectedParent(null) }}>Cancel</Button>
-            <Button
-              disabled={!selectedParent}
-              loading={linkParentMutation.isPending}
-              onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
-            >
-              Link Parent
-            </Button>
-          </div>
+
+          {parentMode === 'existing' ? (
+            <>
+              <UserSearchPicker
+                role="PARENT"
+                selected={selectedParent}
+                onSelect={setSelectedParent}
+                onClear={() => setSelectedParent(null)}
+                label="Search parent by name or email"
+                placeholder="e.g. Jane or jane@example.com"
+              />
+              {!selectedParent && (
+                <p className="text-xs" style={{ color: colors.text.dim }}>
+                  The person must already have an account with the <strong>Parent</strong> role in your organisation.
+                </p>
+              )}
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={closeParentModal}>Cancel</Button>
+                <Button
+                  disabled={!selectedParent}
+                  loading={linkParentMutation.isPending}
+                  onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
+                >
+                  Link Parent
+                </Button>
+              </div>
+            </>
+          ) : inviteLink ? (
+            <>
+              <div className="rounded-xl p-4" style={{ border: border.card, background: accentAlpha(0.08) }}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.primary }}>
+                  Sign-up link — share this with the parent
+                </p>
+                <div className="flex items-center gap-2">
+                  <code
+                    className="flex-1 rounded-lg px-3 py-2 text-xs font-mono break-all select-all"
+                    style={{ background: surface.filterStrip, color: colors.text.primary, border: border.card }}
+                  >
+                    {`${window.location.origin}${inviteLink}`}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copyInviteLink}
+                    className="flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
+                    style={{ background: colors.accent, color: '#fff' }}
+                  >
+                    {inviteCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs" style={{ color: colors.text.muted }}>
+                  Valid for 72 hours. Once they sign up, they'll be linked to this patient automatically.
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <Button type="button" onClick={closeParentModal}>Done</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Input
+                label="Parent's email"
+                type="email"
+                placeholder="e.g. jane@example.com"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+              />
+              <p className="text-xs" style={{ color: colors.text.dim }}>
+                We'll email them a sign-up link. Once they accept, they're linked to this patient automatically.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={closeParentModal}>Cancel</Button>
+                <Button
+                  disabled={!inviteEmail.trim()}
+                  loading={inviteParentMutation.isPending}
+                  onClick={() => inviteParentMutation.mutate(inviteEmail.trim())}
+                >
+                  <Mail size={14} /> Send Invite
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
