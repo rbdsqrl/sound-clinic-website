@@ -1620,145 +1620,147 @@ export default function PatientDetailPage() {
               onOpenDetails={() => setActiveTab('Therapy')}
             />
 
-            {/* Patient Info */}
-            <Card>
-              <CardHeader title="Patient Info" />
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-                {[
-                  ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
-                  ['Gender', patient.gender?.toLowerCase()],
-                  ['Clinic', clinicName],
-                  ['Status', patient.isActive ? 'Active' : 'Inactive'],
-                ].map(([label, value]) => (
-                  <div key={label as string}>
-                    <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
-                    <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
-                      {value || <span style={{ color: colors.text.dim }}>—</span>}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {patient.notes && (
-                <div
-                  className="mt-4 rounded-xl p-3 text-sm"
-                  style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                >
-                  {patient.notes}
-                </div>
-              )}
-            </Card>
-
-            {/* Conditions */}
-          <Card>
-            <CardHeader
-              title="Conditions"
-              subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
-              action={canEditDetails ? <Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button> : undefined}
-            />
-            {!patient.conditions.length ? (
-              <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
-            ) : (
-              <div className="divide-subtle">
-                {patient.conditions.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-start justify-between gap-3 py-3"
-                  >
-                    <div className="flex items-start gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Parents / Guardians */}
+              <Card>
+                <CardHeader
+                  title="Parents / Guardians"
+                  subtitle={`${patient.parents.length} linked`}
+                  action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
+                />
+                {!patient.parents.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
+                ) : (
+                  <div className="divide-subtle">
+                    {patient.parents.map((p) => (
                       <div
-                        className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                        style={{ background: accentAlpha(0.08) }}
+                        key={p.id}
+                        className="flex items-center justify-between gap-3 py-3"
                       >
-                        <Heart size={13} style={{ color: colors.accent }} />
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                            style={styles.avatar}
+                          >
+                            {p.firstName[0]}{p.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
+                          </div>
+                        </div>
+                        {removeBtn(() => unlinkParentMutation.mutate(p.id))}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
-                        {c.diagnosedAt && (
-                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                            Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
-                          </p>
-                        )}
-                        {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
-                      </div>
-                    </div>
-                    {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                )}
+              </Card>
 
-          {/* Parents / Guardians */}
-          <Card>
-            <CardHeader
-              title="Parents / Guardians"
-              subtitle={`${patient.parents.length} linked`}
-              action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
-            />
-            {!patient.parents.length ? (
-              <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
-            ) : (
-              <div className="divide-subtle">
-                {patient.parents.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-3 py-3"
-                  >
-                    <div className="flex items-center gap-3">
+              {/* Assigned Therapists */}
+              <Card>
+                <CardHeader
+                  title="Assigned Therapists"
+                  subtitle={`${patient.therapists.length} assigned`}
+                  action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
+                />
+                {!patient.therapists.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
+                ) : (
+                  <div className="divide-subtle">
+                    {patient.therapists.map((t) => (
                       <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                        style={styles.avatar}
+                        key={t.id}
+                        className="flex items-center justify-between gap-3 py-3"
                       >
-                        {p.firstName[0]}{p.lastName[0]}
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                            style={styles.avatar}
+                          >
+                            {t.firstName[0]}{t.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                              Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                        </div>
+                        {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
-                        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
-                      </div>
-                    </div>
-                    {removeBtn(() => unlinkParentMutation.mutate(p.id))}
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                )}
+              </Card>
 
-          {/* Assigned Therapists */}
-          <Card>
-            <CardHeader
-              title="Assigned Therapists"
-              subtitle={`${patient.therapists.length} assigned`}
-              action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
-            />
-            {!patient.therapists.length ? (
-              <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
-            ) : (
-              <div className="divide-subtle">
-                {patient.therapists.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                        style={styles.avatar}
-                      >
-                        {t.firstName[0]}{t.lastName[0]}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
-                        <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                          Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
-                        </p>
-                      </div>
+              {/* Patient Info */}
+              <Card>
+                <CardHeader title="Patient Info" />
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
+                  {[
+                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                    ['Gender', patient.gender?.toLowerCase()],
+                    ['Clinic', clinicName],
+                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                  ].map(([label, value]) => (
+                    <div key={label as string}>
+                      <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                      <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
+                        {value || <span style={{ color: colors.text.dim }}>—</span>}
+                      </dd>
                     </div>
-                    {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
+                  ))}
+                </dl>
+                {patient.notes && (
+                  <div
+                    className="mt-4 rounded-xl p-3 text-sm"
+                    style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  >
+                    {patient.notes}
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                )}
+              </Card>
+
+              {/* Conditions */}
+              <Card>
+                <CardHeader
+                  title="Conditions"
+                  subtitle={`${patient.conditions.length} condition${patient.conditions.length !== 1 ? 's' : ''}`}
+                  action={canEditDetails ? <Button size="sm" onClick={() => setConditionModal(true)}><Plus size={14} /> Add</Button> : undefined}
+                />
+                {!patient.conditions.length ? (
+                  <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
+                ) : (
+                  <div className="divide-subtle">
+                    {patient.conditions.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-start justify-between gap-3 py-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: accentAlpha(0.08) }}
+                          >
+                            <Heart size={13} style={{ color: colors.accent }} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
+                            {c.diagnosedAt && (
+                              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                                Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
+                              </p>
+                            )}
+                            {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
+                          </div>
+                        </div>
+                        {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
         </div>
       )}
 
