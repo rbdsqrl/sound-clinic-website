@@ -123,21 +123,25 @@ function PatientCard({ patient, index, clinicName }: {
           </span>
         </div>
 
-        {/* Conditions */}
-        {patient.conditions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {patient.conditions.slice(0, 3).map(c => (
-              <span key={c.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
-                {c.name}
-              </span>
-            ))}
-            {patient.conditions.length > 3 && (
-              <span className="text-[12.65px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
-                +{patient.conditions.length - 3}
-              </span>
-            )}
-          </div>
-        )}
+        {/* Therapies — fixed height for ~2 rows so every card lines up */}
+        <div className="flex flex-wrap content-start gap-1.5 overflow-hidden" style={{ minHeight: 58, maxHeight: 58 }}>
+          {patient.therapies.length > 0 ? (
+            <>
+              {patient.therapies.slice(0, 4).map(t => (
+                <span key={t.id} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08, 0.15)}>
+                  {t.name}
+                </span>
+              ))}
+              {patient.therapies.length > 4 && (
+                <span className="text-[12.65px] px-2 py-0.5 rounded-full" style={{ background: accentAlpha(0.06), color: colors.text.muted }}>
+                  +{patient.therapies.length - 4}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-[12.65px]" style={{ color: colors.text.dim }}>No therapy assigned</span>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: border.divider }}>

@@ -322,6 +322,11 @@ export interface TherapistSummary {
   assignedAt: string
 }
 
+export interface TherapySummary {
+  id: string
+  name: string
+}
+
 export interface PatientResponse {
   id: string
   orgId: string
@@ -337,6 +342,7 @@ export interface PatientResponse {
   conditions: ConditionSummary[]
   parents: ParentSummary[]
   therapists: TherapistSummary[]
+  therapies: TherapySummary[]
 }
 
 export interface CreatePatientRequest {
