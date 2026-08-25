@@ -1518,3 +1518,92 @@ export interface OrgSnapshotResponse {
   programBreakdown: { programName: string; patientCount: number; enrollmentCount: number }[]
   stageCounts: { stage: PatientStage; count: number }[]
 }
+
+// ── Case History ─────────────────────────────────────────────────────────────
+export type DeliveryType = 'FT' | 'PREMATURE' | 'NORMAL' | 'OTHER'
+export type LabourType = 'NORMAL' | 'PROLONGED' | 'VACUUM' | 'EPIDURAL' | 'C_SECTION'
+export type BirthCry = 'NORMAL' | 'DELAYED' | 'ABSENT'
+export type MilestoneStatus = 'NORMAL' | 'DELAYED'
+export type Handedness = 'RIGHT_HAND' | 'LEFT_HAND' | 'MIXED_LATERALITY'
+export type FamilyType = 'NUCLEAR' | 'JOINT' | 'SINGLE_PARENT'
+export type EyeContact = 'NOT_PRESENT' | 'AVOIDS' | 'LIMITED' | 'FLEETING' | 'MAINTAINS_ONLY_IF_INTERESTED' | 'MAINTAINS'
+export type StutteringFrequency = 'NONE' | 'RARELY' | 'OCCASIONALLY' | 'FREQUENTLY'
+export type PlayBehavior = 'UNOCCUPIED' | 'SOLITARY_PLAY' | 'REPETITIVE_PLAY' | 'PARALLEL_PLAY' | 'ASSOCIATED_PLAY' | 'COOPERATIVE_PLAY' | 'GROUP'
+export type SocialSmiling = 'NONE' | 'RARE' | 'LIMITED' | 'APPROPRIATE'
+export type SelfRegulationLevel = 'VERY_POOR' | 'POOR' | 'AVERAGE' | 'GOOD' | 'EXCELLENT'
+export type FriendshipLevel = 'NO_FRIENDS' | 'CASUAL_FRIENDS' | 'CLOSE_FRIENDS' | 'OVER_INVOLVED_WITH_FRIENDS'
+export type ListeningLevel = 'DISINTERESTED' | 'NOT_ABLE_TO_SUSTAIN_FOCUS' | 'POOR_VOCABULARY' | 'ACTIVE_LISTENING'
+
+export interface MilestoneSkill {
+  skill: string
+  notPresent: boolean
+  unaware: boolean
+  ageInMonths: number | null
+  status: MilestoneStatus | null
+}
+
+export interface FamilyMember {
+  name: string
+  relation: string
+  age: string
+  notes: string
+}
+
+export interface CaseHistoryResponse {
+  id: string
+  patientId: string
+
+  presentComplaints: string | null
+  habits: string[]
+  physicalOtherProblems: string | null
+
+  prenatalHealth: string[]
+  deliveryType: DeliveryType | null
+  labourType: LabourType | null
+  birthCry: BirthCry | null
+  prenatalNotes: string | null
+  birthAdditionalNotes: string | null
+  birthHeight: number | null
+  birthHeightUnit: string | null
+  birthWeight: number | null
+  birthWeightUnit: string | null
+  postnatalHealth: string[]
+  phototherapyDays: number | null
+  postnatalNotes: string | null
+
+  motorMilestones: MilestoneStatus | null
+  speechMilestones: MilestoneStatus | null
+  milestoneSkills: MilestoneSkill[]
+  milestonesAdditionalNotes: string | null
+  handedness: Handedness | null
+
+  familyType: FamilyType | null
+  familyMembers: FamilyMember[]
+  consanguinityHistory: boolean | null
+  familyImpairmentsNotes: string | null
+
+  eyeContact: EyeContact | null
+  stutteringFrequency: StutteringFrequency | null
+  playBehavior: PlayBehavior | null
+  socialSmiling: SocialSmiling | null
+  behaviouralSelfRegulation: SelfRegulationLevel | null
+  emotionalSelfRegulation: SelfRegulationLevel | null
+  friendships: FriendshipLevel | null
+  listening: ListeningLevel | null
+  communications: string[]
+  behavioralProblems: string[]
+  provisionalDiagnosis: string | null
+
+  currentGrade: string | null
+  school: string | null
+  syllabus: string | null
+  ageOfJoining: number | null
+  performanceAndProgress: string | null
+  attitudeTowardsStudies: string | null
+  schoolAdditionalNotes: string | null
+
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateCaseHistoryRequest = Omit<CaseHistoryResponse, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>

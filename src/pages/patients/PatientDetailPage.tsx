@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
+import { CaseHistoryCard } from './CaseHistoryCard'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
@@ -1761,6 +1762,8 @@ export default function PatientDetailPage() {
                 )}
               </Card>
             </div>
+
+            <CaseHistoryCard patientId={patient.id} canEdit={canEditDetails} />
         </div>
       )}
 

@@ -7,10 +7,12 @@ interface ModalProps {
   onClose: () => void
   title: string | ReactNode
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'full'
+  /** Rendered pinned to the bottom of the panel, below the scrollable content (e.g. Save actions). */
+  footer?: ReactNode
 }
 
-export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md', footer }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (open) {
@@ -25,22 +27,25 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
 
   if (!open) return null
 
-  const widths = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' }
+  const widths = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', full: 'sm:max-w-4xl' }
+  const isFull = size === 'full'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className={`fixed inset-0 z-50 flex justify-center ${isFull ? 'items-center p-0 sm:p-4' : 'items-end sm:items-center'}`}>
       {/* Backdrop */}
       <div className="absolute inset-0" style={styles.modalBackdrop} onClick={onClose} />
 
       {/* Panel */}
       <div
-        className={`relative w-full ${widths[size]} rounded-t-2xl sm:rounded-2xl max-h-[92dvh] flex flex-col`}
+        className={`relative w-full ${widths[size]} ${isFull ? 'h-full sm:h-[92dvh] rounded-none sm:rounded-2xl' : 'rounded-t-2xl sm:rounded-2xl max-h-[92dvh]'} flex flex-col`}
         style={styles.modal}
       >
         {/* Mobile drag handle */}
-        <div className="flex justify-center pt-2.5 pb-0 sm:hidden flex-shrink-0">
-          <div className="h-1 w-10 rounded-full" style={{ background: border.drag }} />
-        </div>
+        {!isFull && (
+          <div className="flex justify-center pt-2.5 pb-0 sm:hidden flex-shrink-0">
+            <div className="h-1 w-10 rounded-full" style={{ background: border.drag }} />
+          </div>
+        )}
 
         {/* Header */}
         <div
@@ -63,6 +68,16 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
         <div className="overflow-y-auto px-5 py-5 flex-1">
           {children}
         </div>
+
+        {/* Footer */}
+        {footer && (
+          <div
+            className="flex items-center justify-end gap-2.5 px-5 py-4 flex-shrink-0"
+            style={{ borderTop: `1px solid ${border.divider}` }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )
