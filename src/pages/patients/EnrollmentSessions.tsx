@@ -197,9 +197,13 @@ export function SessionList({
               >
                 {sessionRowIcon(s.status)}
 
+                {/* Ad-hoc sessions sit outside the plan's numbered sequence (see the sort
+                    comment above) — showing a number for them would imply a chronological
+                    ordering promise the data doesn't have, so the "Ad-hoc" badge below
+                    labels them instead. */}
                 <span className="text-xs font-medium w-8 flex-shrink-0 tabular-nums"
                   style={{ color: colors.text.muted }}>
-                  #{s.sessionNumber}
+                  {!s.adHoc && `#${s.sessionNumber}`}
                 </span>
 
                 <span className="text-xs truncate" style={{ color: colors.text.muted }}>
@@ -336,7 +340,7 @@ export function SessionNotesModal({
   }
 
   return (
-    <Modal open title={`Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg">
+    <Modal open title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg">
       {/* Session info strip */}
       <div className="flex items-center gap-3 mb-5 p-3 rounded-xl" style={{ background: accentAlpha(0.05) }}>
         <div className="flex-1">

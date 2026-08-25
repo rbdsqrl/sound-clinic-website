@@ -41,6 +41,25 @@ export default function Sparkline({
 
   const last = runs.length ? runs[runs.length - 1][runs[runs.length - 1].length - 1] : null
 
+  // A line needs ≥2 *adjacent* points — two scored values separated by a gap each sit in
+  // their own 1-point run and never connect (nulls correctly break the path, see above),
+  // so this can be true even with several scored points total. Either way, the result is
+  // a mark with nothing to read it against, so say that plainly instead of drawing
+  // something that implies a trend that isn't there.
+  const longestRun = runs.reduce((max, r) => Math.max(max, r.length), 0)
+  if (longestRun < 2) {
+    return (
+      <svg
+        width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+        role="img" aria-label={label ?? 'Trend'} style={{ display: 'block', overflow: 'visible' }}
+      >
+        <text x={width / 2} y={height / 2 + 3} textAnchor="middle" fontSize={10} fill={colors.text.dim}>
+          {runs.length === 0 ? 'No data yet' : 'Not enough data for a trend'}
+        </text>
+      </svg>
+    )
+  }
+
   return (
     <svg
       width={width} height={height} viewBox={`0 0 ${width} ${height}`}

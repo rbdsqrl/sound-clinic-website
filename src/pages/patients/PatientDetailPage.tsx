@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
@@ -1321,6 +1321,7 @@ export default function PatientDetailPage() {
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
+  const [conditionsPage,   setConditionsPage]   = useState(0)
   const [sidebarSearch,    setSidebarSearch]    = useState('')
   const [dischargeModal,   setDischargeModal]   = useState(false)
 
@@ -1731,35 +1732,71 @@ export default function PatientDetailPage() {
                 />
                 {!patient.conditions.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No conditions recorded.</p>
-                ) : (
-                  <div className="divide-subtle">
-                    {patient.conditions.map((c) => (
-                      <div
-                        key={c.id}
-                        className="flex items-start justify-between gap-3 py-3"
-                      >
-                        <div className="flex items-start gap-3">
+                ) : (() => {
+                  const CONDITIONS_PAGE_SIZE = 4
+                  const totalPages = Math.ceil(patient.conditions.length / CONDITIONS_PAGE_SIZE)
+                  const page = Math.min(conditionsPage, totalPages - 1)
+                  const start = page * CONDITIONS_PAGE_SIZE
+                  const pageConditions = patient.conditions.slice(start, start + CONDITIONS_PAGE_SIZE)
+                  return (
+                    <>
+                      <div className="divide-subtle">
+                        {pageConditions.map((c) => (
                           <div
-                            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{ background: accentAlpha(0.08) }}
+                            key={c.id}
+                            className="flex items-start justify-between gap-3 py-3"
                           >
-                            <Heart size={13} style={{ color: colors.accent }} />
+                            <div className="flex items-start gap-3">
+                              <div
+                                className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                                style={{ background: accentAlpha(0.08) }}
+                              >
+                                <Heart size={13} style={{ color: colors.accent }} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
+                                {c.diagnosedAt && (
+                                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                                    Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
+                                  </p>
+                                )}
+                                {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
+                              </div>
+                            </div>
+                            {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
                           </div>
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{c.name}</p>
-                            {c.diagnosedAt && (
-                              <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                                Diagnosed {format(new Date(c.diagnosedAt), 'MMM yyyy')}
-                              </p>
-                            )}
-                            {c.notes && <p className="text-xs italic mt-0.5" style={{ color: colors.text.muted }}>{c.notes}</p>}
-                          </div>
-                        </div>
-                        {canEditDetails && removeBtn(() => removeConditionMutation.mutate(c.id))}
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+                          <button
+                            onClick={() => setConditionsPage(p => Math.max(0, p - 1))}
+                            disabled={page === 0}
+                            className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{ color: colors.text.muted }}
+                            onMouseEnter={e => { if (page !== 0) (e.currentTarget as HTMLElement).style.color = colors.accent }}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <span className="text-xs" style={{ color: colors.text.dim }}>
+                            {start + 1}–{Math.min(start + CONDITIONS_PAGE_SIZE, patient.conditions.length)} of {patient.conditions.length}
+                          </span>
+                          <button
+                            onClick={() => setConditionsPage(p => Math.min(totalPages - 1, p + 1))}
+                            disabled={page === totalPages - 1}
+                            className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{ color: colors.text.muted }}
+                            onMouseEnter={e => { if (page !== totalPages - 1) (e.currentTarget as HTMLElement).style.color = colors.accent }}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </Card>
             </div>
 

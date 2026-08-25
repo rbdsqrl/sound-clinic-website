@@ -15,7 +15,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
 import { Delta, Metric, Panel, Tile } from './components'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, addDays } from 'date-fns'
 
 type TabKey = 'patient' | 'therapist' | 'overview'
 
@@ -45,6 +45,16 @@ const SPARK_MIN = 0
 const SPARK_MAX = 100
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+/** "17–23 Aug" within a month, "28 Aug – 3 Sep" across a month boundary — a single start
+ *  date reads as a day, not the week it anchors. */
+function formatWeekRange(weekStartIso: string): string {
+  const start = parseISO(weekStartIso + 'T00:00:00')
+  const end = addDays(start, 6)
+  return start.getMonth() === end.getMonth()
+    ? `${format(start, 'd')}–${format(end, 'd MMM')}`
+    : `${format(start, 'd MMM')} – ${format(end, 'd MMM')}`
+}
 
 function defaultWindow(granularity: Granularity) {
   const to = new Date()
@@ -456,34 +466,49 @@ export default function AnalyticsPage() {
           </Panel>
 
           <Panel
-            title="Session performance over time"
-            subtitle="Average of the therapist's session score for each period. Gaps are periods with nothing scored."
+            title="Attendance"
+            subtitle="Completed vs no-show vs cancelled, across every finalised session in this window"
           >
-            <ScoreChart
-              points={activeSeries.buckets.map(b => ({
-                label: b.label,
-                value: b.avgPerformanceScore,
-                meta: b.sessionsCompleted > 0 ? `${b.sessionsCompleted} session${b.sessionsCompleted === 1 ? '' : 's'}` : undefined,
-              }))}
-              variant="line"
-            />
-          </Panel>
-
-          <Panel
-            title="Attendance over time"
-            subtitle="Completed ÷ (completed + no-show + cancelled) per period. Gaps are periods with no finalised sessions."
-          >
-            <ScoreChart
-              points={activeSeries.buckets.map(b => {
-                const finalised = b.sessionsCompleted + b.sessionsNoShow + b.sessionsCancelled
-                return {
-                  label: b.label,
-                  value: finalised > 0 ? Math.round((b.sessionsCompleted / finalised) * 100) : null,
-                  meta: finalised > 0 ? `${b.sessionsCompleted}/${finalised} attended` : undefined,
-                }
-              })}
-              variant="bars"
-            />
+            {(() => {
+              const finalised = totals.sessionsCompleted + totals.sessionsNoShow + totals.sessionsCancelled
+              if (finalised === 0) {
+                return (
+                  <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+                    No finalised sessions in this window.
+                  </p>
+                )
+              }
+              const segments = [
+                { label: 'Completed', count: totals.sessionsCompleted, color: colors.status.success },
+                { label: 'No-show',   count: totals.sessionsNoShow,    color: colors.status.warning },
+                { label: 'Cancelled', count: totals.sessionsCancelled, color: colors.status.danger },
+              ].filter(s => s.count > 0)
+              return (
+                <>
+                  <div className="flex h-6 w-full gap-[2px] overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
+                    {segments.map(s => (
+                      <div
+                        key={s.label}
+                        className="h-full rounded-full"
+                        style={{ width: `${(s.count / finalised) * 100}%`, background: s.color }}
+                        title={`${s.label}: ${s.count} (${Math.round((s.count / finalised) * 100)}%)`}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[12.65px]">
+                    {segments.map(s => (
+                      <span key={s.label} className="flex items-center gap-1.5" style={{ color: colors.text.primary }}>
+                        <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: s.color }} />
+                        {s.label}
+                        <span style={{ color: colors.text.dim }}>
+                          {Math.round((s.count / finalised) * 100)}% · {s.count}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
           </Panel>
 
           {tab === 'patient' && activityProgressQuery.data && (
@@ -554,22 +579,20 @@ export default function AnalyticsPage() {
                       const max = Math.max(1, ...frequencyQuery.data!.weekly.map(x => x.totalSessions))
                       return (
                         <div key={w.weekStart} className="flex items-center gap-3">
-                          <span className="w-16 flex-shrink-0 text-xs" style={{ color: colors.text.dim }}>
-                            {format(parseISO(w.weekStart + 'T00:00:00'), 'd MMM')}
+                          <span className="w-28 flex-shrink-0 whitespace-nowrap text-xs" style={{ color: colors.text.dim }}>
+                            {formatWeekRange(w.weekStart)}
                           </span>
-                          <div className="h-5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
-                            <div className="flex h-full">
-                              <div
-                                className="h-full"
-                                style={{ width: `${(w.planSessions / max) * 100}%`, background: colors.accent }}
-                                title={`${w.planSessions} plan session${w.planSessions === 1 ? '' : 's'}`}
-                              />
-                              <div
-                                className="h-full"
-                                style={{ width: `${(w.adHocSessions / max) * 100}%`, background: palette.purple.text }}
-                                title={`${w.adHocSessions} ad-hoc session${w.adHocSessions === 1 ? '' : 's'}`}
-                              />
-                            </div>
+                          <div className="flex h-5 flex-1 gap-[2px] overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${(w.planSessions / max) * 100}%`, background: colors.accent }}
+                              title={`${w.planSessions} plan session${w.planSessions === 1 ? '' : 's'}`}
+                            />
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${(w.adHocSessions / max) * 100}%`, background: palette.purple.text }}
+                              title={`${w.adHocSessions} ad-hoc session${w.adHocSessions === 1 ? '' : 's'}`}
+                            />
                           </div>
                           <span className="w-6 flex-shrink-0 text-right text-xs font-semibold" style={{ color: colors.text.primary }}>
                             {w.totalSessions}
@@ -601,7 +624,7 @@ export default function AnalyticsPage() {
                 value: sp.performanceScore,
                 meta: sp.adHoc ? 'ad-hoc' : `session ${sp.sessionNumber}`,
               }))}
-              variant="bars"
+              variant="line"
             />
           </Panel>
 
