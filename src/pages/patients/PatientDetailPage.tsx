@@ -2105,7 +2105,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* ── IEP tab ──────────────────────────────────────────────────────── */}
-      {activeTab === 'IEP' && <IEPTab patientId={id!} />}
+      {activeTab === 'IEP' && <IEPTab patientId={id!} therapists={patient?.therapists ?? []} />}
 
       {activeTab === 'Activities' && <ActivitiesTab patientId={id!} />}
 

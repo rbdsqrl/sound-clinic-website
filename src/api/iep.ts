@@ -27,7 +27,7 @@ export const iepApi = {
     }).then(r => r.data.data)
   },
 
-  updatePlan: (planId: string, data: Partial<{ title: string; startDate: string; endDate: string; tags: string[]; status: string }>) =>
+  updatePlan: (planId: string, data: Partial<{ title: string; startDate: string; endDate: string; tags: string[]; status: string; therapistId: string }>) =>
     client.patch<ApiResponse<IEPPlanResponse>>(`/iep/${planId}`, data).then(r => r.data.data),
 
   deletePlan: (planId: string) =>

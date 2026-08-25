@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
@@ -20,7 +20,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
-  IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse,
+  IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse, TherapistSummary,
   CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest,
 } from '../../types'
 
@@ -416,18 +416,28 @@ function parseCsvRowPreview(line: string): string[] {
 
 // ── Add Plan modal ────────────────────────────────────────────────────────────
 
-function AddPlanModal({ open, onClose, patientId }: {
+function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   open: boolean
   onClose: () => void
   patientId: string
+  therapists: TherapistSummary[]
+  currentUserId?: string
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
   const [selectedTemplate, setSelectedTemplate] = useState<IEPTemplateResponse | null>(null)
 
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<{
-    title: string; startDate: string; endDate: string; tags: string
+    title: string; startDate: string; endDate: string; tags: string; therapistId: string
   }>()
+
+  // Default the therapist: self if the creator is one of the patient's assigned therapists,
+  // else the sole assigned therapist, else leave it for the dropdown when there are several.
+  useEffect(() => {
+    if (!open) return
+    const self = therapists.find(t => t.id === currentUserId)
+    setValue('therapistId', self ? self.id : (therapists.length === 1 ? therapists[0].id : ''))
+  }, [open, therapists, currentUserId, setValue])
 
   const { data: templates = [] } = useQuery({
     queryKey: ['iep-templates'],
@@ -473,9 +483,12 @@ function AddPlanModal({ open, onClose, patientId }: {
     onError: (err) => toast(getApiError(err, 'Failed to create plan'), 'error'),
   })
 
-  const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string }) => {
+  const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string; therapistId: string }) => {
     const tags = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-    return mut.mutateAsync({ title: data.title, startDate: data.startDate || undefined, endDate: data.endDate || undefined, tags })
+    return mut.mutateAsync({
+      title: data.title, startDate: data.startDate || undefined, endDate: data.endDate || undefined, tags,
+      therapistId: data.therapistId || undefined,
+    })
   }
 
   return (
@@ -526,6 +539,19 @@ function AddPlanModal({ open, onClose, patientId }: {
           <Input label="End date"   type="date" {...register('endDate')} />
         </div>
         <Input label="Tags" placeholder="speech, language, motor (comma-separated)" {...register('tags')} />
+        {therapists.length > 0 ? (
+          <Select
+            label="Therapist"
+            placeholder="Select a therapist…"
+            options={therapists.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+            error={errors.therapistId?.message}
+            {...register('therapistId', { required: 'Select a therapist' })}
+          />
+        ) : (
+          <p className="text-xs" style={{ color: colors.text.dim }}>
+            No therapist assigned to this patient yet — a Business Owner or Clinic Head can assign one to this plan later.
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
           <Button type="submit" loading={isSubmitting || mut.isPending}>Create Plan</Button>
@@ -638,11 +664,12 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
 
 // ── Main IEP Tab ──────────────────────────────────────────────────────────────
 
-export default function IEPTab({ patientId }: { patientId: string }) {
+export default function IEPTab({ patientId, therapists = [] }: { patientId: string; therapists?: TherapistSummary[] }) {
   const { toast } = useToast()
   const qc = useQueryClient()
-  const { activeRole } = useAuth()
+  const { user, activeRole } = useAuth()
   const isEditor = activeRole !== 'PARENT'
+  const isAdmin = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
 
   const [showPlanModal,  setShowPlanModal]  = useState(false)
   const [showCsvModal,   setShowCsvModal]   = useState(false)
@@ -682,6 +709,13 @@ export default function IEPTab({ patientId }: { patientId: string }) {
     mutationFn: iepApi.deleteGoal,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Goal deleted', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to delete goal'), 'error'),
+  })
+
+  const assignTherapistMut = useMutation({
+    mutationFn: ({ planId, therapistId }: { planId: string; therapistId: string }) =>
+      iepApi.updatePlan(planId, { therapistId }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Therapist assigned', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to assign therapist'), 'error'),
   })
 
   const togglePlan = (id: string) =>
@@ -733,8 +767,8 @@ export default function IEPTab({ patientId }: { patientId: string }) {
             return (
               <div key={plan.id} className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border.divider}`, background: 'var(--surface-card)' }}>
                 {/* Plan header */}
-                <button
-                  className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
+                <div
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors cursor-pointer"
                   onClick={() => togglePlan(plan.id)}
                   style={{ background: isOpen ? accentAlpha(0.03) : 'transparent' }}
                 >
@@ -747,7 +781,27 @@ export default function IEPTab({ patientId }: { patientId: string }) {
                       ))}
                     </div>
                     <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: colors.text.dim }}>
-                      {plan.therapistName && <span>{plan.therapistName}</span>}
+                      {plan.therapistName ? (
+                        <span>{plan.therapistName}</span>
+                      ) : isAdmin && therapists.length > 0 ? (
+                        <select
+                          defaultValue=""
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            e.stopPropagation()
+                            if (e.target.value) assignTherapistMut.mutate({ planId: plan.id, therapistId: e.target.value })
+                          }}
+                          className="text-xs rounded-full px-2 py-0.5 border outline-none cursor-pointer"
+                          style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.accent }}
+                        >
+                          <option value="" disabled>Assign therapist…</option>
+                          {therapists.map(t => (
+                            <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span>No therapist assigned</span>
+                      )}
                       {plan.startDate && plan.endDate && (
                         <span>{format(new Date(plan.startDate), 'dd MMM yyyy')} – {format(new Date(plan.endDate), 'dd MMM yyyy')}</span>
                       )}
@@ -761,7 +815,7 @@ export default function IEPTab({ patientId }: { patientId: string }) {
                       ? <ChevronUp size={16} style={{ color: colors.text.dim }} />
                       : <ChevronDown size={16} style={{ color: colors.text.dim }} />}
                   </div>
-                </button>
+                </div>
 
                 {/* Goal timeline */}
                 {isOpen && (
@@ -820,6 +874,8 @@ export default function IEPTab({ patientId }: { patientId: string }) {
             open={showPlanModal}
             onClose={() => setShowPlanModal(false)}
             patientId={patientId}
+            therapists={therapists}
+            currentUserId={user?.id}
           />
 
           <CsvGuideModal

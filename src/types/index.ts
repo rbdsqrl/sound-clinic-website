@@ -1029,7 +1029,7 @@ export interface IEPGoalResponse {
 export interface IEPPlanResponse {
   id: string
   patientId: string
-  therapistId: string
+  therapistId: string | null
   therapistName: string | null
   patientName: string | null
   title: string
@@ -1058,6 +1058,7 @@ export interface CreateIEPPlanRequest {
   endDate?: string
   tags?: string[]
   goals?: CreateIEPGoalRequest[]
+  therapistId?: string
 }
 
 export interface UpdateIEPGoalRequest {
