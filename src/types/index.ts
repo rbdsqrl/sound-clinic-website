@@ -780,6 +780,9 @@ export interface UpdateProgramRequest {
   name?: string
   description?: string
   perSessionCost?: number
+  taxId?: string
+  priceIncludesTax?: boolean
+  removeTax?: boolean
   isActive?: boolean
 }
 

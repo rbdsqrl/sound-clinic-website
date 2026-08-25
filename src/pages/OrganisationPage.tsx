@@ -31,7 +31,7 @@ import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
-  ProgramResponse, ConditionResponse, TaxResponse, AiProvider, DayOfWeek,
+  ProgramResponse, ConditionResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
@@ -144,25 +144,43 @@ function AddRow({
 
 // ── Program row ───────────────────────────────────────────────────────────────
 function ProgramRow({
-  program, canManage, onToggle, onDelete, onEdit,
+  program, canManage, taxes, onToggle, onDelete, onEdit,
 }: {
   program: ProgramResponse
   canManage: boolean
+  taxes: TaxResponse[]
   onToggle: () => void
   onDelete: () => void
-  onEdit: (name: string, cost: number, description?: string) => void
+  onEdit: (name: string, cost: number, description: string | undefined, taxId: string, priceIncludesTax: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [name, setName]       = useState(program.name)
   const [cost, setCost]       = useState(String(program.perSessionCost))
   const [desc, setDesc]       = useState(program.description ?? '')
+  const [taxId, setTaxId]     = useState(program.taxId ?? '')
+  const [priceIncludesTax, setPriceIncludesTax] = useState(program.priceIncludesTax)
+
+  const resetFields = () => {
+    setName(program.name); setCost(String(program.perSessionCost)); setDesc(program.description ?? '')
+    setTaxId(program.taxId ?? ''); setPriceIncludesTax(program.priceIncludesTax)
+  }
 
   const save = () => {
     const c = parseFloat(cost)
     if (!name.trim() || isNaN(c)) return
-    onEdit(name.trim(), c, desc.trim() || undefined)
+    onEdit(name.trim(), c, desc.trim() || undefined, taxId, priceIncludesTax)
     setEditing(false)
   }
+
+  const selectedTax = taxes.find(t => t.id === taxId)
+  const costNum = parseFloat(cost)
+  const hasPreview = !!selectedTax && !isNaN(costNum)
+  const taxAmount = hasPreview
+    ? priceIncludesTax
+      ? costNum - costNum / (1 + selectedTax!.rate / 100)
+      : costNum * (selectedTax!.rate / 100)
+    : 0
+  const totalCost = priceIncludesTax ? costNum : costNum + taxAmount
 
   if (editing) {
     return (
@@ -189,9 +207,50 @@ function ProgramRow({
           value={desc}
           onChange={e => setDesc(e.target.value)}
         />
+
+        {taxes.length > 0 && (
+          <Select
+            className="text-sm"
+            placeholder="No tax"
+            value={taxId}
+            onChange={e => setTaxId(e.target.value)}
+            options={taxes.map(t => ({ value: t.id, label: `${t.name} (${t.rate}%)` }))}
+          />
+        )}
+
+        {selectedTax && (
+          <>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={priceIncludesTax ? styles.filterTabActive : styles.filterTabInactive}
+                onClick={() => setPriceIncludesTax(true)}
+              >
+                Price includes tax
+              </button>
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={!priceIncludesTax ? styles.filterTabActive : styles.filterTabInactive}
+                onClick={() => setPriceIncludesTax(false)}
+              >
+                Tax will be added
+              </button>
+            </div>
+            {hasPreview && (
+              <p className="text-xs" style={{ color: colors.text.muted }}>
+                {priceIncludesTax
+                  ? `₹${costNum.toLocaleString('en-IN')} includes ${selectedTax.name} of ₹${taxAmount.toFixed(2)} (base ₹${(costNum - taxAmount).toFixed(2)})`
+                  : `+ ${selectedTax.name} (₹${taxAmount.toFixed(2)}) = ₹${totalCost.toFixed(2)} total`}
+              </p>
+            )}
+          </>
+        )}
+
         <div className="flex gap-2">
           <Button size="sm" onClick={save} disabled={!name.trim() || !cost}>Save</Button>
-          <Button size="sm" variant="secondary" onClick={() => { setEditing(false); setName(program.name); setCost(String(program.perSessionCost)); setDesc(program.description ?? '') }}>Cancel</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setEditing(false); resetFields() }}>Cancel</Button>
         </div>
       </div>
     )
@@ -554,8 +613,8 @@ export default function OrganisationPage() {
   })
 
   const updateProgramMut = useMutation({
-    mutationFn: ({ id, name, perSessionCost, description }: { id: string; name: string; perSessionCost: number; description?: string }) =>
-      programsApi.update(id, { name, perSessionCost, description }),
+    mutationFn: ({ id, ...data }: { id: string } & UpdateProgramRequest) =>
+      programsApi.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program updated', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to update program'), 'error'),
   })
@@ -1010,9 +1069,18 @@ export default function OrganisationPage() {
                 key={p.id}
                 program={p}
                 canManage={canManage}
+                taxes={taxes}
                 onToggle={() => canManage && toggleProgramMut.mutate({ id: p.id, isActive: !p.isActive })}
                 onDelete={() => canManage && deleteProgramMut.mutate(p.id)}
-                onEdit={(name, cost, desc) => canManage && updateProgramMut.mutate({ id: p.id, name, perSessionCost: cost, description: desc })}
+                onEdit={(name, cost, desc, taxId, priceIncludesTax) => canManage && updateProgramMut.mutate({
+                  id: p.id,
+                  name,
+                  perSessionCost: cost,
+                  description: desc,
+                  ...(taxId
+                    ? { taxId, priceIncludesTax }
+                    : (p.taxId ? { removeTax: true } : {})),
+                })}
               />
             ))}
             {canManage && (
