@@ -378,3 +378,61 @@
 }
 .score-slider:disabled::-webkit-slider-thumb { cursor: default; }
 .score-slider:disabled::-moz-range-thumb { cursor: default; }
+
+/* ── Rich text (Feed posts) ────────────────────────────────────────────────── */
+/* .rich-text-editor wraps Tiptap's live editing surface (its own .ProseMirror  */
+/* class); .rich-text styles the same HTML once rendered read-only via         */
+/* dangerouslySetInnerHTML — both share the same element rules so editing and  */
+/* reading look identical.                                                      */
+.rich-text-editor .ProseMirror {
+  min-height: 120px;
+  outline: none;
+}
+.rich-text-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--form-placeholder);
+}
+.rich-text-editor .ProseMirror,
+.rich-text {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.rich-text-editor .ProseMirror p,
+.rich-text p {
+  margin: 0 0 0.6em;
+}
+.rich-text-editor .ProseMirror p:last-child,
+.rich-text p:last-child {
+  margin-bottom: 0;
+}
+.rich-text-editor .ProseMirror ul,
+.rich-text ul {
+  list-style: disc;
+  padding-left: 1.25em;
+  margin: 0 0 0.6em;
+}
+.rich-text-editor .ProseMirror ol,
+.rich-text ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+  margin: 0 0 0.6em;
+}
+.rich-text-editor .ProseMirror li,
+.rich-text li {
+  display: list-item;
+}
+.rich-text-editor .ProseMirror li p,
+.rich-text li p {
+  margin: 0;
+}
+.rich-text-editor .ProseMirror strong,
+.rich-text strong {
+  font-weight: 700;
+}
+.rich-text a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}

@@ -883,6 +883,17 @@ export interface TaskAttachmentResponse {
 }
 
 // ── Feed ───────────────────────────────────────────────────────────────────────
+export interface FeedPostImageResponse {
+  id: string
+  postId: string
+  fileName: string
+  fileUrl: string
+  contentType: string | null
+  fileSizeBytes: number | null
+  orderIndex: number
+  createdAt: string
+}
+
 export interface FeedPostResponse {
   id: string
   orgId: string
@@ -894,6 +905,11 @@ export interface FeedPostResponse {
   body: string | null
   createdAt: string
   updatedAt: string
+  likeCount: number
+  likedByMe: boolean
+  viewCount: number
+  commentCount: number
+  images: FeedPostImageResponse[]
 }
 
 export interface CreateFeedPostRequest {
@@ -904,6 +920,16 @@ export interface CreateFeedPostRequest {
 export interface UpdateFeedPostRequest {
   title?: string
   body?: string
+}
+
+export interface FeedCommentResponse {
+  id: string
+  postId: string
+  authorId: string
+  authorFirstName: string
+  authorLastName: string
+  body: string
+  createdAt: string
 }
 
 // ── Public Holidays ────────────────────────────────────────────────────────────

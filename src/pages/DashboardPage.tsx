@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck, Newspaper } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
+import DOMPurify from 'dompurify'
 import { clinicsApi } from '../api/clinics'
 import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
@@ -30,6 +31,9 @@ import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResp
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
+
+/** Every dashboard tile shares this height so the 2-column grid lines up evenly. */
+const TILE_MIN_HEIGHT = 360
 
 const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
@@ -113,7 +117,10 @@ function TodaySessions({
   onSessionClick?: (s: TherapySessionResponse) => void
 }) {
   const [showAll, setShowAll] = useState(false)
-  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
 
   const rowContent = (s: TherapySessionResponse) => (
     <>
@@ -174,41 +181,43 @@ function TodaySessions({
           </Link>
         </div>
 
-        {sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <CalendarDays size={28} style={{ color: colors.text.dim }} />
-            <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
-          </div>
-        ) : (
-          <div>
-            {sessions.slice(0, PREVIEW).map((s, i) => {
-              const dividerStyle = i < sessions.slice(0, PREVIEW).length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
-              return onSessionClick ? (
-                <button
-                  key={s.id}
-                  onClick={() => onSessionClick(s)}
-                  className={rowClass}
-                  style={dividerStyle}
-                  onMouseEnter={ROW_HOVER_IN}
-                  onMouseLeave={ROW_HOVER_OUT}
-                >
-                  {rowContent(s)}
-                </button>
-              ) : (
-                <Link
-                  key={s.id}
-                  to={`/patients/${s.patientId}`}
-                  className={rowClass}
-                  style={dividerStyle}
-                  onMouseEnter={ROW_HOVER_IN}
-                  onMouseLeave={ROW_HOVER_OUT}
-                >
-                  {rowContent(s)}
-                </Link>
-              )
-            })}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {sessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <CalendarDays size={28} style={{ color: colors.text.dim }} />
+              <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
+            </div>
+          ) : (
+            <div>
+              {sessions.slice(0, PREVIEW).map((s, i) => {
+                const dividerStyle = i < sessions.slice(0, PREVIEW).length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
+                return onSessionClick ? (
+                  <button
+                    key={s.id}
+                    onClick={() => onSessionClick(s)}
+                    className={rowClass}
+                    style={dividerStyle}
+                    onMouseEnter={ROW_HOVER_IN}
+                    onMouseLeave={ROW_HOVER_OUT}
+                  >
+                    {rowContent(s)}
+                  </button>
+                ) : (
+                  <Link
+                    key={s.id}
+                    to={`/patients/${s.patientId}`}
+                    className={rowClass}
+                    style={dividerStyle}
+                    onMouseEnter={ROW_HOVER_IN}
+                    onMouseLeave={ROW_HOVER_OUT}
+                  >
+                    {rowContent(s)}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -427,7 +436,10 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
 
   return (
     <>
-      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.warning}` }}>
+      <div style={{
+        ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.warning}`,
+        minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+      }}>
         <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
           style={{ borderBottom: `1px solid ${border.divider}` }}>
           <div className="flex items-center gap-2">
@@ -443,17 +455,19 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Leave · Holiday · Parent request</p>
         </div>
 
-        {sessions.length === 0 ? (
-          <EmptyState
-            icon={<AlertTriangle size={22} />}
-            title="Nothing to reschedule"
-            description="Sessions affected by leave, holidays, or parent requests will show up here."
-          />
-        ) : (
-          <div>
-            {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {sessions.length === 0 ? (
+            <EmptyState
+              icon={<AlertTriangle size={22} />}
+              title="Nothing to reschedule"
+              description="Sessions affected by leave, holidays, or parent requests will show up here."
+            />
+          ) : (
+            <div>
+              {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
+            </div>
+          )}
+        </div>
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -563,7 +577,10 @@ function CancellationRequestsPanel({ sessions, onDone }: {
 
   return (
     <>
-      <div style={{ ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.danger}` }}>
+      <div style={{
+        ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.danger}`,
+        minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+      }}>
         <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
           style={{ borderBottom: `1px solid ${border.divider}` }}>
           <div className="flex items-center gap-2">
@@ -579,17 +596,19 @@ function CancellationRequestsPanel({ sessions, onDone }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Awaiting your approval</p>
         </div>
 
-        {sessions.length === 0 ? (
-          <EmptyState
-            icon={<XCircle size={22} />}
-            title="No cancellation requests"
-            description="Requests from therapists or doctors to cancel a session will show up here for approval."
-          />
-        ) : (
-          <div>
-            {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {sessions.length === 0 ? (
+            <EmptyState
+              icon={<XCircle size={22} />}
+              title="No cancellation requests"
+              description="Requests from therapists or doctors to cancel a session will show up here for approval."
+            />
+          ) : (
+            <div>
+              {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
+            </div>
+          )}
+        </div>
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -628,7 +647,10 @@ function dayColor(days: number): string {
 function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
   const [showAll, setShowAll] = useState(false)
 
-  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
 
   const birthdayRow = (b: UpcomingBirthdayResponse, i: number, arr: UpcomingBirthdayResponse[]) => (
     <Link
@@ -686,17 +708,19 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
           <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
         </div>
 
-        {birthdays.length === 0 ? (
-          <EmptyState
-            icon={<Cake size={22} />}
-            title="No birthdays coming up"
-            description="Patients with a birthday in the next 30 days will show up here."
-          />
-        ) : (
-          <div>
-            {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {birthdays.length === 0 ? (
+            <EmptyState
+              icon={<Cake size={22} />}
+              title="No birthdays coming up"
+              description="Patients with a birthday in the next 30 days will show up here."
+            />
+          ) : (
+            <div>
+              {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
+            </div>
+          )}
+        </div>
 
         {birthdays.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -897,7 +921,10 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
   )
 
   const shown = active.slice(0, PREVIEW)
-  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
 
   const taskRow = (task: TaskResponse, i: number, arr: TaskResponse[]) => {
     const due = dueDateLabel(task.dueDate)
@@ -970,17 +997,19 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
           </Link>
         </div>
 
-        {active.length === 0 ? (
-          <EmptyState
-            icon={<ListTodo size={22} />}
-            title="No open tasks"
-            description="Tasks assigned to you will show up here."
-          />
-        ) : (
-          <div>
-            {shown.map((task, i) => taskRow(task, i, shown))}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {active.length === 0 ? (
+            <EmptyState
+              icon={<ListTodo size={22} />}
+              title="No open tasks"
+              description="Tasks assigned to you will show up here."
+            />
+          ) : (
+            <div>
+              {shown.map((task, i) => taskRow(task, i, shown))}
+            </div>
+          )}
+        </div>
 
         {active.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -1015,29 +1044,48 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
   )
 }
 
+function htmlToText(html: string): string {
+  const div = document.createElement('div')
+  div.innerHTML = DOMPurify.sanitize(html)
+  return div.textContent?.trim() || ''
+}
+
 function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
   const [showAll, setShowAll] = useState(false)
   const shown = posts.slice(0, PREVIEW)
-  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
 
-  const postRow = (post: FeedPostResponse, i: number, arr: FeedPostResponse[]) => (
-    <Link
-      key={post.id}
-      to={ROUTES.feed}
-      className="block px-4 sm:px-6 py-3 transition-colors"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
-      onMouseEnter={ROW_HOVER_IN}
-      onMouseLeave={ROW_HOVER_OUT}
-    >
-      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{post.title}</p>
-      {post.body && (
-        <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.muted }}>{post.body}</p>
-      )}
-      <p className="text-xs mt-1" style={{ color: colors.text.dim }}>
-        {post.authorFirstName} {post.authorLastName} · {format(parseISO(post.createdAt), 'MMM d')}
-      </p>
-    </Link>
-  )
+  const postRow = (post: FeedPostResponse, i: number, arr: FeedPostResponse[]) => {
+    const snippet = post.body ? htmlToText(post.body) : ''
+    return (
+      <Link
+        key={post.id}
+        to={ROUTES.feed}
+        className="block px-4 sm:px-6 py-3 transition-colors"
+        style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+        onMouseEnter={ROW_HOVER_IN}
+        onMouseLeave={ROW_HOVER_OUT}
+      >
+        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{post.title}</p>
+        {snippet && (
+          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.muted }}>{snippet}</p>
+        )}
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          <p className="text-xs" style={{ color: colors.text.dim }}>
+            {post.authorFirstName} {post.authorLastName} · {format(parseISO(post.createdAt), 'MMM d')}
+          </p>
+          <span className="flex items-center gap-2.5 text-[11.5px]" style={{ color: colors.text.dim }}>
+            <span className="flex items-center gap-1"><Heart size={11} />{post.likeCount}</span>
+            <span className="flex items-center gap-1"><MessageCircle size={11} />{post.commentCount}</span>
+            <span className="flex items-center gap-1"><Eye size={11} />{post.viewCount}</span>
+          </span>
+        </div>
+      </Link>
+    )
+  }
 
   return (
     <>
@@ -1057,17 +1105,19 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
           </Link>
         </div>
 
-        {posts.length === 0 ? (
-          <EmptyState
-            icon={<Newspaper size={22} />}
-            title="No posts yet"
-            description="Clinic updates from Business Owner and Clinic Head will show up here."
-          />
-        ) : (
-          <div>
-            {shown.map((post, i) => postRow(post, i, shown))}
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          {posts.length === 0 ? (
+            <EmptyState
+              icon={<Newspaper size={22} />}
+              title="No posts yet"
+              description="Clinic updates from Business Owner and Clinic Head will show up here."
+            />
+          ) : (
+            <div>
+              {shown.map((post, i) => postRow(post, i, shown))}
+            </div>
+          )}
+        </div>
 
         {posts.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -1276,34 +1326,32 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {canReschedule && (
-        <PendingReschedulePanel
-          sessions={pendingReschedule}
-          onRescheduled={() => refetchPending()}
+      {/* Uniform 2-column tile grid — Calendar and Feed lead, then any alerts, then Birthdays/Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TodaySessions
+          sessions={todaySessions}
+          showTherapist={isOwnerOrAdmin}
+          onSessionClick={canUpdateSession ? setEditingSession : undefined}
         />
-      )}
 
-      {isOwnerOrAdmin && (
-        <CancellationRequestsPanel
-          sessions={cancellationRequests}
-          onDone={() => refetchCancelRequests()}
-        />
-      )}
+        <FeedPanel posts={feedPosts} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2">
-          <TodaySessions
-            sessions={todaySessions}
-            showTherapist={isOwnerOrAdmin}
-            onSessionClick={canUpdateSession ? setEditingSession : undefined}
+        {canReschedule && (
+          <PendingReschedulePanel
+            sessions={pendingReschedule}
+            onRescheduled={() => refetchPending()}
           />
-        </div>
+        )}
 
-        <div className="flex flex-col gap-6">
-          <UpcomingBirthdays birthdays={upcomingBirthdays} />
-          <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
-          <FeedPanel posts={feedPosts} />
-        </div>
+        {isOwnerOrAdmin && (
+          <CancellationRequestsPanel
+            sessions={cancellationRequests}
+            onDone={() => refetchCancelRequests()}
+          />
+        )}
+
+        <UpcomingBirthdays birthdays={upcomingBirthdays} />
+        <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
       </div>
 
       {editingSession && (
