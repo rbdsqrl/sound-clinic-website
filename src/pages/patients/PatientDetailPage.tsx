@@ -298,7 +298,7 @@ function CreateSubscriptionModal({
 
   const selectedProgram = programs.find(p => p.id === programId)
   const sessions = parseInt(numSessions) || 0
-  const previewTotal = selectedProgram ? formatINR(selectedProgram.perSessionCost * sessions) : null
+  const previewTotal = selectedProgram ? formatINR(selectedProgram.totalCost * sessions) : null
 
   const validate = () => {
     const e: typeof errors = {}
@@ -340,7 +340,7 @@ function CreateSubscriptionModal({
               <option value="">Select a program…</option>
               {programs.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.name} — {formatINR(p.perSessionCost)}/session
+                  {p.name} — {formatINR(p.totalCost)}/session{p.taxName && !p.priceIncludesTax ? ` (incl. ${p.taxName})` : ''}
                 </option>
               ))}
             </select>

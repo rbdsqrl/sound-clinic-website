@@ -233,7 +233,7 @@ function ConvertModal({
   })
 
   const selectedProgram = programs.find(p => p.id === selectedProgramId)
-  const totalCost = selectedProgram ? selectedProgram.perSessionCost * numSessions : 0
+  const totalCost = selectedProgram ? selectedProgram.totalCost * numSessions : 0
 
   const subscriptionMutation = useMutation({
     mutationFn: () => subscriptionsApi.create({
@@ -318,7 +318,7 @@ function ConvertModal({
                   <option value="">Select a program…</option>
                   {programs.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} — ₹{p.perSessionCost.toLocaleString()}/session
+                      {p.name} — ₹{p.totalCost.toLocaleString()}/session{p.taxName && !p.priceIncludesTax ? ` (incl. ${p.taxName})` : ''}
                     </option>
                   ))}
                 </select>
