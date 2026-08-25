@@ -21,6 +21,7 @@ import AvailabilityPage from './pages/availability/AvailabilityPage'
 import CalendarPage from './pages/calendar/CalendarPage'
 import InquiriesPage from './pages/inquiries/InquiriesPage'
 import TasksPage from './pages/tasks/TasksPage'
+import FeedPage from './pages/feed/FeedPage'
 import WorkforcePage from './pages/workforce/WorkforcePage'
 import MembersPage from './pages/members/MembersPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path={ROUTES.availability} element={<AvailabilityPage />} />
         <Route path={ROUTES.inquiries}    element={<InquiriesPage />} />
         <Route path={ROUTES.tasks}        element={<TasksPage />} />
+        <Route path={ROUTES.feed}         element={<FeedPage />} />
         <Route path={ROUTES.workforce}    element={<WorkforcePage />} />
         <Route path={ROUTES.members}      element={<MembersPage />} />
         <Route path={ROUTES.analytics}    element={<AnalyticsPage />} />

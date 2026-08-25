@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck, Newspaper } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { clinicsApi } from '../api/clinics'
 import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
+import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
@@ -16,6 +17,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../contexts/AuthContext'
 import { roleBadge, sessionStatusLabel } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha, successAlpha, dangerAlpha, warningAlpha } from '../theme'
@@ -24,7 +26,7 @@ import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
 import { ROUTES } from '../lib/routes'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -375,8 +377,6 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
-  if (sessions.length === 0) return null
-
   const rescheduleRow = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
     <div
       key={s.id}
@@ -443,9 +443,17 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Leave · Holiday · Parent request</p>
         </div>
 
-        <div>
-          {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
-        </div>
+        {sessions.length === 0 ? (
+          <EmptyState
+            icon={<AlertTriangle size={22} />}
+            title="Nothing to reschedule"
+            description="Sessions affected by leave, holidays, or parent requests will show up here."
+          />
+        ) : (
+          <div>
+            {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
+          </div>
+        )}
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -518,8 +526,6 @@ function CancellationRequestsPanel({ sessions, onDone }: {
     onError: (err) => toast(getApiError(err, 'Failed to reject cancellation'), 'error'),
   })
 
-  if (sessions.length === 0) return null
-
   const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
     <div key={s.id} className="px-4 sm:px-6 py-3"
       style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}>
@@ -573,9 +579,17 @@ function CancellationRequestsPanel({ sessions, onDone }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Awaiting your approval</p>
         </div>
 
-        <div>
-          {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
-        </div>
+        {sessions.length === 0 ? (
+          <EmptyState
+            icon={<XCircle size={22} />}
+            title="No cancellation requests"
+            description="Requests from therapists or doctors to cancel a session will show up here for approval."
+          />
+        ) : (
+          <div>
+            {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
+          </div>
+        )}
 
         {sessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -613,8 +627,6 @@ function dayColor(days: number): string {
 
 function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
   const [showAll, setShowAll] = useState(false)
-
-  if (birthdays.length === 0) return null
 
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
@@ -674,9 +686,17 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
           <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
         </div>
 
-        <div>
-          {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
-        </div>
+        {birthdays.length === 0 ? (
+          <EmptyState
+            icon={<Cake size={22} />}
+            title="No birthdays coming up"
+            description="Patients with a birthday in the next 30 days will show up here."
+          />
+        ) : (
+          <div>
+            {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
+          </div>
+        )}
 
         {birthdays.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -876,8 +896,6 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
          t.assignees.some(a => a.id === userId)
   )
 
-  if (active.length === 0) return null
-
   const shown = active.slice(0, PREVIEW)
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
@@ -952,9 +970,17 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
           </Link>
         </div>
 
-        <div>
-          {shown.map((task, i) => taskRow(task, i, shown))}
-        </div>
+        {active.length === 0 ? (
+          <EmptyState
+            icon={<ListTodo size={22} />}
+            title="No open tasks"
+            description="Tasks assigned to you will show up here."
+          />
+        ) : (
+          <div>
+            {shown.map((task, i) => taskRow(task, i, shown))}
+          </div>
+        )}
 
         {active.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -982,6 +1008,80 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
               </p>
             )}
             {open.map((task, i) => taskRow(task, i, open))}
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
+  const [showAll, setShowAll] = useState(false)
+  const shown = posts.slice(0, PREVIEW)
+  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+
+  const postRow = (post: FeedPostResponse, i: number, arr: FeedPostResponse[]) => (
+    <Link
+      key={post.id}
+      to={ROUTES.feed}
+      className="block px-4 sm:px-6 py-3 transition-colors"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      onMouseEnter={ROW_HOVER_IN}
+      onMouseLeave={ROW_HOVER_OUT}
+    >
+      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{post.title}</p>
+      {post.body && (
+        <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.muted }}>{post.body}</p>
+      )}
+      <p className="text-xs mt-1" style={{ color: colors.text.dim }}>
+        {post.authorFirstName} {post.authorLastName} · {format(parseISO(post.createdAt), 'MMM d')}
+      </p>
+    </Link>
+  )
+
+  return (
+    <>
+      <div style={sectionCard}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <Newspaper size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Feed</h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {posts.length}
+            </span>
+          </div>
+          <Link to={ROUTES.feed} className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
+            View all <ChevronRight size={12} />
+          </Link>
+        </div>
+
+        {posts.length === 0 ? (
+          <EmptyState
+            icon={<Newspaper size={22} />}
+            title="No posts yet"
+            description="Clinic updates from Business Owner and Clinic Head will show up here."
+          />
+        ) : (
+          <div>
+            {shown.map((post, i) => postRow(post, i, shown))}
+          </div>
+        )}
+
+        {posts.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {posts.length} posts
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Feed (${posts.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {posts.map((post, i) => postRow(post, i, posts))}
           </div>
         </Modal>
       )}
@@ -1032,6 +1132,13 @@ export default function DashboardPage() {
     queryKey: ['tasks'],
     queryFn: tasksApi.list,
     enabled: isStaff,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const { data: feedPosts = [] } = useQuery({
+    queryKey: ['feed'],
+    queryFn: feedApi.list,
+    enabled: !!user,
     staleTime: 2 * 60 * 1000,
   })
 
@@ -1105,6 +1212,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <FeedPanel posts={feedPosts} />
       </div>
     )
   }
@@ -1181,32 +1290,21 @@ export default function DashboardPage() {
         />
       )}
 
-      {(() => {
-        const myActiveTasks = myTasksAll.filter(
-          t => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
-               t.assignees.some(a => a.id === (user?.id ?? ''))
-        )
-        const hasSidebar = upcomingBirthdays.length > 0 || myActiveTasks.length > 0
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2">
+          <TodaySessions
+            sessions={todaySessions}
+            showTherapist={isOwnerOrAdmin}
+            onSessionClick={canUpdateSession ? setEditingSession : undefined}
+          />
+        </div>
 
-        return (
-          <div className={hasSidebar ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 items-start' : ''}>
-            <div className={hasSidebar ? 'lg:col-span-2' : ''}>
-              <TodaySessions
-                sessions={todaySessions}
-                showTherapist={isOwnerOrAdmin}
-                onSessionClick={canUpdateSession ? setEditingSession : undefined}
-              />
-            </div>
-
-            {hasSidebar && (
-              <div className="flex flex-col gap-6">
-                <UpcomingBirthdays birthdays={upcomingBirthdays} />
-                <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
-              </div>
-            )}
-          </div>
-        )
-      })()}
+        <div className="flex flex-col gap-6">
+          <UpcomingBirthdays birthdays={upcomingBirthdays} />
+          <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
+          <FeedPanel posts={feedPosts} />
+        </div>
+      </div>
 
       {editingSession && (
         <SessionUpdateModal

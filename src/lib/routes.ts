@@ -16,6 +16,7 @@ export const ROUTES = {
   availability:       '/availability',
   inquiries:          '/inquiries',
   tasks:              '/tasks',
+  feed:               '/feed',
   workforce:          '/workforce',
   /** Deep-link a Workforce tab, e.g. workforceTab('leave-requests') */
   workforceTab:       (tab: string) => `/workforce?tab=${tab}`,

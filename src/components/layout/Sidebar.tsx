@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
-  ChevronLeft, ChevronRight, ListTodo, UserCog, TrendingUp, ClipboardList,
+  ChevronLeft, ChevronRight, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -18,6 +18,7 @@ import { ROUTES } from '../../lib/routes'
 const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.ElementType }[]> = {
   BUSINESS_OWNER: [
     { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
+    { to: ROUTES.feed,         label: 'Feed',         icon: Newspaper },
     { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Patients',     icon: Users },
@@ -30,6 +31,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   ],
   CLINIC_HEAD: [
     { to: ROUTES.dashboard,    label: 'Dashboard',    icon: LayoutDashboard },
+    { to: ROUTES.feed,         label: 'Feed',         icon: Newspaper },
     { to: ROUTES.inquiries,    label: 'Inquiries',    icon: Inbox },
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Patients',     icon: Users },
@@ -42,6 +44,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   ],
   THERAPIST: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
     { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
     { to: ROUTES.patients,  label: 'Patients',  icon: Users },
     { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
@@ -51,6 +54,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   ],
   DOCTOR: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
     { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
     { to: ROUTES.patients,  label: 'Patients',  icon: Users },
     { to: ROUTES.tasks,     label: 'My Tasks',  icon: ListTodo },
@@ -59,12 +63,14 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   ],
   PARENT: [
     { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },
+    { to: ROUTES.feed,       label: 'Feed',        icon: Newspaper },
     { to: ROUTES.myChildren, label: 'My Children', icon: Baby },
     { to: ROUTES.analytics,  label: 'Progress',    icon: TrendingUp },
     { to: ROUTES.calendar,   label: 'Calendar',    icon: CalendarDays },
   ],
   PATIENT: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+    { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
 }

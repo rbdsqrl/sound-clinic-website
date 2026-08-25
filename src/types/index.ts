@@ -882,6 +882,30 @@ export interface TaskAttachmentResponse {
   createdAt: string
 }
 
+// ── Feed ───────────────────────────────────────────────────────────────────────
+export interface FeedPostResponse {
+  id: string
+  orgId: string
+  authorId: string
+  authorFirstName: string
+  authorLastName: string
+  authorRole: Role
+  title: string
+  body: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateFeedPostRequest {
+  title: string
+  body?: string
+}
+
+export interface UpdateFeedPostRequest {
+  title?: string
+  body?: string
+}
+
 // ── Public Holidays ────────────────────────────────────────────────────────────
 export interface PublicHolidayResponse {
   id: string
