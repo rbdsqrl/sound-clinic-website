@@ -1676,3 +1676,44 @@ export interface CaseHistoryResponse {
 }
 
 export type UpdateCaseHistoryRequest = Omit<CaseHistoryResponse, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
+
+// ── Patient assessments (ISAA / PRBA) ───────────────────────────────────────────
+
+export type AssessmentType = 'ISAA' | 'PRBA'
+
+export interface AssessmentOption {
+  label: string
+  score: number
+}
+
+export interface AssessmentItem {
+  number: number
+  text: string
+  options: AssessmentOption[]
+}
+
+export interface AssessmentSection {
+  name: string
+  items: AssessmentItem[]
+}
+
+export interface AssessmentDefinitionResponse {
+  assessmentType: AssessmentType
+  maxScore: number
+  sections: AssessmentSection[]
+}
+
+export interface CreateAssessmentRequest {
+  assessmentDate: string   // "YYYY-MM-DD"
+  itemScores: Record<number, number>
+}
+
+export interface PatientAssessmentResponse {
+  id: string
+  assessmentType: AssessmentType
+  assessmentDate: string   // "YYYY-MM-DD"
+  filledByName: string | null
+  totalScore: number
+  maxScore: number
+  classification: string | null
+}
