@@ -405,6 +405,9 @@ export function SessionNotesModal({
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
             {session.startTime.slice(0, 5)} · {session.programName}
           </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            {session.patientFirstName} {session.patientLastName} · {session.therapistFirstName} {session.therapistLastName}
+          </p>
         </div>
         <span className="text-[11.5px] px-2 py-1 rounded-full font-medium"
           style={
