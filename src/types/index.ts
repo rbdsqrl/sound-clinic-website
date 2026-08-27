@@ -1086,6 +1086,9 @@ export interface IEPGoalResponse {
   assignedTherapistId: string | null
   therapistName: string | null
   progressCount: number
+  /** Trials passed ÷ trials attempted on the most recent progress entry — null when that entry
+   *  didn't record trial counts, or none has been logged yet. */
+  latestMasteryPct: number | null
   createdAt: string
 }
 
@@ -1140,6 +1143,17 @@ export interface AddProgressRequest {
   note?: string
   trialsPassed?: number
   trialsTotal?: number
+}
+
+export interface IEPGoalProgressResponse {
+  id: string
+  sessionDate: string
+  note: string | null
+  trialsPassed: number | null
+  trialsTotal: number | null
+  masteryPct: number | null
+  therapistName: string | null
+  createdAt: string
 }
 
 export interface ImportResultResponse {

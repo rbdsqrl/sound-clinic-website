@@ -2,7 +2,7 @@ import client from './client'
 import type {
   ApiResponse, IEPPlanResponse, IEPGoalResponse, ImportResultResponse,
   CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest,
-  AddProgressRequest,
+  AddProgressRequest, IEPGoalProgressResponse,
 } from '../types'
 
 export const iepApi = {
@@ -44,6 +44,9 @@ export const iepApi = {
 
   addProgress: (goalId: string, data: AddProgressRequest) =>
     client.post<ApiResponse<IEPGoalResponse>>(`/iep/goals/${goalId}/progress`, data).then(r => r.data.data),
+
+  listProgress: (goalId: string) =>
+    client.get<ApiResponse<IEPGoalProgressResponse[]>>(`/iep/goals/${goalId}/progress`).then(r => r.data.data),
 
   sampleCsvUrl: () => '/api/v1/iep/sample-csv',
 }

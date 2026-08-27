@@ -21,7 +21,7 @@ import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
   IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse, TherapistSummary,
-  CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest,
+  CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest, IEPGoalProgressResponse,
 } from '../../types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -78,13 +78,14 @@ const SAMPLE_ROWS = [
 
 // ── Goal row ──────────────────────────────────────────────────────────────────
 
-function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete, onLogProgress }: {
+function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete, onLogProgress, onViewProgress }: {
   goal: IEPGoalResponse
   isEditor: boolean
   onStatusChange: (id: string, status: IEPGoalStatus) => void
   onProgressTagChange: (id: string, tag: string) => void
   onDelete: (id: string) => void
   onLogProgress: (goal: IEPGoalResponse) => void
+  onViewProgress: (goal: IEPGoalResponse) => void
 }) {
   const statusMeta = STATUS_META[goal.status]
 
@@ -132,17 +133,29 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
             </span>
           )}
 
-          {/* Progress session count */}
-          <span className="inline-flex items-center gap-1 text-xs" style={{ color: colors.text.dim }}>
+          {/* Progress entries logged — click to view history */}
+          <button
+            onClick={() => onViewProgress(goal)}
+            disabled={goal.progressCount === 0}
+            className="inline-flex items-center gap-1 text-xs rounded-full px-1.5 py-0.5 transition-opacity hover:opacity-70 disabled:cursor-default disabled:opacity-100"
+            style={{ color: colors.text.dim }}
+            title={goal.progressCount > 0 ? 'View progress history' : 'No progress logged yet'}
+          >
             <FileText size={11} />
             {goal.progressCount}
-          </span>
+          </button>
 
-          {/* Progress date / sessions */}
-          <span className="inline-flex items-center gap-1 text-xs" style={{ color: colors.text.dim }}>
-            <CalendarDays size={11} />
-            {goal.progressCount}
-          </span>
+          {/* Latest logged mastery percentage */}
+          {goal.latestMasteryPct !== null && (
+            <button
+              onClick={() => onViewProgress(goal)}
+              className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium transition-opacity hover:opacity-70"
+              style={{ background: accentAlpha(0.08), color: colors.accent }}
+              title="Trials passed ÷ trials attempted on the most recent progress entry"
+            >
+              {goal.latestMasteryPct}%
+            </button>
+          )}
 
           {/* Grade / Progress tag */}
           {isEditor ? (
@@ -682,6 +695,7 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
+      qc.invalidateQueries({ queryKey: ['iep-progress', goal!.id] })
       toast('Progress logged', 'success')
       reset({ sessionDate: new Date().toISOString().split('T')[0] })
       onClose()
@@ -712,6 +726,64 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
   )
 }
 
+// ── Progress History modal ──────────────────────────────────────────────────────
+
+function ProgressHistoryModal({ open, onClose, goal }: {
+  open: boolean
+  onClose: () => void
+  goal: IEPGoalResponse | null
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['iep-progress', goal?.id],
+    queryFn: () => iepApi.listProgress(goal!.id),
+    enabled: open && !!goal,
+  })
+
+  if (!goal) return null
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Progress History — ${goal.title}`}>
+      {isLoading ? (
+        <PageLoader />
+      ) : !data || data.length === 0 ? (
+        <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No progress logged yet.</p>
+      ) : (
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          {data.map((p: IEPGoalProgressResponse) => (
+            <div key={p.id} className="p-3 rounded-lg" style={{ border: border.card, background: surface.card }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: colors.text.primary }}>
+                  <CalendarDays size={13} style={{ color: colors.text.dim }} />
+                  {format(new Date(p.sessionDate), 'dd MMM yyyy')}
+                </span>
+                {p.masteryPct !== null && (
+                  <span
+                    className="text-xs font-semibold rounded-full px-2 py-0.5"
+                    style={{ background: accentAlpha(0.08), color: colors.accent }}
+                  >
+                    {p.masteryPct}%
+                  </span>
+                )}
+              </div>
+              {p.trialsPassed !== null && p.trialsTotal !== null && (
+                <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
+                  {p.trialsPassed}/{p.trialsTotal} trials passed
+                </p>
+              )}
+              {p.note && (
+                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: colors.text.dim }}>{p.note}</p>
+              )}
+              {p.therapistName && (
+                <p className="text-[11px] mt-1.5" style={{ color: colors.text.dim }}>Logged by {p.therapistName}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ── Main IEP Tab ──────────────────────────────────────────────────────────────
 
 export default function IEPTab({ patientId, therapists = [] }: { patientId: string; therapists?: TherapistSummary[] }) {
@@ -725,6 +797,7 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
   const [showCsvModal,   setShowCsvModal]   = useState(false)
   const [addGoalTarget,  setAddGoalTarget]  = useState<{ id: string; title: string } | null>(null)
   const [progressTarget, setProgressTarget] = useState<IEPGoalResponse | null>(null)
+  const [historyTarget,  setHistoryTarget]  = useState<IEPGoalResponse | null>(null)
   const [expandedPlans,  setExpandedPlans]  = useState<Set<string>>(new Set())
 
   const { data: plans = [], isLoading } = useQuery({
@@ -870,6 +943,7 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                             onProgressTagChange={(id, tag) => updateGoalMut.mutate({ goalId: id, data: { progressTag: tag } })}
                             onDelete={id => deleteGoalMut.mutate(id)}
                             onLogProgress={g => setProgressTarget(g)}
+                            onViewProgress={g => setHistoryTarget(g)}
                           />
                         ))}
                       </div>
@@ -933,6 +1007,12 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
             onClose={() => setProgressTarget(null)}
             goal={progressTarget}
             patientId={patientId}
+          />
+
+          <ProgressHistoryModal
+            open={!!historyTarget}
+            onClose={() => setHistoryTarget(null)}
+            goal={historyTarget}
           />
         </>
       )}
