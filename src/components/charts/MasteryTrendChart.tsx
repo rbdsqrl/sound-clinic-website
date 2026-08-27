@@ -183,7 +183,7 @@ export default function MasteryTrendChart({ buckets, height = 240 }: Props) {
           className="pointer-events-none absolute z-10 rounded-lg px-3 py-2 text-xs shadow-lg"
           style={{
             background: surface.card,
-            border: `1px solid ${border.card}`,
+            border: border.card,
             color: colors.text.primary,
             left: Math.min(Math.max((x(hover!) / width) * 100, 4), 78) + '%',
             top: 8,

@@ -14,7 +14,7 @@ export function Tile({ label, value, hint, tone = 'neutral' }: {
     : colors.text.muted
 
   return (
-    <div className="p-4" style={{ background: surface.card, border: `1px solid ${border.card}`, borderRadius: radius.md }}>
+    <div className="p-4" style={{ background: surface.card, border: border.card, borderRadius: radius.md }}>
       <p className="text-xs uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</p>
       <p className="mt-1.5 text-2xl font-bold leading-none" style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}>
         {value}
@@ -33,7 +33,7 @@ export function Panel({ title, subtitle, action, children }: {
   return (
     <section
       className="p-4 md:p-5"
-      style={{ background: surface.card, border: `1px solid ${border.card}`, borderRadius: radius.md }}
+      style={{ background: surface.card, border: border.card, borderRadius: radius.md }}
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>

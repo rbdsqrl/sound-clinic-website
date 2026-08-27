@@ -79,7 +79,7 @@ export default function OutcomeRibbon({ buckets }: Props) {
           <span key={o.key} className="inline-flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ background: o.color, border: o.key === 'rescheduled' ? `1px solid ${border.card}` : undefined }}
+              style={{ background: o.color, border: o.key === 'rescheduled' ? border.card : undefined }}
             />
             {o.label}
           </span>
