@@ -16,7 +16,7 @@ import { Users, UserCog, Mail, Clock, CalendarClock, Search, Download } from 'lu
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
-import { Delta, Metric, Panel, Tile } from './components'
+import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { format, parseISO, addDays } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
@@ -432,7 +432,7 @@ export default function AnalyticsPage() {
           </div>
 
           {casesQuery.isLoading ? (
-            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+            <Loading />
           ) : filteredCases.length === 0 ? (
             <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
               {casesQuery.data?.length ? 'No cases match your search.' : 'No active patients yet.'}
@@ -532,7 +532,7 @@ export default function AnalyticsPage() {
           </div>
 
           {membersQuery.isLoading ? (
-            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+            <Loading />
           ) : filteredMembers.length === 0 ? (
             <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
               {membersQuery.data?.length ? 'No members match your search.' : 'No therapists or doctors yet.'}
@@ -584,14 +584,14 @@ export default function AnalyticsPage() {
         />
       )}
 
-      {loading && (
-        <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>Loading…</p>
-      )}
+      {loading && <Loading />}
 
       {tab === 'overview' && (
         <div className="space-y-5">
           {/* Engagement KPI tiles */}
-          {engagementQuery.data && (
+          {engagementQuery.isLoading ? (
+            <Loading />
+          ) : engagementQuery.data && (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Tile
                 label="Active Users"
@@ -628,7 +628,9 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             <Panel title="Therapies" subtitle="Distinct children on each program">
-              {!snapshotQuery.data || snapshotQuery.data.programBreakdown.length === 0 ? (
+              {snapshotQuery.isLoading ? (
+                <Loading />
+              ) : !snapshotQuery.data || snapshotQuery.data.programBreakdown.length === 0 ? (
                 <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No enrollments recorded yet.</p>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -643,7 +645,9 @@ export default function AnalyticsPage() {
             </Panel>
 
             <Panel title="Skills" subtitle="Most-used skills across assigned activities">
-              {!engagementQuery.data || engagementQuery.data.skillsBreakdown.length === 0 ? (
+              {engagementQuery.isLoading ? (
+                <Loading />
+              ) : !engagementQuery.data || engagementQuery.data.skillsBreakdown.length === 0 ? (
                 <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No activity-skill data yet.</p>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -658,7 +662,9 @@ export default function AnalyticsPage() {
             </Panel>
 
             <Panel title="Age Group" subtitle="Active patients, by age in years">
-              {!engagementQuery.data ? null : (
+              {engagementQuery.isLoading ? (
+                <Loading />
+              ) : !engagementQuery.data ? null : (
                 <div className="flex items-end gap-3" style={{ height: 140 }}>
                   {(() => {
                     const max = Math.max(1, ...engagementQuery.data.ageGroups.map(a => a.count))
@@ -676,11 +682,13 @@ export default function AnalyticsPage() {
           </div>
 
           <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
-            {heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
           </Panel>
 
           <Panel title="Sessions" subtitle="Session count per day in the selected window">
-            {engagementQuery.data && (
+            {engagementQuery.isLoading ? (
+              <Loading />
+            ) : engagementQuery.data && (
               <>
                 <ScoreChart
                   variant="bars"
@@ -698,8 +706,10 @@ export default function AnalyticsPage() {
             )}
           </Panel>
 
-          <Panel title="Checklist Filled" subtitle="Activity attempts logged per day, in the selected window">
-            {engagementQuery.data && engagementQuery.data.checklistFilledTrend.length > 0 ? (
+          <Panel title="Checklist Filled" subtitle="Sessions where a therapist filled the Detailed Feedback Options checklist, per day">
+            {engagementQuery.isLoading ? (
+              <Loading />
+            ) : engagementQuery.data && engagementQuery.data.checklistFilledTrend.length > 0 ? (
               <ScoreChart
                 variant="line"
                 points={engagementQuery.data.checklistFilledTrend.map(t => ({
@@ -709,12 +719,14 @@ export default function AnalyticsPage() {
                 }))}
               />
             ) : (
-              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>No activity attempts logged in this window.</p>
+              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>No session feedback checklists filled in this window.</p>
             )}
           </Panel>
 
           <Panel title="Most Assigned Activities" subtitle="By number of assignments, all time">
-            {!engagementQuery.data || engagementQuery.data.mostAssignedActivities.length === 0 ? (
+            {engagementQuery.isLoading ? (
+              <Loading />
+            ) : !engagementQuery.data || engagementQuery.data.mostAssignedActivities.length === 0 ? (
               <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No activities assigned yet.</p>
             ) : (
               <table className="w-full text-sm">
@@ -740,17 +752,21 @@ export default function AnalyticsPage() {
 
       {tab === 'schedule' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-            <Tile label="Total Sessions" value={scheduleQuery.data?.totalSessions ?? 0} />
-            <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} />
-            <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} />
-            <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} />
-            <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} />
-            <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} />
-          </div>
+          {scheduleQuery.isLoading ? (
+            <Loading />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+              <Tile label="Total Sessions" value={scheduleQuery.data?.totalSessions ?? 0} />
+              <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} />
+              <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} />
+              <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} />
+              <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} />
+              <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} />
+            </div>
+          )}
 
           <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
-            {heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
           </Panel>
 
           <Panel title="Session Log" subtitle="Every session in the selected window and filters">
@@ -786,7 +802,7 @@ export default function AnalyticsPage() {
             </div>
 
             {scheduleQuery.isLoading ? (
-              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+              <Loading />
             ) : filteredScheduleSessions.length === 0 ? (
               <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
                 {scheduleQuery.data?.sessions.length ? 'No sessions match your search.' : 'No sessions in this window.'}
@@ -957,12 +973,14 @@ export default function AnalyticsPage() {
             })()}
           </Panel>
 
-          {tab === 'cases' && activityProgressQuery.data && (
+          {tab === 'cases' && (activityProgressQuery.isLoading || activityProgressQuery.data) && (
             <Panel
               title="Assigned Activities"
               subtitle="Completion status and attempts logged for activities assigned to this child"
             >
-              {activityProgressQuery.data.assignedCount + activityProgressQuery.data.inProgressCount
+              {activityProgressQuery.isLoading || !activityProgressQuery.data ? (
+                <Loading />
+              ) : activityProgressQuery.data.assignedCount + activityProgressQuery.data.inProgressCount
                 + activityProgressQuery.data.completedCount + activityProgressQuery.data.discontinuedCount === 0 ? (
                 <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
                   No activities assigned to this child yet.
@@ -996,12 +1014,14 @@ export default function AnalyticsPage() {
             </Panel>
           )}
 
-          {tab === 'cases' && frequencyQuery.data && (
+          {tab === 'cases' && (frequencyQuery.isLoading || frequencyQuery.data) && (
             <Panel
               title="Session Frequency"
               subtitle="Sessions per week, folded across every program this child is enrolled in at once"
             >
-              {frequencyQuery.data.weekly.length === 0 ? (
+              {frequencyQuery.isLoading || !frequencyQuery.data ? (
+                <Loading />
+              ) : frequencyQuery.data.weekly.length === 0 ? (
                 <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
                   No sessions in this range.
                 </p>

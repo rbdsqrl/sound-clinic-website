@@ -1,5 +1,16 @@
 import type { ReactNode } from 'react'
 import { colors, border, surface, radius } from '../../theme'
+import { Spinner } from '../../components/ui/Spinner'
+
+/** Consistent in-place loading indicator for a panel/section still waiting on its query. */
+export function Loading({ label = 'Loading…' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8">
+      <Spinner size="sm" />
+      <span className="text-xs" style={{ color: colors.text.dim }}>{label}</span>
+    </div>
+  )
+}
 
 /** Compact KPI tile. `hint` carries the qualifier the number needs to be read honestly. */
 export function Tile({ label, value, hint, tone = 'neutral' }: {
