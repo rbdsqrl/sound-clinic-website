@@ -31,12 +31,13 @@ export function scoreLabel(score: number): string {
 }
 
 export function PerformanceScoreSlider({
-  value, onChange, disabled = false,
+  value, onChange, disabled = false, required = false,
 }: {
   /** null when the therapist has not scored the session */
   value: number | null
   onChange: (value: number | null) => void
   disabled?: boolean
+  required?: boolean
 }) {
   const active = value !== null
   const shown = value ?? 0
@@ -45,7 +46,9 @@ export function PerformanceScoreSlider({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="form-label mb-0">Performance Score</label>
+        <label className="form-label mb-0">
+          Performance Score{required && <span style={{ color: colors.status.danger }}> *</span>}
+        </label>
         {active ? (
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold tabular-nums" style={{ color: tint }}>

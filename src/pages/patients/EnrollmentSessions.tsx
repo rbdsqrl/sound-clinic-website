@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText,
+  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
@@ -308,6 +308,8 @@ export function SessionNotesModal({
   const [checklistAnswers, setChecklistAnswers] = useState<Map<string, string[]>>(new Map())
   const [checklistNotes, setChecklistNotes]     = useState('')
   const [checklistLoaded, setChecklistLoaded]   = useState(false)
+  const [checklistSearch, setChecklistSearch]   = useState('')
+  const [detailedOpen, setDetailedOpen]         = useState(false)
 
   useEffect(() => {
     if (feedback && !checklistLoaded) {
@@ -375,6 +377,25 @@ export function SessionNotesModal({
     Array.from(files).forEach(f => uploadMut.mutate(f))
   }
 
+  // Performance Score and Rating are the two fields every session write-up must carry;
+  // the checklist below them is optional, additional detail.
+  const missingRequired = canEdit && (score === null || rating === 0)
+
+  // Filters the checklist as the therapist types: a header match keeps all its options,
+  // otherwise only options whose own text matches are kept (header stays for context).
+  const checklistSearchTerm = checklistSearch.trim().toLowerCase()
+  const visibleTemplate = feedback && checklistSearchTerm
+    ? feedback.template
+        .map(q => {
+          const headerMatches = q.questionText.toLowerCase().includes(checklistSearchTerm)
+          return {
+            ...q,
+            options: headerMatches ? q.options : q.options.filter(o => o.optionText.toLowerCase().includes(checklistSearchTerm)),
+          }
+        })
+        .filter(q => q.options.length > 0)
+    : feedback?.template ?? []
+
   return (
     <Modal open title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg">
       {/* Session info strip */}
@@ -397,11 +418,13 @@ export function SessionNotesModal({
 
       <div className="flex flex-col gap-4">
         {/* Performance Score */}
-        <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} />
+        <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={canEdit} />
 
         {/* Rating */}
         <div>
-          <label className="form-label">Rating</label>
+          <label className="form-label">
+            Rating{canEdit && <span style={{ color: colors.status.danger }}> *</span>}
+          </label>
           <div className="flex items-center gap-2">
             <StarRating value={rating} onChange={canEdit ? setRating : undefined} readOnly={!canEdit} />
             {!canEdit && rating === 0 && (
@@ -409,6 +432,12 @@ export function SessionNotesModal({
             )}
           </div>
         </div>
+
+        {missingRequired && (
+          <p className="text-xs" style={{ color: colors.status.danger }}>
+            Performance Score and Rating are required before this session can be saved.
+          </p>
+        )}
 
         {/* Progress Report */}
         <div>
@@ -423,45 +452,72 @@ export function SessionNotesModal({
           />
         </div>
 
-        {/* Session Feedback checklist — only shown when the session's program has a template configured */}
+        {/* Detailed Feedback Options — the checklist, additional to Performance Score/Rating above;
+            only shown when the session's program has a template configured, collapsed by default
+            since it's supplementary detail rather than something every save needs to touch. */}
         {!feedbackLoading && feedback && feedback.template.length > 0 && (
-          <div className="flex flex-col gap-4">
-            <label className="form-label mb-0">Session Feedback</label>
-            {feedback.template.map(question => (
-              <div key={question.id}>
-                <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>
-                  {question.questionText}
-                </p>
-                <div className="flex flex-col gap-1.5 pl-1">
-                  {question.options.map(option => {
-                    const checked = (checklistAnswers.get(question.id) ?? []).includes(option.id)
-                    return (
-                      <label key={option.id} className="flex items-center gap-2 text-sm"
-                        style={{ color: colors.text.muted, cursor: canEdit ? 'pointer' : 'default' }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={!canEdit}
-                          onChange={() => toggleChecklistOption(question.id, option.id)}
-                        />
-                        {option.optionText}
-                      </label>
-                    )
-                  })}
+          <div className="rounded-xl" style={{ border: border.card }}>
+            <button
+              type="button"
+              onClick={() => setDetailedOpen(o => !o)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold"
+              style={{ color: colors.text.primary }}
+            >
+              Detailed Feedback Options
+              {detailedOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </button>
+
+            {detailedOpen && (
+              <div className="flex flex-col gap-4 px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
+                <div className="relative mt-2">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.text.dim }} />
+                  <input
+                    value={checklistSearch}
+                    onChange={e => setChecklistSearch(e.target.value)}
+                    placeholder="Search checklist…"
+                    className="form-input w-full pl-8"
+                  />
+                </div>
+
+                {visibleTemplate.length === 0 ? (
+                  <p className="text-xs text-center py-3" style={{ color: colors.text.dim }}>No matching items</p>
+                ) : visibleTemplate.map(question => (
+                  <div key={question.id}>
+                    <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>
+                      {question.questionText}
+                    </p>
+                    <div className="flex flex-col gap-1.5 pl-1">
+                      {question.options.map(option => {
+                        const checked = (checklistAnswers.get(question.id) ?? []).includes(option.id)
+                        return (
+                          <label key={option.id} className="flex items-center gap-2 text-sm"
+                            style={{ color: colors.text.muted, cursor: canEdit ? 'pointer' : 'default' }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!canEdit}
+                              onChange={() => toggleChecklistOption(question.id, option.id)}
+                            />
+                            {option.optionText}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div>
+                  <label className="form-label">Additional Notes</label>
+                  <textarea
+                    className="form-input w-full resize-none"
+                    rows={2}
+                    placeholder={canEdit ? 'Anything else worth noting…' : 'No additional notes'}
+                    value={checklistNotes}
+                    onChange={e => setChecklistNotes(e.target.value)}
+                    readOnly={!canEdit}
+                  />
                 </div>
               </div>
-            ))}
-            <div>
-              <label className="form-label">Additional Notes</label>
-              <textarea
-                className="form-input w-full resize-none"
-                rows={2}
-                placeholder={canEdit ? 'Anything else worth noting…' : 'No additional notes'}
-                value={checklistNotes}
-                onChange={e => setChecklistNotes(e.target.value)}
-                readOnly={!canEdit}
-              />
-            </div>
+            )}
           </div>
         )}
 
@@ -605,7 +661,7 @@ export function SessionNotesModal({
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Close</Button>
           {canEdit && (
-            <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+            <Button variant="primary" loading={saveMut.isPending} disabled={missingRequired} onClick={() => saveMut.mutate()}>
               Save
             </Button>
           )}
