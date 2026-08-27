@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
+import BaselineReportTab from './BaselineReportTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
 import { patientsApi } from '../../api/patients'
@@ -1090,8 +1091,39 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'ISAA', 'PRBA'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report'] as const
 type Tab = typeof TABS[number]
+
+// ── Assessments tab (ISAA + PRBA, switched by an inner sub-tab) ─────────────────
+
+function AssessmentsTab({ patientId }: { patientId: string }) {
+  const [sub, setSub] = useState<'ISAA' | 'PRBA'>('ISAA')
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        {(['ISAA', 'PRBA'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => setSub(s)}
+            className="px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors"
+            style={sub === s ? styles.filterTabActive : styles.filterTabInactive}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {sub === 'ISAA' ? (
+        <AssessmentTab patientId={patientId} type="ISAA" title="ISAA"
+          description="Indian Scale for Assessment of Autism — 40 items across 6 domains" />
+      ) : (
+        <AssessmentTab patientId={patientId} type="PRBA" title="PRBA"
+          description="Pre-Requisite Behavior Assessment — 20 items across 6 sections" />
+      )}
+    </div>
+  )
+}
 
 // ── Concerns banner ──────────────────────────────────────────────────────────
 
@@ -2131,14 +2163,12 @@ export default function PatientDetailPage() {
 
       {activeTab === 'Activities' && <ActivitiesTab patientId={id!} />}
 
-      {activeTab === 'ISAA' && (
-        <AssessmentTab patientId={id!} type="ISAA" title="ISAA"
-          description="Indian Scale for Assessment of Autism — 40 items across 6 domains" />
+      {activeTab === 'Assessments' && (
+        <AssessmentsTab patientId={id!} />
       )}
 
-      {activeTab === 'PRBA' && (
-        <AssessmentTab patientId={id!} type="PRBA" title="PRBA"
-          description="Pre-Requisite Behavior Assessment — 20 items across 6 sections" />
+      {activeTab === 'Baseline Report' && (
+        <BaselineReportTab patientId={id!} />
       )}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}

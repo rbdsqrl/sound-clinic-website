@@ -1162,6 +1162,58 @@ export interface ImportResultResponse {
   errors: string[]
 }
 
+// ── Baseline Report ────────────────────────────────────────────────────────────
+
+export type BaselineDomain =
+  | 'EYE_CONTACT' | 'ATTENTION' | 'COMPLIANCE' | 'GROSS_MOTOR' | 'FINE_MOTOR'
+  | 'ADL_SKILLS' | 'RECEPTIVE_LANGUAGE' | 'EXPRESSIVE_LANGUAGE' | 'NON_VERBAL_COMMUNICATION'
+  | 'ORO_MOTOR_SKILLS' | 'COGNITIVE_SKILLS' | 'SOCIAL_SKILLS' | 'EMOTIONAL_SKILLS'
+
+export interface BaselineProgressEntryResponse {
+  id: string
+  entryDate: string
+  value: string
+  loggedByName: string | null
+  createdAt: string
+}
+
+export interface BaselineDomainResponse {
+  domain: BaselineDomain
+  baselineValue: string | null
+  baselineUpdatedAt: string | null
+  currentEntries: BaselineProgressEntryResponse[]
+}
+
+export interface BaselineReportResponse {
+  id: string
+  patientId: string
+  ageAtAdmission: string | null
+  ageOnDate: string | null
+  cdct: string | null
+  createdAt: string
+  updatedAt: string
+  domains: BaselineDomainResponse[]
+}
+
+export interface CreateBaselineReportRequest {
+  ageAtAdmission?: string
+  ageOnDate?: string
+  cdct?: string
+  domainValues?: Partial<Record<BaselineDomain, string>>
+}
+
+export interface UpdateBaselineReportRequest {
+  ageAtAdmission?: string
+  ageOnDate?: string
+  cdct?: string
+  domainValues?: Partial<Record<BaselineDomain, string>>
+}
+
+export interface AddBaselineProgressRequest {
+  entryDate: string
+  value: string
+}
+
 // ── IEP Template Library ──────────────────────────────────────────────────────
 
 export interface IEPTemplateGoalResponse {
