@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, X, FileUp } from 'lucide-react'
+import { Plus, Trash2, X, FileUp, AlertTriangle } from 'lucide-react'
 import { programsApi } from '../../api/programs'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha } from '../../theme'
+import { colors, border, surface, accentAlpha, dangerAlpha } from '../../theme'
 import type { ProgramFeedbackQuestionInput } from '../../types'
 
 type EditableQuestion = { questionText: string; options: string[] }
@@ -142,12 +142,23 @@ export default function ProgramFeedbackTemplateModal({
       onClose={onClose}
       size="lg"
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saveMut.isPending} disabled={!canSave} onClick={() => saveMut.mutate()}>
-            Save
-          </Button>
-        </>
+        <div className="flex flex-col gap-3 w-full">
+          {saveMut.isError && (
+            <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm"
+              style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
+              <AlertTriangle size={14} style={{ color: colors.status.danger, flexShrink: 0, marginTop: 1 }} />
+              <span style={{ color: colors.text.primary }}>
+                {getApiError(saveMut.error, 'Failed to save the template. Nothing was changed — please try again.')}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2.5">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" loading={saveMut.isPending} disabled={!canSave} onClick={() => saveMut.mutate()}>
+              Save
+            </Button>
+          </div>
+        </div>
       }
     >
       <p className="text-xs mb-3" style={{ color: colors.text.muted }}>

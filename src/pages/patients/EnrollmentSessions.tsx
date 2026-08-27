@@ -592,6 +592,16 @@ export function SessionNotesModal({
           </div>
         )}
 
+        {saveMut.isError && (
+          <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-3"
+            style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
+            <AlertTriangle size={14} style={{ color: colors.status.danger, flexShrink: 0, marginTop: 1 }} />
+            <span style={{ color: colors.text.primary }}>
+              {getApiError(saveMut.error, 'Failed to save. Nothing was changed — please try again.')}
+            </span>
+          </div>
+        )}
+
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Close</Button>
           {canEdit && (
