@@ -1,8 +1,8 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity, IEPGoalDomain,
-  OrgSnapshotResponse, SuccessCriteriaResponse, TimeSeriesResponse, TrendPoint,
+  CaseSummaryResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
+  IEPGoalDomain, OrgSnapshotResponse, SuccessCriteriaResponse, TimeSeriesResponse, TrendPoint,
 } from '../types'
 
 export interface AnalyticsWindow {
@@ -107,6 +107,12 @@ export const analyticsApi = {
   sessionHeatmap: (from: string, to: string) =>
     client
       .get<ApiResponse<TrendPoint[]>>('/analytics/session-heatmap', { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** One row per active patient for the Cases analytics tab. */
+  cases: (from: string, to: string) =>
+    client
+      .get<ApiResponse<CaseSummaryResponse[]>>('/analytics/cases', { params: { from, to } })
       .then(r => r.data.data),
 
   /** Discharge success-criteria composite for one enrollment. */

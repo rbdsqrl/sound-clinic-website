@@ -11,13 +11,14 @@ import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
 import SessionHeatmap from '../../components/charts/SessionHeatmap'
 import { Select } from '../../components/ui/Select'
-import { Users, UserCog, Mail, Clock, CalendarClock } from 'lucide-react'
+import { Users, UserCog, Mail, Clock, CalendarClock, Search, Download } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
 import { Delta, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { format, parseISO, addDays } from 'date-fns'
+import { exportRowsAsCsv } from '../../lib/exportCsv'
 
 type TabKey = 'overview' | 'cases' | 'members' | 'schedule'
 
@@ -176,6 +177,17 @@ export default function AnalyticsPage() {
     enabled: tab === 'members' && !!therapistId,
   })
 
+  // The Cases list — staff only; a parent's single-child view stays on the dropdown/drill-in below.
+  const [caseSearch, setCaseSearch] = useState('')
+  const casesQuery = useQuery({
+    queryKey: ['analytics', 'cases', range.from, range.to],
+    queryFn: () => analyticsApi.cases(range.from, range.to),
+    enabled: tab === 'cases' && !isParentUser,
+  })
+  const filteredCases = (casesQuery.data ?? []).filter(c =>
+    c.patientName.toLowerCase().includes(caseSearch.trim().toLowerCase())
+  )
+
   const overviewQuery = useQuery({
     queryKey: ['analytics', 'overview', params],
     queryFn: () => analyticsApi.overview(params),
@@ -252,11 +264,11 @@ export default function AnalyticsPage() {
       {/* Filters — one row above the charts */}
       {tab !== 'schedule' && (
         <div className="flex flex-wrap items-end gap-3">
-          {tab === 'cases' && (
+          {tab === 'cases' && isParentUser && (
             <div className="min-w-[200px]">
               <Select
-                label={isParentUser ? 'Child' : 'Patient'}
-                placeholder={isParentUser ? 'Select a child' : 'Select a patient'}
+                label="Child"
+                placeholder="Select a child"
                 value={patientId}
                 onChange={e => setPatientId(e.target.value)}
                 options={(patients.data ?? []).map(p => ({
@@ -304,7 +316,7 @@ export default function AnalyticsPage() {
             />
           </div>
 
-          {tab !== 'cases' && (
+          {!(tab === 'cases' && isParentUser) && (
             <>
               <div className="space-y-1">
                 <label className="form-label" htmlFor="from">From</label>
@@ -326,12 +338,114 @@ export default function AnalyticsPage() {
         </div>
       )}
 
+      {/* Cases list — staff only. Selecting a row drills into that patient's progress below. */}
+      {tab === 'cases' && !isParentUser && (
+        <Panel
+          title="Cases"
+          subtitle="Every active patient — sessions, assignments and payment status for the selected window"
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1 max-w-sm">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+              <input
+                type="text"
+                className="form-input pl-8"
+                placeholder="Search cases…"
+                value={caseSearch}
+                onChange={e => setCaseSearch(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={filteredCases.length === 0}
+              onClick={() => exportRowsAsCsv(`cases_${range.from}_to_${range.to}.csv`, filteredCases, [
+                { header: 'Patient', value: c => c.patientName },
+                { header: 'Sessions Attended', value: c => c.sessionsAttended },
+                { header: 'Sessions Upcoming', value: c => c.sessionsUpcoming },
+                { header: 'Sessions Cancelled', value: c => c.sessionsCancelled },
+                { header: 'Members Assigned', value: c => c.membersAssigned },
+                { header: 'Activities Assigned', value: c => c.activitiesAssigned },
+                { header: 'Checklist Filled', value: c => c.checklistFilled },
+                { header: 'LT Goals', value: c => c.ltGoals },
+                { header: 'Payment Status', value: c => c.paymentStatus ?? '' },
+              ])}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40"
+              style={{ background: surface.rowHover, color: colors.text.primary }}
+            >
+              <Download size={14} /> Export
+            </button>
+          </div>
+
+          {casesQuery.isLoading ? (
+            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+          ) : filteredCases.length === 0 ? (
+            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+              {casesQuery.data?.length ? 'No cases match your search.' : 'No active patients yet.'}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr style={{ color: colors.text.dim }}>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Patient</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Attended</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Upcoming</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Cancelled</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Members</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Activities</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Checklist</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">LT Goals</th>
+                    <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider">Payment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCases.map(c => (
+                    <tr
+                      key={c.patientId}
+                      onClick={() => setPatientId(c.patientId)}
+                      className="cursor-pointer transition-colors"
+                      style={{ borderTop: `1px solid ${border.divider}`, background: patientId === c.patientId ? accentAlpha(0.06) : 'transparent' }}
+                    >
+                      <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>{c.patientName}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.primary, fontVariantNumeric: 'tabular-nums' }}>{c.sessionsAttended}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.sessionsUpcoming}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.sessionsCancelled}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.membersAssigned}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.activitiesAssigned}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.checklistFilled}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{c.ltGoals}</td>
+                      <td className="py-2.5 text-right">
+                        {c.paymentStatus ? (
+                          <span
+                            className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase"
+                            style={{
+                              background: c.paymentStatus === 'PAID' ? `${colors.status.success}1F`
+                                : c.paymentStatus === 'PARTIAL' ? `${colors.status.warning}1F` : `${colors.status.danger}1F`,
+                              color: c.paymentStatus === 'PAID' ? colors.status.success
+                                : c.paymentStatus === 'PARTIAL' ? colors.status.warning : colors.status.danger,
+                            }}
+                          >
+                            {c.paymentStatus}
+                          </span>
+                        ) : (
+                          <span style={{ color: colors.text.dim }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
       {/* Empty prompts */}
-      {tab === 'cases' && !patientId && (
+      {tab === 'cases' && isParentUser && !patientId && (
         <EmptyState
           icon={<Users size={22} />}
-          title={isParentUser ? 'Choose a child' : 'Choose a patient'}
-          description="Progress trends are built per child. A searchable Cases list with export is coming soon."
+          title="Choose a child"
+          description="Progress trends are built per child."
         />
       )}
       {tab === 'members' && !therapistId && (

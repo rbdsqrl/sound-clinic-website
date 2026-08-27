@@ -1617,6 +1617,20 @@ export interface EngagementOverviewResponse {
   mostAssignedActivities: NameCount[]
 }
 
+// ── Cases (Analytics — Cases tab) ────────────────────────────────────────────
+export interface CaseSummaryResponse {
+  patientId: string
+  patientName: string
+  sessionsAttended: number
+  sessionsUpcoming: number
+  sessionsCancelled: number
+  membersAssigned: number
+  activitiesAssigned: number
+  checklistFilled: number
+  ltGoals: number
+  paymentStatus: 'PENDING' | 'PARTIAL' | 'PAID' | null
+}
+
 // ── Case History ─────────────────────────────────────────────────────────────
 export type DeliveryType = 'FT' | 'PREMATURE' | 'NORMAL' | 'OTHER'
 export type LabourType = 'NORMAL' | 'PROLONGED' | 'VACUUM' | 'EPIDURAL' | 'C_SECTION'
