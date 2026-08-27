@@ -2,7 +2,8 @@ import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
   CaseSummaryResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
-  IEPGoalDomain, OrgSnapshotResponse, SuccessCriteriaResponse, TimeSeriesResponse, TrendPoint,
+  IEPGoalDomain, MemberSummaryResponse, OrgSnapshotResponse, ScheduleResponse, SuccessCriteriaResponse,
+  TimeSeriesResponse, TrendPoint,
 } from '../types'
 
 export interface AnalyticsWindow {
@@ -114,6 +115,27 @@ export const analyticsApi = {
     client
       .get<ApiResponse<CaseSummaryResponse[]>>('/analytics/cases', { params: { from, to } })
       .then(r => r.data.data),
+
+  /** One row per therapist/doctor — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
+  members: (from: string, to: string) =>
+    client
+      .get<ApiResponse<MemberSummaryResponse[]>>('/analytics/members', { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** Flat session log + KPI strip for the Schedule tab. All filters optional. */
+  schedule: (from: string, to: string, filters?: { patientId?: string; therapistId?: string; programId?: string }) =>
+    client
+      .get<ApiResponse<ScheduleResponse>>('/analytics/sessions', { params: { from, to, ...filters } })
+      .then(r => {
+        const d = r.data.data
+        return {
+          ...d,
+          cancelledPct: num(d.cancelledPct),
+          rescheduledPct: num(d.rescheduledPct),
+          attendancePct: num(d.attendancePct),
+          avgDurationMinutes: num(d.avgDurationMinutes),
+        }
+      }),
 
   /** Discharge success-criteria composite for one enrollment. */
   successCriteria: (enrollmentId: string) =>

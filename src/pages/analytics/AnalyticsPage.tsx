@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
+import { programsApi } from '../../api/programs'
 import { useAuth } from '../../contexts/AuthContext'
 import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
 import ScoreChart from '../../components/charts/ScoreChart'
@@ -101,12 +102,6 @@ export default function AnalyticsPage() {
     queryKey: isParentUser ? ['my-children'] : ['patients'],
     queryFn: isParentUser ? patientsApi.myChildren : patientsApi.list,
   })
-  const staff = useQuery({
-    queryKey: ['assignable'],
-    queryFn: () => usersApi.listAssignable(),
-    enabled: !isParentUser,
-  })
-
   const enrollmentsQuery = useQuery({
     queryKey: ['enrollments', 'analytics', patientId],
     queryFn: () => enrollmentsApi.listForPatient(patientId),
@@ -136,11 +131,6 @@ export default function AnalyticsPage() {
       setPatientId(patients.data[0].id)
     }
   }, [isParentUser, patientId, patients.data])
-
-  const therapists = useMemo(
-    () => (staff.data ?? []).filter(u => u.role === 'THERAPIST' || u.role === 'DOCTOR'),
-    [staff.data]
-  )
 
   const patientQuery = useQuery({
     queryKey: ['analytics', 'patient', patientId, params],
@@ -177,6 +167,54 @@ export default function AnalyticsPage() {
     c.patientName.toLowerCase().includes(caseSearch.trim().toLowerCase())
   )
 
+  // The Members list. Selecting a row drills into that therapist's caseload below.
+  const [memberSearch, setMemberSearch] = useState('')
+  const membersQuery = useQuery({
+    queryKey: ['analytics', 'members', range.from, range.to],
+    queryFn: () => analyticsApi.members(range.from, range.to),
+    enabled: tab === 'members',
+  })
+  const filteredMembers = (membersQuery.data ?? []).filter(m =>
+    m.therapistName.toLowerCase().includes(memberSearch.trim().toLowerCase())
+  )
+
+  // Schedule tab — its own filters, independent of the Cases/Members drill-in patient/therapist.
+  const [scheduleSearch, setScheduleSearch] = useState('')
+  const [schedulePatientId, setSchedulePatientId] = useState('')
+  const [scheduleTherapistId, setScheduleTherapistId] = useState('')
+  const [scheduleProgramId, setScheduleProgramId] = useState('')
+
+  const scheduleStaffQuery = useQuery({
+    queryKey: ['assignable'],
+    queryFn: () => usersApi.listAssignable(),
+    enabled: tab === 'schedule',
+  })
+  const scheduleTherapistOptions = (scheduleStaffQuery.data ?? []).filter(
+    u => u.role === 'THERAPIST' || u.role === 'DOCTOR'
+  )
+  const scheduleProgramsQuery = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => programsApi.list(),
+    enabled: tab === 'schedule',
+  })
+
+  const scheduleQuery = useQuery({
+    queryKey: ['analytics', 'schedule', range.from, range.to, schedulePatientId, scheduleTherapistId, scheduleProgramId],
+    queryFn: () => analyticsApi.schedule(range.from, range.to, {
+      patientId: schedulePatientId || undefined,
+      therapistId: scheduleTherapistId || undefined,
+      programId: scheduleProgramId || undefined,
+    }),
+    enabled: tab === 'schedule',
+  })
+  const scheduleSearchTerm = scheduleSearch.trim().toLowerCase()
+  const filteredScheduleSessions = (scheduleQuery.data?.sessions ?? []).filter(s =>
+    !scheduleSearchTerm
+    || s.patientName.toLowerCase().includes(scheduleSearchTerm)
+    || s.therapistName.toLowerCase().includes(scheduleSearchTerm)
+    || s.programName.toLowerCase().includes(scheduleSearchTerm)
+  )
+
   // Therapies breakdown for the Overview tab — reuses the org snapshot's program mix.
   // Not windowed, so it's independent of the date-range control above.
   const snapshotQuery = useQuery({
@@ -199,7 +237,7 @@ export default function AnalyticsPage() {
   const heatmapQuery = useQuery({
     queryKey: ['analytics', 'heatmap', heatmapYear],
     queryFn: () => analyticsApi.sessionHeatmap(`${heatmapYear}-01-01`, `${heatmapYear}-12-31`),
-    enabled: tab === 'overview',
+    enabled: tab === 'overview' || tab === 'schedule',
   })
 
   const activeSeries =
@@ -260,21 +298,6 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {tab === 'members' && (
-            <div className="min-w-[200px]">
-              <Select
-                label="Therapist"
-                placeholder="Select a therapist"
-                value={therapistId}
-                onChange={e => setTherapistId(e.target.value)}
-                options={therapists.map(t => ({
-                  value: t.id,
-                  label: `${t.firstName} ${t.lastName}`,
-                }))}
-              />
-            </div>
-          )}
-
           {tab !== 'overview' && (
             <div className="min-w-[150px]">
               <Select
@@ -320,6 +343,53 @@ export default function AnalyticsPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Schedule filters — its own row: single-select Case/Member/Program plus the shared date range. */}
+      {tab === 'schedule' && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[180px]">
+            <Select
+              label="Case"
+              placeholder="All cases"
+              value={schedulePatientId}
+              onChange={e => setSchedulePatientId(e.target.value)}
+              options={(patients.data ?? []).map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))}
+            />
+          </div>
+          <div className="min-w-[180px]">
+            <Select
+              label="Member"
+              placeholder="All members"
+              value={scheduleTherapistId}
+              onChange={e => setScheduleTherapistId(e.target.value)}
+              options={scheduleTherapistOptions.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+            />
+          </div>
+          <div className="min-w-[180px]">
+            <Select
+              label="Program"
+              placeholder="All programs"
+              value={scheduleProgramId}
+              onChange={e => setScheduleProgramId(e.target.value)}
+              options={(scheduleProgramsQuery.data ?? []).map(p => ({ value: p.id, label: p.name }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="form-label" htmlFor="schedule-from">From</label>
+            <input
+              id="schedule-from" type="date" className="form-input" value={range.from}
+              onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="form-label" htmlFor="schedule-to">To</label>
+            <input
+              id="schedule-to" type="date" className="form-input" value={range.to}
+              onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
+            />
+          </div>
         </div>
       )}
 
@@ -425,6 +495,86 @@ export default function AnalyticsPage() {
         </Panel>
       )}
 
+      {/* Members list. Selecting a row drills into that therapist's caseload below. */}
+      {tab === 'members' && (
+        <Panel
+          title="Members"
+          subtitle="Every therapist/doctor — cases and activities assigned, activities created, cancellations and IEP plans for the selected window"
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1 max-w-sm">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+              <input
+                type="text"
+                className="form-input pl-8"
+                placeholder="Search members…"
+                value={memberSearch}
+                onChange={e => setMemberSearch(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={filteredMembers.length === 0}
+              onClick={() => exportRowsAsCsv(`members_${range.from}_to_${range.to}.csv`, filteredMembers, [
+                { header: 'Name', value: m => m.therapistName },
+                { header: 'Role', value: m => m.role },
+                { header: 'Cases Assigned', value: m => m.casesAssigned },
+                { header: 'Activities Created', value: m => m.activitiesCreated },
+                { header: 'Activities Assigned', value: m => m.activitiesAssigned },
+                { header: 'Sessions Cancelled', value: m => m.sessionsCancelled },
+                { header: 'IEP Plans', value: m => m.iepPlans },
+              ])}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40"
+              style={{ background: surface.rowHover, color: colors.text.primary }}
+            >
+              <Download size={14} /> Export
+            </button>
+          </div>
+
+          {membersQuery.isLoading ? (
+            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+          ) : filteredMembers.length === 0 ? (
+            <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+              {membersQuery.data?.length ? 'No members match your search.' : 'No therapists or doctors yet.'}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr style={{ color: colors.text.dim }}>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Role</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Cases</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Activities Created</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Activities Assigned</th>
+                    <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Cancelled</th>
+                    <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider">IEP Plans</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMembers.map(m => (
+                    <tr
+                      key={m.therapistId}
+                      onClick={() => setTherapistId(m.therapistId)}
+                      className="cursor-pointer transition-colors"
+                      style={{ borderTop: `1px solid ${border.divider}`, background: therapistId === m.therapistId ? accentAlpha(0.06) : 'transparent' }}
+                    >
+                      <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>{m.therapistName}</td>
+                      <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{m.role.charAt(0) + m.role.slice(1).toLowerCase()}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.primary, fontVariantNumeric: 'tabular-nums' }}>{m.casesAssigned}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{m.activitiesCreated}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{m.activitiesAssigned}</td>
+                      <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{m.sessionsCancelled}</td>
+                      <td className="py-2.5 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{m.iepPlans}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
       {/* Empty prompts */}
       {tab === 'cases' && isParentUser && !patientId && (
         <EmptyState
@@ -432,12 +582,6 @@ export default function AnalyticsPage() {
           title="Choose a child"
           description="Progress trends are built per child."
         />
-      )}
-      {tab === 'members' && !therapistId && (
-        <EmptyState icon={<UserCog size={22} />} title="Choose a therapist" description="Caseload trends are built per therapist. A searchable Members list with export is coming soon." />
-      )}
-      {tab === 'schedule' && (
-        <EmptyState icon={<CalendarClock size={22} />} title="Schedule analytics — coming soon" description="A full session log with attendance/duration KPIs and export is planned next." />
       )}
 
       {loading && (
@@ -589,6 +733,111 @@ export default function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'schedule' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            <Tile label="Total Sessions" value={scheduleQuery.data?.totalSessions ?? 0} />
+            <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} />
+            <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} />
+            <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} />
+            <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} />
+            <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} />
+          </div>
+
+          <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
+            {heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+          </Panel>
+
+          <Panel title="Session Log" subtitle="Every session in the selected window and filters">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[220px] flex-1 max-w-sm">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+                <input
+                  type="text"
+                  className="form-input pl-8"
+                  placeholder="Search sessions…"
+                  value={scheduleSearch}
+                  onChange={e => setScheduleSearch(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={filteredScheduleSessions.length === 0}
+                onClick={() => exportRowsAsCsv(`sessions_${range.from}_to_${range.to}.csv`, filteredScheduleSessions, [
+                  { header: 'Date', value: s => s.sessionDate },
+                  { header: 'Time', value: s => s.startTime.slice(0, 5) },
+                  { header: 'Duration (min)', value: s => s.durationMinutes },
+                  { header: 'Program', value: s => s.programName },
+                  { header: 'Case', value: s => s.patientName },
+                  { header: 'Member', value: s => s.therapistName },
+                  { header: 'Status', value: s => s.status },
+                  { header: 'Cost', value: s => s.cost ?? '' },
+                ])}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40"
+                style={{ background: surface.rowHover, color: colors.text.primary }}
+              >
+                <Download size={14} /> Export
+              </button>
+            </div>
+
+            {scheduleQuery.isLoading ? (
+              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>Loading…</p>
+            ) : filteredScheduleSessions.length === 0 ? (
+              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
+                {scheduleQuery.data?.sessions.length ? 'No sessions match your search.' : 'No sessions in this window.'}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead>
+                    <tr style={{ color: colors.text.dim }}>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Date</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Time</th>
+                      <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Duration</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Program</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Case</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Member</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
+                      <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredScheduleSessions.map(s => (
+                      <tr key={s.sessionId} style={{ borderTop: `1px solid ${border.divider}` }}>
+                        <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>{s.sessionDate}</td>
+                        <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{s.startTime.slice(0, 5)}</td>
+                        <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{s.durationMinutes}m</td>
+                        <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>{s.programName}</td>
+                        <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>{s.patientName}</td>
+                        <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{s.therapistName}</td>
+                        <td className="py-2.5 pr-4">
+                          <span
+                            className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase"
+                            style={{
+                              background: s.status === 'COMPLETED' ? `${colors.status.success}1F`
+                                : (s.status === 'CANCELLED' || s.status === 'NO_SHOW' || s.status === 'CANCELLATION_REQUESTED') ? `${colors.status.danger}1F`
+                                : `${colors.status.warning}1F`,
+                              color: s.status === 'COMPLETED' ? colors.status.success
+                                : (s.status === 'CANCELLED' || s.status === 'NO_SHOW' || s.status === 'CANCELLATION_REQUESTED') ? colors.status.danger
+                                : colors.status.warning,
+                            }}
+                          >
+                            {s.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>
+                          {s.cost !== null ? `₹${s.cost.toLocaleString()}` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Panel>
         </div>
@@ -852,7 +1101,7 @@ export default function AnalyticsPage() {
                   <div
                     key={d.domain}
                     className="p-3"
-                    style={{ border: `1px solid ${border.card}`, borderRadius: radius.sm, background: surface.card }}
+                    style={{ border: border.card, borderRadius: radius.sm, background: surface.card }}
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-xs font-semibold tracking-wide" style={{ color: colors.text.primary }}>

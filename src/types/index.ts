@@ -1631,6 +1631,41 @@ export interface CaseSummaryResponse {
   paymentStatus: 'PENDING' | 'PARTIAL' | 'PAID' | null
 }
 
+// ── Members (Analytics — Members tab) ────────────────────────────────────────
+export interface MemberSummaryResponse {
+  therapistId: string
+  therapistName: string
+  role: string
+  casesAssigned: number
+  activitiesCreated: number
+  activitiesAssigned: number
+  sessionsCancelled: number
+  iepPlans: number
+}
+
+// ── Schedule (Analytics — Schedule tab) ──────────────────────────────────────
+export interface ScheduleEntry {
+  sessionId: string
+  sessionDate: string        // "YYYY-MM-DD"
+  startTime: string          // "HH:mm:ss"
+  durationMinutes: number
+  programName: string
+  patientName: string
+  therapistName: string
+  status: TherapySessionStatus
+  cost: number | null
+}
+
+export interface ScheduleResponse {
+  totalSessions: number
+  cancelledPct: number | null
+  rescheduledPct: number | null
+  attendancePct: number | null
+  totalDurationMinutes: number
+  avgDurationMinutes: number | null
+  sessions: ScheduleEntry[]
+}
+
 // ── Case History ─────────────────────────────────────────────────────────────
 export type DeliveryType = 'FT' | 'PREMATURE' | 'NORMAL' | 'OTHER'
 export type LabourType = 'NORMAL' | 'PROLONGED' | 'VACUUM' | 'EPIDURAL' | 'C_SECTION'
