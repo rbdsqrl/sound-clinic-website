@@ -33,17 +33,6 @@ const DOMAINS: IEPGoalDomain[] = [
   'AUDITORY', 'SPEECH', 'LANGUAGE', 'SENSORY', 'MOTOR', 'SOCIAL', 'COGNITIVE', 'LITERACY', 'ADAPTIVE',
 ]
 
-/** Admission → discharge funnel order, same labels used on the patient detail stage bar. */
-const STAGE_LABELS: Record<string, string> = {
-  INQUIRY_CONVERTED: 'Inquiry',
-  PRE_ASSESSMENT:    'Pre-Assessment',
-  ASSESSMENT_DONE:   'Assessment Done',
-  ENROLLMENT:        'Enrollment',
-  ENROLLED:          'Enrolled',
-  THERAPY_ACTIVE:    'Therapy Active',
-  DISCHARGED:        'Discharged',
-}
-
 /** Sparklines share this band so domains can be compared against each other, not just themselves. */
 const SPARK_MIN = 0
 const SPARK_MAX = 100
@@ -188,14 +177,8 @@ export default function AnalyticsPage() {
     c.patientName.toLowerCase().includes(caseSearch.trim().toLowerCase())
   )
 
-  const overviewQuery = useQuery({
-    queryKey: ['analytics', 'overview', params],
-    queryFn: () => analyticsApi.overview(params),
-    enabled: tab === 'overview',
-  })
-
-  // Clinical-outcome rollup — duration, program mix, funnel. Not windowed, so it's independent
-  // of the granularity/date-range controls above.
+  // Therapies breakdown for the Overview tab — reuses the org snapshot's program mix.
+  // Not windowed, so it's independent of the date-range control above.
   const snapshotQuery = useQuery({
     queryKey: ['analytics', 'snapshot'],
     queryFn: () => analyticsApi.orgSnapshot(),
@@ -222,13 +205,11 @@ export default function AnalyticsPage() {
   const activeSeries =
     tab === 'cases' ? patientQuery.data
     : tab === 'members' ? caseloadQuery.data?.series
-    : tab === 'overview' ? overviewQuery.data
     : undefined
 
   const loading =
     (tab === 'cases' && patientQuery.isLoading) ||
-    (tab === 'members' && caseloadQuery.isLoading) ||
-    (tab === 'overview' && overviewQuery.isLoading)
+    (tab === 'members' && caseloadQuery.isLoading)
 
   const totals = activeSeries?.totals
 
@@ -294,27 +275,31 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          <div className="min-w-[150px]">
-            <Select
-              label="Granularity"
-              value={effectiveGranularity}
-              onChange={e => changeGranularity(e.target.value as Granularity)}
-              options={allowedGranularities.map(g => ({
-                value: g,
-                label: g.charAt(0) + g.slice(1).toLowerCase(),
-              }))}
-            />
-          </div>
+          {tab !== 'overview' && (
+            <div className="min-w-[150px]">
+              <Select
+                label="Granularity"
+                value={effectiveGranularity}
+                onChange={e => changeGranularity(e.target.value as Granularity)}
+                options={allowedGranularities.map(g => ({
+                  value: g,
+                  label: g.charAt(0) + g.slice(1).toLowerCase(),
+                }))}
+              />
+            </div>
+          )}
 
-          <div className="min-w-[160px]">
-            <Select
-              label="Domain"
-              placeholder="All domains"
-              value={domain}
-              onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
-              options={DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() }))}
-            />
-          </div>
+          {tab !== 'overview' && (
+            <div className="min-w-[160px]">
+              <Select
+                label="Domain"
+                placeholder="All domains"
+                value={domain}
+                onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
+                options={DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() }))}
+              />
+            </div>
+          )}
 
           {!(tab === 'cases' && isParentUser) && (
             <>
@@ -497,7 +482,22 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <Panel title="Therapies" subtitle="Distinct children on each program">
+              {!snapshotQuery.data || snapshotQuery.data.programBreakdown.length === 0 ? (
+                <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No enrollments recorded yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {snapshotQuery.data.programBreakdown.slice(0, 6).map(p => (
+                    <div key={p.programName} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate" style={{ color: colors.text.primary }}>{p.programName}</span>
+                      <span className="flex-shrink-0 font-semibold" style={{ color: colors.text.heading }}>{p.patientCount}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+
             <Panel title="Skills" subtitle="Most-used skills across assigned activities">
               {!engagementQuery.data || engagementQuery.data.skillsBreakdown.length === 0 ? (
                 <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No activity-skill data yet.</p>
@@ -591,85 +591,6 @@ export default function AnalyticsPage() {
               </table>
             )}
           </Panel>
-
-          {/* Clinical-outcome rollup — carried over from the previous "Clinic Overview" tab */}
-          {snapshotQuery.data && (
-            <>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <Tile
-                  label="Avg. therapy duration"
-                  value={
-                    snapshotQuery.data.avgTherapyDurationWeeks !== null
-                      ? `${snapshotQuery.data.avgTherapyDurationWeeks}w`
-                      : '—'
-                  }
-                  hint={
-                    snapshotQuery.data.enrollmentsWithDuration > 0
-                      ? `${snapshotQuery.data.enrollmentsWithDuration} completed/scheduled plan${snapshotQuery.data.enrollmentsWithDuration === 1 ? '' : 's'}`
-                      : 'No plans with an end date yet'
-                  }
-                />
-              </div>
-
-              <Panel
-                title="Children by therapy type"
-                subtitle="Distinct children on each program, across every enrollment on record"
-              >
-                {snapshotQuery.data.programBreakdown.length === 0 ? (
-                  <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
-                    No enrollments recorded yet.
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {(() => {
-                      const max = Math.max(1, ...snapshotQuery.data.programBreakdown.map(p => p.patientCount))
-                      return snapshotQuery.data.programBreakdown.map(p => (
-                        <div key={p.programName} className="flex items-center gap-3">
-                          <span className="w-32 flex-shrink-0 truncate text-sm md:w-44" style={{ color: colors.text.primary }}>
-                            {p.programName}
-                          </span>
-                          <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${(p.patientCount / max) * 100}%`, background: colors.accent }}
-                            />
-                          </div>
-                          <span
-                            className="w-10 flex-shrink-0 text-right text-sm font-semibold"
-                            style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}
-                          >
-                            {p.patientCount}
-                          </span>
-                        </div>
-                      ))
-                    })()}
-                  </div>
-                )}
-              </Panel>
-
-              <Panel
-                title="Admission → discharge"
-                subtitle="Where every patient in the org sits right now, by stage"
-              >
-                <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-4 lg:grid-cols-7">
-                  {snapshotQuery.data.stageCounts.map((s, i) => (
-                    <div
-                      key={s.stage}
-                      className="w-32 flex-shrink-0 p-3 md:w-auto"
-                      style={{ background: surface.rowHover, borderRadius: radius.sm }}
-                    >
-                      <p className="text-xs" style={{ color: colors.text.dim }}>
-                        {i + 1}. {STAGE_LABELS[s.stage] ?? s.stage}
-                      </p>
-                      <p className="mt-1 text-xl font-bold" style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}>
-                        {s.count}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </>
-          )}
         </div>
       )}
 
