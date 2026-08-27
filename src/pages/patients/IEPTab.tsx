@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
@@ -50,12 +51,126 @@ const GOAL_STATUSES: { value: IEPGoalStatus; label: string }[] = Object.entries(
   .map(([k, v]) => ({ value: k as IEPGoalStatus, label: v.label }))
 
 const PROGRESS_TAGS = [
-  { value: 'A', short: 'A. Below expectations',       full: 'A. Below expectations — 0–25% achieved, demonstrates minimal understanding or ability to perform the skill.' },
-  { value: 'B', short: 'B. Approaching expectations', full: 'B. Approaching expectations — 26–50% achieved, shows some understanding and attempts the skill, but needs significant support.' },
-  { value: 'C', short: 'C. Meeting expectations',     full: 'C. Meeting expectations — 51–75% achieved, consistently performs the skill with moderate support.' },
-  { value: 'D', short: 'D. Exceeding expectations',   full: 'D. Exceeding expectations — 76–90% achieved, independently performs the skill with accuracy and fluency, only needing occasional prompts.' },
-  { value: 'E', short: 'E. Mastery',                  full: 'E. Mastery — 91–100% achieved, demonstrates complete mastery of the skill, consistently performing it independently and accurately.' },
+  { value: 'A', short: 'A. Below expectations',       full: 'A. Below expectations - 0-25% achieved, demonstrates minimal understanding or ability to perform the skill.' },
+  { value: 'B', short: 'B. Approaching expectations', full: 'B. Approaching expectations - 26-50% achieved, shows some understanding and attempts the skill, but needs significant support.' },
+  { value: 'C', short: 'C. Meeting expectations',     full: 'C. Meeting expectations - 51-75% achieved, consistently performs the skill with moderate support, demonstrating a good grasp of the concept.' },
+  { value: 'D', short: 'D. Exceeding expectations',   full: 'D. Exceeding expectations - 76-90% achieved, independently performs the skill with accuracy and fluency, only needing occasional prompts.' },
+  { value: 'E', short: 'E. Mastery',                  full: 'E. Mastery - 91-100% achieved, demonstrates complete mastery of the skill, consistently performing it independently and accurately.' },
 ]
+
+// ── Progress tag picker (custom dropdown — shows % ranges + descriptions) ─────
+
+function ProgressTagPicker({ value, onChange }: { value: string | null; onChange: (tag: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ left: number; openUpward: boolean; top: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const selected = PROGRESS_TAGS.find(t => t.value === value)
+  const panelHeight = 360
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (buttonRef.current?.contains(target)) return
+      if (panelRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpward = spaceBelow < panelHeight && spaceAbove > spaceBelow
+    setPos({
+      left: rect.left + window.scrollX,
+      top: (openUpward ? rect.top - 6 : rect.bottom + 6) + window.scrollY,
+      openUpward,
+    })
+  }, [open])
+
+  const select = (tag: string) => {
+    onChange(tag)
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1 text-xs rounded-full pl-3 pr-2 py-1 border outline-none cursor-pointer max-w-[140px]"
+        style={{
+          borderColor: value ? accentAlpha(0.30) : border.divider,
+          background: value ? accentAlpha(0.06) : surface.card,
+          color: value ? colors.accent : colors.text.dim,
+        }}
+      >
+        <span className="truncate">{selected ? selected.short : 'No Progress Tag'}</span>
+        <ChevronDown size={10} style={{ color: value ? colors.accent : colors.text.dim, flexShrink: 0 }} />
+      </button>
+
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-50 rounded-2xl overflow-hidden"
+          style={{
+            left: pos.left,
+            ...(pos.openUpward ? { transform: 'translateY(-100%)' } : {}),
+            top: pos.top,
+            background: surface.card,
+            border: `1px solid ${border.medium}`,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
+            width: '340px',
+            maxWidth: '86vw',
+          }}
+        >
+          <div className="py-1.5 overflow-y-auto" style={{ maxHeight: 'min(60vh, 360px)' }}>
+            <button
+              type="button"
+              onClick={() => select('')}
+              className="w-full text-left px-3 py-2 text-sm transition-colors"
+              style={{ color: colors.text.muted, background: !value ? accentAlpha(0.08) : 'transparent' }}
+              onMouseEnter={e => { if (value) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) }}
+              onMouseLeave={e => { if (value) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              No Progress Tag
+            </button>
+
+            <div style={{ borderTop: `1px solid ${border.divider}` }} className="mt-1 pt-1">
+              {PROGRESS_TAGS.map(t => {
+                const isSelected = t.value === value
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => select(t.value)}
+                    className="w-full text-left px-3 py-2 text-sm leading-snug flex items-start justify-between gap-2 transition-colors"
+                    style={{
+                      color: isSelected ? colors.accent : colors.text.primary,
+                      background: isSelected ? accentAlpha(0.08) : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) }}
+                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <span>{t.full}</span>
+                    {isSelected && <Check size={14} className="flex-shrink-0 mt-0.5" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
 
 const CSV_COLUMNS = [
   { col: 'plan_title',           req: true,  desc: 'Name of the IEP plan (rows with the same name share a plan)' },
@@ -159,24 +274,10 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
 
           {/* Grade / Progress tag */}
           {isEditor ? (
-            <div className="relative">
-              <select
-                value={goal.progressTag ?? ''}
-                onChange={e => onProgressTagChange(goal.id, e.target.value)}
-                className="appearance-none text-xs rounded-full pl-3 pr-6 py-1 border outline-none cursor-pointer max-w-[140px] truncate"
-                style={{
-                  borderColor: goal.progressTag ? accentAlpha(0.30) : border.divider,
-                  background: goal.progressTag ? accentAlpha(0.06) : surface.card,
-                  color: goal.progressTag ? colors.accent : colors.text.dim,
-                }}
-              >
-                <option value="">No Progress Tag</option>
-                {PROGRESS_TAGS.map(t => (
-                  <option key={t.value} value={t.value}>{t.short}</option>
-                ))}
-              </select>
-              <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.text.dim }} />
-            </div>
+            <ProgressTagPicker
+              value={goal.progressTag}
+              onChange={tag => onProgressTagChange(goal.id, tag)}
+            />
           ) : (
             goal.progressTag && (
               <span

@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { colors, styles, border } from '../../theme'
 
@@ -30,7 +31,11 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
   const widths = { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', full: 'sm:max-w-4xl' }
   const isFull = size === 'full'
 
-  return (
+  // Portalled to <body> so a modal rendered from deep inside the tree (e.g. nested inside a
+  // Card, which sets backdrop-filter) never has its `fixed` positioning contained by an
+  // ancestor — backdrop-filter/transform/perspective on any ancestor otherwise turns `fixed`
+  // into "fixed relative to that ancestor" per the CSS spec, breaking full-screen coverage.
+  return createPortal(
     <div className={`fixed inset-0 z-50 flex justify-center ${isFull ? 'items-center p-0 sm:p-4' : 'items-end sm:items-center'}`}>
       {/* Backdrop */}
       <div className="absolute inset-0" style={styles.modalBackdrop} onClick={onClose} />
@@ -79,6 +84,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

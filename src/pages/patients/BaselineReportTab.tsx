@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { Plus, ClipboardList, Pencil, History, X, Check } from 'lucide-react'
 import { baselineReportApi } from '../../api/baselineReport'
 import { patientsApi } from '../../api/patients'
+import { enrollmentsApi } from '../../api/enrollments'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -36,6 +37,18 @@ const DOMAINS: { value: BaselineDomain; label: string }[] = [
 
 const domainLabel = (d: BaselineDomain) => DOMAINS.find(x => x.value === d)?.label ?? d
 
+/** "4y 6m" as of `asOfIso`, from a "YYYY-MM-DD" date of birth. */
+function formatAge(dobIso: string, asOfIso: string): string {
+  const dob = new Date(dobIso + 'T00:00:00')
+  const asOf = new Date(asOfIso + 'T00:00:00')
+  let years = asOf.getFullYear() - dob.getFullYear()
+  let months = asOf.getMonth() - dob.getMonth()
+  if (asOf.getDate() < dob.getDate()) months--
+  if (months < 0) { years--; months += 12 }
+  if (years < 0) return ''
+  return `${years}y ${months}m`
+}
+
 export default function BaselineReportTab({ patientId }: { patientId: string }) {
   const { activeRole } = useAuth()
   const isEditor = activeRole !== 'PARENT'
@@ -50,34 +63,58 @@ export default function BaselineReportTab({ patientId }: { patientId: string }) 
     queryFn: () => patientsApi.get(patientId),
   })
 
+  const { data: enrollments } = useQuery({
+    queryKey: ['enrollments', 'patient', patientId],
+    queryFn: () => enrollmentsApi.listForPatient(patientId),
+  })
+
   const { data: report, isLoading } = useQuery({
     queryKey: ['baseline-report', patientId],
     queryFn: () => baselineReportApi.get(patientId),
   })
 
+  // Derived from the patient's date of birth — "admission" is their earliest enrollment's
+  // start date; "on date" is simply today. Both stay editable — these are just sane defaults.
+  const earliestEnrollmentDate = enrollments && enrollments.length > 0
+    ? [...enrollments].sort((a, b) => a.startDate.localeCompare(b.startDate))[0].startDate
+    : null
+  const derivedAgeAtAdmission = patient?.dateOfBirth && earliestEnrollmentDate
+    ? formatAge(patient.dateOfBirth, earliestEnrollmentDate)
+    : undefined
+  const derivedAgeOnDate = patient?.dateOfBirth
+    ? formatAge(patient.dateOfBirth, format(new Date(), 'yyyy-MM-dd'))
+    : undefined
+
   if (isLoading) return <PageLoader />
 
   if (!report) {
     return (
-      <Card>
-        <EmptyState
-          icon={<ClipboardList size={22} />}
-          title="No baseline report yet"
-          description={isEditor
-            ? 'Create one to record the child\'s baseline on each developmental domain, then log current values over time.'
-            : 'A baseline report has not been started for this child yet.'}
-        />
-        {isEditor && (
-          <div className="flex justify-center mt-2">
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus size={15} /> Create Baseline Report
-            </Button>
-          </div>
-        )}
+      <>
+        <Card>
+          <EmptyState
+            icon={<ClipboardList size={22} />}
+            title="No baseline report yet"
+            description={isEditor
+              ? 'Create one to record the child\'s baseline on each developmental domain, then log current values over time.'
+              : 'A baseline report has not been started for this child yet.'}
+          />
+          {isEditor && (
+            <div className="flex justify-center mt-2">
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus size={15} /> Create Baseline Report
+              </Button>
+            </div>
+          )}
+        </Card>
         {createOpen && (
-          <CreateReportModal patientId={patientId} onClose={() => setCreateOpen(false)} />
+          <CreateReportModal
+            patientId={patientId}
+            defaultAgeAtAdmission={derivedAgeAtAdmission}
+            defaultAgeOnDate={derivedAgeOnDate}
+            onClose={() => setCreateOpen(false)}
+          />
         )}
-      </Card>
+      </>
     )
   }
 
@@ -126,7 +163,13 @@ export default function BaselineReportTab({ patientId }: { patientId: string }) 
       </Card>
 
       {editHeaderOpen && (
-        <EditHeaderModal patientId={patientId} report={report} onClose={() => setEditHeaderOpen(false)} />
+        <EditHeaderModal
+          patientId={patientId}
+          report={report}
+          defaultAgeAtAdmission={derivedAgeAtAdmission}
+          defaultAgeOnDate={derivedAgeOnDate}
+          onClose={() => setEditHeaderOpen(false)}
+        />
       )}
 
       {addProgressTarget && (
@@ -260,13 +303,27 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
 
 // ── Create Baseline Report modal ────────────────────────────────────────────────
 
-function CreateReportModal({ patientId, onClose }: { patientId: string; onClose: () => void }) {
+function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate, onClose }: {
+  patientId: string
+  defaultAgeAtAdmission?: string
+  defaultAgeOnDate?: string
+  onClose: () => void
+}) {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const [ageAtAdmission, setAgeAtAdmission] = useState('')
-  const [ageOnDate, setAgeOnDate] = useState('')
+  const [ageAtAdmission, setAgeAtAdmission] = useState(defaultAgeAtAdmission ?? '')
+  const [ageOnDate, setAgeOnDate] = useState(defaultAgeOnDate ?? '')
   const [cdct, setCdct] = useState('')
   const [values, setValues] = useState<Partial<Record<BaselineDomain, string>>>({})
+
+  // Fills in once the patient's DOB (and, for admission, their earliest enrollment) has
+  // loaded — never overwrites something the user already typed.
+  useEffect(() => {
+    if (!ageAtAdmission && defaultAgeAtAdmission) setAgeAtAdmission(defaultAgeAtAdmission)
+  }, [defaultAgeAtAdmission]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!ageOnDate && defaultAgeOnDate) setAgeOnDate(defaultAgeOnDate)
+  }, [defaultAgeOnDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveMut = useMutation({
     mutationFn: () => baselineReportApi.create(patientId, {
@@ -329,15 +386,17 @@ function CreateReportModal({ patientId, onClose }: { patientId: string; onClose:
 
 // ── Edit header fields modal ────────────────────────────────────────────────────
 
-function EditHeaderModal({ patientId, report, onClose }: {
+function EditHeaderModal({ patientId, report, defaultAgeAtAdmission, defaultAgeOnDate, onClose }: {
   patientId: string
   report: BaselineReportResponse
+  defaultAgeAtAdmission?: string
+  defaultAgeOnDate?: string
   onClose: () => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const [ageAtAdmission, setAgeAtAdmission] = useState(report.ageAtAdmission ?? '')
-  const [ageOnDate, setAgeOnDate] = useState(report.ageOnDate ?? '')
+  const [ageAtAdmission, setAgeAtAdmission] = useState(report.ageAtAdmission || defaultAgeAtAdmission || '')
+  const [ageOnDate, setAgeOnDate] = useState(report.ageOnDate || defaultAgeOnDate || '')
   const [cdct, setCdct] = useState(report.cdct ?? '')
 
   const saveMut = useMutation({
