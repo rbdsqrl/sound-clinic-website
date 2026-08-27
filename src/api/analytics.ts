@@ -1,8 +1,8 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  DomainSeries, FrequencyResponse, Granularity, IEPGoalDomain, OrgSnapshotResponse,
-  SuccessCriteriaResponse, TimeSeriesResponse,
+  DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity, IEPGoalDomain,
+  OrgSnapshotResponse, SuccessCriteriaResponse, TimeSeriesResponse, TrendPoint,
 } from '../types'
 
 export interface AnalyticsWindow {
@@ -95,6 +95,18 @@ export const analyticsApi = {
   patientFrequency: (patientId: string, from: string, to: string) =>
     client
       .get<ApiResponse<FrequencyResponse>>(`/analytics/patients/${patientId}/frequency`, { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** Org-wide engagement rollup for the Overview analytics tab. */
+  engagementOverview: (from: string, to: string) =>
+    client
+      .get<ApiResponse<EngagementOverviewResponse>>('/analytics/engagement-overview', { params: { from, to } })
+      .then(r => ({ ...r.data.data, avgSessionDurationMinutes: num(r.data.data.avgSessionDurationMinutes) })),
+
+  /** Session count per day in the window — powers the calendar heatmap. */
+  sessionHeatmap: (from: string, to: string) =>
+    client
+      .get<ApiResponse<TrendPoint[]>>('/analytics/session-heatmap', { params: { from, to } })
       .then(r => r.data.data),
 
   /** Discharge success-criteria composite for one enrollment. */

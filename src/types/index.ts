@@ -1588,6 +1588,35 @@ export interface OrgSnapshotResponse {
   stageCounts: { stage: PatientStage; count: number }[]
 }
 
+// ── Engagement Overview (Analytics — Overview tab) ──────────────────────────────
+
+export interface UserCounts {
+  members: number
+  cases: number
+}
+
+export interface NameCount {
+  name: string
+  count: number
+}
+
+export interface TrendPoint {
+  date: string   // "YYYY-MM-DD"
+  count: number
+}
+
+export interface EngagementOverviewResponse {
+  activeUsers: UserCounts
+  invitedUsers: UserCounts
+  avgSessionDurationMinutes: number | null
+  skillsBreakdown: NameCount[]
+  ageGroups: NameCount[]
+  sessionsTrend: TrendPoint[]
+  totalSessions: number
+  checklistFilledTrend: TrendPoint[]
+  mostAssignedActivities: NameCount[]
+}
+
 // ── Case History ─────────────────────────────────────────────────────────────
 export type DeliveryType = 'FT' | 'PREMATURE' | 'NORMAL' | 'OTHER'
 export type LabourType = 'NORMAL' | 'PROLONGED' | 'VACUUM' | 'EPIDURAL' | 'C_SECTION'

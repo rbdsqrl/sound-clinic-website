@@ -9,8 +9,9 @@ import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
 import ScoreChart from '../../components/charts/ScoreChart'
 import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
+import SessionHeatmap from '../../components/charts/SessionHeatmap'
 import { Select } from '../../components/ui/Select'
-import { Users, UserCog } from 'lucide-react'
+import { Users, UserCog, Mail, Clock, CalendarClock } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain } from '../../types'
@@ -18,12 +19,13 @@ import { Delta, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { format, parseISO, addDays } from 'date-fns'
 
-type TabKey = 'patient' | 'therapist' | 'overview'
+type TabKey = 'overview' | 'cases' | 'members' | 'schedule'
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'patient',   label: 'Patient Progress' },
-  { key: 'therapist', label: 'Therapist Caseload' },
-  { key: 'overview',  label: 'Clinic Overview' },
+  { key: 'overview', label: 'Overview' },
+  { key: 'cases',     label: 'Cases' },
+  { key: 'members',   label: 'Members' },
+  { key: 'schedule',  label: 'Schedule' },
 ]
 
 const DOMAINS: IEPGoalDomain[] = [
@@ -70,7 +72,7 @@ export default function AnalyticsPage() {
   const { activeRole } = useAuth()
   const isParentUser = activeRole === 'PARENT'
 
-  const [tab, setTab] = useState<TabKey>('patient')
+  const [tab, setTab] = useState<TabKey>('overview')
   const [granularity, setGranularity] = useState<Granularity>('DAILY')
   const [domain, setDomain] = useState<IEPGoalDomain | ''>('')
   const [patientId, setPatientId] = useState('')
@@ -79,11 +81,11 @@ export default function AnalyticsPage() {
 
   // Parents only ever see their own children's progress — caseload and clinic-wide rollups
   // are staff views and the backend rejects them for this role.
-  const visibleTabs = isParentUser ? TABS.filter(t => t.key === 'patient') : TABS
+  const visibleTabs = isParentUser ? TABS.filter(t => t.key === 'cases') : TABS
 
-  // Overview has no daily series — the API rejects it, so the control must not offer it.
+  // Overview/Members have no daily series — the API rejects it, so the control must not offer it.
   const allowedGranularities: Granularity[] =
-    tab === 'overview' ? ['WEEKLY', 'MONTHLY'] : ['DAILY', 'WEEKLY', 'MONTHLY']
+    (tab === 'overview') ? ['WEEKLY', 'MONTHLY'] : ['DAILY', 'WEEKLY', 'MONTHLY']
 
   const effectiveGranularity: Granularity =
     allowedGranularities.includes(granularity) ? granularity : 'WEEKLY'
@@ -94,7 +96,7 @@ export default function AnalyticsPage() {
 
   const changeGranularity = (g: Granularity) => {
     setGranularity(g)
-    if (tab === 'patient' && patientId && anchoredPatientRef.current === patientId) return
+    if (tab === 'cases' && patientId && anchoredPatientRef.current === patientId) return
     setRange(defaultWindow(g))
   }
 
@@ -118,13 +120,13 @@ export default function AnalyticsPage() {
   const enrollmentsQuery = useQuery({
     queryKey: ['enrollments', 'analytics', patientId],
     queryFn: () => enrollmentsApi.listForPatient(patientId),
-    enabled: tab === 'patient' && !!patientId,
+    enabled: tab === 'cases' && !!patientId,
   })
 
   // Anchor the default 'from' to the child's earliest program start date rather than a fixed
   // lookback — a lookback window can start before therapy did, showing a run of empty days.
   useEffect(() => {
-    if (tab !== 'patient' || !patientId) return
+    if (tab !== 'cases' || !patientId) return
     if (anchoredPatientRef.current === patientId) return
     if (!enrollmentsQuery.data) return
 
@@ -135,7 +137,7 @@ export default function AnalyticsPage() {
 
   // If the role is switched while this page is open, fall back to the one tab parents may view.
   useEffect(() => {
-    if (isParentUser && tab !== 'patient') setTab('patient')
+    if (isParentUser && tab !== 'cases') setTab('cases')
   }, [isParentUser, tab])
 
   // A parent with just the one child shouldn't have to pick them from a dropdown.
@@ -153,25 +155,25 @@ export default function AnalyticsPage() {
   const patientQuery = useQuery({
     queryKey: ['analytics', 'patient', patientId, params],
     queryFn: () => analyticsApi.patientProgress(patientId, params),
-    enabled: tab === 'patient' && !!patientId,
+    enabled: tab === 'cases' && !!patientId,
   })
 
   const activityProgressQuery = useQuery({
     queryKey: ['analytics', 'patient-activities', patientId, range.from, range.to],
     queryFn: () => analyticsApi.patientActivityProgress(patientId, range.from, range.to),
-    enabled: tab === 'patient' && !!patientId,
+    enabled: tab === 'cases' && !!patientId,
   })
 
   const frequencyQuery = useQuery({
     queryKey: ['analytics', 'patient-frequency', patientId, range.from, range.to],
     queryFn: () => analyticsApi.patientFrequency(patientId, range.from, range.to),
-    enabled: tab === 'patient' && !!patientId,
+    enabled: tab === 'cases' && !!patientId,
   })
 
   const caseloadQuery = useQuery({
     queryKey: ['analytics', 'therapist', therapistId, params],
     queryFn: () => analyticsApi.therapistCaseload(therapistId, params),
-    enabled: tab === 'therapist' && !!therapistId,
+    enabled: tab === 'members' && !!therapistId,
   })
 
   const overviewQuery = useQuery({
@@ -188,14 +190,32 @@ export default function AnalyticsPage() {
     enabled: tab === 'overview',
   })
 
+  // Engagement rollup — users, sessions, skills, checklist fills. Shares the same date window
+  // as the goal-mastery rollup above rather than adding a second date picker.
+  const engagementQuery = useQuery({
+    queryKey: ['analytics', 'engagement', range.from, range.to],
+    queryFn: () => analyticsApi.engagementOverview(range.from, range.to),
+    enabled: tab === 'overview',
+  })
+
+  // The heatmap always shows the full calendar year, independent of the trend window above —
+  // matching the reference product's own behaviour.
+  const heatmapYear = new Date().getFullYear()
+  const heatmapQuery = useQuery({
+    queryKey: ['analytics', 'heatmap', heatmapYear],
+    queryFn: () => analyticsApi.sessionHeatmap(`${heatmapYear}-01-01`, `${heatmapYear}-12-31`),
+    enabled: tab === 'overview',
+  })
+
   const activeSeries =
-    tab === 'patient' ? patientQuery.data
-    : tab === 'therapist' ? caseloadQuery.data?.series
-    : overviewQuery.data
+    tab === 'cases' ? patientQuery.data
+    : tab === 'members' ? caseloadQuery.data?.series
+    : tab === 'overview' ? overviewQuery.data
+    : undefined
 
   const loading =
-    (tab === 'patient' && patientQuery.isLoading) ||
-    (tab === 'therapist' && caseloadQuery.isLoading) ||
+    (tab === 'cases' && patientQuery.isLoading) ||
+    (tab === 'members' && caseloadQuery.isLoading) ||
     (tab === 'overview' && overviewQuery.isLoading)
 
   const totals = activeSeries?.totals
@@ -204,12 +224,12 @@ export default function AnalyticsPage() {
     <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 lg:p-8">
       <div>
         <h1 className="text-lg font-bold md:text-xl" style={{ color: colors.text.heading }}>
-          {isParentUser ? "Your Child's Progress" : 'Progress Analytics'}
+          {isParentUser ? "Your Child's Progress" : 'Analytics'}
         </h1>
         <p className="mt-0.5 text-sm" style={{ color: colors.text.muted }}>
           {isParentUser
             ? 'Daily, weekly and monthly progress trends from session and goal records'
-            : 'Daily, weekly and monthly trends from therapist session and IEP goal records'}
+            : 'Engagement, caseload and clinical-outcome analytics across the organisation'}
         </p>
       </div>
 
@@ -230,171 +250,312 @@ export default function AnalyticsPage() {
       )}
 
       {/* Filters — one row above the charts */}
-      <div className="flex flex-wrap items-end gap-3">
-        {tab === 'patient' && (
-          <div className="min-w-[200px]">
+      {tab !== 'schedule' && (
+        <div className="flex flex-wrap items-end gap-3">
+          {tab === 'cases' && (
+            <div className="min-w-[200px]">
+              <Select
+                label={isParentUser ? 'Child' : 'Patient'}
+                placeholder={isParentUser ? 'Select a child' : 'Select a patient'}
+                value={patientId}
+                onChange={e => setPatientId(e.target.value)}
+                options={(patients.data ?? []).map(p => ({
+                  value: p.id,
+                  label: `${p.firstName} ${p.lastName}`,
+                }))}
+              />
+            </div>
+          )}
+
+          {tab === 'members' && (
+            <div className="min-w-[200px]">
+              <Select
+                label="Therapist"
+                placeholder="Select a therapist"
+                value={therapistId}
+                onChange={e => setTherapistId(e.target.value)}
+                options={therapists.map(t => ({
+                  value: t.id,
+                  label: `${t.firstName} ${t.lastName}`,
+                }))}
+              />
+            </div>
+          )}
+
+          <div className="min-w-[150px]">
             <Select
-              label={isParentUser ? 'Child' : 'Patient'}
-              placeholder={isParentUser ? 'Select a child' : 'Select a patient'}
-              value={patientId}
-              onChange={e => setPatientId(e.target.value)}
-              options={(patients.data ?? []).map(p => ({
-                value: p.id,
-                label: `${p.firstName} ${p.lastName}`,
+              label="Granularity"
+              value={effectiveGranularity}
+              onChange={e => changeGranularity(e.target.value as Granularity)}
+              options={allowedGranularities.map(g => ({
+                value: g,
+                label: g.charAt(0) + g.slice(1).toLowerCase(),
               }))}
             />
           </div>
-        )}
 
-        {tab === 'therapist' && (
-          <div className="min-w-[200px]">
+          <div className="min-w-[160px]">
             <Select
-              label="Therapist"
-              placeholder="Select a therapist"
-              value={therapistId}
-              onChange={e => setTherapistId(e.target.value)}
-              options={therapists.map(t => ({
-                value: t.id,
-                label: `${t.firstName} ${t.lastName}`,
-              }))}
+              label="Domain"
+              placeholder="All domains"
+              value={domain}
+              onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
+              options={DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() }))}
             />
           </div>
-        )}
 
-        <div className="min-w-[150px]">
-          <Select
-            label="Granularity"
-            value={effectiveGranularity}
-            onChange={e => changeGranularity(e.target.value as Granularity)}
-            options={allowedGranularities.map(g => ({
-              value: g,
-              label: g.charAt(0) + g.slice(1).toLowerCase(),
-            }))}
-          />
+          {tab !== 'cases' && (
+            <>
+              <div className="space-y-1">
+                <label className="form-label" htmlFor="from">From</label>
+                <input
+                  id="from" type="date" className="form-input" value={range.from}
+                  onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="form-label" htmlFor="to">To</label>
+                <input
+                  id="to" type="date" className="form-input" value={range.to}
+                  onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
+                />
+              </div>
+            </>
+          )}
         </div>
-
-        <div className="min-w-[160px]">
-          <Select
-            label="Domain"
-            placeholder="All domains"
-            value={domain}
-            onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
-            options={DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() }))}
-          />
-        </div>
-
-        {tab !== 'patient' && (
-          <>
-            <div className="space-y-1">
-              <label className="form-label" htmlFor="from">From</label>
-              <input
-                id="from" type="date" className="form-input" value={range.from}
-                onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="form-label" htmlFor="to">To</label>
-              <input
-                id="to" type="date" className="form-input" value={range.to}
-                onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
-              />
-            </div>
-          </>
-        )}
-      </div>
+      )}
 
       {/* Empty prompts */}
-      {tab === 'patient' && !patientId && (
+      {tab === 'cases' && !patientId && (
         <EmptyState
           icon={<Users size={22} />}
           title={isParentUser ? 'Choose a child' : 'Choose a patient'}
-          description="Progress trends are built per child."
+          description="Progress trends are built per child. A searchable Cases list with export is coming soon."
         />
       )}
-      {tab === 'therapist' && !therapistId && (
-        <EmptyState icon={<UserCog size={22} />} title="Choose a therapist" description="Caseload trends are built per therapist." />
+      {tab === 'members' && !therapistId && (
+        <EmptyState icon={<UserCog size={22} />} title="Choose a therapist" description="Caseload trends are built per therapist. A searchable Members list with export is coming soon." />
+      )}
+      {tab === 'schedule' && (
+        <EmptyState icon={<CalendarClock size={22} />} title="Schedule analytics — coming soon" description="A full session log with attendance/duration KPIs and export is planned next." />
       )}
 
       {loading && (
         <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>Loading…</p>
       )}
 
-      {tab === 'overview' && snapshotQuery.data && (
+      {tab === 'overview' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Tile
-              label="Avg. therapy duration"
-              value={
-                snapshotQuery.data.avgTherapyDurationWeeks !== null
-                  ? `${snapshotQuery.data.avgTherapyDurationWeeks}w`
-                  : '—'
-              }
-              hint={
-                snapshotQuery.data.enrollmentsWithDuration > 0
-                  ? `${snapshotQuery.data.enrollmentsWithDuration} completed/scheduled plan${snapshotQuery.data.enrollmentsWithDuration === 1 ? '' : 's'}`
-                  : 'No plans with an end date yet'
-              }
-            />
+          {/* Engagement KPI tiles */}
+          {engagementQuery.data && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <Tile
+                label="Active Users"
+                value={
+                  <span className="flex items-center gap-4 text-base">
+                    <span className="flex items-center gap-1.5"><Users size={14} style={{ color: colors.text.dim }} />{engagementQuery.data.activeUsers.members}</span>
+                    <span className="flex items-center gap-1.5"><UserCog size={14} style={{ color: colors.text.dim }} />{engagementQuery.data.activeUsers.cases}</span>
+                  </span>
+                }
+                hint="Members · Cases"
+              />
+              <Tile
+                label="Invited Users"
+                value={
+                  <span className="flex items-center gap-4 text-base">
+                    <span className="flex items-center gap-1.5"><Mail size={14} style={{ color: colors.text.dim }} />{engagementQuery.data.invitedUsers.members}</span>
+                    <span className="flex items-center gap-1.5"><Mail size={14} style={{ color: colors.text.dim }} />{engagementQuery.data.invitedUsers.cases}</span>
+                  </span>
+                }
+                hint="Members · Cases (pending)"
+              />
+              <Tile
+                label="Avg. Session Time"
+                value={
+                  <span className="flex items-center gap-1.5">
+                    <Clock size={14} style={{ color: colors.text.dim }} />
+                    {engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'}
+                  </span>
+                }
+                hint="Across all sessions in this window"
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <Panel title="Skills" subtitle="Most-used skills across assigned activities">
+              {!engagementQuery.data || engagementQuery.data.skillsBreakdown.length === 0 ? (
+                <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No activity-skill data yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {engagementQuery.data.skillsBreakdown.slice(0, 6).map(s => (
+                    <div key={s.name} className="flex items-center justify-between text-sm">
+                      <span style={{ color: colors.text.primary }}>{s.name}</span>
+                      <span className="font-semibold" style={{ color: colors.text.heading }}>{s.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            <Panel title="Age Group" subtitle="Active patients, by age in years">
+              {!engagementQuery.data ? null : (
+                <div className="flex items-end gap-3" style={{ height: 140 }}>
+                  {(() => {
+                    const max = Math.max(1, ...engagementQuery.data.ageGroups.map(a => a.count))
+                    return engagementQuery.data.ageGroups.map(a => (
+                      <div key={a.name} className="flex flex-1 flex-col items-center gap-1.5">
+                        <span className="text-xs font-semibold" style={{ color: colors.text.heading }}>{a.count || ''}</span>
+                        <div className="w-full rounded-t-md" style={{ height: `${(a.count / max) * 100}px`, background: accentAlpha(0.5), minHeight: a.count > 0 ? 4 : 0 }} />
+                        <span className="text-[11px]" style={{ color: colors.text.dim }}>{a.name}</span>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              )}
+            </Panel>
           </div>
 
-          <Panel
-            title="Children by therapy type"
-            subtitle="Distinct children on each program, across every enrollment on record"
-          >
-            {snapshotQuery.data.programBreakdown.length === 0 ? (
-              <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
-                No enrollments recorded yet.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {(() => {
-                  const max = Math.max(1, ...snapshotQuery.data.programBreakdown.map(p => p.patientCount))
-                  return snapshotQuery.data.programBreakdown.map(p => (
-                    <div key={p.programName} className="flex items-center gap-3">
-                      <span className="w-32 flex-shrink-0 truncate text-sm md:w-44" style={{ color: colors.text.primary }}>
-                        {p.programName}
-                      </span>
-                      <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${(p.patientCount / max) * 100}%`, background: colors.accent }}
-                        />
-                      </div>
-                      <span
-                        className="w-10 flex-shrink-0 text-right text-sm font-semibold"
-                        style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        {p.patientCount}
-                      </span>
-                    </div>
-                  ))
-                })()}
-              </div>
+          <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
+            {heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+          </Panel>
+
+          <Panel title="Sessions" subtitle="Session count per day in the selected window">
+            {engagementQuery.data && (
+              <>
+                <ScoreChart
+                  variant="bars"
+                  points={engagementQuery.data.sessionsTrend.map(t => ({
+                    label: format(parseISO(t.date + 'T00:00:00'), 'd MMM'),
+                    value: Math.min(100, t.count * 10),
+                    meta: `${t.count} session${t.count !== 1 ? 's' : ''}`,
+                  }))}
+                />
+                <div className="mt-3 flex gap-8">
+                  <Tile label="Total Sessions" value={engagementQuery.data.totalSessions} />
+                  <Tile label="Avg. Duration" value={engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'} />
+                </div>
+              </>
             )}
           </Panel>
 
-          <Panel
-            title="Admission → discharge"
-            subtitle="Where every patient in the org sits right now, by stage"
-          >
-            <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-4 lg:grid-cols-7">
-              {snapshotQuery.data.stageCounts.map((s, i) => (
-                <div
-                  key={s.stage}
-                  className="w-32 flex-shrink-0 p-3 md:w-auto"
-                  style={{ background: surface.rowHover, borderRadius: radius.sm }}
-                >
-                  <p className="text-xs" style={{ color: colors.text.dim }}>
-                    {i + 1}. {STAGE_LABELS[s.stage] ?? s.stage}
-                  </p>
-                  <p className="mt-1 text-xl font-bold" style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}>
-                    {s.count}
-                  </p>
-                </div>
-              ))}
-            </div>
+          <Panel title="Checklist Filled" subtitle="Activity attempts logged per day, in the selected window">
+            {engagementQuery.data && engagementQuery.data.checklistFilledTrend.length > 0 ? (
+              <ScoreChart
+                variant="line"
+                points={engagementQuery.data.checklistFilledTrend.map(t => ({
+                  label: format(parseISO(t.date + 'T00:00:00'), 'd MMM'),
+                  value: Math.min(100, t.count * 20),
+                  meta: `${t.count} filled`,
+                }))}
+              />
+            ) : (
+              <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>No activity attempts logged in this window.</p>
+            )}
           </Panel>
+
+          <Panel title="Most Assigned Activities" subtitle="By number of assignments, all time">
+            {!engagementQuery.data || engagementQuery.data.mostAssignedActivities.length === 0 ? (
+              <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No activities assigned yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ color: colors.text.dim }}>
+                    <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wider">Activity Title</th>
+                    <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider">Assignments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {engagementQuery.data.mostAssignedActivities.map(a => (
+                    <tr key={a.name} style={{ borderTop: `1px solid ${border.divider}` }}>
+                      <td className="py-2" style={{ color: colors.text.primary }}>{a.name}</td>
+                      <td className="py-2 text-right font-semibold" style={{ color: colors.text.heading }}>{a.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+
+          {/* Clinical-outcome rollup — carried over from the previous "Clinic Overview" tab */}
+          {snapshotQuery.data && (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <Tile
+                  label="Avg. therapy duration"
+                  value={
+                    snapshotQuery.data.avgTherapyDurationWeeks !== null
+                      ? `${snapshotQuery.data.avgTherapyDurationWeeks}w`
+                      : '—'
+                  }
+                  hint={
+                    snapshotQuery.data.enrollmentsWithDuration > 0
+                      ? `${snapshotQuery.data.enrollmentsWithDuration} completed/scheduled plan${snapshotQuery.data.enrollmentsWithDuration === 1 ? '' : 's'}`
+                      : 'No plans with an end date yet'
+                  }
+                />
+              </div>
+
+              <Panel
+                title="Children by therapy type"
+                subtitle="Distinct children on each program, across every enrollment on record"
+              >
+                {snapshotQuery.data.programBreakdown.length === 0 ? (
+                  <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
+                    No enrollments recorded yet.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {(() => {
+                      const max = Math.max(1, ...snapshotQuery.data.programBreakdown.map(p => p.patientCount))
+                      return snapshotQuery.data.programBreakdown.map(p => (
+                        <div key={p.programName} className="flex items-center gap-3">
+                          <span className="w-32 flex-shrink-0 truncate text-sm md:w-44" style={{ color: colors.text.primary }}>
+                            {p.programName}
+                          </span>
+                          <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: surface.rowHover }}>
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${(p.patientCount / max) * 100}%`, background: colors.accent }}
+                            />
+                          </div>
+                          <span
+                            className="w-10 flex-shrink-0 text-right text-sm font-semibold"
+                            style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}
+                          >
+                            {p.patientCount}
+                          </span>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel
+                title="Admission → discharge"
+                subtitle="Where every patient in the org sits right now, by stage"
+              >
+                <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-4 lg:grid-cols-7">
+                  {snapshotQuery.data.stageCounts.map((s, i) => (
+                    <div
+                      key={s.stage}
+                      className="w-32 flex-shrink-0 p-3 md:w-auto"
+                      style={{ background: surface.rowHover, borderRadius: radius.sm }}
+                    >
+                      <p className="text-xs" style={{ color: colors.text.dim }}>
+                        {i + 1}. {STAGE_LABELS[s.stage] ?? s.stage}
+                      </p>
+                      <p className="mt-1 text-xl font-bold" style={{ color: colors.text.heading, fontVariantNumeric: 'tabular-nums' }}>
+                        {s.count}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </>
+          )}
         </div>
       )}
 
@@ -512,7 +673,7 @@ export default function AnalyticsPage() {
             })()}
           </Panel>
 
-          {tab === 'patient' && activityProgressQuery.data && (
+          {tab === 'cases' && activityProgressQuery.data && (
             <Panel
               title="Assigned Activities"
               subtitle="Completion status and attempts logged for activities assigned to this child"
@@ -551,7 +712,7 @@ export default function AnalyticsPage() {
             </Panel>
           )}
 
-          {tab === 'patient' && frequencyQuery.data && (
+          {tab === 'cases' && frequencyQuery.data && (
             <Panel
               title="Session Frequency"
               subtitle="Sessions per week, folded across every program this child is enrolled in at once"
@@ -702,7 +863,7 @@ export default function AnalyticsPage() {
           </Panel>
 
           {/* Consolidated parent feedback — staff-only; individual review meetings stay confidential */}
-          {tab === 'therapist' && (
+          {tab === 'members' && (
             <Panel
               title="Parent Feedback"
               subtitle="Consolidated from review meetings — visible to clinic staff only"
@@ -748,7 +909,7 @@ export default function AnalyticsPage() {
           )}
 
           {/* Caseload table */}
-          {tab === 'therapist' && caseloadQuery.data && (
+          {tab === 'members' && caseloadQuery.data && (
             <Panel
               title="Caseload"
               subtitle="Stalled patients first"
