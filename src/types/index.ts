@@ -700,6 +700,55 @@ export interface UpdateSessionNotesRequest {
   performanceScore?: number  // 1–5
 }
 
+// ── Program session-feedback checklist ──────────────────────────────────────
+
+export type FeedbackQuestionType = 'SINGLE_CHOICE' | 'MULTI_CHOICE' | 'TEXT'
+
+export interface ProgramFeedbackOption {
+  id: string
+  optionText: string
+}
+
+export interface ProgramFeedbackQuestion {
+  id: string
+  questionText: string
+  questionType: FeedbackQuestionType
+  options: ProgramFeedbackOption[]
+}
+
+export interface ProgramFeedbackQuestionInput {
+  questionText: string
+  questionType: FeedbackQuestionType
+  options: string[]
+}
+
+export interface UpdateProgramFeedbackTemplateRequest {
+  questions: ProgramFeedbackQuestionInput[]
+}
+
+export interface SessionFeedbackAnswer {
+  questionId: string
+  selectedOptionIds: string[]
+  textAnswer: string | null
+}
+
+export interface SessionFeedbackResponse {
+  template: ProgramFeedbackQuestion[]
+  answers: SessionFeedbackAnswer[]
+  checklistNotes: string | null
+}
+
+export interface SessionFeedbackAnswerInput {
+  questionId: string
+  selectedOptionIds: string[]
+  textAnswer?: string
+}
+
+export interface UpdateSessionFeedbackRequest {
+  answers: SessionFeedbackAnswerInput[]
+  checklistNotes?: string
+}
+
 export interface CreateAdHocSessionRequest {
   enrollmentId: string
   sessionDate: string   // "YYYY-MM-DD"

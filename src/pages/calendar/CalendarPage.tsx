@@ -32,6 +32,7 @@ import { meetingsApi } from '../../api/meetings'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
+import { SessionNotesModal } from '../patients/EnrollmentSessions'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
 import { ROUTES } from '../../lib/routes'
 
@@ -1456,31 +1457,73 @@ function RescheduleSessionModal({
 // ── Event detail drawer ───────────────────────────────────────────────────────
 
 // Status options for admin/owner (can directly cancel)
-const SESSION_STATUS_OPTIONS_ADMIN: { value: TherapySessionStatus; label: string }[] = [
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'NO_SHOW',   label: 'No Show' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-]
-// Status options for therapists/doctors (cannot directly cancel)
-const SESSION_STATUS_OPTIONS_THERAPIST: { value: TherapySessionStatus; label: string }[] = [
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'NO_SHOW',   label: 'No Show' },
-]
+// A therapy session gets the same Session Notes modal used on the Patient → Therapy tab
+// (Performance Score, Rating, Progress Report, checklist, Attachments, Mark-as), rather than
+// the lighter drawer used for every other calendar event kind. This wrapper adds the two
+// actions that only make sense from the calendar — reschedule, and approving/rejecting a
+// pending cancellation — as optional props on the shared modal.
+function SessionEventModal({
+  session, canAccessNotes, canManageAll, canReschedule, onClose,
+}: {
+  session: TherapySessionResponse
+  canAccessNotes: boolean
+  canManageAll: boolean
+  canReschedule: boolean
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+
+  const invalidateAndClose = () => {
+    qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+    qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+    onClose()
+  }
+
+  const approveCancellationMut = useMutation({
+    mutationFn: () => therapySessionsApi.approveCancellation(session.id),
+    onSuccess: invalidateAndClose,
+  })
+  const rejectCancellationMut = useMutation({
+    mutationFn: () => therapySessionsApi.rejectCancellation(session.id),
+    onSuccess: invalidateAndClose,
+  })
+
+  const cancellationRequested = canManageAll && session.status === 'CANCELLATION_REQUESTED'
+
+  return (
+    <>
+      <SessionNotesModal
+        session={session}
+        canEdit={canAccessNotes}
+        canDirectlyCancel={canManageAll}
+        enrollmentId={session.enrollmentId}
+        onClose={onClose}
+        onReschedule={canReschedule && session.status === 'SCHEDULED' ? () => setRescheduleOpen(true) : undefined}
+        cancellationRequested={cancellationRequested}
+        onApproveCancellation={cancellationRequested ? () => approveCancellationMut.mutate() : undefined}
+        onRejectCancellation={cancellationRequested ? () => rejectCancellationMut.mutate() : undefined}
+      />
+      {rescheduleOpen && (
+        <RescheduleSessionModal
+          session={session}
+          onClose={() => setRescheduleOpen(false)}
+          onDone={() => { setRescheduleOpen(false); invalidateAndClose() }}
+        />
+      )}
+    </>
+  )
+}
 
 function EventDetailDrawer({
-  event, onClose, canGoToInquiries, canUpdateSession, canManageAll, canCreateMeetings,
-  canReschedule, currentUserId, onLogOutcome,
+  event, onClose, canGoToInquiries, canManageAll, canCreateMeetings, onLogOutcome,
 }: {
   event: CalendarEvent
   onClose: () => void
   canGoToInquiries: boolean
-  canUpdateSession: boolean
   canManageAll: boolean
   /** Staff can cancel a meeting; parents and patients only attend one. */
   canCreateMeetings: boolean
-  /** Business owner, admin and clinic head may move a planned session. */
-  canReschedule: boolean
-  currentUserId: string
   onLogOutcome?: (inquiry: InquiryResponse) => void
 }) {
   const navigate  = useNavigate()
@@ -1498,61 +1541,11 @@ function EventDetailDrawer({
   const rawReview      = event.raw as ReviewMeetingResponse
   const rawMeeting     = event.raw as MeetingResponse
 
-  const canAccessNotes = isSession && (canManageAll || rawSession.therapistId === currentUserId)
-  const [sessionNotes, setSessionNotes] = useState(isSession ? (rawSession.notes ?? '') : '')
-
-  const updateSessionMut = useMutation({
-    mutationFn: ({ status, notes }: { status: TherapySessionStatus; notes?: string }) =>
-      therapySessionsApi.updateStatus(rawSession.id, { status, notes }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
-      onClose()
-    },
-  })
-
-  const requestCancellationMut = useMutation({
-    mutationFn: () => therapySessionsApi.requestCancellation(rawSession.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
-      onClose()
-    },
-  })
-
-  const approveCancellationMut = useMutation({
-    mutationFn: () => therapySessionsApi.approveCancellation(rawSession.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
-      onClose()
-    },
-  })
-
-  const rejectCancellationMut = useMutation({
-    mutationFn: () => therapySessionsApi.rejectCancellation(rawSession.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
-      onClose()
-    },
-  })
-
-  const [rescheduleOpen, setRescheduleOpen] = useState(false)
-
   const cancelMeetingMut = useMutation({
     mutationFn: (reason: string) => meetingsApi.cancel(rawMeeting.id, reason || undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meetings'] })
       onClose()
-    },
-  })
-
-  const updateNotesMut = useMutation({
-    mutationFn: () => therapySessionsApi.updateNotes(rawSession.id, { notes: sessionNotes } as UpdateSessionNotesRequest),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
     },
   })
 
@@ -1701,114 +1694,6 @@ function EventDetailDrawer({
             </>
           )}
 
-          {/* Session-specific */}
-          {isSession && (
-            <>
-              <Row icon={<Users size={14} />}
-                label={`${rawSession.therapistFirstName} ${rawSession.therapistLastName}`} />
-              <Row icon={<Activity size={14} />}
-                label={`Session ${rawSession.sessionNumber} of ${rawSession.totalSessions}`} />
-              {/* Status chip */}
-              <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold self-start"
-                style={kindStyle('session', rawSession.status)}>
-                <CheckCircle2 size={11} />
-                {sessionStatusLabel(rawSession.status)}
-              </div>
-              {canAccessNotes && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-                    style={{ color: colors.text.muted }}>Session Notes</p>
-                  <textarea
-                    className="form-input w-full text-sm resize-none"
-                    rows={4}
-                    placeholder="Add session notes…"
-                    value={sessionNotes}
-                    onChange={e => setSessionNotes(e.target.value)}
-                  />
-                </div>
-              )}
-              {/* Moving a planned session — separate from marking its outcome, since a
-                  clinic head may reschedule without being able to complete a session */}
-              {canReschedule && rawSession.status === 'SCHEDULED' && (
-                <>
-                  <div style={{ height: 1, background: border.divider }} />
-                  <button
-                    onClick={() => setRescheduleOpen(true)}
-                    className="w-full text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors"
-                    style={{ background: accentAlpha(0.10), color: colors.accent }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-                    Reschedule session
-                  </button>
-                </>
-              )}
-
-              {/* Status update — assigned therapist only, or admin/owner */}
-              {canUpdateSession && rawSession.status === 'SCHEDULED'
-               && (canManageAll || rawSession.therapistId === currentUserId) && (
-                <>
-                  <div style={{ height: 1, background: border.divider }} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-2"
-                      style={{ color: colors.text.muted }}>Mark as</p>
-                    <div className="flex flex-col gap-2">
-                      {(canManageAll ? SESSION_STATUS_OPTIONS_ADMIN : SESSION_STATUS_OPTIONS_THERAPIST).map(opt => (
-                        <button
-                          key={opt.value}
-                          disabled={updateSessionMut.isPending}
-                          onClick={() => updateSessionMut.mutate({ status: opt.value, notes: sessionNotes || undefined })}
-                          className="text-sm font-medium px-3 py-2 rounded-xl text-left transition-colors"
-                          style={kindStyle('session', opt.value)}
-                          onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
-                          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-                          {opt.label}
-                        </button>
-                      ))}
-                      {/* Therapists/doctors request cancellation instead of directly cancelling */}
-                      {!canManageAll && (
-                        <button
-                          disabled={requestCancellationMut.isPending}
-                          onClick={() => requestCancellationMut.mutate()}
-                          className="text-sm font-medium px-3 py-2 rounded-xl text-left transition-colors"
-                          style={{ background: '#EF444418', color: '#dc2626' }}
-                          onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
-                          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-                          Request Cancellation
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-              {/* Admin/owner: approve or reject a pending cancellation */}
-              {canManageAll && rawSession.status === 'CANCELLATION_REQUESTED' && (
-                <>
-                  <div style={{ height: 1, background: border.divider }} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-2"
-                      style={{ color: '#dc2626' }}>Cancellation requested</p>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        disabled={approveCancellationMut.isPending || rejectCancellationMut.isPending}
-                        onClick={() => approveCancellationMut.mutate()}
-                        className="text-sm font-medium px-3 py-2 rounded-xl text-left"
-                        style={{ background: '#EF444418', color: '#dc2626' }}>
-                        Approve — Cancel session
-                      </button>
-                      <button
-                        disabled={approveCancellationMut.isPending || rejectCancellationMut.isPending}
-                        onClick={() => rejectCancellationMut.mutate()}
-                        className="text-sm font-medium px-3 py-2 rounded-xl text-left"
-                        style={{ background: '#16a34a18', color: '#16a34a' }}>
-                        Reject — Keep scheduled
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
           {/* Holiday-specific */}
           {isHolidayEv && (
             <div className="rounded-xl px-3 py-3 text-sm"
@@ -1843,52 +1728,25 @@ function EventDetailDrawer({
         </div>
 
         {/* Footer */}
-        {!isHolidayEv && ((canGoToInquiries && isConsultation) || canAccessNotes) && (
+        {!isHolidayEv && canGoToInquiries && isConsultation && (
           <div className="p-5 border-t flex-shrink-0 flex flex-col gap-2" style={{ borderColor: border.divider }}>
-            {canGoToInquiries && isConsultation && (
-              <>
-                {onLogOutcome && hasNextAction(rawInquiry.status) && (
-                  <button
-                    onClick={() => { onClose(); onLogOutcome(rawInquiry) }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                    style={{ background: colors.accent, color: '#fff' }}>
-                    <Zap size={14} /> Log Outcome
-                  </button>
-                )}
-                <button
-                  onClick={() => { onClose(); navigate(ROUTES.inquiries) }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                  style={{ background: accentAlpha(0.1), color: colors.accent }}>
-                  Go to Inquiries <ExternalLink size={14} />
-                </button>
-              </>
-            )}
-            {canAccessNotes && (
+            {onLogOutcome && hasNextAction(rawInquiry.status) && (
               <button
-                disabled={updateNotesMut.isPending}
-                onClick={() => updateNotesMut.mutate()}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
+                onClick={() => { onClose(); onLogOutcome(rawInquiry) }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                 style={{ background: colors.accent, color: '#fff' }}>
-                <Save size={14} />
-                {updateNotesMut.isPending ? 'Saving…' : updateNotesMut.isSuccess ? 'Saved!' : 'Save Notes'}
+                <Zap size={14} /> Log Outcome
               </button>
             )}
+            <button
+              onClick={() => { onClose(); navigate(ROUTES.inquiries) }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              style={{ background: accentAlpha(0.1), color: colors.accent }}>
+              Go to Inquiries <ExternalLink size={14} />
+            </button>
           </div>
         )}
       </div>
-
-      {rescheduleOpen && (
-        <RescheduleSessionModal
-          session={rawSession}
-          onClose={() => setRescheduleOpen(false)}
-          onDone={() => {
-            setRescheduleOpen(false)
-            qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-            qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
-            onClose()
-          }}
-        />
-      )}
     </>
   )
 }
@@ -2411,18 +2269,31 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Event detail drawer */}
-      {selected && (
+      {/* Therapy session — the same Session Notes modal used on the Patient → Therapy tab */}
+      {selected && selected.kind === 'session' && (() => {
+        const rawSession = selected.raw as TherapySessionResponse
+        const canManageAll = !!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))
+        return (
+          <SessionEventModal
+            key={selected.id}
+            session={rawSession}
+            canAccessNotes={canManageAll || rawSession.therapistId === user?.id}
+            canManageAll={canManageAll}
+            canReschedule={canReschedule}
+            onClose={() => setSelected(null)}
+          />
+        )
+      })()}
+
+      {/* Every other event kind */}
+      {selected && selected.kind !== 'session' && (
         <EventDetailDrawer
           key={selected.id}
           event={selected}
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
-          canUpdateSession={canUpdateSession}
           canManageAll={!!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))}
           canCreateMeetings={canCreateMeetings}
-          canReschedule={canReschedule}
-          currentUserId={user?.id ?? ''}
           onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
         />
       )}

@@ -7,6 +7,8 @@ import type {
   UpdateSessionNotesRequest,
   RescheduleSessionRequest,
   SessionAttachmentResponse,
+  SessionFeedbackResponse,
+  UpdateSessionFeedbackRequest,
 } from '../types'
 
 export const therapySessionsApi = {
@@ -98,5 +100,18 @@ export const therapySessionsApi = {
   deleteAttachment: (sessionId: string, attachmentId: string) =>
     client.delete<ApiResponse<void>>(
       `/therapy-sessions/${sessionId}/attachments/${attachmentId}`,
+    ).then(r => r.data.data),
+
+  /** Get the session feedback checklist template (from the session's program) and this session's answers */
+  getFeedback: (id: string) =>
+    client.get<ApiResponse<SessionFeedbackResponse>>(
+      `/therapy-sessions/${id}/feedback`,
+    ).then(r => r.data.data),
+
+  /** Save this session's feedback checklist answers */
+  updateFeedback: (id: string, data: UpdateSessionFeedbackRequest) =>
+    client.put<ApiResponse<void>>(
+      `/therapy-sessions/${id}/feedback`,
+      data,
     ).then(r => r.data.data),
 }

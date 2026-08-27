@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText,
@@ -12,7 +12,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { format } from 'date-fns'
-import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse } from '../../types'
+import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
@@ -269,12 +269,22 @@ export function SessionNotesModal({
   canDirectlyCancel,
   enrollmentId,
   onClose,
+  onReschedule,
+  cancellationRequested,
+  onApproveCancellation,
+  onRejectCancellation,
 }: {
   session: TherapySessionResponse
   canEdit: boolean
   canDirectlyCancel: boolean
   enrollmentId: string
   onClose: () => void
+  /** Calendar-only: renders a "Reschedule session" action when provided. */
+  onReschedule?: () => void
+  /** Calendar-only: renders the approve/reject block when true and handlers are provided. */
+  cancellationRequested?: boolean
+  onApproveCancellation?: () => void
+  onRejectCancellation?: () => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -290,12 +300,47 @@ export function SessionNotesModal({
     queryFn: () => therapySessionsApi.listAttachments(session.id),
   })
 
+  const { data: feedback, isLoading: feedbackLoading } = useQuery({
+    queryKey: ['session-feedback', session.id],
+    queryFn: () => therapySessionsApi.getFeedback(session.id),
+  })
+
+  const [checklistAnswers, setChecklistAnswers] = useState<Map<string, string[]>>(new Map())
+  const [checklistNotes, setChecklistNotes]     = useState('')
+  const [checklistLoaded, setChecklistLoaded]   = useState(false)
+
+  useEffect(() => {
+    if (feedback && !checklistLoaded) {
+      setChecklistAnswers(new Map(feedback.answers.map(a => [a.questionId, a.selectedOptionIds])))
+      setChecklistNotes(feedback.checklistNotes ?? '')
+      setChecklistLoaded(true)
+    }
+  }, [feedback, checklistLoaded])
+
+  const toggleChecklistOption = (questionId: string, optionId: string) => {
+    setChecklistAnswers(prev => {
+      const next = new Map(prev)
+      const current = next.get(questionId) ?? []
+      next.set(questionId, current.includes(optionId)
+        ? current.filter(id => id !== optionId)
+        : [...current, optionId])
+      return next
+    })
+  }
+
   const saveMut = useMutation({
     mutationFn: async () => {
       if (pendingAction === 'REQUEST_CANCEL') {
         await therapySessionsApi.requestCancellation(session.id)
       } else if (pendingAction) {
         await therapySessionsApi.updateStatus(session.id, { status: pendingAction })
+      }
+      if (feedback && feedback.template.length > 0) {
+        const answers: SessionFeedbackAnswerInput[] = feedback.template.map(q => ({
+          questionId: q.id,
+          selectedOptionIds: checklistAnswers.get(q.id) ?? [],
+        }))
+        await therapySessionsApi.updateFeedback(session.id, { answers, checklistNotes })
       }
       return therapySessionsApi.updateNotes(session.id, {
         feedback: rating > 0 ? String(rating) : undefined,
@@ -306,6 +351,7 @@ export function SessionNotesModal({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
       qc.invalidateQueries({ queryKey: ['enrollments'] })
+      qc.invalidateQueries({ queryKey: ['session-feedback', session.id] })
       toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session updated', 'success')
       onClose()
     },
@@ -376,6 +422,48 @@ export function SessionNotesModal({
             readOnly={!canEdit}
           />
         </div>
+
+        {/* Session Feedback checklist — only shown when the session's program has a template configured */}
+        {!feedbackLoading && feedback && feedback.template.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <label className="form-label mb-0">Session Feedback</label>
+            {feedback.template.map(question => (
+              <div key={question.id}>
+                <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>
+                  {question.questionText}
+                </p>
+                <div className="flex flex-col gap-1.5 pl-1">
+                  {question.options.map(option => {
+                    const checked = (checklistAnswers.get(question.id) ?? []).includes(option.id)
+                    return (
+                      <label key={option.id} className="flex items-center gap-2 text-sm"
+                        style={{ color: colors.text.muted, cursor: canEdit ? 'pointer' : 'default' }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!canEdit}
+                          onChange={() => toggleChecklistOption(question.id, option.id)}
+                        />
+                        {option.optionText}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <div>
+              <label className="form-label">Additional Notes</label>
+              <textarea
+                className="form-input w-full resize-none"
+                rows={2}
+                placeholder={canEdit ? 'Anything else worth noting…' : 'No additional notes'}
+                value={checklistNotes}
+                onChange={e => setChecklistNotes(e.target.value)}
+                readOnly={!canEdit}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Attachments */}
         <div>
@@ -469,6 +557,38 @@ export function SessionNotesModal({
                 Will be {pendingAction === 'REQUEST_CANCEL' ? 'requested for cancellation' : `marked ${pendingAction.replace('_', ' ').toLowerCase()}`} when you save.
               </p>
             )}
+          </div>
+        )}
+
+        {/* Calendar-only: moving a planned session */}
+        {onReschedule && session.status === 'SCHEDULED' && (
+          <button
+            onClick={onReschedule}
+            className="w-full text-sm font-semibold px-3 py-2.5 rounded-xl mb-4 transition-colors"
+            style={{ background: accentAlpha(0.10), color: colors.accent }}
+          >
+            Reschedule session
+          </button>
+        )}
+
+        {/* Calendar-only: admin approve/reject a pending cancellation */}
+        {cancellationRequested && onApproveCancellation && onRejectCancellation && (
+          <div className="mb-4">
+            <p className="form-label" style={{ color: colors.status.danger }}>Cancellation requested</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={onApproveCancellation}
+                className="text-sm font-medium px-3 py-2 rounded-xl text-left"
+                style={{ background: dangerAlpha(0.10), color: colors.status.danger }}>
+                Approve — Cancel session
+              </button>
+              <button
+                onClick={onRejectCancellation}
+                className="text-sm font-medium px-3 py-2 rounded-xl text-left"
+                style={{ background: successAlpha(0.10), color: colors.status.success }}>
+                Reject — Keep scheduled
+              </button>
+            </div>
           </div>
         )}
 

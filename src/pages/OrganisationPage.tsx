@@ -5,8 +5,9 @@ import { useForm } from 'react-hook-form'
 import {
   Building2, CalendarOff, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
-  Target, Languages as LanguagesIcon, Box,
+  Target, Languages as LanguagesIcon, Box, ClipboardList,
 } from 'lucide-react'
+import ProgramFeedbackTemplateModal from './programs/ProgramFeedbackTemplateModal'
 import { format, parseISO } from 'date-fns'
 import { organisationApi } from '../api/organisation'
 import { publicHolidaysApi } from '../api/publicHolidays'
@@ -154,6 +155,7 @@ function ProgramRow({
   onEdit: (name: string, cost: number, description: string | undefined, taxId: string, priceIncludesTax: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [name, setName]       = useState(program.name)
   const [cost, setCost]       = useState(String(program.perSessionCost))
   const [desc, setDesc]       = useState(program.description ?? '')
@@ -289,6 +291,14 @@ function ProgramRow({
         {canManage && (
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
+              onClick={() => setFeedbackOpen(true)}
+              className="p-1.5 rounded-lg hover:opacity-75"
+              style={{ color: colors.text.dim }}
+              title="Session feedback template"
+            >
+              <ClipboardList size={13} />
+            </button>
+            <button
               onClick={() => setEditing(true)}
               className="p-1.5 rounded-lg hover:opacity-75"
               style={{ color: colors.text.dim }}
@@ -311,6 +321,13 @@ function ProgramRow({
           </div>
         )}
       </div>
+      {feedbackOpen && (
+        <ProgramFeedbackTemplateModal
+          programId={program.id}
+          programName={program.name}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
     </div>
   )
 }
