@@ -26,4 +26,10 @@ export const assessmentsApi = {
       `/patients/${patientId}/assessments/${type}`,
       data,
     ).then(r => r.data.data),
+
+  /** Get a download URL for one filled assessment's PDF, laid out like the paper form */
+  pdfUrl: (patientId: string, type: AssessmentType, assessmentId: string) =>
+    client.get<ApiResponse<{ url: string }>>(
+      `/patients/${patientId}/assessments/${type}/${assessmentId}/pdf`,
+    ).then(r => r.data.data.url),
 }

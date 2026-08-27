@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { Plus, ClipboardList } from 'lucide-react'
+import { Plus, ClipboardList, Download } from 'lucide-react'
 import { assessmentsApi } from '../../api/assessments'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -13,7 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, type PaletteKey } from '../../theme'
+import { colors, border, accentAlpha, type PaletteKey } from '../../theme'
 import ScoreChart, { type ScorePoint } from '../../components/charts/ScoreChart'
 import type { AssessmentType, PatientAssessmentResponse } from '../../types'
 
@@ -39,8 +39,15 @@ export default function AssessmentTab({
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
   const canFill = CAN_FILL_ROLES.includes(currentRole ?? '')
+  const { toast } = useToast()
 
   const [formOpen, setFormOpen] = useState(false)
+
+  const downloadMut = useMutation({
+    mutationFn: (assessmentId: string) => assessmentsApi.pdfUrl(patientId, type, assessmentId),
+    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onError: (err) => toast(getApiError(err, 'Failed to prepare PDF'), 'error'),
+  })
 
   const { data: definition, isLoading: defLoading } = useQuery({
     queryKey: ['assessment-definition', patientId, type],
@@ -93,6 +100,7 @@ export default function AssessmentTab({
                     <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Score</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Classification</th>
                     <th className="text-left px-3 py-2 font-medium hidden md:table-cell" style={{ color: colors.text.muted }}>Filled by</th>
+                    <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -111,6 +119,16 @@ export default function AssessmentTab({
                       </td>
                       <td className="px-3 py-2 hidden md:table-cell" style={{ color: colors.text.muted }}>
                         {h.filledByName ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => downloadMut.mutate(h.id)}
+                          disabled={downloadMut.isPending}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+                          style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                        >
+                          <Download size={12} /> PDF
+                        </button>
                       </td>
                     </tr>
                   ))}
