@@ -20,7 +20,7 @@ import { colors, border, styles, surface, radius, accentAlpha, palette } from '.
 import type { Granularity, IEPGoalDomain, EnrollmentCareStatus } from '../../types'
 import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
-import { domainLabel as baselineDomainLabel } from '../patients/BaselineReportTab'
+import { domainLabel as baselineDomainLabel, ScorePill } from '../patients/BaselineReportTab'
 import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
@@ -1088,33 +1088,48 @@ export default function AnalyticsPage() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-sm">
+                  <table className="w-full min-w-[640px] text-sm">
                     <thead>
                       <tr style={{ color: colors.text.dim }}>
                         <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Domain</th>
                         <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Baseline</th>
-                        <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wider">Current</th>
+                        <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Current</th>
+                        <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wider">Score Trend</th>
                       </tr>
                     </thead>
                     <tbody>
                       {baselineDomains.map(d => {
                         const latest = d.currentEntries[0]
+                        // Chronological (oldest first) for the trend — currentEntries arrives newest-first.
+                        const scoreTrend = [...d.currentEntries].reverse().map(e => e.scorePercent)
+                        const hasScoreTrend = d.currentEntries.length >= 2 && scoreTrend.some(v => v !== null)
                         return (
                           <tr key={d.domain} style={{ borderTop: `1px solid ${border.divider}` }}>
                             <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>
                               {baselineDomainLabel(d.domain)}
                             </td>
                             <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>
-                              {d.baselineValue ?? <span style={{ color: colors.text.dim }}>—</span>}
+                              <div className="flex items-center gap-1.5">
+                                {d.baselineValue ?? <span style={{ color: colors.text.dim }}>—</span>}
+                                {d.baselineScorePercent !== null && <ScorePill percent={d.baselineScorePercent} />}
+                              </div>
                             </td>
-                            <td className="py-2.5" style={{ color: colors.text.muted }}>
+                            <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>
                               {latest ? (
-                                <>
+                                <div className="flex items-center gap-1.5">
                                   {latest.value}
-                                  <span className="ml-1.5 text-xs" style={{ color: colors.text.dim }}>
+                                  {latest.scorePercent !== null && <ScorePill percent={latest.scorePercent} />}
+                                  <span className="text-xs" style={{ color: colors.text.dim }}>
                                     ({format(parseISO(latest.entryDate + 'T00:00:00'), 'd MMM yyyy')})
                                   </span>
-                                </>
+                                </div>
+                              ) : (
+                                <span style={{ color: colors.text.dim }}>—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5">
+                              {hasScoreTrend ? (
+                                <Sparkline values={scoreTrend} width={100} height={26} label={`${baselineDomainLabel(d.domain)} score trend`} />
                               ) : (
                                 <span style={{ color: colors.text.dim }}>—</span>
                               )}

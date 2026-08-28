@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ChevronRight, Pencil, Plus, X, Mail, Phone } from 'lucide-react'
+import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download } from 'lucide-react'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
 import { languagesApi } from '../../api/activityLookups'
@@ -24,6 +24,7 @@ import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
+import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -211,6 +212,26 @@ export default function MemberProfilePage() {
               <input id="member-to" type="date" className="form-input" value={range.to}
                 onChange={e => setRange(r => ({ ...r, to: e.target.value }))} />
             </div>
+            <button
+              type="button"
+              disabled={!scheduleData?.sessions.length}
+              onClick={() => exportRowsAsCsv(
+                `${profile.firstName}-${profile.lastName}-sessions_${range.from}_to_${range.to}.csv`,
+                scheduleData?.sessions ?? [],
+                [
+                  { header: 'Date', value: s => s.sessionDate },
+                  { header: 'Time', value: s => s.startTime.slice(0, 5) },
+                  { header: 'Duration (min)', value: s => s.durationMinutes },
+                  { header: 'Program', value: s => s.programName },
+                  { header: 'Case', value: s => s.patientName },
+                  { header: 'Status', value: s => s.status },
+                ],
+              )}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40"
+              style={{ background: surface.rowHover, color: colors.text.primary }}
+            >
+              <Download size={14} /> Export
+            </button>
           </div>
         }
       >
@@ -231,9 +252,30 @@ export default function MemberProfilePage() {
 
       <Panel
         title={`Cases (${cases.length})`}
-        action={canEdit ? (
-          <Button size="sm" onClick={() => setAssignOpen(true)}><Plus size={14} /> Assign</Button>
-        ) : undefined}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={cases.length === 0}
+              onClick={() => exportRowsAsCsv(
+                `${profile.firstName}-${profile.lastName}-cases.csv`,
+                cases,
+                [
+                  { header: 'Name', value: p => `${p.firstName} ${p.lastName}` },
+                  { header: 'Age', value: p => p.dateOfBirth ? calcAge(p.dateOfBirth) : '' },
+                  { header: 'Conditions', value: p => p.conditions.map(c => c.name).join('; ') },
+                ],
+              )}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40"
+              style={{ background: surface.rowHover, color: colors.text.primary }}
+            >
+              <Download size={14} /> Export
+            </button>
+            {canEdit && (
+              <Button size="sm" onClick={() => setAssignOpen(true)}><Plus size={14} /> Assign</Button>
+            )}
+          </div>
+        }
       >
         {cases.length === 0 ? (
           <EmptyState icon={<Mail size={22} />} title="No cases yet" description="Assign a patient to this member to see them here." />

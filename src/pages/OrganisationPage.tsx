@@ -788,7 +788,7 @@ export default function OrganisationPage() {
             />
             {!editing ? (
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {[['Name', org?.name], ['Slug', org?.slug], ['Email', org?.contactEmail],
+                {[['Name', org?.name], ['Email', org?.contactEmail],
                   ['Phone', org?.contactPhone], ['Timezone', org?.timezone], ['Address', org?.address]
                 ].map(([label, value]) => (
                   <div key={label as string}>
@@ -813,24 +813,6 @@ export default function OrganisationPage() {
                 </div>
               </form>
             )}
-          </Card>
-
-          <Card>
-            <CardHeader title="Deployment Info" />
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Organisation ID</dt>
-                <dd className="mt-1 font-mono text-xs break-all" style={{ color: colors.text.muted }}>{org?.id}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>Status</dt>
-                <dd className="mt-1">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${org?.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {org?.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </dd>
-              </div>
-            </dl>
           </Card>
 
           {user?.role === 'BUSINESS_OWNER' && (

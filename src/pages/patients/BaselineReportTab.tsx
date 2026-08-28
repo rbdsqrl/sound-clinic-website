@@ -6,6 +6,7 @@ import { baselineReportApi } from '../../api/baselineReport'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { useAuth } from '../../contexts/AuthContext'
+import Sparkline from '../../components/charts/Sparkline'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -36,6 +37,18 @@ export const DOMAINS: { value: BaselineDomain; label: string }[] = [
 ]
 
 export const domainLabel = (d: BaselineDomain) => DOMAINS.find(x => x.value === d)?.label ?? d
+
+/** A compact "72%" pill — shown next to a baseline or current value when it's been scored. */
+export function ScorePill({ percent }: { percent: number }) {
+  return (
+    <span
+      className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+      style={{ background: accentAlpha(0.10), color: colors.accent }}
+    >
+      {percent}%
+    </span>
+  )
+}
 
 /** "4y 6m" as of `asOfIso`, from a "YYYY-MM-DD" date of birth. */
 function formatAge(dobIso: string, asOfIso: string): string {
@@ -200,9 +213,13 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
   const { toast } = useToast()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(domain.baselineValue ?? '')
+  const [scoreDraft, setScoreDraft] = useState(domain.baselineScorePercent?.toString() ?? '')
 
   const saveMut = useMutation({
-    mutationFn: () => baselineReportApi.update(patientId, { domainValues: { [domain.domain]: draft } }),
+    mutationFn: () => baselineReportApi.update(patientId, {
+      domainValues: { [domain.domain]: draft },
+      domainScores: { [domain.domain]: scoreDraft === '' ? null : Number(scoreDraft) },
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['baseline-report', patientId] })
       toast('Baseline updated', 'success')
@@ -212,6 +229,11 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
   })
 
   const latest = domain.currentEntries[0]
+
+  // Chronological (oldest first) for the sparkline — currentEntries arrives newest-first.
+  // Nulls preserved so the line breaks at an unscored entry rather than joining across it.
+  const scoreTrend = [...domain.currentEntries].reverse().map(e => e.scorePercent)
+  const hasScoreTrend = domain.currentEntries.length >= 2 && scoreTrend.some(v => v !== null)
 
   return (
     <div className="rounded-xl p-3.5" style={{ border: border.card, background: surface.card }}>
@@ -228,6 +250,13 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
               />
+              <input
+                type="number" min={0} max={100} placeholder="%"
+                className="form-input w-16 flex-shrink-0"
+                value={scoreDraft}
+                onChange={e => setScoreDraft(e.target.value)}
+                title="Score (0-100, optional)"
+              />
               <button
                 onClick={() => saveMut.mutate()}
                 disabled={saveMut.isPending}
@@ -238,7 +267,7 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
                 <Check size={14} />
               </button>
               <button
-                onClick={() => { setEditing(false); setDraft(domain.baselineValue ?? '') }}
+                onClick={() => { setEditing(false); setDraft(domain.baselineValue ?? ''); setScoreDraft(domain.baselineScorePercent?.toString() ?? '') }}
                 className="p-1.5 rounded-lg flex-shrink-0"
                 style={{ color: colors.text.dim }}
                 title="Cancel"
@@ -248,9 +277,12 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
             </div>
           ) : (
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm" style={{ color: domain.baselineValue ? colors.text.primary : colors.text.dim }}>
-                {domain.baselineValue || 'Not set yet'}
-              </p>
+              <div className="flex items-start gap-1.5 min-w-0">
+                <p className="text-sm" style={{ color: domain.baselineValue ? colors.text.primary : colors.text.dim }}>
+                  {domain.baselineValue || 'Not set yet'}
+                </p>
+                {domain.baselineScorePercent !== null && <ScorePill percent={domain.baselineScorePercent} />}
+              </div>
               {isEditor && (
                 <button onClick={() => setEditing(true)} className="flex-shrink-0 hover:opacity-70" style={{ color: colors.text.dim }} title="Edit baseline">
                   <Pencil size={13} />
@@ -275,8 +307,11 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
           </div>
           {latest ? (
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm" style={{ color: colors.text.primary }}>{latest.value}</p>
+              <div className="min-w-0">
+                <div className="flex items-start gap-1.5">
+                  <p className="text-sm" style={{ color: colors.text.primary }}>{latest.value}</p>
+                  {latest.scorePercent !== null && <ScorePill percent={latest.scorePercent} />}
+                </div>
                 <p className="text-[11px] mt-0.5" style={{ color: colors.text.dim }}>
                   {format(new Date(latest.entryDate + 'T00:00:00'), 'd MMM yyyy')}
                 </p>
@@ -297,6 +332,13 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
           )}
         </div>
       </div>
+
+      {hasScoreTrend && (
+        <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <p className="text-[11px] flex-shrink-0" style={{ color: colors.text.dim }}>Score trend</p>
+          <Sparkline values={scoreTrend} width={120} height={28} label={`${domainLabel(domain.domain)} score trend`} />
+        </div>
+      )}
     </div>
   )
 }
@@ -315,6 +357,7 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
   const [ageOnDate, setAgeOnDate] = useState(defaultAgeOnDate ?? '')
   const [cdct, setCdct] = useState('')
   const [values, setValues] = useState<Partial<Record<BaselineDomain, string>>>({})
+  const [scores, setScores] = useState<Partial<Record<BaselineDomain, string>>>({})
 
   // Fills in once the patient's DOB (and, for admission, their earliest enrollment) has
   // loaded — never overwrites something the user already typed.
@@ -331,6 +374,9 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
       ageOnDate: ageOnDate || undefined,
       cdct: cdct || undefined,
       domainValues: values,
+      domainScores: Object.fromEntries(
+        Object.entries(scores).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)])
+      ) as Partial<Record<BaselineDomain, number>>,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['baseline-report', patientId] })
@@ -371,12 +417,21 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
         {DOMAINS.map(d => (
           <div key={d.value}>
             <label className="form-label">{d.label}</label>
-            <textarea
-              className="form-input resize-none"
-              rows={2}
-              value={values[d.value] ?? ''}
-              onChange={e => setValues(prev => ({ ...prev, [d.value]: e.target.value }))}
-            />
+            <div className="flex items-start gap-1.5">
+              <textarea
+                className="form-input resize-none flex-1"
+                rows={2}
+                value={values[d.value] ?? ''}
+                onChange={e => setValues(prev => ({ ...prev, [d.value]: e.target.value }))}
+              />
+              <input
+                type="number" min={0} max={100} placeholder="%"
+                className="form-input w-16 flex-shrink-0"
+                value={scores[d.value] ?? ''}
+                onChange={e => setScores(prev => ({ ...prev, [d.value]: e.target.value }))}
+                title="Score (0-100, optional)"
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -441,9 +496,14 @@ function AddProgressModal({ patientId, domain, onClose }: {
   const { toast } = useToast()
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [value, setValue] = useState('')
+  const [score, setScore] = useState('')
 
   const saveMut = useMutation({
-    mutationFn: () => baselineReportApi.addProgress(patientId, domain, { entryDate, value }),
+    mutationFn: () => baselineReportApi.addProgress(patientId, domain, {
+      entryDate,
+      value,
+      scorePercent: score === '' ? undefined : Number(score),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['baseline-report', patientId] })
       toast('Current value logged', 'success')
@@ -465,7 +525,11 @@ function AddProgressModal({ patientId, domain, onClose }: {
       }
     >
       <div className="flex flex-col gap-3">
-        <Input label="Date" type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Date" type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} />
+          <Input label="Score (optional)" type="number" min={0} max={100} placeholder="0-100"
+            value={score} onChange={e => setScore(e.target.value)} />
+        </div>
         <div>
           <label className="form-label">Current value</label>
           <textarea
@@ -493,9 +557,12 @@ function HistoryModal({ domain, onClose }: { domain: BaselineDomainResponse; onC
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
           {domain.currentEntries.map(entry => (
             <div key={entry.id} className="p-3 rounded-lg" style={{ border: border.card, background: surface.card }}>
-              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                {format(new Date(entry.entryDate + 'T00:00:00'), 'd MMM yyyy')}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
+                  {format(new Date(entry.entryDate + 'T00:00:00'), 'd MMM yyyy')}
+                </p>
+                {entry.scorePercent !== null && <ScorePill percent={entry.scorePercent} />}
+              </div>
               <p className="text-sm mt-1 leading-relaxed" style={{ color: colors.text.primary }}>{entry.value}</p>
               {entry.loggedByName && (
                 <p className="text-[11px] mt-1.5" style={{ color: colors.text.dim }}>Logged by {entry.loggedByName}</p>

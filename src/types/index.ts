@@ -1201,6 +1201,8 @@ export interface BaselineProgressEntryResponse {
   id: string
   entryDate: string
   value: string
+  /** Optional 0-100 score alongside `value`. Null when this entry wasn't scored. */
+  scorePercent: number | null
   loggedByName: string | null
   createdAt: string
 }
@@ -1208,6 +1210,8 @@ export interface BaselineProgressEntryResponse {
 export interface BaselineDomainResponse {
   domain: BaselineDomain
   baselineValue: string | null
+  /** Optional 0-100 score alongside `baselineValue`. Null when not scored. */
+  baselineScorePercent: number | null
   baselineUpdatedAt: string | null
   currentEntries: BaselineProgressEntryResponse[]
 }
@@ -1228,6 +1232,8 @@ export interface CreateBaselineReportRequest {
   ageOnDate?: string
   cdct?: string
   domainValues?: Partial<Record<BaselineDomain, string>>
+  /** Optional 0-100 score per domain — not every domain needs one. */
+  domainScores?: Partial<Record<BaselineDomain, number>>
 }
 
 export interface UpdateBaselineReportRequest {
@@ -1235,11 +1241,15 @@ export interface UpdateBaselineReportRequest {
   ageOnDate?: string
   cdct?: string
   domainValues?: Partial<Record<BaselineDomain, string>>
+  /** `null` explicitly clears a domain's score; an omitted domain is left unchanged. */
+  domainScores?: Partial<Record<BaselineDomain, number | null>>
 }
 
 export interface AddBaselineProgressRequest {
   entryDate: string
   value: string
+  /** Optional 0-100 score alongside `value`, so this entry can be charted. */
+  scorePercent?: number
 }
 
 // ── IEP Template Library ──────────────────────────────────────────────────────
