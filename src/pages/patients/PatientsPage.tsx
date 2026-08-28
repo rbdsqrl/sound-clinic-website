@@ -15,9 +15,10 @@ import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
+import { calcAge } from '../../lib/age'
 import { colors, border, styles, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
-import { format, differenceInMonths } from 'date-fns'
+import { format } from 'date-fns'
 
 // ── Avatar colours (cycles through theme palette) ─────────────────────────────
 
@@ -29,17 +30,6 @@ const AVATAR_STYLES = [
   { bg: `rgba(var(--color-warning-raw), 0.15)`,  fg: `var(--color-warning)` },
   { bg: `rgba(var(--color-pink-raw), 0.15)`,     fg: palette.pink.text },
 ]
-
-// ── Age helper ────────────────────────────────────────────────────────────────
-
-function calcAge(dob: string): string {
-  const totalMonths = differenceInMonths(new Date(), new Date(dob))
-  const years  = Math.floor(totalMonths / 12)
-  const months = totalMonths % 12
-  if (years === 0) return `${months} month${months !== 1 ? 's' : ''}`
-  if (months === 0) return `${years} year${years !== 1 ? 's' : ''}`
-  return `${years}y ${months}m`
-}
 
 // ── Invite status ─────────────────────────────────────────────────────────────
 

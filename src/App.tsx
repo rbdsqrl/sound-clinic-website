@@ -24,6 +24,7 @@ import TasksPage from './pages/tasks/TasksPage'
 import FeedPage from './pages/feed/FeedPage'
 import WorkforcePage from './pages/workforce/WorkforcePage'
 import MembersPage from './pages/members/MembersPage'
+import MemberProfilePage from './pages/members/MemberProfilePage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import ActivitiesPage from './pages/activities/ActivitiesPage'
 import CreateActivityPage from './pages/activities/CreateActivityPage'
@@ -82,6 +83,7 @@ function AppRoutes() {
         <Route path={ROUTES.feed}         element={<FeedPage />} />
         <Route path={ROUTES.workforce}    element={<WorkforcePage />} />
         <Route path={ROUTES.members}      element={<MembersPage />} />
+        <Route path="/members/:id"        element={<MemberProfilePage />} />
         <Route path={ROUTES.analytics}    element={<AnalyticsPage />} />
         <Route path={ROUTES.activities}     element={<ActivitiesPage />} />
         <Route path={ROUTES.createActivity} element={<CreateActivityPage />} />

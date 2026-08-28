@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, UserResponse, StaffMemberResponse, AssignableUser, Role } from '../types'
+import type { ApiResponse, UserResponse, StaffMemberResponse, AssignableUser, Role, MemberProfileResponse, UpdateMemberProfileRequest } from '../types'
 
 export const usersApi = {
   me: () =>
@@ -40,6 +40,13 @@ export const usersApi = {
 
   deleteMember: (id: string) =>
     client.delete(`/users/${id}`),
+
+  /** The member profile page — contact, qualification, specialization, languages, case count. */
+  getProfile: (id: string) =>
+    client.get<ApiResponse<MemberProfileResponse>>(`/users/${id}/profile`).then((r) => r.data.data),
+
+  updateProfile: (id: string, data: UpdateMemberProfileRequest) =>
+    client.patch<ApiResponse<MemberProfileResponse>>(`/users/${id}/profile`, data).then((r) => r.data.data),
 
   addRole: (role: string) =>
     client.post<ApiResponse<UserResponse>>('/users/me/roles', { role }).then((r) => r.data.data),

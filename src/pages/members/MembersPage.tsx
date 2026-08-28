@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
@@ -20,6 +21,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { statusBadge, roleBadge } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { ROUTES } from '../../lib/routes'
 import { ToastContainer } from '../../components/ui/Toast'
 import {
   colors, styles, surface, border, shadow,
@@ -113,15 +115,16 @@ function CopyLinkBox({ link }: { link: string }) {
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
-  member, idx, clinicName, onDelete,
-}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void }) {
+  member, idx, clinicName, onDelete, onSelect,
+}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void; onSelect: () => void }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
 
   return (
     <div
-      className="rounded-2xl p-4 flex flex-col gap-3"
+      onClick={onSelect}
+      className="rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-colors"
       style={{ background: surface.card, border: border.card, boxShadow: shadow.card }}
     >
       <div className="flex items-start gap-3">
@@ -182,7 +185,7 @@ function MemberCard({
           )}
           {onDelete && (
             <button
-              onClick={onDelete}
+              onClick={e => { e.stopPropagation(); onDelete() }}
               className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
               style={{ color: colors.text.dim }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.error; (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
@@ -201,14 +204,14 @@ function MemberCard({
 // ── Member row (list view) ────────────────────────────────────────────────────
 
 function MemberRow({
-  member, idx, clinicName, onDelete,
-}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void }) {
+  member, idx, clinicName, onDelete, onSelect,
+}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void; onSelect: () => void }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
 
   return (
-    <tr className="border-b" style={{ borderColor: border.divider }}>
+    <tr onClick={onSelect} className="border-b cursor-pointer transition-colors" style={{ borderColor: border.divider }}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div
@@ -249,7 +252,7 @@ function MemberRow({
           </span>
           {onDelete && (
             <button
-              onClick={onDelete}
+              onClick={e => { e.stopPropagation(); onDelete() }}
               className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
               style={{ color: colors.text.dim }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.error; (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
@@ -268,6 +271,7 @@ function MemberRow({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MembersPage() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
   const { user, activeRole } = useAuth()
@@ -636,7 +640,7 @@ export default function MembersPage() {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {shownMembers.map((m, i) => (
-              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} />
+              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} onSelect={() => navigate(ROUTES.member(m.id))} />
             ))}
           </div>
         ) : (
@@ -652,7 +656,7 @@ export default function MembersPage() {
               </thead>
               <tbody>
                 {shownMembers.map((m, i) => (
-                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} />
+                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} onSelect={() => navigate(ROUTES.member(m.id))} />
                 ))}
               </tbody>
             </table>

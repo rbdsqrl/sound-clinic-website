@@ -195,6 +195,34 @@ export interface StaffMemberResponse {
   createdAt: string
 }
 
+// ── Member Profile ────────────────────────────────────────────────────────────
+
+export interface MemberProfileResponse {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  role: Role
+  additionalRoles: Role[]
+  isActive: boolean
+  clinicId: string | null
+  clinicName: string | null
+  qualification: string | null
+  specialization: string | null
+  languages: LanguageResponse[]
+  caseCount: number
+  createdAt: string
+}
+
+export interface UpdateMemberProfileRequest {
+  phone?: string
+  clinicId?: string
+  qualification?: string
+  specialization?: string
+  languageIds?: string[]
+}
+
 /** All roles this user holds (primary + additional). */
 export function allRoles(user: UserResponse): Role[] {
   return [user.role, ...user.additionalRoles.filter(r => r !== user.role)]
