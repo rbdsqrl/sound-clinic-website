@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Copy, Check, Mail } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Copy, Check, Mail } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
+import AdHocSessionModal from '../calendar/AdHocSessionModal'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { conditionsApi } from '../../api/conditions'
@@ -1353,6 +1354,7 @@ export default function PatientDetailPage() {
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
+  const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [conditionsPage,   setConditionsPage]   = useState(0)
   const [sidebarSearch,    setSidebarSearch]    = useState('')
@@ -2078,6 +2080,18 @@ export default function PatientDetailPage() {
                                   View Sessions
                                 </Link>
                               )}
+                              {isEnrolled && enrollment && canCreateEnrollment && (
+                                <button
+                                  onClick={() => setBookSessionFor(enrollment)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                >
+                                  <CalendarPlus size={12} />
+                                  Book Session
+                                </button>
+                              )}
                               {canRecordPayment && !isPaid && (
                                 <button
                                   onClick={() => setPaymentTarget(sub)}
@@ -2412,6 +2426,27 @@ export default function PatientDetailPage() {
             queryClient.invalidateQueries({ queryKey: ['review-meetings'] })
             toast('Therapist changed — upcoming sessions moved across', 'success')
             setChangeTherapistFor(null)
+          }}
+        />
+      )}
+
+      {/* Book a one-off session on this plan — same modal the Calendar's drag-to-book uses */}
+      {bookSessionFor && patient && (
+        <AdHocSessionModal
+          fixedPlan={{
+            enrollmentId: bookSessionFor.id,
+            patientName: `${patient.firstName} ${patient.lastName}`,
+            programName: bookSessionFor.programName,
+            therapistId: bookSessionFor.therapistId,
+            therapistFirstName: bookSessionFor.therapistFirstName,
+            therapistLastName: bookSessionFor.therapistLastName,
+          }}
+          onClose={() => setBookSessionFor(null)}
+          onDone={() => {
+            refetchEnrollments()
+            queryClient.invalidateQueries({ queryKey: ['sessions', 'enrollment'] })
+            toast('Session booked', 'success')
+            setBookSessionFor(null)
           }}
         />
       )}

@@ -33,7 +33,9 @@ import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
 import { SessionNotesModal } from '../patients/EnrollmentSessions'
+import AdHocSessionModal from './AdHocSessionModal'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
+import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 
 // ── Event model ───────────────────────────────────────────────────────────────
@@ -361,20 +363,16 @@ function NowLine({ minutes, innerRef }: {
 
 // ── Drag-to-select a time slot ────────────────────────────────────────────────
 
-export interface SlotSelection {
-  date: string   // 'yyyy-MM-dd'
-  start: string  // 'HH:mm'
-  end: string    // 'HH:mm'
-}
-
 /**
  * Click-and-drag across hour cells to pick a range.
  *
- * The drag is pinned to the day it started on — dragging sideways across a week
- * would otherwise select a rectangle, which is not a thing you can book.
+ * The drag is pinned to the column it started on — dragging sideways would otherwise
+ * select a rectangle, which is not a thing you can book. For a plain day/week grid the
+ * column is just the day; the per-therapist Staff Day view has several columns sharing
+ * the same day, so it passes a `key` that also encodes which therapist's column it is.
  */
 function useSlotDrag(onPick: (sel: SlotSelection) => void) {
-  const [anchor, setAnchor] = useState<{ date: string; hour: number } | null>(null)
+  const [anchor, setAnchor] = useState<{ key: string; date: string; hour: number } | null>(null)
   const [hover, setHover]   = useState<number | null>(null)
 
   useEffect(() => {
@@ -393,8 +391,9 @@ function useSlotDrag(onPick: (sel: SlotSelection) => void) {
     return () => window.removeEventListener('mouseup', finish)
   }, [anchor, hover, onPick])
 
-  function cellProps(date: string, hour: number) {
-    const active = anchor?.date === date
+  /** `key` pins the drag to one column; `date` (defaults to `key`) is what gets booked. */
+  function cellProps(key: string, hour: number, date: string = key) {
+    const active = anchor?.key === key
       && hour >= Math.min(anchor.hour, hover ?? anchor.hour)
       && hour <= Math.max(anchor.hour, hover ?? anchor.hour)
     return {
@@ -402,10 +401,10 @@ function useSlotDrag(onPick: (sel: SlotSelection) => void) {
         // Let a click on an event chip open it rather than starting a drag.
         if ((e.target as HTMLElement).closest('button')) return
         e.preventDefault()
-        setAnchor({ date, hour })
+        setAnchor({ key, date, hour })
         setHover(hour)
       },
-      onMouseEnter: () => { if (anchor?.date === date) setHover(hour) },
+      onMouseEnter: () => { if (anchor?.key === key) setHover(hour) },
       style: active ? { background: accentAlpha(0.14) } : undefined,
       selected: active,
     }
@@ -417,11 +416,13 @@ function useSlotDrag(onPick: (sel: SlotSelection) => void) {
 // ── Month View ────────────────────────────────────────────────────────────────
 
 function MonthView({
-  current, events, onSelect, holidayDates, colorFn,
+  current, events, onSelect, holidayDates, colorFn, onDayClick,
 }: {
   current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string>
   /** Overrides the default kind-based chip color — used by the Staff month view to color by therapist. */
   colorFn?: (ev: CalendarEvent) => React.CSSProperties | undefined
+  /** Drill into a day — clicking the cell background or "+N more" (not an event chip, which opens that event instead). */
+  onDayClick?: (day: Date) => void
 }) {
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(current), { weekStartsOn: 1 }),
@@ -457,11 +458,15 @@ function MonthView({
           return (
             <div key={day.toISOString()}
               className="flex flex-col p-1 min-h-[90px] min-w-0"
+              onClick={onDayClick ? () => onDayClick(day) : undefined}
+              onMouseEnter={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) } : undefined}
+              onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : '' } : undefined}
               style={{
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
                 opacity: inMonth ? 1 : 0.4,
                 background: isHoliday ? '#FEF3C720' : undefined,
+                cursor: onDayClick ? 'pointer' : undefined,
               }}>
               <div className="flex justify-end mb-1">
                 <span className="text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full"
@@ -765,11 +770,13 @@ interface StaffColumn {
 }
 
 function StaffDayView({
-  current, events, columns, onSelect, holidayDates,
+  current, events, columns, onSelect, holidayDates, onSlotSelect,
 }: {
   current: Date; events: CalendarEvent[]; columns: StaffColumn[]
   onSelect: (e: CalendarEvent) => void
   holidayDates: Set<string>
+  /** Drag across hour cells to pick a slot. Omitted for roles that cannot book. */
+  onSlotSelect?: (sel: SlotSelection) => void
 }) {
   const nowMins = useNowMinutes()
   const nowRef  = useRef<HTMLDivElement>(null)
@@ -781,6 +788,7 @@ function StaffDayView({
 
   const dayEvents = eventsOnDay(events, current)
   const gridCols  = `64px repeat(${columns.length}, minmax(200px, 1fr))`
+  const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-auto">
@@ -838,9 +846,17 @@ function StaffDayView({
                 eventOwnerIds(e).includes(col.id)
               )
               const sorted = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
+              const drag   = onSlotSelect ? cellProps(`${dayKey}::${col.id}`, hour, dayKey) : null
               return (
                 <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 relative min-w-0"
-                  style={{ borderColor: border.divider }}>
+                  onMouseDown={drag?.onMouseDown}
+                  onMouseEnter={drag?.onMouseEnter}
+                  style={{
+                    borderColor: border.divider,
+                    background: drag?.selected ? accentAlpha(0.14) : undefined,
+                    cursor: onSlotSelect ? 'cell' : undefined,
+                    userSelect: 'none',
+                  }}>
                   {showsToday && col === columns[0] && Math.floor(nowMins / 60) === hour && (
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
@@ -943,153 +959,6 @@ function UpcomingPanel({
         </div>
       )}
     </div>
-  )
-}
-
-
-// ── Book a one-off therapy session ────────────────────────────────────────────
-
-function AdHocSessionModal({
-  slot, onClose, onDone,
-}: {
-  slot: SlotSelection
-  onClose: () => void
-  onDone: () => void
-}) {
-  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
-  const [patientId, setPatientId] = useState('')
-  const [date, setDate]           = useState(slot.date)
-  const [start, setStart]         = useState(slot.start)
-  const [end, setEnd]             = useState(slot.end)
-  const [billing, setBilling] = useState<'plan' | 'chargeable' | 'free'>('plan')
-  const [notes, setNotes]         = useState('')
-  const [error, setError]         = useState('')
-
-  const { data: patients = [] } = useQuery({
-    queryKey: ['patients'],
-    queryFn:  () => patientsApi.list(),
-  })
-
-  // The session hangs off a therapy plan, so a patient without one cannot be booked.
-  const { data: enrollments = [], isFetching: loadingPlans } = useQuery({
-    queryKey: ['enrollments', patientId],
-    queryFn:  () => enrollmentsApi.listForPatient(patientId),
-    enabled:  !!patientId,
-  })
-  const activePlan = enrollments.find((e: EnrollmentResponse) => e.status !== 'CANCELLED') ?? null
-
-  const mut = useMutation({
-    mutationFn: () => therapySessionsApi.createAdHoc({
-      enrollmentId: activePlan!.id,
-      sessionDate: date,
-      startTime: start,
-      endTime: end,
-      countsTowardPlan: billing === 'plan',
-      requiresPayment: billing === 'chargeable',
-      notes: notes.trim() || undefined,
-    }),
-    onSuccess: onDone,
-    onError: (err: unknown) => setError(getApiError(err, 'Could not book the session')),
-  })
-
-  return (
-    <Modal open title="Book a therapy session" onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <Select
-          label="Patient"
-          value={patientId}
-          onChange={e => setPatientId(e.target.value)}
-          placeholder="Choose a patient"
-          options={patients.map((pt: PatientResponse) => ({
-            value: pt.id, label: `${pt.firstName} ${pt.lastName}`,
-          }))}
-        />
-
-        {patientId && !loadingPlans && !activePlan && (
-          <p className="text-xs rounded-xl px-3 py-2.5"
-            style={{ background: warningAlpha(0.10), color: colors.status.warning }}>
-            This patient has no active therapy plan. Set one up on their record first — a session
-            has to belong to a plan.
-          </p>
-        )}
-
-        {activePlan && (
-          <div className="rounded-xl px-3 py-2.5 text-xs"
-            style={{ background: surface.rowHover, color: colors.text.muted }}>
-            Plan: <span style={{ color: colors.text.primary, fontWeight: 600 }}>{activePlan.programName}</span>
-            {' · '}with {activePlan.therapistFirstName} {activePlan.therapistLastName}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="form-label">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-input w-full" />
-          </div>
-          <div>
-            <label className="form-label">Starts</label>
-            <input type="time" value={start} onChange={e => setStart(e.target.value)} className="form-input w-full" />
-          </div>
-          <div>
-            <label className="form-label">Ends</label>
-            <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="form-input w-full" />
-          </div>
-        </div>
-
-        {/* Billing decision, asked per booking */}
-        <div>
-          <label className="form-label">How is this session paid for?</label>
-          <div className="flex flex-col gap-1.5">
-            {([
-              { v: 'plan',       label: 'From the plan',     hint: 'Uses one of the paid sessions' },
-              { v: 'chargeable', label: 'Extra — chargeable', hint: 'On top of the plan, family pays' },
-              { v: 'free',       label: 'Extra — no charge',  hint: 'On top of the plan, at no cost' },
-            ] as const).map(o => (
-              <button
-                key={o.v}
-                type="button"
-                onClick={() => setBilling(o.v)}
-                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
-                style={{
-                  background: billing === o.v ? accentAlpha(0.08) : surface.filterStrip,
-                  border: `1.5px solid ${billing === o.v ? colors.accent : 'transparent'}`,
-                }}
-              >
-                <span className="text-sm font-medium"
-                  style={{ color: billing === o.v ? colors.accent : colors.text.primary }}>
-                  {o.label}
-                </span>
-                <span className="text-xs" style={{ color: colors.text.dim }}>{o.hint}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="form-label">Notes (optional)</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            className="form-input w-full" placeholder="Why this session was added" />
-        </div>
-
-        {error && <p className="form-error">{error}</p>}
-      </div>
-
-      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button
-          variant="primary"
-          loading={mut.isPending}
-          onClick={() => {
-            if (!activePlan)   { setError('Pick a patient with an active therapy plan'); return }
-            if (end <= start)  { setError('End time must be after the start time'); return }
-            setError('')
-            mut.mutate()
-          }}
-        >
-          Book session
-        </Button>
-      </div>
-    </Modal>
   )
 }
 
@@ -1872,6 +1741,10 @@ export default function CalendarPage() {
     queryFn:  () => therapySessionsApi.list({ from: visStart, to: visEnd }),
     enabled:  canSeeSessions,
     staleTime: 5 * 60 * 1000,
+    // The key is scoped to the visible date range, so switching view or navigating
+    // next/prev looks like a brand-new query with no data yet — keep the outgoing
+    // range's events on screen while the new range loads instead of blanking the page.
+    placeholderData: (previousData) => previousData,
   })
 
   const { data: publicHolidays = [] } = useQuery({
@@ -1899,6 +1772,7 @@ export default function CalendarPage() {
     queryKey: ['meetings', { from: visStart, to: visEnd }],
     queryFn:  () => meetingsApi.list(visStart, visEnd),
     staleTime: 5 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   })
 
   const isLoading = inquiriesLoading || leavesLoading || sessionsLoading
@@ -2218,20 +2092,24 @@ export default function CalendarPage() {
             <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto flex flex-col">
               <div className={`flex flex-col flex-1 min-h-0 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
                 {view === 'month' ? (
-                  <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates} />
+                  <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                    onDayClick={day => { setCurrent(day); setView('day') }} />
                 ) : view === 'week' ? (
                   <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
-                      colorFn={ev => therapistChipStyle(ev, staffColumns)} />
+                      colorFn={ev => therapistChipStyle(ev, staffColumns)}
+                      onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                   ) : staffGranularity === 'month' ? (
                     <MonthView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
-                      colorFn={ev => therapistChipStyle(ev, staffColumns)} />
+                      colorFn={ev => therapistChipStyle(ev, staffColumns)}
+                      onDayClick={day => { setCurrent(day); setStaffGranularity('day') }} />
                   ) : (
                     <StaffDayView current={current} events={staffFilteredEvents} columns={staffDayColumns}
-                      onSelect={setSelected} holidayDates={holidayDates} />
+                      onSelect={setSelected} holidayDates={holidayDates}
+                      onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                   )
                 ) : (
                   <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
