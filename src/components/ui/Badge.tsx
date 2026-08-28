@@ -85,3 +85,23 @@ export function statusBadge(status: string) {
     ?? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
   return <Badge variant={variantMap[status] ?? 'slate'}>{label}</Badge>
 }
+
+/**
+ * A child's "current status" on the Analytics/progress views — the enrollment care-status enum,
+ * plus DISCHARGE, a synthetic value the caller passes once the patient's stage is actually
+ * DISCHARGED (a later, separate event from an enrollment being marked PROGRAM_COMPLETED).
+ */
+export type ChildStatus = 'ON_TRACK' | 'NEEDS_ATTENTION' | 'REVIEW' | 'PROGRAM_COMPLETED' | 'DISCHARGE'
+
+const CHILD_STATUS_VARIANT: Record<ChildStatus, { label: string; variant: BadgeVariant }> = {
+  ON_TRACK:          { label: 'On Track',         variant: 'green' },
+  NEEDS_ATTENTION:   { label: 'Needs Attention',   variant: 'amber' },
+  REVIEW:            { label: 'Review',            variant: 'amber' },
+  PROGRAM_COMPLETED: { label: 'Program Completed', variant: 'teal' },
+  DISCHARGE:         { label: 'Discharge',         variant: 'blue' },
+}
+
+export function childStatusBadge(status: ChildStatus) {
+  const v = CHILD_STATUS_VARIANT[status]
+  return <Badge variant={v.variant}>{v.label}</Badge>
+}

@@ -19,7 +19,7 @@ import type { BaselineDomain, BaselineDomainResponse, BaselineReportResponse } f
 
 // ── Domains — fixed order, matches the paper Baseline Report form ──────────────
 
-const DOMAINS: { value: BaselineDomain; label: string }[] = [
+export const DOMAINS: { value: BaselineDomain; label: string }[] = [
   { value: 'EYE_CONTACT',               label: 'Eye Contact' },
   { value: 'ATTENTION',                 label: 'Attention' },
   { value: 'COMPLIANCE',                label: 'Compliance' },
@@ -35,7 +35,7 @@ const DOMAINS: { value: BaselineDomain; label: string }[] = [
   { value: 'EMOTIONAL_SKILLS',          label: 'Emotional Skills' },
 ]
 
-const domainLabel = (d: BaselineDomain) => DOMAINS.find(x => x.value === d)?.label ?? d
+export const domainLabel = (d: BaselineDomain) => DOMAINS.find(x => x.value === d)?.label ?? d
 
 /** "4y 6m" as of `asOfIso`, from a "YYYY-MM-DD" date of birth. */
 function formatAge(dobIso: string, asOfIso: string): string {

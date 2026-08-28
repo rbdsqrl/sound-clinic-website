@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
 import { programsApi } from '../../api/programs'
+import { baselineReportApi } from '../../api/baselineReport'
 import { useAuth } from '../../contexts/AuthContext'
 import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
 import ScoreChart from '../../components/charts/ScoreChart'
@@ -15,11 +17,14 @@ import { Select } from '../../components/ui/Select'
 import { Users, UserCog, Mail, Clock, CalendarClock, Search, Download } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
-import type { Granularity, IEPGoalDomain } from '../../types'
+import type { Granularity, IEPGoalDomain, EnrollmentCareStatus } from '../../types'
 import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
+import { domainLabel as baselineDomainLabel } from '../patients/BaselineReportTab'
+import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
+import { ROUTES } from '../../lib/routes'
 
 type TabKey = 'overview' | 'cases' | 'members' | 'schedule'
 
@@ -150,6 +155,20 @@ export default function AnalyticsPage() {
     enabled: tab === 'cases' && !!patientId,
   })
 
+  // Session log for this child in the same (program-anchored) window — reused client-side to
+  // total hours per program and the average session length, rather than adding a new endpoint.
+  const durationQuery = useQuery({
+    queryKey: ['analytics', 'patient-duration', patientId, range.from, range.to],
+    queryFn: () => analyticsApi.schedule(range.from, range.to, { patientId }),
+    enabled: tab === 'cases' && !!patientId,
+  })
+
+  const baselineReportQuery = useQuery({
+    queryKey: ['baseline-report', patientId],
+    queryFn: () => baselineReportApi.get(patientId),
+    enabled: tab === 'cases' && !!patientId,
+  })
+
   const caseloadQuery = useQuery({
     queryKey: ['analytics', 'therapist', therapistId, params],
     queryFn: () => analyticsApi.therapistCaseload(therapistId, params),
@@ -250,6 +269,37 @@ export default function AnalyticsPage() {
     (tab === 'members' && caseloadQuery.isLoading)
 
   const totals = activeSeries?.totals
+
+  // Current status — the most attention-needing ACTIVE enrollment's care status, overridden to
+  // DISCHARGE once the patient's stage actually reflects a completed discharge (a later, separate
+  // event from an enrollment being marked PROGRAM_COMPLETED).
+  const selectedPatient = (patients.data ?? []).find(p => p.id === patientId)
+  const CARE_STATUS_SEVERITY: Record<EnrollmentCareStatus, number> =
+    { NEEDS_ATTENTION: 3, REVIEW: 2, ON_TRACK: 1, PROGRAM_COMPLETED: 0 }
+  const worstCareStatus = (enrollmentsQuery.data ?? [])
+    .filter(e => e.status === 'ACTIVE')
+    .reduce<EnrollmentCareStatus | null>((worst, e) =>
+      (!worst || CARE_STATUS_SEVERITY[e.careStatus] > CARE_STATUS_SEVERITY[worst]) ? e.careStatus : worst, null)
+  const currentStatus: ChildStatus | null =
+    selectedPatient?.stage === 'DISCHARGED' ? 'DISCHARGE' : worstCareStatus
+
+  // Therapy duration — completed sessions only; a scheduled-but-cancelled session isn't time spent.
+  const completedDurationEntries = (durationQuery.data?.sessions ?? []).filter(s => s.status === 'COMPLETED')
+  const avgSessionDurationMinutes = completedDurationEntries.length
+    ? Math.round(completedDurationEntries.reduce((sum, s) => sum + s.durationMinutes, 0) / completedDurationEntries.length)
+    : null
+  const durationMinutesByProgram = new Map<string, number>()
+  for (const s of completedDurationEntries) {
+    durationMinutesByProgram.set(s.programName, (durationMinutesByProgram.get(s.programName) ?? 0) + s.durationMinutes)
+  }
+  const durationByProgram = Array.from(durationMinutesByProgram.entries())
+    .map(([programName, minutes]) => ({ programName, hours: minutes / 60 }))
+    .sort((a, b) => b.hours - a.hours)
+
+  // Baseline Report — only domains with a baseline value or at least one logged Current entry,
+  // so a report that's barely been filled in doesn't render 13 empty rows.
+  const baselineDomains = (baselineReportQuery.data?.domains ?? [])
+    .filter(d => d.baselineValue || d.currentEntries.length > 0)
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 lg:p-8">
@@ -861,15 +911,22 @@ export default function AnalyticsPage() {
 
       {activeSeries && totals && !loading && (
         <div className="space-y-5">
+          {/* Current status — cases only; a therapist's caseload has no single status of its own */}
+          {tab === 'cases' && currentStatus && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: colors.text.dim }}>
+              Current status {childStatusBadge(currentStatus)}
+            </div>
+          )}
+
           {/* KPI row */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Tile
-              label="Goal mastery"
+              label="Goal Achievement"
               value={<Metric value={totals.masteryPct} suffix="%" empty="—" />}
               hint={<Delta pts={totals.masteryDeltaPts} />}
             />
             <Tile
-              label="Sessions held"
+              label={tab === 'members' ? 'Sessions Delivered' : 'Sessions Planned vs. Completed'}
               value={
                 <>
                   {totals.sessionsCompleted}
@@ -881,17 +938,20 @@ export default function AnalyticsPage() {
                 : 'No sessions in this window'}
             />
             <Tile
-              label="Goals closed"
+              label="Goals Achieved"
               value={
                 <>
                   {totals.goalsCompleted}
                   <span style={{ color: colors.text.dim, fontSize: '1.1rem' }}>/{totals.goalsTotal}</span>
                 </>
               }
-              hint={totals.avgParentRating !== null ? `Parent rating ${totals.avgParentRating}/5` : 'No parent ratings yet'}
+              hint={[
+                totals.goalsTotal > 0 ? `${Math.round((totals.goalsCompleted / totals.goalsTotal) * 100)}% achieved` : 'No goals assigned yet',
+                totals.avgParentRating !== null ? `parent rating ${totals.avgParentRating}/5` : null,
+              ].filter(Boolean).join(' · ')}
             />
             <Tile
-              label="Data coverage"
+              label="Documentation Compliance"
               value={<Metric value={totals.coveragePct} suffix="%" empty="—" />}
               hint={`${totals.sessionsLogged} of ${totals.sessionsCompleted} sessions logged`}
               tone={totals.coveragePct !== null && totals.coveragePct < 60 ? 'warn' : 'neutral'}
@@ -928,7 +988,7 @@ export default function AnalyticsPage() {
           </Panel>
 
           <Panel
-            title="Attendance"
+            title="Attendance %"
             subtitle="Completed vs no-show vs cancelled, across every finalised session in this window"
           >
             {(() => {
@@ -972,6 +1032,102 @@ export default function AnalyticsPage() {
               )
             })()}
           </Panel>
+
+          {/* Therapy duration — completed session hours, by program; not windowed to a fixed lookback,
+              since the Cases tab's date range is already anchored to this child's program start. */}
+          {tab === 'cases' && (durationQuery.isLoading || durationQuery.data) && (
+            <Panel
+              title="Therapy Duration"
+              subtitle="Time actually spent in session, by program — completed sessions only"
+            >
+              {durationQuery.isLoading ? (
+                <Loading />
+              ) : completedDurationEntries.length === 0 ? (
+                <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
+                  No completed sessions in this window.
+                </p>
+              ) : (
+                <>
+                  <Tile
+                    label="Avg. Session Duration"
+                    value={avgSessionDurationMinutes !== null ? `${avgSessionDurationMinutes}m` : '—'}
+                    hint={`Across ${completedDurationEntries.length} completed session${completedDurationEntries.length !== 1 ? 's' : ''}`}
+                  />
+                  <div className="mt-4 flex flex-col gap-2.5">
+                    {durationByProgram.map(p => (
+                      <div key={p.programName} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="truncate" style={{ color: colors.text.primary }}>{p.programName}</span>
+                        <span className="flex-shrink-0 font-semibold" style={{ color: colors.text.heading }}>
+                          {p.hours.toFixed(1)} hrs
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </Panel>
+          )}
+
+          {/* Baseline & Current Assessment — summarised from the patient's Baseline Report */}
+          {tab === 'cases' && (baselineReportQuery.isLoading || baselineReportQuery.data !== undefined) && (
+            <Panel
+              title="Baseline & Current Assessment"
+              subtitle={
+                <>
+                  From the Baseline Report — see the{' '}
+                  <Link to={ROUTES.patient(patientId)} style={{ color: colors.accent }}>full report</Link>
+                  {' '}for history per domain
+                </>
+              }
+            >
+              {baselineReportQuery.isLoading ? (
+                <Loading />
+              ) : baselineDomains.length === 0 ? (
+                <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
+                  No baseline report recorded for this child yet.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead>
+                      <tr style={{ color: colors.text.dim }}>
+                        <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Domain</th>
+                        <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Baseline</th>
+                        <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wider">Current</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {baselineDomains.map(d => {
+                        const latest = d.currentEntries[0]
+                        return (
+                          <tr key={d.domain} style={{ borderTop: `1px solid ${border.divider}` }}>
+                            <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>
+                              {baselineDomainLabel(d.domain)}
+                            </td>
+                            <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>
+                              {d.baselineValue ?? <span style={{ color: colors.text.dim }}>—</span>}
+                            </td>
+                            <td className="py-2.5" style={{ color: colors.text.muted }}>
+                              {latest ? (
+                                <>
+                                  {latest.value}
+                                  <span className="ml-1.5 text-xs" style={{ color: colors.text.dim }}>
+                                    ({format(parseISO(latest.entryDate + 'T00:00:00'), 'd MMM yyyy')})
+                                  </span>
+                                </>
+                              ) : (
+                                <span style={{ color: colors.text.dim }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          )}
 
           {tab === 'cases' && (activityProgressQuery.isLoading || activityProgressQuery.data) && (
             <Panel
@@ -1165,6 +1321,27 @@ export default function AnalyticsPage() {
           >
             <OutcomeRibbon buckets={activeSeries.buckets} />
           </Panel>
+
+          {/* Children by therapy type — this therapist's caseload composition, not windowed to the date range above */}
+          {tab === 'members' && caseloadQuery.data && (
+            <Panel
+              title="Children by Therapy Type"
+              subtitle="Distinct children on this therapist's caseload, by program — reflects their caseload right now, not the selected date range"
+            >
+              {caseloadQuery.data.programBreakdown.length === 0 ? (
+                <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>No enrollments on this caseload yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {caseloadQuery.data.programBreakdown.map(p => (
+                    <div key={p.programName} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate" style={{ color: colors.text.primary }}>{p.programName}</span>
+                      <span className="flex-shrink-0 font-semibold" style={{ color: colors.text.heading }}>{p.patientCount}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          )}
 
           {/* Consolidated parent feedback — staff-only; individual review meetings stay confidential */}
           {tab === 'members' && (

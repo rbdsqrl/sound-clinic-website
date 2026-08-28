@@ -1361,6 +1361,9 @@ export interface CaseloadResponse {
   to: string
   series: TimeSeriesResponse
   patients: CaseloadPatientRow[]
+  /** Children on this therapist's caseload, grouped by therapy/program — same shape as
+   *  OrgSnapshotResponse.programBreakdown, scoped to one therapist. Not windowed. */
+  programBreakdown: ProgramBreakdown[]
 }
 
 // ── API wrapper ────────────────────────────────────────────────────────────────
@@ -1647,10 +1650,16 @@ export interface SuccessCriteriaResponse {
 }
 
 // ── Org snapshot (clinical outcomes) ────────────────────────────────────────────
+export interface ProgramBreakdown {
+  programName: string
+  patientCount: number
+  enrollmentCount: number
+}
+
 export interface OrgSnapshotResponse {
   avgTherapyDurationWeeks: number | null
   enrollmentsWithDuration: number
-  programBreakdown: { programName: string; patientCount: number; enrollmentCount: number }[]
+  programBreakdown: ProgramBreakdown[]
   stageCounts: { stage: PatientStage; count: number }[]
 }
 

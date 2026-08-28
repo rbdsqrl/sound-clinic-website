@@ -5,9 +5,12 @@ import type {
 } from '../types'
 
 export const baselineReportApi = {
+  // Jackson is configured with NON_NULL, so when there's no report yet the backend omits `data`
+  // from the payload entirely rather than sending it as `null` — normalise here so callers (and
+  // React Query, which rejects `undefined` query data) see a real `null` instead.
   get: (patientId: string) =>
     client.get<ApiResponse<BaselineReportResponse | null>>(`/patients/${patientId}/baseline-report`)
-      .then(r => r.data.data),
+      .then(r => r.data.data ?? null),
 
   create: (patientId: string, data: CreateBaselineReportRequest) =>
     client.post<ApiResponse<BaselineReportResponse>>(`/patients/${patientId}/baseline-report`, data)
