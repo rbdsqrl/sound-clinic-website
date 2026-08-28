@@ -233,7 +233,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                  'flex items-center rounded-xl px-3 py-2.5 text-xs font-medium transition-all duration-150',
                   collapsed ? 'justify-center' : 'gap-3',
                   isActive ? 'nav-active' : 'nav-inactive',
                 )
@@ -288,7 +288,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
           onClick={toggleTheme}
           title={collapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
           className={clsx(
-            'flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
+            'flex w-full items-center rounded-xl px-3 py-2.5 text-xs font-medium transition-all duration-150',
             collapsed ? 'justify-center' : 'gap-3',
           )}
           style={styles.navInactive}
