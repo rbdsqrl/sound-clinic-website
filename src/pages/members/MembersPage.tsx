@@ -58,7 +58,7 @@ const STAFF_ROLES: { value: string; label: string }[] = [
 ]
 
 // Parents (and patients) are invited from the patient's own page, not here.
-const INVITABLE_ROLES: { value: Role; label: string }[] = [
+export const INVITABLE_ROLES: { value: Role; label: string }[] = [
   { value: 'CLINIC_HEAD',    label: 'Clinic Head' },
   { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },

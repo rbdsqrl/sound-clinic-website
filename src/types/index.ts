@@ -221,6 +221,8 @@ export interface UpdateMemberProfileRequest {
   qualification?: string
   specialization?: string
   languageIds?: string[]
+  /** BUSINESS_OWNER only; staff roles only (not PARENT/PATIENT); cannot be one's own role. */
+  role?: Role
 }
 
 /** All roles this user holds (primary + additional). */

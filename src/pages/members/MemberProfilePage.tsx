@@ -24,8 +24,10 @@ import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
+import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
+import type { Role } from '../../types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -38,8 +40,10 @@ function defaultRange() {
 
 export default function MemberProfilePage() {
   const { id } = useParams<{ id: string }>()
-  const { activeRole } = useAuth()
+  const { user, activeRole } = useAuth()
   const canEdit = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  // Role changes are Business-Owner-only, and never on one's own account.
+  const canChangeRole = activeRole === 'BUSINESS_OWNER' && user?.id !== id
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
 
@@ -352,6 +356,7 @@ export default function MemberProfilePage() {
         <EditProfileModal
           memberId={id!}
           profile={profile}
+          canChangeRole={canChangeRole}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['member-profile', id] })
@@ -406,10 +411,12 @@ function AssignCaseModal({
 // ── Edit profile ──────────────────────────────────────────────────────────────
 
 function EditProfileModal({
-  memberId, profile, onClose, onSaved,
+  memberId, profile, canChangeRole, onClose, onSaved,
 }: {
   memberId: string
-  profile: { phone: string | null; clinicId: string | null; qualification: string | null; specialization: string | null; languages: { id: string; name: string }[] }
+  profile: { role: Role; phone: string | null; clinicId: string | null; qualification: string | null; specialization: string | null; languages: { id: string; name: string }[] }
+  /** Only a Business Owner may change a member's role, and never their own. */
+  canChangeRole: boolean
   onClose: () => void
   onSaved: () => void
 }) {
@@ -418,6 +425,7 @@ function EditProfileModal({
   const [qualification, setQualification] = useState(profile.qualification ?? '')
   const [specialization, setSpecialization] = useState(profile.specialization ?? '')
   const [languageIds, setLanguageIds] = useState<string[]>(profile.languages.map(l => l.id))
+  const [role, setRole] = useState<Role>(profile.role)
   const [error, setError] = useState('')
 
   const { data: clinics = [] } = useQuery({ queryKey: ['clinics'], queryFn: () => clinicsApi.list() })
@@ -430,6 +438,7 @@ function EditProfileModal({
       qualification: qualification.trim() || undefined,
       specialization: specialization.trim() || undefined,
       languageIds,
+      role: canChangeRole && role !== profile.role ? role : undefined,
     }),
     onSuccess: onSaved,
     onError: (err: unknown) => setError(getApiError(err, 'Could not save profile')),
@@ -438,6 +447,14 @@ function EditProfileModal({
   return (
     <Modal open title="Edit Profile" onClose={onClose}>
       <div className="flex flex-col gap-4">
+        {canChangeRole && (
+          <Select
+            label="Role"
+            value={role}
+            onChange={e => setRole(e.target.value as Role)}
+            options={INVITABLE_ROLES}
+          />
+        )}
         <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" />
         <Select
           label="Clinic"
