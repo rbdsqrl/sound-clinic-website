@@ -41,6 +41,10 @@ export const usersApi = {
   deleteMember: (id: string) =>
     client.delete(`/users/${id}`),
 
+  /** Restores login access for a deactivated member, keeping their existing role. */
+  activateMember: (id: string) =>
+    client.patch(`/users/${id}/activate`),
+
   /** The member profile page — contact, qualification, specialization, languages, case count. */
   getProfile: (id: string) =>
     client.get<ApiResponse<MemberProfileResponse>>(`/users/${id}/profile`).then((r) => r.data.data),

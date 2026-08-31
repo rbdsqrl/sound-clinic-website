@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download } from 'lucide-react'
+import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck } from 'lucide-react'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
 import { languagesApi } from '../../api/activityLookups'
@@ -111,6 +111,15 @@ export default function MemberProfilePage() {
     },
     onError: (err: unknown) => toast(getApiError(err, 'Could not unassign case'), 'error'),
   })
+  const activateMut = useMutation({
+    mutationFn: () => usersApi.activateMember(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['member-profile', id] })
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Member activated', 'success')
+    },
+    onError: (err: unknown) => toast(getApiError(err, 'Failed to activate member'), 'error'),
+  })
 
   if (isLoading || !profile) return <PageLoader />
 
@@ -146,17 +155,29 @@ export default function MemberProfilePage() {
               {roleBadge(profile.role)}
               {statusBadge(profile.isActive ? 'ACTIVE' : 'INACTIVE')}
             </div>
-            {canEdit && (
-              <button
-                onClick={() => setEditOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
-              >
-                <Pencil size={13} /> Edit
-              </button>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canChangeRole && !profile.isActive && (
+                <button
+                  onClick={() => activateMut.mutate()}
+                  disabled={activateMut.isPending}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  style={{ color: colors.status.success, border: `1px solid ${colors.status.success}30` }}
+                >
+                  <UserCheck size={13} /> {activateMut.isPending ? 'Activating…' : 'Activate'}
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+            </div>
           </div>
         </div>
         {profile.clinicName && (

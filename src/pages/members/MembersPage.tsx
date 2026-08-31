@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import {
   Search, LayoutGrid, List, UserPlus, Briefcase,
   Mail, Phone, Users, Building2, Check, Copy,
-  Link2, CalendarDays, Send, Trash2, XCircle,
+  Link2, CalendarDays, Send, Trash2, XCircle, UserCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '../../api/users'
@@ -118,8 +118,16 @@ function CopyLinkBox({ link }: { link: string }) {
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
-  member, idx, clinicName, onDelete, onSelect,
-}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void; onSelect: () => void }) {
+  member, idx, clinicName, onDelete, onActivate, onReinvite, onSelect,
+}: {
+  member: StaffMemberResponse
+  idx: number
+  clinicName: string
+  onDelete?: () => void
+  onActivate?: () => void
+  onReinvite?: () => void
+  onSelect: () => void
+}) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
@@ -186,6 +194,30 @@ function MemberCard({
               <Briefcase size={10} />{member.caseCount} {member.caseCount === 1 ? 'case' : 'cases'}
             </span>
           )}
+          {onReinvite && (
+            <button
+              onClick={e => { e.stopPropagation(); onReinvite() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Re-invite with a new role"
+            >
+              <Send size={13} />
+            </button>
+          )}
+          {onActivate && (
+            <button
+              onClick={e => { e.stopPropagation(); onActivate() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.success; (e.currentTarget as HTMLElement).style.background = successAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Activate member"
+            >
+              <UserCheck size={13} />
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={e => { e.stopPropagation(); onDelete() }}
@@ -207,8 +239,16 @@ function MemberCard({
 // ── Member row (list view) ────────────────────────────────────────────────────
 
 function MemberRow({
-  member, idx, clinicName, onDelete, onSelect,
-}: { member: StaffMemberResponse; idx: number; clinicName: string; onDelete?: () => void; onSelect: () => void }) {
+  member, idx, clinicName, onDelete, onActivate, onReinvite, onSelect,
+}: {
+  member: StaffMemberResponse
+  idx: number
+  clinicName: string
+  onDelete?: () => void
+  onActivate?: () => void
+  onReinvite?: () => void
+  onSelect: () => void
+}) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
@@ -253,6 +293,30 @@ function MemberRow({
           >
             {member.isActive ? 'Active' : 'Inactive'}
           </span>
+          {onReinvite && (
+            <button
+              onClick={e => { e.stopPropagation(); onReinvite() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Re-invite with a new role"
+            >
+              <Send size={13} />
+            </button>
+          )}
+          {onActivate && (
+            <button
+              onClick={e => { e.stopPropagation(); onActivate() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.text.dim }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.success; (e.currentTarget as HTMLElement).style.background = successAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.dim; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Activate member"
+            >
+              <UserCheck size={13} />
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={e => { e.stopPropagation(); onDelete() }}
@@ -288,6 +352,7 @@ export default function MembersPage() {
   const [clinicFilter, setClinicFilter] = useState('')
   const [inviteStatusFilter, setInviteStatusFilter] = useState<InviteStatusFilter>('ALL')
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [reinviteTarget, setReinviteTarget] = useState<StaffMemberResponse | null>(null)
   const [linkModal, setLinkModal]   = useState<InviteResponse | null>(null)
   const [cancelTarget, setCancelTarget] = useState<InviteResponse | null>(null)
 
@@ -312,7 +377,7 @@ export default function MembersPage() {
   const clinicOptions = clinics.map(c => ({ value: c.id, label: c.name }))
 
   // ── Invite form ───────────────────────────────────────────────────────────────
-  const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm<InviteRequest>()
+  const { register, handleSubmit, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm<InviteRequest>()
   const selectedRole = watch('role') as Role | undefined
   const needsClinic  = selectedRole === 'THERAPIST' || selectedRole === 'DOCTOR' || selectedRole === 'PARENT'
 
@@ -323,11 +388,29 @@ export default function MembersPage() {
       qc.invalidateQueries({ queryKey: ['invitations'] })
       reset()
       setShowInviteModal(false)
+      setReinviteTarget(null)
       setLinkModal(res)
       setTab('invites')
     },
     onError: (err) => toast(getApiError(err, 'Failed to send invite'), 'error'),
   })
+
+  const activateMemberMut = useMutation({
+    mutationFn: (id: string) => usersApi.activateMember(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Member activated', 'success')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to activate member'), 'error'),
+  })
+
+  const openReinvite = (member: StaffMemberResponse) => {
+    reset()
+    setValue('email', member.email)
+    if (member.clinicId) setValue('clinicId', member.clinicId)
+    setReinviteTarget(member)
+    setShowInviteModal(true)
+  }
 
   const resendMut = useMutation({
     mutationFn: (id: string) => invitationsApi.resend(id),
@@ -410,7 +493,7 @@ export default function MembersPage() {
               {activeMembers.length} active · {pendingCount} pending invite{pendingCount !== 1 ? 's' : ''}
             </p>
           </div>
-          <Button onClick={() => setShowInviteModal(true)}>
+          <Button onClick={() => { reset(); setReinviteTarget(null); setShowInviteModal(true) }}>
             <UserPlus size={15} /> Invite Member
           </Button>
         </div>
@@ -643,7 +726,11 @@ export default function MembersPage() {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {shownMembers.map((m, i) => (
-              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} onSelect={() => navigate(ROUTES.member(m.id))} />
+              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
+                onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
+                onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
+                onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}
+                onSelect={() => navigate(ROUTES.member(m.id))} />
             ))}
           </div>
         ) : (
@@ -659,7 +746,11 @@ export default function MembersPage() {
               </thead>
               <tbody>
                 {shownMembers.map((m, i) => (
-                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''} onDelete={isOwner ? () => setDeleteTarget(m) : undefined} onSelect={() => navigate(ROUTES.member(m.id))} />
+                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
+                    onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
+                    onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
+                    onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}
+                    onSelect={() => navigate(ROUTES.member(m.id))} />
                 ))}
               </tbody>
             </table>
@@ -677,10 +768,21 @@ export default function MembersPage() {
       </div>
 
       {/* ── Invite modal ───────────────────────────────────────────────────── */}
-      <Modal open={showInviteModal} onClose={() => { setShowInviteModal(false); reset() }} title="Invite Member">
+      <Modal
+        open={showInviteModal}
+        onClose={() => { setShowInviteModal(false); setReinviteTarget(null); reset() }}
+        title={reinviteTarget ? `Re-invite ${reinviteTarget.firstName} ${reinviteTarget.lastName}` : 'Invite Member'}
+      >
         <div className="space-y-4">
+          {reinviteTarget && (
+            <p className="text-sm" style={{ color: colors.text.muted }}>
+              This restores their access once accepted. Pick whichever role they should have now —
+              it doesn't need to match their previous one.
+            </p>
+          )}
           <Input label="Email address" type="email" placeholder="colleague@clinic.com"
             error={errors.email?.message}
+            disabled={!!reinviteTarget}
             {...register('email', { required: 'Email is required' })} />
           <Select label="Role" placeholder="Select a role…" options={INVITABLE_ROLES}
             error={errors.role?.message}
@@ -693,7 +795,7 @@ export default function MembersPage() {
             <Button onClick={handleSubmit(d => inviteMut.mutate(d))} loading={isSubmitting || inviteMut.isPending}>
               <Send size={14} /> Send Invite
             </Button>
-            <Button variant="secondary" onClick={() => { setShowInviteModal(false); reset() }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowInviteModal(false); setReinviteTarget(null); reset() }}>Cancel</Button>
           </div>
         </div>
       </Modal>
