@@ -6,9 +6,9 @@ export const sharedMediaApi = {
     client.get<ApiResponse<SharedMediaResponse[]>>(`/patients/${patientId}/shared-media`)
       .then(r => r.data.data),
 
-  upload: (patientId: string, data: { video?: File; note?: string }) => {
+  upload: (patientId: string, data: { file?: File; note?: string }) => {
     const fd = new FormData()
-    if (data.video) fd.append('video', data.video)
+    if (data.file) fd.append('file', data.file)
     if (data.note) fd.append('note', data.note)
     return client.post<ApiResponse<SharedMediaResponse>>(
       `/patients/${patientId}/shared-media`, fd,

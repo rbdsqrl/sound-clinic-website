@@ -1093,7 +1093,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Videos & Notes'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Media & Notes'] as const
 type Tab = typeof TABS[number]
 
 // ── Assessments tab (ISAA + PRBA, switched by an inner sub-tab) ─────────────────
@@ -1365,8 +1365,8 @@ export default function PatientDetailPage() {
   const currentRoleEarly = activeRole ?? user?.role
   const isParentRole = currentRoleEarly === 'PARENT'
 
-  // DOCTOR isn't part of the shared-videos/notes feature — every other role sees the tab.
-  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Videos & Notes') : [...TABS]
+  // DOCTOR isn't part of the shared-media/notes feature — every other role sees the tab.
+  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Media & Notes') : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -2191,7 +2191,7 @@ export default function PatientDetailPage() {
         <BaselineReportTab patientId={id!} />
       )}
 
-      {activeTab === 'Videos & Notes' && <SharedMediaTab patientId={id!} />}
+      {activeTab === 'Media & Notes' && <SharedMediaTab patientId={id!} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">
