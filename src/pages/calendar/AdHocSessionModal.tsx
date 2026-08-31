@@ -103,10 +103,10 @@ export default function AdHocSessionModal({
         ) : (
           <>
             <Select
-              label="Patient"
+              label="Case"
               value={patientId}
               onChange={e => setPatientId(e.target.value)}
-              placeholder="Choose a patient"
+              placeholder="Choose a case"
               options={patients.map((pt: PatientResponse) => ({
                 value: pt.id, label: `${pt.firstName} ${pt.lastName}`,
               }))}
@@ -197,7 +197,7 @@ export default function AdHocSessionModal({
           variant="primary"
           loading={mut.isPending}
           onClick={() => {
-            if (!planEnrollmentId) { setError('Pick a patient with an active therapy plan'); return }
+            if (!planEnrollmentId) { setError('Pick a case with an active therapy plan'); return }
             if (end <= start)      { setError('End time must be after the start time'); return }
             setError('')
             mut.mutate()

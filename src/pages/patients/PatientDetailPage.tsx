@@ -7,6 +7,7 @@ import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
+import SharedMediaTab from './SharedMediaTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
 import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
 import AdHocSessionModal from '../calendar/AdHocSessionModal'
@@ -198,7 +199,7 @@ function JourneyCard({
     },
     done: {
       icon: <CheckCircle2 size={20} style={{ color: colors.text.dim }} />,
-      title: 'Patient discharged',
+      title: 'Case discharged',
       description: 'This patient\'s therapy journey is complete.',
       cta: null,
       action: null,
@@ -730,7 +731,7 @@ function PatientSwitcher({
 
           <div className="max-h-72 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No patients found</p>
+              <p className="text-xs text-center py-4" style={{ color: colors.text.dim }}>No cases found</p>
             ) : filtered.map(p => {
               const isActive = p.id === currentId
               return (
@@ -1092,7 +1093,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Videos'] as const
 type Tab = typeof TABS[number]
 
 // ── Assessments tab (ISAA + PRBA, switched by an inner sub-tab) ─────────────────
@@ -1223,7 +1224,7 @@ function DischargeModal({ patientId, patientName, onClose }: { patientId: string
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['patients', patientId] })
       qc.invalidateQueries({ queryKey: ['discharge-history', patientId] })
-      toast('Patient discharged', 'success')
+      toast('Case discharged', 'success')
       onClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to discharge patient'), 'error'),
@@ -1363,6 +1364,9 @@ export default function PatientDetailPage() {
   // Derive role early so queries can use it as a gate
   const currentRoleEarly = activeRole ?? user?.role
   const isParentRole = currentRoleEarly === 'PARENT'
+
+  // DOCTOR isn't part of the shared-videos/notes feature — every other role sees the tab.
+  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Videos') : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -1504,12 +1508,12 @@ export default function PatientDetailPage() {
         gender:      (data.gender as 'MALE' | 'FEMALE' | 'OTHER') || undefined,
         notes:       data.notes       || undefined,
       }),
-    onSuccess: () => { refresh(); toast('Patient details updated', 'success'); setEditModal(false) },
+    onSuccess: () => { refresh(); toast('Case details updated', 'success'); setEditModal(false) },
     onError:   (err) => toast(getApiError(err, 'Failed to update patient'), 'error'),
   })
 
   if (isLoading) return <PageLoader />
-  if (!patient)  return <p className="text-sm" style={{ color: colors.text.muted }}>Patient not found</p>
+  if (!patient)  return <p className="text-sm" style={{ color: colors.text.muted }}>Case not found</p>
 
   const conditionOptions = (conditions ?? [])
     .filter((c) => !patient.conditions.some((pc) => pc.id === c.id))
@@ -1558,7 +1562,7 @@ export default function PatientDetailPage() {
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
         >
-          <ArrowLeft size={14} /> Patients
+          <ArrowLeft size={14} /> Cases
         </Link>
 
         {!isParentRole && (
@@ -1615,7 +1619,7 @@ export default function PatientDetailPage() {
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
                 style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
               >
-                <LogOut size={13} /> Discharge Patient
+                <LogOut size={13} /> Discharge Case
               </button>
             )}
             {canDelete && (
@@ -1648,7 +1652,7 @@ export default function PatientDetailPage() {
 
       {/* ── Tab strip ────────────────────────────────────────────────────── */}
       <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
-        {TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1753,7 +1757,7 @@ export default function PatientDetailPage() {
 
               {/* Patient Info */}
               <Card>
-                <CardHeader title="Patient Info" />
+                <CardHeader title="Case Info" />
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
                   {[
                     ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
@@ -2185,6 +2189,8 @@ export default function PatientDetailPage() {
         <BaselineReportTab patientId={id!} />
       )}
 
+      {activeTab === 'Videos' && <SharedMediaTab patientId={id!} />}
+
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">
         <form
@@ -2452,7 +2458,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Edit patient details modal */}
-      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Patient Details">
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Case Details">
         <form
           onSubmit={editForm.handleSubmit((data) => updatePatientMutation.mutate(data))}
           className="space-y-4"
@@ -2500,7 +2506,7 @@ export default function PatientDetailPage() {
       </Modal>
 
       {/* Delete patient confirmation */}
-      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Patient">
+      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Case">
         <div className="space-y-4">
           <p className="text-sm" style={{ color: colors.text.primary }}>
             Are you sure you want to permanently delete <strong>{patient.firstName} {patient.lastName}</strong>?

@@ -171,11 +171,11 @@ export default function PatientsPage() {
     mutationFn: patientsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
-      toast('Patient created', 'success')
+      toast('Case created', 'success')
       setShowModal(false)
       reset()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create patient'), 'error'),
+    onError: (err) => toast(getApiError(err, 'Failed to create case'), 'error'),
   })
 
   const clinicOptions = (clinics ?? []).map(c => ({ value: c.id, label: c.name }))
@@ -259,14 +259,14 @@ export default function PatientsPage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search patients…"
+              placeholder="Search cases…"
               className="pl-8 pr-3 py-2 text-sm rounded-xl outline-none w-44 md:w-52 transition-colors"
               style={{ border: border.card, background: surface.card, color: colors.text.primary }}
             />
           </div>
 
           <Button onClick={() => setShowModal(true)}>
-            <Plus size={15} /> Add Patient
+            <Plus size={15} /> Add Case
           </Button>
         </div>
       </div>
@@ -296,9 +296,9 @@ export default function PatientsPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} />}
-          title="No patients match your filters"
-          description="Try adjusting the filters above or add a new patient."
-          action={{ label: 'Add Patient', onClick: () => setShowModal(true) }}
+          title="No cases match your filters"
+          description="Try adjusting the filters above or add a new case."
+          action={{ label: 'Add Case', onClick: () => setShowModal(true) }}
         />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -347,7 +347,7 @@ export default function PatientsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: `1px solid ${border.divider}` }}>
-                  {['Patient', 'Age', 'Clinic', 'Conditions', 'Specialists', 'Status', 'Added'].map(h => (
+                  {['Case', 'Age', 'Clinic', 'Conditions', 'Specialists', 'Status', 'Added'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
                       {h}
                     </th>
@@ -401,7 +401,7 @@ export default function PatientsPage() {
       )}
 
       {/* ── Add patient modal ── */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Add Patient">
+      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Add Case">
         <form onSubmit={handleSubmit(d => createMutation.mutate(d))} className="space-y-4">
           <Select label="Clinic" placeholder="Select clinic…" options={clinicOptions} error={errors.clinicId?.message}
             {...register('clinicId', { required: 'Clinic is required' })} />

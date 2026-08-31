@@ -91,7 +91,7 @@ export default function ActivitiesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>Activities</h1>
-          <p className="text-sm mt-0.5" style={{ color: colors.text.dim }}>Create activities and assign them to patients to track progress.</p>
+          <p className="text-sm mt-0.5" style={{ color: colors.text.dim }}>Create activities and assign them to cases to track progress.</p>
         </div>
         <Link to={ROUTES.createActivity}>
           <Button><Plus size={16} /> Create Activity</Button>
@@ -132,7 +132,7 @@ export default function ActivitiesPage() {
           icon={<ClipboardList size={28} />}
           title={tab === 'mine' ? 'No activities yet' : 'Nothing shared yet'}
           description={tab === 'mine'
-            ? 'Create your first activity to assign to patients and track their progress.'
+            ? 'Create your first activity to assign to cases and track their progress.'
             : 'Activities other organisations choose to share will show up here.'}
           action={tab === 'mine' ? { label: 'Create Activity', onClick: () => { window.location.href = ROUTES.createActivity } } : undefined}
         />

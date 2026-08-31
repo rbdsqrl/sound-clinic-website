@@ -138,7 +138,7 @@ const STATE_CONFIG: Partial<Record<InquiryStatus, StateConfig>> = {
       },
       {
         id: 'CONVERT',
-        label: 'Convert to patient',
+        label: 'Convert to case',
         description: 'Patient attended — create their record and assign a plan',
         icon: UserCheck,
         palette: 'green',
@@ -161,8 +161,8 @@ const STATE_CONFIG: Partial<Record<InquiryStatus, StateConfig>> = {
       },
       {
         id: 'CONVERT',
-        label: 'Convert to patient',
-        description: 'Create their patient record and assign a plan',
+        label: 'Convert to case',
+        description: 'Create their case record and assign a plan',
         icon: UserCheck,
         palette: 'green',
         isConvert: true,
@@ -283,10 +283,10 @@ export function ActionModal({
               <CheckCircle2 size={28} />
             </div>
             <p className="text-sm" style={{ color: colors.text.muted }}>
-              This inquiry has been converted to a patient record.
+              This inquiry has been converted to a case record.
             </p>
             <Button onClick={() => { onClose(); navigate(ROUTES.patients) }}>
-              Go to Patients
+              Go to Cases
             </Button>
           </div>
         </ModalShell>
@@ -403,7 +403,7 @@ export function ActionModal({
               }}
               loading={mutation.isPending}
               disabled={!canSubmit}>
-              {isConvert ? 'Convert to Patient' : 'Save'}
+              {isConvert ? 'Convert to Case' : 'Save'}
               <ArrowRight size={14} className="ml-1" />
             </Button>
           </div>

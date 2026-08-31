@@ -447,7 +447,7 @@ export default function AnalyticsPage() {
       {tab === 'cases' && !isParentUser && (
         <Panel
           title="Cases"
-          subtitle="Every active patient — sessions, assignments and payment status for the selected window"
+          subtitle="Every active case — sessions, assignments and payment status for the selected window"
         >
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <div className="relative min-w-[220px] flex-1 max-w-sm">
@@ -464,7 +464,7 @@ export default function AnalyticsPage() {
               type="button"
               disabled={filteredCases.length === 0}
               onClick={() => exportRowsAsCsv(`cases_${range.from}_to_${range.to}.csv`, filteredCases, [
-                { header: 'Patient', value: c => c.patientName },
+                { header: 'Case', value: c => c.patientName },
                 { header: 'Sessions Attended', value: c => c.sessionsAttended },
                 { header: 'Sessions Upcoming', value: c => c.sessionsUpcoming },
                 { header: 'Sessions Cancelled', value: c => c.sessionsCancelled },
@@ -485,14 +485,14 @@ export default function AnalyticsPage() {
             <Loading />
           ) : filteredCases.length === 0 ? (
             <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
-              {casesQuery.data?.length ? 'No cases match your search.' : 'No active patients yet.'}
+              {casesQuery.data?.length ? 'No cases match your search.' : 'No active cases yet.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-sm">
                 <thead>
                   <tr style={{ color: colors.text.dim }}>
-                    <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Patient</th>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Case</th>
                     <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Attended</th>
                     <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Upcoming</th>
                     <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Cancelled</th>
@@ -711,7 +711,7 @@ export default function AnalyticsPage() {
               )}
             </Panel>
 
-            <Panel title="Age Group" subtitle="Active patients, by age in years">
+            <Panel title="Age Group" subtitle="Active cases, by age in years">
               {engagementQuery.isLoading ? (
                 <Loading />
               ) : !engagementQuery.data ? null : (
@@ -1408,13 +1408,13 @@ export default function AnalyticsPage() {
           {tab === 'members' && caseloadQuery.data && (
             <Panel
               title="Caseload"
-              subtitle="Stalled patients first"
+              subtitle="Stalled cases first"
             >
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr style={{ color: colors.text.dim }}>
-                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Patient</th>
+                      <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Case</th>
                       <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Trend</th>
                       <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Mastery</th>
                       <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider">Change</th>
@@ -1466,7 +1466,7 @@ export default function AnalyticsPage() {
               </div>
               {caseloadQuery.data.patients.length === 0 && (
                 <p className="py-6 text-center text-sm" style={{ color: colors.text.dim }}>
-                  No patients on this therapist's caseload in the selected window.
+                  No cases on this therapist's caseload in the selected window.
                 </p>
               )}
             </Panel>

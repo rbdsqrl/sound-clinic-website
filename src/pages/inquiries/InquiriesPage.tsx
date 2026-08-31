@@ -56,7 +56,7 @@ const LOG_META: Record<InquiryLogType, { label: string; icon: React.ElementType;
   APPOINTMENT_SCHEDULED:   { label: 'Appointment Scheduled',  icon: CalendarDays,     color: '#2B80C8' },
   APPOINTMENT_CANCELLED:   { label: 'Appointment Cancelled',  icon: CalendarDays,     color: '#E05C5C' },
   STATUS_CHANGED:          { label: 'Status Changed',         icon: ArrowRightCircle, color: '#888' },
-  CONVERTED:               { label: 'Converted to Patient',   icon: UserCheck,        color: '#4CAF50' },
+  CONVERTED:               { label: 'Converted to Case',      icon: UserCheck,        color: '#4CAF50' },
 }
 
 const MANUAL_LOG_TYPES: InquiryLogType[] = ['CALL', 'EMAIL', 'WHATSAPP', 'NOTE']
@@ -308,7 +308,7 @@ function ConvertModal({
           <div className="p-5 flex flex-col gap-4">
             {programs.length === 0 ? (
               <p className="text-sm text-center py-4" style={{ color: colors.text.muted }}>
-                No active programs found. You can assign a plan later from the patient profile.
+                No active programs found. You can assign a plan later from the case profile.
               </p>
             ) : (<>
               <div>
@@ -399,7 +399,7 @@ function ConvertModal({
               </button>
             </div>
             <p className="text-xs" style={{ color: colors.text.muted }}>
-              Once they accept, their account will be automatically linked to the patient record.
+              Once they accept, their account will be automatically linked to the case record.
             </p>
           </div>
           <div className="px-6 pb-6">
@@ -419,9 +419,9 @@ function ConvertModal({
         style={{ background: surface.card, border: `1px solid ${border.card}` }}>
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: border.divider }}>
           <div>
-            <h3 className="font-semibold text-base" style={{ color: colors.text.primary }}>Convert to Patient</h3>
+            <h3 className="font-semibold text-base" style={{ color: colors.text.primary }}>Convert to Case</h3>
             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-              Creates a new patient record from this inquiry
+              Creates a new case record from this inquiry
             </p>
           </div>
           <button onClick={onClose} style={{ color: colors.text.muted, borderRadius: 6, padding: 4 }}>
@@ -470,7 +470,7 @@ function ConvertModal({
                     Link a Parent / Guardian
                   </p>
                   <p className="text-xs" style={{ color: colors.text.muted }}>
-                    Send an invite and auto-link them to this patient record
+                    Send an invite and auto-link them to this case record
                   </p>
                 </div>
               </div>
@@ -515,7 +515,7 @@ function ConvertModal({
 
           <div className="rounded-xl p-3 text-xs" style={{ background: accentAlpha(0.08), color: colors.text.muted }}>
             <strong style={{ color: colors.text.primary }}>What happens: </strong>
-            The inquiry is marked <em>Converted</em>, a patient profile is created at stage <em>Inquiry Converted</em>
+            The inquiry is marked <em>Converted</em>, a case profile is created at stage <em>Inquiry Converted</em>
             {linkUser && <>, and an invite link is generated for the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} to set up their account — they are auto-linked when they accept</>}.
           </div>
         </div>
@@ -523,7 +523,7 @@ function ConvertModal({
         <div className="flex justify-end gap-2 p-5 pt-0">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={() => convertMutation.mutate()} loading={convertMutation.isPending} disabled={!canSubmit}>
-            <UserCheck size={15} className="mr-1.5" />Convert to Patient
+            <UserCheck size={15} className="mr-1.5" />Convert to Case
           </Button>
         </div>
       </div>
@@ -676,7 +676,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
           </div>
           {canConvert && (
             <Button onClick={() => setShowConvert(true)} variant="secondary">
-              <UserCheck size={14} className="mr-1.5" />Convert to Patient
+              <UserCheck size={14} className="mr-1.5" />Convert to Case
             </Button>
           )}
         </div>
@@ -1312,7 +1312,7 @@ export default function InquiriesPage() {
 
       {/* Funnel drop-off chart — clicking switches to Inquiries tab with filter applied */}
       <div className="rounded-2xl p-5" style={styles.card}>
-        <h3 className="text-sm font-semibold mb-4" style={{ color: colors.text.primary }}>Patient Journey Funnel</h3>
+        <h3 className="text-sm font-semibold mb-4" style={{ color: colors.text.primary }}>Case Journey Funnel</h3>
         <div className="flex flex-col gap-2.5">
           {JOURNEY_STATUSES.map(s => {
             const meta  = STATUS_META[s]

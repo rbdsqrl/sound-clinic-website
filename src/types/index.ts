@@ -811,6 +811,24 @@ export interface SessionAttachmentResponse {
   createdAt: string
 }
 
+// ── Shared Media (videos/notes between parents and the care team) ───────────────
+export type SharedMediaDirection = 'PARENT_TO_CLINIC' | 'CLINIC_TO_PARENT'
+
+export interface SharedMediaResponse {
+  id: string
+  patientId: string
+  direction: SharedMediaDirection
+  fileName: string | null
+  fileUrl: string | null
+  contentType: string | null
+  fileSizeBytes: number | null
+  note: string | null
+  uploadedById: string
+  uploadedByName: string
+  uploadedByRole: Role | null
+  createdAt: string
+}
+
 // ── Subscriptions ──────────────────────────────────────────────────────────────
 export type SubscriptionPaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID'
 export type SubscriptionStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'

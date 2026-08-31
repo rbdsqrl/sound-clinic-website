@@ -123,7 +123,7 @@ export default function EnrollmentDetailPage() {
     <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
       <div className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: colors.text.dim }}>
         <Link to={ROUTES.patient(patientId!)} className="hover:underline flex-shrink-0">
-          {patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
+          {patient ? `${patient.firstName} ${patient.lastName}` : 'Case'}
         </Link>
         <ChevronRight size={14} className="flex-shrink-0" />
         <span className="truncate" style={{ color: colors.text.primary }}>{enrollment.programName}</span>

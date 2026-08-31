@@ -81,7 +81,7 @@ export default function ActivityDetailPage() {
           <Link to={ROUTES.editActivity(activity.id)}>
             <Button variant="secondary"><Pencil size={14} /> Edit</Button>
           </Link>
-          <Button onClick={() => setAssignOpen(true)}><UserPlus size={14} /> Assign to Patient</Button>
+          <Button onClick={() => setAssignOpen(true)}><UserPlus size={14} /> Assign to Case</Button>
         </div>
       </div>
 
@@ -156,15 +156,15 @@ export default function ActivityDetailPage() {
       )}
 
       <Card>
-        <CardHeader title="Assigned Patients" subtitle="Manage progress from a patient's Activities tab" />
+        <CardHeader title="Assigned Cases" subtitle="Manage progress from a case's Activities tab" />
         <PatientAssignmentsList activityId={activity.id} />
       </Card>
 
-      <Modal open={assignOpen} onClose={() => { setAssignOpen(false); reset() }} title="Assign to Patient">
+      <Modal open={assignOpen} onClose={() => { setAssignOpen(false); reset() }} title="Assign to Case">
         <form onSubmit={handleSubmit((d) => assignMut.mutate(d))} className="space-y-4">
-          <Select label="Patient" placeholder="Select a patient…" error={errors.patientId?.message}
+          <Select label="Case" placeholder="Select a case…" error={errors.patientId?.message}
             options={patients.map((p) => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))}
-            {...register('patientId', { required: 'Choose a patient' })} />
+            {...register('patientId', { required: 'Choose a case' })} />
           <Select label="Assign to therapist (optional)" placeholder="No specific therapist"
             options={therapists.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
             {...register('assignedTherapistId')} />
@@ -196,7 +196,7 @@ function PatientAssignmentsList({ activityId }: { activityId: string }) {
 
   if (isLoading) return <PageLoader />
   if (allAssignments.length === 0) {
-    return <EmptyState icon={<UserPlus size={22} />} title="Not assigned yet" description="Assign this activity to a patient to start tracking progress." />
+    return <EmptyState icon={<UserPlus size={22} />} title="Not assigned yet" description="Assign this activity to a case to start tracking progress." />
   }
 
   return (

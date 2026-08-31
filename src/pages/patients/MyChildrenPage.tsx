@@ -218,7 +218,7 @@ export default function MyChildrenPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>My Children</h1>
         <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>
-          Patients you are linked to as a parent or guardian.
+          Cases you are linked to as a parent or guardian.
         </p>
       </div>
 
@@ -227,7 +227,7 @@ export default function MyChildrenPage() {
           <EmptyState
             icon={<Baby size={32} />}
             title="No children linked"
-            description="Ask your clinic administrator to link your account to your child's patient record."
+            description="Ask your clinic administrator to link your account to your child's case record."
           />
         </Card>
       ) : (

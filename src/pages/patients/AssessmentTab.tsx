@@ -84,7 +84,7 @@ export default function AssessmentTab({
           <EmptyState
             icon={<ClipboardList size={22} />}
             title="No assessments recorded yet"
-            description={canFill ? 'Fill the first assessment to start tracking a score over time.' : 'No assessments have been recorded for this patient yet.'}
+            description={canFill ? 'Fill the first assessment to start tracking a score over time.' : 'No assessments have been recorded for this case yet.'}
           />
         ) : (
           <>

@@ -1524,7 +1524,7 @@ function EventDetailDrawer({
                 onClick={() => { onClose(); navigate(`${ROUTES.patients}/${rawReview.patientId}`) }}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold"
                 style={{ color: '#fff', background: colors.accent }}>
-                Open patient
+                Open case
               </button>
             </>
           )}

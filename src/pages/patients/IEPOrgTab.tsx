@@ -29,7 +29,7 @@ function buildPatientSummaries(plans: IEPPlanResponse[]): PatientSummary[] {
     } else {
       map.set(plan.patientId, {
         patientId: plan.patientId,
-        patientName: plan.patientName ?? `Patient …${plan.patientId.slice(-6)}`,
+        patientName: plan.patientName ?? `Case …${plan.patientId.slice(-6)}`,
         planCount: 1,
         totalGoals: plan.totalGoals,
         completedGoals: plan.completedGoals,
@@ -137,25 +137,25 @@ export default function IEPOrgTab() {
           type="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search patients…"
+          placeholder="Search cases…"
           className="form-input pl-9 w-full sm:max-w-xs"
         />
       </div>
 
       {/* Stats bar */}
       <p className="text-xs" style={{ color: colors.text.dim }}>
-        {summaries.length} patient{summaries.length !== 1 ? 's' : ''} · {plans.length} plan{plans.length !== 1 ? 's' : ''} · {plans.reduce((n, p) => n + p.totalGoals, 0)} goals
+        {summaries.length} case{summaries.length !== 1 ? 's' : ''} · {plans.length} plan{plans.length !== 1 ? 's' : ''} · {plans.reduce((n, p) => n + p.totalGoals, 0)} goals
       </p>
 
       {/* Patient list */}
       {filtered.length === 0 ? (
         search ? (
-          <p className="text-sm py-6 text-center" style={{ color: colors.text.dim }}>No patients match "{search}"</p>
+          <p className="text-sm py-6 text-center" style={{ color: colors.text.dim }}>No cases match "{search}"</p>
         ) : (
           <EmptyState
             icon={<Users size={32} />}
             title="No IEP plans yet"
-            description="Create IEP plans from a patient's profile page to see them here."
+            description="Create IEP plans from a case's profile page to see them here."
           />
         )
       ) : (

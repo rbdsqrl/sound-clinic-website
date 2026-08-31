@@ -73,7 +73,7 @@ export default function ClinicsPage() {
           <EmptyState
             icon={<Building2 size={32} />}
             title="No clinics yet"
-            description="Create your first clinic to start managing patients and therapists."
+            description="Create your first clinic to start managing cases and therapists."
             action={{ label: 'Create clinic', onClick: () => setShowModal(true) }}
           />
         </Card>

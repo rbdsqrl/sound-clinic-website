@@ -68,6 +68,7 @@ src/
 │   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
 │   ├── programs.ts                  # program management
 │   ├── public.ts                    # public API endpoints
+│   ├── sharedMedia.ts               # list/upload/delete shared videos+notes for a patient
 │   ├── subscriptions.ts             # subscription management
 │   ├── therapySessions.ts           # therapy session management
 │   └── users.ts                     # me, listTherapists, search
@@ -139,7 +140,8 @@ src/
     ├── patients/
     │   ├── MyChildrenPage.tsx       # PARENT role: their linked children
     │   ├── PatientDetailPage.tsx    # View patient + manage conditions/parents/therapists
-    │   └── PatientsPage.tsx         # List + filter patients
+    │   ├── PatientsPage.tsx         # List + filter patients
+    │   └── SharedMediaTab.tsx       # "Videos" tab — parent↔clinic video/note sharing
     │
     ├── programs/
     │   └── ProgramsPage.tsx         # Manage programs

@@ -713,7 +713,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
           />
         ) : (
           <p className="text-xs" style={{ color: colors.text.dim }}>
-            No therapist assigned to this patient yet — a Business Owner or Clinic Head can assign one to this plan later.
+            No therapist assigned to this case yet — a Business Owner or Clinic Head can assign one to this plan later.
           </p>
         )}
         <div className="flex justify-end gap-2 pt-1">

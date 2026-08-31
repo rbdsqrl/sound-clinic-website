@@ -282,7 +282,7 @@ export default function MemberProfilePage() {
         }
       >
         {cases.length === 0 ? (
-          <EmptyState icon={<Mail size={22} />} title="No cases yet" description="Assign a patient to this member to see them here." />
+          <EmptyState icon={<Mail size={22} />} title="No cases yet" description="Assign a case to this member to see them here." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -388,14 +388,14 @@ function AssignCaseModal({
     <Modal open={open} onClose={onClose} title="Assign a case">
       <div className="flex flex-col gap-4">
         <Select
-          label="Patient"
-          placeholder="Choose a patient"
+          label="Case"
+          placeholder="Choose a case"
           value={patientId}
           onChange={e => setPatientId(e.target.value)}
           options={patients.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))}
         />
         {patients.length === 0 && (
-          <p className="text-sm" style={{ color: colors.text.dim }}>Every patient is already assigned to this member.</p>
+          <p className="text-sm" style={{ color: colors.text.dim }}>Every case is already assigned to this member.</p>
         )}
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>

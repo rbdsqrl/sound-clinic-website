@@ -719,7 +719,7 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
               <EmptyState
                 icon={<Cake size={22} />}
                 title="No birthdays coming up"
-                description="Patients with a birthday in the next 30 days will show up here."
+                description="Cases with a birthday in the next 30 days will show up here."
               />
             </div>
           ) : (
@@ -812,7 +812,7 @@ function SessionUpdateModal({
             style={{ background: accentAlpha(0.10), color: colors.accent }}
             onClick={onClose}
           >
-            View patient →
+            View case →
           </Link>
         </div>
       </div>
@@ -1254,7 +1254,7 @@ export default function DashboardPage() {
   // Quick-action links shown for owner/admin instead of empty stat cards
   const ownerActions = [
     { to: ROUTES.members,               icon: <UserPlus size={14} />,       label: 'Invite Staff' },
-    { to: ROUTES.patients,              icon: <Users size={14} />,          label: 'Patients' },
+    { to: ROUTES.patients,              icon: <Users size={14} />,          label: 'Cases' },
     { to: ROUTES.calendar,              icon: <CalendarDays size={14} />,   label: 'Calendar' },
     { to: ROUTES.workforceTab('leave-requests'),   icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
     { to: ROUTES.workforceTab('staff-attendance'), icon: <ClipboardCheck size={14} />, label: 'Attendance' },
