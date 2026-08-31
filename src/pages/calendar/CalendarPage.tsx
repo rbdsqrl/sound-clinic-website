@@ -965,12 +965,13 @@ function UpcomingPanel({
 // ── What to put in a dragged slot ─────────────────────────────────────────────
 
 function SlotChoiceModal({
-  slot, onClose, onPick,
+  slot, onClose, onPick, canCreateMeetings,
 }: {
   slot: SlotSelection
   onClose: () => void
   /** Hands back the slot as tuned here, not as originally dragged. */
   onPick: (what: 'meeting' | 'session', tuned: SlotSelection) => void
+  canCreateMeetings: boolean
 }) {
   // The grid only drags in whole hours, so the real start and end are set here.
   const [date, setDate]   = useState(slot.date)
@@ -999,7 +1000,9 @@ function SlotChoiceModal({
 
   const options: { key: 'meeting' | 'session'; label: string; hint: string; icon: React.ElementType }[] = [
     { key: 'session', label: 'Therapy session', hint: 'A one-off session for a patient on a plan', icon: Activity },
-    { key: 'meeting', label: 'Meeting',         hint: 'With staff and parents you choose',        icon: Users },
+    ...(canCreateMeetings
+      ? [{ key: 'meeting' as const, label: 'Meeting', hint: 'With staff and parents you choose', icon: Users }]
+      : []),
   ]
 
   return (
@@ -1664,7 +1667,7 @@ export default function CalendarPage() {
 
   const currentRole = activeRole ?? user?.role
   const canSeeInquiries  = !!user && (
-    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN')
   )
   const canSeeLeaves     = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
   const canSeeSessions   = !!user && !hasRole(user, 'PATIENT')
@@ -1674,14 +1677,15 @@ export default function CalendarPage() {
   )
   const canHandleOutcomes = canSeeInquiries
   const canGoToInquiries  = canSeeInquiries
-  // Parents and patients attend meetings but never schedule them
-  const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
+  // Parents and patients attend meetings but never schedule them. Office Admin schedules
+  // therapy sessions/review meetings, not general staff Meetings — kept out deliberately.
+  const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT') && !hasRole(user, 'OFFICE_ADMIN')
   // Booking from the calendar is a front-desk action; clinical staff read the grid.
   const canBookSlots = !!user && (
-    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN')
   )
   const canReschedule = !!user && (
-    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD')
+    hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN')
   )
   // Seeing every therapist's schedule side by side is an org-management view.
   const canSeeStaffView = canBookSlots
@@ -2182,6 +2186,7 @@ export default function CalendarPage() {
           slot={slotSelection}
           onClose={() => setSlotSelection(null)}
           onPick={(what, tuned) => { setSlotSelection(tuned); setSlotChoice(what) }}
+          canCreateMeetings={canCreateMeetings}
         />
       )}
 

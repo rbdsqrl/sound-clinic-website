@@ -68,6 +68,7 @@ export function ReviewMeetingsPanel({
   therapistId,
   currentUserId,
   canSchedule,
+  canSeeFeedback,
   canGiveTherapistFeedback,
   isParent,
 }: {
@@ -77,6 +78,9 @@ export function ReviewMeetingsPanel({
   therapistId: string
   currentUserId: string
   canSchedule: boolean
+  /** Separate from canSchedule — a role that can schedule meetings (e.g. Office Admin)
+   *  doesn't necessarily get to see the parent/therapist feedback content. */
+  canSeeFeedback: boolean
   canGiveTherapistFeedback: boolean
   isParent: boolean
 }) {
@@ -164,6 +168,7 @@ export function ReviewMeetingsPanel({
               isParent={isParent}
               canGiveTherapistFeedback={canGiveTherapistFeedback && therapistId === currentUserId}
               canManage={canSchedule}
+              canSeeFeedback={canSeeFeedback}
               onFeedback={() => setFeedbackFor(m)}
               onComplete={() => completeMut.mutate(m.id)}
               onCancel={() => {
@@ -213,13 +218,14 @@ export function ReviewMeetingsPanel({
 // ── Row ────────────────────────────────────────────────────────────────────────
 
 function MeetingRow({
-  meeting, isParent, canGiveTherapistFeedback, canManage,
+  meeting, isParent, canGiveTherapistFeedback, canManage, canSeeFeedback,
   onFeedback, onComplete, onCancel,
 }: {
   meeting: ReviewMeetingResponse
   isParent: boolean
   canGiveTherapistFeedback: boolean
   canManage: boolean
+  canSeeFeedback: boolean
   onFeedback: () => void
   onComplete: () => void
   onCancel: () => void
@@ -278,11 +284,11 @@ function MeetingRow({
       {open && (
         <div className="px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
 
-          {/* Therapist's side — staff see it always; a therapist sees only their own */}
-          {(canManage || canGiveTherapistFeedback) && (
+          {/* Therapist's side — staff who can see feedback see it always; a therapist sees only their own */}
+          {(canSeeFeedback || canGiveTherapistFeedback) && (
             <div className="mt-2.5">
               <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
-                {canManage ? 'Therapist feedback' : 'Your feedback'}
+                {canSeeFeedback ? 'Therapist feedback' : 'Your feedback'}
               </p>
               {meeting.therapistSummary ? (
                 <>
@@ -299,11 +305,11 @@ function MeetingRow({
             </div>
           )}
 
-          {/* Parent's side — staff see it always; a parent sees only their own */}
-          {(canManage || isParent) && (
+          {/* Parent's side — staff who can see feedback see it always; a parent sees only their own */}
+          {(canSeeFeedback || isParent) && (
             <div className="mt-3">
               <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
-                {canManage ? 'Parent feedback' : 'Your feedback'}
+                {canSeeFeedback ? 'Parent feedback' : 'Your feedback'}
               </p>
               {meeting.communicationRating != null ? (
                 <>
@@ -329,9 +335,13 @@ function MeetingRow({
             </div>
           )}
 
-          {!canManage && (
+          {!canSeeFeedback && (
             <p className="text-xs mt-3" style={{ color: colors.text.dim }}>
-              {isParent ? "The therapist's feedback" : "The parent's feedback"} is only visible to clinic staff.
+              {isParent
+                ? "The therapist's feedback is only visible to clinic staff."
+                : canGiveTherapistFeedback
+                ? "The parent's feedback is only visible to clinic staff."
+                : "Feedback notes for this meeting aren't shown to your role."}
             </p>
           )}
 

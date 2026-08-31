@@ -61,6 +61,16 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.calendar,  label: 'Calendar',  icon: CalendarDays },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
+  OFFICE_ADMIN: [
+    { to: ROUTES.dashboard,  label: 'Dashboard',  icon: LayoutDashboard },
+    { to: ROUTES.feed,       label: 'Feed',       icon: Newspaper },
+    { to: ROUTES.inquiries,  label: 'Inquiries',  icon: Inbox },
+    { to: ROUTES.patients,   label: 'Cases',      icon: Users },
+    { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
+    { to: ROUTES.analytics,  label: 'Analytics',  icon: TrendingUp },
+    { to: ROUTES.tasks,      label: 'Tasks',      icon: ListTodo },
+    { to: ROUTES.calendar,   label: 'Calendar',   icon: CalendarDays },
+  ],
   PARENT: [
     { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },
     { to: ROUTES.feed,       label: 'Feed',        icon: Newspaper },
@@ -82,6 +92,7 @@ const ROLE_LABELS: Record<Role, string> = {
   DOCTOR:         'Doctor',
   PARENT:         'Parent',
   PATIENT:        'Patient',
+  OFFICE_ADMIN:   'Office Admin',
 }
 
 const ROLE_COLORS = colors.role

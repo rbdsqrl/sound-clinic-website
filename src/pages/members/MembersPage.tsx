@@ -49,12 +49,14 @@ const ROLE_LABELS: Partial<Record<Role, string>> = {
   CLINIC_HEAD:    'Clinic Head',
   THERAPIST:      'Therapist',
   DOCTOR:         'Doctor',
+  OFFICE_ADMIN:   'Office Admin',
 }
 
 const STAFF_ROLES: { value: string; label: string }[] = [
-  { value: 'CLINIC_HEAD', label: 'Clinic Head' },
-  { value: 'THERAPIST',   label: 'Therapist' },
-  { value: 'DOCTOR',      label: 'Doctor' },
+  { value: 'CLINIC_HEAD',   label: 'Clinic Head' },
+  { value: 'THERAPIST',     label: 'Therapist' },
+  { value: 'DOCTOR',        label: 'Doctor' },
+  { value: 'OFFICE_ADMIN',  label: 'Office Admin' },
 ]
 
 // Parents (and patients) are invited from the patient's own page, not here.
@@ -62,6 +64,7 @@ export const INVITABLE_ROLES: { value: Role; label: string }[] = [
   { value: 'CLINIC_HEAD',    label: 'Clinic Head' },
   { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },
+  { value: 'OFFICE_ADMIN',   label: 'Office Admin' },
   { value: 'BUSINESS_OWNER', label: 'Business Owner' },
 ]
 

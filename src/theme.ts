@@ -85,6 +85,7 @@ export const colors = {
     DOCTOR:         '#2B80C8',   // blue (matches accent)
     PARENT:         '#DC64A0',   // soft pink
     PATIENT:        '#6B8499',   // slate
+    OFFICE_ADMIN:   '#5C6FD8',   // indigo
   },
 } as const
 

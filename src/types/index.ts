@@ -1,5 +1,5 @@
 // ── Enums ──────────────────────────────────────────────────────────────────────
-export type Role = 'CLINIC_HEAD' | 'BUSINESS_OWNER' | 'THERAPIST' | 'DOCTOR' | 'PATIENT' | 'PARENT'
+export type Role = 'CLINIC_HEAD' | 'BUSINESS_OWNER' | 'THERAPIST' | 'DOCTOR' | 'PATIENT' | 'PARENT' | 'OFFICE_ADMIN'
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED'
 export type InquiryStatus =

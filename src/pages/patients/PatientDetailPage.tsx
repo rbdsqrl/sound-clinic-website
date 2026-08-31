@@ -1366,7 +1366,14 @@ export default function PatientDetailPage() {
   const isParentRole = currentRoleEarly === 'PARENT'
 
   // DOCTOR isn't part of the shared-media/notes feature — every other role sees the tab.
-  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Media & Notes') : [...TABS]
+  // OFFICE_ADMIN runs onboarding/scheduling, not clinical documentation — only the
+  // administrative/operational tabs are shown; IEP, per-case Activities, Assessments,
+  // Baseline Report and Media & Notes stay hidden (they have no backend access to them).
+  const visibleTabs: Tab[] = currentRoleEarly === 'OFFICE_ADMIN'
+    ? TABS.filter(t => t === 'Overview' || t === 'Therapy')
+    : currentRoleEarly === 'DOCTOR'
+    ? TABS.filter(t => t !== 'Media & Notes')
+    : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -1522,12 +1529,16 @@ export default function PatientDetailPage() {
 
   const currentRole = currentRoleEarly
   const isParent            = isParentRole
-  const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'DOCTOR'].includes(currentRole ?? '')
-  const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')
-  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
-  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
-  const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')
+  const isOfficeAdmin       = currentRole === 'OFFICE_ADMIN'
+  const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'DOCTOR', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canDelete           = currentRole === 'BUSINESS_OWNER'
+  // Review-meeting feedback content stays clinic-staff-only even though Office Admin
+  // can schedule the meetings themselves — see ReviewMeetingsPanel's canSeeFeedback.
+  const canSeeReviewFeedback = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
 
   // Shared remove-button style (hover via event handlers)
@@ -1661,7 +1672,7 @@ export default function PatientDetailPage() {
               </div>
             </Card>
 
-            <ConcernsBanner patientId={id!} canAct={!isParentRole} />
+            <ConcernsBanner patientId={id!} canAct={!isParentRole && !isOfficeAdmin} />
 
             <Card>
               <StageProgress current={patient.stage} />
@@ -1862,7 +1873,8 @@ export default function PatientDetailPage() {
               </Card>
             </div>
 
-            <CaseHistoryCard patientId={patient.id} canEdit={canEditDetails} />
+            {/* Detailed intake record is clinical documentation — out of scope for Office Admin */}
+            {!isOfficeAdmin && <CaseHistoryCard patientId={patient.id} canEdit={canEditDetails} />}
         </div>
       )}
 
@@ -2161,6 +2173,7 @@ export default function PatientDetailPage() {
                             therapistId={enrollment.therapistId}
                             currentUserId={user?.id ?? ''}
                             canSchedule={canCreateEnrollment}
+                            canSeeFeedback={canSeeReviewFeedback}
                             canGiveTherapistFeedback={
                               currentRole === 'THERAPIST' || currentRole === 'DOCTOR'
                             }

@@ -152,7 +152,9 @@ function PatientCard({ patient, index, clinicName }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PatientsPage() {
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
+  const currentRole = activeRole ?? user?.role
+  const isOfficeAdmin = currentRole === 'OFFICE_ADMIN'
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
 
@@ -221,19 +223,21 @@ export default function PatientsPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-        {/* Tabs */}
-        <div className="flex gap-0 border-b" style={{ borderColor: border.divider }}>
-          {(['all', 'mine'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap"
-              style={tab === t ? styles.tabActive : styles.tabInactive}
-            >
-              {t === 'all' ? 'All Cases' : 'My Cases'}
-            </button>
-          ))}
-        </div>
+        {/* Tabs — Office Admin is never assigned a case, so "My Cases" doesn't apply */}
+        {!isOfficeAdmin && (
+          <div className="flex gap-0 border-b" style={{ borderColor: border.divider }}>
+            {(['all', 'mine'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className="px-4 py-2.5 text-sm font-medium -mb-px transition-colors whitespace-nowrap"
+                style={tab === t ? styles.tabActive : styles.tabInactive}
+              >
+                {t === 'all' ? 'All Cases' : 'My Cases'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="flex items-center gap-2 flex-wrap">

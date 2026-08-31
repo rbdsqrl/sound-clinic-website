@@ -398,6 +398,8 @@ export default function FeedPage() {
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
   const canManage = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  // Office Admin can post but not edit/delete/moderate — that stays canManage-only.
+  const canPost = canManage || activeRole === 'OFFICE_ADMIN'
 
   const [showForm, setShowForm]       = useState(false)
   const [editingPost, setEditingPost] = useState<FeedPostResponse | null>(null)
@@ -433,7 +435,7 @@ export default function FeedPage() {
             {posts.length}
           </span>
         </div>
-        {canManage && (
+        {canPost && (
           <Button variant="primary" onClick={() => { setEditingPost(null); setShowForm(true) }}>
             <Plus size={15} className="mr-1.5" /> New Post
           </Button>
@@ -445,10 +447,10 @@ export default function FeedPage() {
           <EmptyState
             icon={<Newspaper size={22} />}
             title="No posts yet"
-            description={canManage
+            description={canPost
               ? 'Post an update and it will show up here and on everyone’s dashboard.'
               : 'Clinic updates from Business Owner and Clinic Head will show up here.'}
-            action={canManage ? { label: 'New Post', onClick: () => { setEditingPost(null); setShowForm(true) } } : undefined}
+            action={canPost ? { label: 'New Post', onClick: () => { setEditingPost(null); setShowForm(true) } } : undefined}
           />
         ) : (
           <div className="flex flex-col gap-3">
