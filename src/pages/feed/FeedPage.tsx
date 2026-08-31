@@ -421,7 +421,7 @@ export default function FeedPage() {
   if (isLoading) return <PageLoader />
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">

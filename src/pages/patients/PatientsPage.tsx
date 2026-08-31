@@ -216,7 +216,7 @@ export default function PatientsPage() {
   if (isLoading) return <PageLoader />
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-5">
+    <div className="space-y-5">
 
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -208,7 +208,7 @@ export default function CreateActivityPage() {
   if (isEdit && loadingExisting) return <PageLoader />
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <div className="flex items-center gap-1.5 text-sm mb-4" style={{ color: colors.text.dim }}>
         <Link to={ROUTES.activities} className="hover:underline">My Activities</Link>
         <ChevronRight size={14} />

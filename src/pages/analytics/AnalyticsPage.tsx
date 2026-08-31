@@ -302,7 +302,7 @@ export default function AnalyticsPage() {
     .filter(d => d.baselineValue || d.currentEntries.length > 0)
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 lg:p-8">
+    <div className="mx-auto max-w-7xl space-y-5">
       <div>
         <h1 className="text-lg font-bold md:text-xl" style={{ color: colors.text.heading }}>
           {isParentUser ? "Your Child's Progress" : 'Analytics'}

@@ -1550,7 +1550,7 @@ export default function PatientDetailPage() {
   )
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-5">
 
       {/* Back link + patient switcher — replaces the old always-on list column,
           which sat mostly empty and ate a fixed slice of the page width. */}

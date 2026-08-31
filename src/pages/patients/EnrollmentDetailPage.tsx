@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, BookOpen, CalendarDays, Clock, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowLeft, BookOpen, CalendarDays, Clock, CheckCircle2, Circle } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { analyticsApi } from '../../api/analytics'
@@ -96,7 +96,7 @@ export default function EnrollmentDetailPage() {
 
   if (!enrollment) {
     return (
-      <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+      <div className="max-w-xl mx-auto">
         <EmptyState icon={<BookOpen size={24} />} title="Enrollment not found"
           description="This plan may have been removed, or the link is out of date." />
       </div>
@@ -120,14 +120,16 @@ export default function EnrollmentDetailPage() {
   const status = STATUS_VARIANT[enrollment.status] ?? STATUS_VARIANT.ACTIVE
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
-      <div className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: colors.text.dim }}>
-        <Link to={ROUTES.patient(patientId!)} className="hover:underline flex-shrink-0">
-          {patient ? `${patient.firstName} ${patient.lastName}` : 'Case'}
-        </Link>
-        <ChevronRight size={14} className="flex-shrink-0" />
-        <span className="truncate" style={{ color: colors.text.primary }}>{enrollment.programName}</span>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-5">
+      <Link
+        to={ROUTES.patient(patientId!)}
+        className="inline-flex items-center gap-1 text-sm transition-colors"
+        style={{ color: colors.text.muted }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+      >
+        <ArrowLeft size={14} /> Back to {patient ? `${patient.firstName} ${patient.lastName}` : 'Case'}
+      </Link>
 
       <Card>
         <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">

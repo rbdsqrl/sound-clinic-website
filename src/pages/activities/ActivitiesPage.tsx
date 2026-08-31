@@ -87,7 +87,7 @@ export default function ActivitiesPage() {
   }, [list, search, difficulty])
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>Activities</h1>

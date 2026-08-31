@@ -117,7 +117,7 @@ export default function MemberProfilePage() {
   const specializationTags = (profile.specialization ?? '').split(',').map(s => s.trim()).filter(Boolean)
 
   return (
-    <div className="mx-auto max-w-5xl p-4 md:p-6 lg:p-8 space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex items-center gap-1.5 text-sm" style={{ color: colors.text.dim }}>
         <Link to={ROUTES.members} className="hover:underline flex-shrink-0">Members</Link>
         <ChevronRight size={14} />

@@ -397,7 +397,7 @@ export default function MembersPage() {
 
   return (
     <>
-      <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+      <div className="max-w-7xl mx-auto space-y-5">
 
         {/* Page header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

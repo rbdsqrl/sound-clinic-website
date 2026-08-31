@@ -58,7 +58,7 @@ export default function WorkforcePage() {
   const currentTab = tabs.find(t => t.key === activeTab) ?? tabs[0]
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-5">
       <div>
         <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Workforce</h1>
         <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>Attendance and leave management</p>

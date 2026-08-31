@@ -754,7 +754,7 @@ export default function OrganisationPage() {
   ]
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-5">
+    <div className="max-w-5xl mx-auto space-y-5">
       {/* Header */}
       <div>
         <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Organisation</h1>

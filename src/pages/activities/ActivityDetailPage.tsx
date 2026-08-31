@@ -61,7 +61,7 @@ export default function ActivityDetailPage() {
   if (isLoading || !activity) return <PageLoader />
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-5">
       <div className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: colors.text.dim }}>
         <Link to={ROUTES.activities} className="hover:underline flex-shrink-0">My Activities</Link>
         <ChevronRight size={14} className="flex-shrink-0" />
