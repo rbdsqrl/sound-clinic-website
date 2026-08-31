@@ -1093,7 +1093,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Videos'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Videos & Notes'] as const
 type Tab = typeof TABS[number]
 
 // ── Assessments tab (ISAA + PRBA, switched by an inner sub-tab) ─────────────────
@@ -1366,7 +1366,7 @@ export default function PatientDetailPage() {
   const isParentRole = currentRoleEarly === 'PARENT'
 
   // DOCTOR isn't part of the shared-videos/notes feature — every other role sees the tab.
-  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Videos') : [...TABS]
+  const visibleTabs: Tab[] = currentRoleEarly === 'DOCTOR' ? TABS.filter(t => t !== 'Videos & Notes') : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -1575,72 +1575,18 @@ export default function PatientDetailPage() {
         )}
       </div>
 
-      <ConcernsBanner patientId={id!} canAct={!isParentRole} />
-
-      {/* ── Page header (always visible) ─────────────────────────────────── */}
-      <Card>
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className="h-10 w-10 rounded-full font-bold text-base flex items-center justify-center flex-shrink-0"
-            style={{ background: accentAlpha(0.10), color: colors.accent }}
-          >
-            {patient.firstName[0]}{patient.lastName[0]}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
-              {patient.firstName} {patient.lastName}
-            </h1>
-            <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {canEditDetails && (
-              <button
-                onClick={() => {
-                  editForm.reset({
-                    firstName:   patient.firstName,
-                    lastName:    patient.lastName,
-                    dateOfBirth: patient.dateOfBirth ?? '',
-                    gender:      patient.gender ?? '',
-                    notes:       patient.notes ?? '',
-                  })
-                  setEditModal(true)
-                }}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
-              >
-                <Pencil size={13} /> Edit
-              </button>
-            )}
-            {canChangeStage && patient.stage !== 'DISCHARGED' && (
-              <button
-                onClick={() => setDischargeModal(true)}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
-              >
-                <LogOut size={13} /> Discharge Case
-              </button>
-            )}
-            {canDelete && (
-              <button
-                onClick={() => setDeleteConfirm(true)}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-              >
-                <Trash2 size={13} /> Delete
-              </button>
-            )}
-          </div>
+      {/* ── Page header — name only; everything else lives in the tabs below ── */}
+      <div className="flex items-center gap-3">
+        <div
+          className="h-10 w-10 rounded-full font-bold text-base flex items-center justify-center flex-shrink-0"
+          style={{ background: accentAlpha(0.10), color: colors.accent }}
+        >
+          {patient.firstName[0]}{patient.lastName[0]}
         </div>
-
-        {/* Read-only stage progress */}
-        <StageProgress current={patient.stage} />
-      </Card>
-
-      <DischargeHistoryPanel patientId={id!} />
+        <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>
+          {patient.firstName} {patient.lastName}
+        </h1>
+      </div>
 
       {dischargeModal && (
         <DischargeModal
@@ -1667,6 +1613,62 @@ export default function PatientDetailPage() {
       {/* ── Overview tab ─────────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
           <div className="space-y-4">
+            <Card>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {canEditDetails && (
+                    <button
+                      onClick={() => {
+                        editForm.reset({
+                          firstName:   patient.firstName,
+                          lastName:    patient.lastName,
+                          dateOfBirth: patient.dateOfBirth ?? '',
+                          gender:      patient.gender ?? '',
+                          notes:       patient.notes ?? '',
+                        })
+                        setEditModal(true)
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                    >
+                      <Pencil size={13} /> Edit
+                    </button>
+                  )}
+                  {canChangeStage && patient.stage !== 'DISCHARGED' && (
+                    <button
+                      onClick={() => setDischargeModal(true)}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
+                    >
+                      <LogOut size={13} /> Discharge Case
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => setDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <ConcernsBanner patientId={id!} canAct={!isParentRole} />
+
+            <Card>
+              <StageProgress current={patient.stage} />
+            </Card>
+
+            <DischargeHistoryPanel patientId={id!} />
+
             <JourneyCard
               patient={patient}
               subscriptions={subscriptions}
@@ -2189,7 +2191,7 @@ export default function PatientDetailPage() {
         <BaselineReportTab patientId={id!} />
       )}
 
-      {activeTab === 'Videos' && <SharedMediaTab patientId={id!} />}
+      {activeTab === 'Videos & Notes' && <SharedMediaTab patientId={id!} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">

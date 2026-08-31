@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Video, Upload, X, Trash2, FileVideo } from 'lucide-react'
 import { format } from 'date-fns'
 import { sharedMediaApi } from '../../api/sharedMedia'
-import { Card, CardHeader } from '../../components/ui/Card'
+import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge, roleBadge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -71,33 +71,37 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       <Card>
-        <CardHeader title="Share a Video or Note" subtitle="Video is optional — you can share a note on its own" />
+        <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>Share a video and/or a note</p>
 
-        <div className="flex flex-col gap-3">
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          rows={2}
+          placeholder="Add a note…"
+          className="form-input w-full resize-none mb-2"
+        />
+
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           {video ? (
-            <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.18)}` }}>
-              <FileVideo size={18} style={{ color: colors.accent, flexShrink: 0 }} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{video.name}</p>
-                <p className="text-xs" style={{ color: colors.text.dim }}>{formatSize(video.size)}</p>
-              </div>
+            <div className="inline-flex items-center gap-1.5 rounded-lg pl-2.5 pr-1.5 py-1.5 text-xs font-medium max-w-full"
+              style={{ background: accentAlpha(0.08), color: colors.accent }}>
+              <FileVideo size={13} className="flex-shrink-0" />
+              <span className="truncate max-w-[160px]">{video.name}</span>
+              <span className="flex-shrink-0" style={{ color: colors.text.dim }}>{formatSize(video.size)}</span>
               <button
                 type="button"
                 onClick={() => { setVideo(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                className="p-1.5 rounded-lg flex-shrink-0"
-                style={{ color: colors.text.muted }}
+                className="p-0.5 rounded flex-shrink-0"
               >
-                <X size={14} />
+                <X size={12} />
               </button>
             </div>
           ) : (
             <label
-              className="flex flex-col items-center justify-center gap-2 rounded-xl py-6 cursor-pointer text-center"
-              style={{ border: `1.5px dashed ${border.divider}` }}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer flex-shrink-0"
+              style={{ border: `1px solid ${border.divider}`, color: colors.text.muted }}
             >
-              <Upload size={20} style={{ color: colors.text.dim }} />
-              <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Click to add a video</span>
-              <span className="text-xs" style={{ color: colors.text.dim }}>Optional — MP4, MOV, etc.</span>
+              <Upload size={13} /> Add video
               <input
                 ref={fileInputRef}
                 type="file"
@@ -108,23 +112,14 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
             </label>
           )}
 
-          <textarea
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            rows={3}
-            placeholder="Add a note (optional if you're attaching a video)…"
-            className="form-input w-full resize-none"
-          />
-
-          <div className="flex justify-end">
-            <Button
-              onClick={() => uploadMut.mutate()}
-              disabled={!canSubmit}
-              loading={uploadMut.isPending}
-            >
-              {uploadMut.isPending ? 'Sharing…' : 'Share'}
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            onClick={() => uploadMut.mutate()}
+            disabled={!canSubmit}
+            loading={uploadMut.isPending}
+          >
+            {uploadMut.isPending ? 'Sharing…' : 'Share'}
+          </Button>
         </div>
       </Card>
 
