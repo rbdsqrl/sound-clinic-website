@@ -1929,7 +1929,7 @@ export default function CalendarPage() {
     <div className="flex flex-col gap-5">
 
       {/* Page header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.heading }}>Calendar</h1>
           <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
@@ -1941,8 +1941,18 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 flex-wrap">
+        {canCreateMeetings && (
+          <button
+            onClick={() => setNewMeetingOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
+            style={{ color: '#fff', background: colors.accent }}>
+            <Plus size={14} /> New meeting
+          </button>
+        )}
+      </div>
+
+      {/* Legend — its own horizontally-scrollable strip so it never wraps into a cramped block */}
+      <div className="flex items-center gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
           {canSeeInquiries && (
             <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#2B80C8' }} />
@@ -1981,15 +1991,6 @@ export default function CalendarPage() {
               Holiday
             </span>
           )}
-          {canCreateMeetings && (
-            <button
-              onClick={() => setNewMeetingOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
-              style={{ color: '#fff', background: colors.accent }}>
-              <Plus size={14} /> New meeting
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Calendar card */}

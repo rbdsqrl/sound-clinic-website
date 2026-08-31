@@ -125,14 +125,14 @@ export default function MemberProfilePage() {
       </div>
 
       <Card>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-14 w-14 rounded-full font-bold text-lg flex items-center justify-center flex-shrink-0"
               style={{ background: accentAlpha(0.10), color: colors.accent }}>
               {profile.firstName[0]}{profile.lastName[0]}
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-semibold truncate" style={{ color: colors.text.heading }}>
+              <p className="text-base sm:text-lg font-semibold truncate" style={{ color: colors.text.heading }}>
                 {profile.firstName} {profile.lastName}
               </p>
               <p className="text-sm truncate" style={{ color: colors.text.muted }}>{profile.email}</p>
@@ -141,18 +141,15 @@ export default function MemberProfilePage() {
               </p>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end sm:flex-shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
               {roleBadge(profile.role)}
               {statusBadge(profile.isActive ? 'ACTIVE' : 'INACTIVE')}
             </div>
-            {profile.clinicName && (
-              <p className="text-xs" style={{ color: colors.text.dim }}>{profile.clinicName}</p>
-            )}
             {canEdit && (
               <button
                 onClick={() => setEditOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
                 style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
@@ -162,6 +159,9 @@ export default function MemberProfilePage() {
             )}
           </div>
         </div>
+        {profile.clinicName && (
+          <p className="text-xs mt-3" style={{ color: colors.text.dim }}>{profile.clinicName}</p>
+        )}
 
         {specializationTags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">

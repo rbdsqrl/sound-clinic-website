@@ -1046,7 +1046,18 @@ export default function InquiriesPage() {
 
       {/* Filter tabs + List / Calendar toggle on same row */}
       <div className="flex items-center gap-3">
-        <div className="flex gap-1 overflow-x-auto pb-1 flex-1">
+        {/* Status filter — dropdown on mobile (pills crop there), pill row from sm up */}
+        <div className="flex-1 sm:hidden">
+          <Select
+            value={activeTab}
+            onChange={e => setActiveTab(e.target.value as InquiryStatus | 'ALL')}
+            options={TABS.map(t => ({
+              value: t.value,
+              label: `${t.label} (${t.value === 'ALL' ? all.length : (counts[t.value as InquiryStatus] ?? 0)})`,
+            }))}
+          />
+        </div>
+        <div className="hidden sm:flex gap-1 overflow-x-auto pb-1 flex-1">
           {TABS.map(t => (
             <button key={t.value} onClick={() => setActiveTab(t.value)}
               className="flex-shrink-0 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors"
@@ -1058,7 +1069,8 @@ export default function InquiriesPage() {
             </button>
           ))}
         </div>
-        <div className="flex rounded-xl overflow-hidden border flex-shrink-0"
+        {/* List / Calendar toggle — calendar view isn't useful at mobile width */}
+        <div className="hidden sm:flex rounded-xl overflow-hidden border flex-shrink-0"
           style={{ borderColor: border.divider }}>
           <button onClick={() => setPageView('list')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors"

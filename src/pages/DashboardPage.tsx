@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, UserPlus, ClipboardList, ClipboardCheck, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
+import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -1251,15 +1251,6 @@ export default function DashboardPage() {
   // ── Staff dashboard ───────────────────────────────────────────────────────
   const completedToday = todaySessions.filter(s => s.status === 'COMPLETED').length
 
-  // Quick-action links shown for owner/admin instead of empty stat cards
-  const ownerActions = [
-    { to: ROUTES.members,               icon: <UserPlus size={14} />,       label: 'Invite Staff' },
-    { to: ROUTES.patients,              icon: <Users size={14} />,          label: 'Cases' },
-    { to: ROUTES.calendar,              icon: <CalendarDays size={14} />,   label: 'Calendar' },
-    { to: ROUTES.workforceTab('leave-requests'),   icon: <ClipboardList size={14} />,  label: 'Leave Requests' },
-    { to: ROUTES.workforceTab('staff-attendance'), icon: <ClipboardCheck size={14} />, label: 'Attendance' },
-  ]
-
   return (
     <div className="space-y-6">
       {/* Compact header — name + role + date on one line */}
@@ -1283,28 +1274,11 @@ export default function DashboardPage() {
 
       <AttendanceWidget />
 
-      {isOwnerOrAdmin ? (
-        /* Quick-action strip replaces the empty stat cards */
-        <div className="flex gap-2 flex-wrap">
-          {ownerActions.map(a => (
-            <Link
-              key={a.to}
-              to={a.to}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-opacity hover:opacity-75"
-              style={{ background: accentAlpha(0.08), color: colors.accent, border: `1px solid ${accentAlpha(0.15)}` }}
-            >
-              {a.icon}
-              {a.label}
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <StatCard label="Sessions Today"   value={todaySessions.length}        icon={<CalendarDays size={22} />} color="purple" />
-          <StatCard label="Completed"        value={completedToday}              icon={<CheckCircle2 size={22} />} color="green" />
-          <StatCard label="Remaining"        value={todaySessions.filter(s => s.status === 'SCHEDULED').length} icon={<Clock size={22} />} color="blue" />
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatCard label="Sessions Today"   value={todaySessions.length}        icon={<CalendarDays size={22} />} color="purple" />
+        <StatCard label="Completed"        value={completedToday}              icon={<CheckCircle2 size={22} />} color="green" />
+        <StatCard label="Remaining"        value={todaySessions.filter(s => s.status === 'SCHEDULED').length} icon={<Clock size={22} />} color="blue" />
+      </div>
 
       {/* Uniform 2-column tile grid. Reschedule/Cancellation are on-demand alerts — they only
           take a slot when there's an active request, and lead the grid when they do. */}
