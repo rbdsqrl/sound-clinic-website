@@ -31,6 +31,10 @@ const TABS_BY_ROLE: Partial<Record<Role, { key: TabKey; label: string }[]>> = {
     { key: 'my-attendance', label: 'My Attendance' },
     { key: 'my-leave',      label: 'My Leave' },
   ],
+  OFFICE_ADMIN: [
+    { key: 'my-attendance', label: 'My Attendance' },
+    { key: 'my-leave',      label: 'My Leave' },
+  ],
   PATIENT: [
     { key: 'my-attendance', label: 'My Attendance' },
   ],

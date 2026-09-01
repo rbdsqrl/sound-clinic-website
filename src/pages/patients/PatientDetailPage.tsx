@@ -1674,62 +1674,6 @@ export default function PatientDetailPage() {
       {/* ── Overview tab ─────────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
           <div className="space-y-4">
-            <Card padding={false}>
-              <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <p className="text-sm truncate" style={{ color: colors.text.muted }}>{clinicName}</p>
-                  <span
-                    className="text-[11.5px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex-shrink-0"
-                    style={paletteStyle(STAGE_BADGE_COLOR[displayStage(patient.stage, activeEnrollments.length > 0)], 0.12, 0)}
-                  >
-                    {STAGE_LABELS[displayStage(patient.stage, activeEnrollments.length > 0)]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {canEditDetails && (
-                    <button
-                      onClick={() => {
-                        editForm.reset({
-                          firstName:   patient.firstName,
-                          lastName:    patient.lastName,
-                          dateOfBirth: patient.dateOfBirth ?? '',
-                          gender:      patient.gender ?? '',
-                          notes:       patient.notes ?? '',
-                        })
-                        setEditModal(true)
-                      }}
-                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                      style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
-                    >
-                      <Pencil size={13} /> Edit
-                    </button>
-                  )}
-                  {canChangeStage && patient.stage !== 'DISCHARGED' && (
-                    <button
-                      onClick={() => setDischargeModal(true)}
-                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                      style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
-                    >
-                      <LogOut size={13} /> Discharge Case
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={() => setDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                      style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                    >
-                      <Trash2 size={13} /> Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-            </Card>
-
             <ConcernsBanner patientId={id!} canAct={!isParentRole && !isOfficeAdmin} />
 
             <DischargeHistoryPanel patientId={id!} />
@@ -1750,6 +1694,107 @@ export default function PatientDetailPage() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Case Info */}
+              <Card>
+                <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h2 className="text-lg font-semibold" style={{ color: colors.text.primary }}>Case Info</h2>
+                    <span
+                      className="text-[11.5px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex-shrink-0"
+                      style={paletteStyle(STAGE_BADGE_COLOR[displayStage(patient.stage, activeEnrollments.length > 0)], 0.12, 0)}
+                    >
+                      {STAGE_LABELS[displayStage(patient.stage, activeEnrollments.length > 0)]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+                    {canEditDetails && (
+                      <button
+                        onClick={() => {
+                          editForm.reset({
+                            firstName:   patient.firstName,
+                            lastName:    patient.lastName,
+                            dateOfBirth: patient.dateOfBirth ?? '',
+                            gender:      patient.gender ?? '',
+                            notes:       patient.notes ?? '',
+                          })
+                          setEditModal(true)
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                      >
+                        <Pencil size={13} /> Edit
+                      </button>
+                    )}
+                    {canChangeStage && patient.stage !== 'DISCHARGED' && (
+                      <button
+                        onClick={() => setDischargeModal(true)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ color: colors.status.warning, border: `1px solid ${colors.status.warning}30` }}
+                      >
+                        <LogOut size={13} /> Discharge Case
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteConfirm(true)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ color: colors.status.error, border: `1px solid ${colors.status.error}20` }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
+                  {[
+                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                    ['Gender', patient.gender?.toLowerCase()],
+                    ['Clinic', clinicName],
+                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                  ].map(([label, value]) => (
+                    <div key={label as string}>
+                      <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
+                      <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
+                        {value || <span style={{ color: colors.text.dim }}>—</span>}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {activeEnrollments.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {activeEnrollments.map(e => (
+                      <div
+                        key={e.id}
+                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
+                        style={{ background: successAlpha(0.08), border: `1px solid ${successAlpha(0.18)}` }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 size={13} style={{ color: palette.green.text, flexShrink: 0 }} />
+                          <span className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                            {e.programName}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium flex-shrink-0" style={{ color: colors.text.muted }}>
+                          {e.sessionsCompleted}/{e.totalSessions} sessions
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {patient.notes && (
+                  <div
+                    className="mt-4 rounded-xl p-3 text-sm"
+                    style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                  >
+                    {patient.notes}
+                  </div>
+                )}
+              </Card>
+
               {/* Parents / Guardians */}
               <Card>
                 <CardHeader
@@ -1818,55 +1863,6 @@ export default function PatientDetailPage() {
                         {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
                       </div>
                     ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Patient Info */}
-              <Card>
-                <CardHeader title="Case Info" />
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
-                  {[
-                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
-                    ['Gender', patient.gender?.toLowerCase()],
-                    ['Clinic', clinicName],
-                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
-                  ].map(([label, value]) => (
-                    <div key={label as string}>
-                      <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
-                      <dd className="mt-1 text-sm capitalize" style={{ color: colors.text.primary }}>
-                        {value || <span style={{ color: colors.text.dim }}>—</span>}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                {activeEnrollments.length > 0 && (
-                  <div className="mt-4 flex flex-col gap-2">
-                    {activeEnrollments.map(e => (
-                      <div
-                        key={e.id}
-                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
-                        style={{ background: successAlpha(0.08), border: `1px solid ${successAlpha(0.18)}` }}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <CheckCircle2 size={13} style={{ color: palette.green.text, flexShrink: 0 }} />
-                          <span className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
-                            {e.programName}
-                          </span>
-                        </div>
-                        <span className="text-xs font-medium flex-shrink-0" style={{ color: colors.text.muted }}>
-                          {e.sessionsCompleted}/{e.totalSessions} sessions
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {patient.notes && (
-                  <div
-                    className="mt-4 rounded-xl p-3 text-sm"
-                    style={{ background: surface.sidebarFooter, color: colors.text.muted, border: `1px solid ${border.divider}` }}
-                  >
-                    {patient.notes}
                   </div>
                 )}
               </Card>
@@ -1948,8 +1944,7 @@ export default function PatientDetailPage() {
               </Card>
             </div>
 
-            {/* Detailed intake record is clinical documentation — out of scope for Office Admin */}
-            {!isOfficeAdmin && <CaseHistoryCard patientId={patient.id} canEdit={canEditDetails} />}
+            <CaseHistoryCard patientId={patient.id} canEdit={canEditDetails} />
         </div>
       )}
 

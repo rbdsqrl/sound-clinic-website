@@ -163,15 +163,18 @@ function TodaySessions({
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
-          #{s.sessionNumber}/{s.totalSessions}
+        <span className="text-xs hidden sm:block w-12 text-right tabular-nums flex-shrink-0" style={{ color: colors.text.dim }}>
+          {s.sessionNumber}/{s.totalSessions}
         </span>
-        <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
-          style={isOverdue(s)
-            ? { background: warningAlpha(0.14), color: colors.status.warning }
-            : isOngoing(s)
-              ? { background: accentAlpha(0.14), color: colors.accent }
-              : { background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
+        <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full text-center flex-shrink-0"
+          style={{
+            minWidth: 108,
+            ...(isOverdue(s)
+              ? { background: warningAlpha(0.14), color: colors.status.warning }
+              : isOngoing(s)
+                ? { background: accentAlpha(0.14), color: colors.accent }
+                : { background: statusColor(s.status) + '18', color: statusColor(s.status) }),
+          }}>
           {isOverdue(s) ? 'Notes overdue' : isOngoing(s) ? 'Ongoing' : sessionStatusLabel(s.status)}
         </span>
       </div>
@@ -437,7 +440,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
       {/* Reason badge + session count */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
-          #{s.sessionNumber}/{s.totalSessions}
+          {s.sessionNumber}/{s.totalSessions}
         </span>
         {rescheduleReasonBadge(s.rescheduleReason)}
       </div>
@@ -1233,7 +1236,10 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
-  const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  // Office Admin sees every session org-wide and can reschedule, same as Business
+  // Owner/Clinic Head — they just can't touch session notes/feedback, which stays
+  // gated separately by canUpdateSession below.
+  const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
   const isTherapistRole    = activeRole === 'THERAPIST'
   const canReschedule      = isOwnerOrAdmin
   const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
