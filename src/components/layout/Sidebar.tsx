@@ -167,8 +167,10 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
           </div>
         )}
 
-        {/* Logo */}
-        <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-10 w-auto flex-shrink-0 brand-logo" />
+        {/* Logo — smaller when collapsed so it fits the narrow rail without the browser
+            clamping its width (Tailwind's img max-width:100% reset) and squishing it */}
+        <img src={LOGO_SRC} alt="Simple Hearing And Speech Care"
+          className={clsx('w-auto flex-shrink-0 brand-logo', collapsed ? 'h-7' : 'h-10')} />
         {!collapsed && (
           <div className="mt-2.5 text-center">
             <div className="brand-name text-[13px]" style={{ color: colors.textLight.primary }}>
