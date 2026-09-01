@@ -138,46 +138,46 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
     >
       {/* ── Logo + collapse toggle ── */}
       <div className={clsx(
-        'flex items-center py-5 transition-all duration-300',
-        collapsed ? 'justify-center px-2' : 'justify-between px-5',
+        'relative flex flex-col items-center py-5 transition-all duration-300',
+        collapsed ? 'px-2' : 'px-5',
       )}>
-        {/* Logo */}
-        <div className={clsx('flex items-center', collapsed ? 'justify-center' : 'gap-3')}>
-          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-9 w-auto flex-shrink-0 brand-logo" />
-          {!collapsed && (
-            <div>
-              <span className="text-sm font-semibold tracking-tight leading-tight" style={{ color: colors.textLight.primary }}>
-                Simple Hearing And Speech Care
-              </span>
-              <div className="text-[10.35px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
-                Clinic Portal
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop collapse toggle */}
-        {!collapsed && onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            className="hidden lg:flex rounded-lg p-1 transition-colors flex-shrink-0"
-            style={{ color: colors.textLight.muted }}
-            aria-label="Collapse sidebar"
-          >
-            <ChevronLeft size={16} />
-          </button>
+        {/* Desktop collapse toggle + mobile close button */}
+        {!collapsed && (onToggleCollapse || onClose) && (
+          <div className="absolute top-4 right-4 flex items-center">
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                className="hidden lg:flex rounded-lg p-1 transition-colors flex-shrink-0"
+                style={{ color: colors.textLight.muted }}
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1 lg:hidden transition-colors flex-shrink-0"
+                style={{ color: colors.textLight.muted }}
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         )}
 
-        {/* Mobile close button */}
-        {!collapsed && onClose && (
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 lg:hidden transition-colors flex-shrink-0"
-            style={{ color: colors.textLight.muted }}
-            aria-label="Close menu"
-          >
-            <X size={18} />
-          </button>
+        {/* Logo */}
+        <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-10 w-auto flex-shrink-0 brand-logo" />
+        {!collapsed && (
+          <div className="mt-2.5 text-center max-w-[180px]">
+            <div className="text-[13px] font-semibold leading-snug" style={{ color: colors.textLight.primary }}>
+              Simple Hearing And Speech Care
+            </div>
+            <div className="text-[10px] tracking-widest uppercase mt-1" style={{ color: colors.accent }}>
+              Clinic Portal
+            </div>
+          </div>
         )}
       </div>
 

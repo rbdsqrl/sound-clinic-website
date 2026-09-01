@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Folder, FolderPlus, Plus, Link2, Video, Image as ImageIcon,
-  ChevronRight, Home, Pencil, Trash2, ExternalLink,
+  ChevronRight, Home, Pencil, Trash2, Paperclip,
 } from 'lucide-react'
 import { resourcesApi } from '../../api/resources'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,14 +17,16 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { ToastContainer } from '../../components/ui/Toast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha, dangerAlpha, styles } from '../../theme'
+import { colors, border, surface, accentAlpha, styles, paletteStyle, type PaletteKey } from '../../theme'
 import type { ResourceResponse, ResourceType, ResourceFolderResponse } from '../../types'
 
-const TYPE_META: Record<ResourceType, { icon: typeof Link2; label: string }> = {
-  LINK:  { icon: Link2,    label: 'Link' },
-  VIDEO: { icon: Video,    label: 'Video' },
-  IMAGE: { icon: ImageIcon, label: 'Image' },
+const TYPE_META: Record<ResourceType, { icon: typeof Link2; label: string; color: PaletteKey }> = {
+  LINK:  { icon: Link2,     label: 'Link',  color: 'pink' },
+  VIDEO: { icon: Video,     label: 'Video', color: 'amber' },
+  IMAGE: { icon: ImageIcon, label: 'Image', color: 'blue' },
 }
+
+const gridCardStyle = 'rounded-2xl p-4 flex items-center gap-3 cursor-pointer transition-colors'
 
 export default function ResourcesPage() {
   const { activeRole, user } = useAuth()
@@ -134,99 +136,89 @@ export default function ResourcesPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-4">
-          {subfolders.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {subfolders.map(f => (
-                <div
-                  key={f.id}
-                  onClick={() => openFolder(f.id)}
-                  role="button"
-                  tabIndex={0}
-                  className="rounded-2xl p-4 flex items-center gap-3 cursor-pointer transition-colors"
-                  style={styles.card}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {subfolders.map(f => (
+            <div
+              key={f.id}
+              onClick={() => openFolder(f.id)}
+              role="button"
+              tabIndex={0}
+              className={gridCardStyle}
+              style={styles.card}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+            >
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
+                <Folder size={17} style={{ color: colors.accent }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                  {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
+                  {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
+                  {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              {canManage && (
+                <button
+                  onClick={e => { e.stopPropagation(); setDeleteFolderTarget(f) }}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0"
+                  style={{ color: colors.text.dim }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
                 >
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
-                    <Folder size={17} style={{ color: colors.accent }} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                      {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
-                      {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
-                      {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
-                    </p>
-                  </div>
-                  {canManage && (
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {resources.map(r => {
+            const meta = TYPE_META[r.type]
+            const Icon = meta.icon
+            return (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={gridCardStyle}
+                style={styles.card}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+              >
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={paletteStyle(meta.color, 0.14, 0)}>
+                  <Icon size={17} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{r.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{meta.label}</p>
+                </div>
+                {canManage && (
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.preventDefault()}>
                     <button
-                      onClick={e => { e.stopPropagation(); setDeleteFolderTarget(f) }}
-                      className="p-2 rounded-lg transition-colors flex-shrink-0"
+                      onClick={() => setResourceModal({ mode: 'edit', resource: r })}
+                      className="p-2 rounded-lg transition-colors"
+                      style={{ color: colors.text.dim }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteResourceTarget(r)}
+                      className="p-2 rounded-lg transition-colors"
                       style={{ color: colors.text.dim }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {resources.length > 0 && (
-            <Card padding={false}>
-              <div className="divide-subtle px-4">
-                {resources.map(r => {
-                  const meta = TYPE_META[r.type]
-                  const Icon = meta.icon
-                  return (
-                    <a
-                      key={r.id}
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 py-3 transition-colors -mx-4 px-4"
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                    >
-                      <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.08) }}>
-                        <Icon size={15} style={{ color: colors.accent }} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{r.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>{meta.label}</p>
-                      </div>
-                      <ExternalLink size={13} style={{ color: colors.text.dim, flexShrink: 0 }} />
-                      {canManage && (
-                        <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.preventDefault()}>
-                          <button
-                            onClick={() => setResourceModal({ mode: 'edit', resource: r })}
-                            className="p-2 rounded-lg transition-colors"
-                            style={{ color: colors.text.dim }}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteResourceTarget(r)}
-                            className="p-2 rounded-lg transition-colors"
-                            style={{ color: colors.text.dim }}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </a>
-                  )
-                })}
-              </div>
-            </Card>
-          )}
+                  </div>
+                )}
+              </a>
+            )
+          })}
         </div>
       )}
 
@@ -339,6 +331,12 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({})
   const { toast } = useToast()
 
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => resourcesApi.uploadFile(file),
+    onSuccess: (uploadedUrl) => setUrl(uploadedUrl),
+    onError: (err) => toast(getApiError(err, 'Failed to upload file'), 'error'),
+  })
+
   const mut = useMutation({
     mutationFn: () => existing
       ? resourcesApi.update(existing.id, { name: name.trim(), type, url: url.trim() })
@@ -363,9 +361,26 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
         <Select label="Type" value={type} onChange={e => setType(e.target.value as ResourceType)} options={TYPE_OPTIONS} />
         <Input label="URL" value={url} onChange={e => setUrl(e.target.value)}
           placeholder="https://drive.google.com/..." error={errors.url} />
-        <p className="text-xs" style={{ color: colors.text.dim }}>
-          Opens in a new tab — Google Drive, YouTube, or any direct link works.
-        </p>
+        <div>
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border cursor-pointer transition-all"
+            style={{ color: colors.text.muted, border: `1px solid ${border.card}` }}>
+            <Paperclip size={12} />
+            {uploadMut.isPending ? 'Uploading…' : 'Upload a file instead'}
+            <input
+              type="file"
+              className="hidden"
+              disabled={uploadMut.isPending}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) uploadMut.mutate(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+          <p className="text-xs mt-2" style={{ color: colors.text.dim }}>
+            Opens in a new tab — paste a Google Drive/YouTube/direct link above, or upload any file (image, video, PDF, doc) directly.
+          </p>
+        </div>
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>

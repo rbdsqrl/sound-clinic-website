@@ -33,4 +33,13 @@ export const resourcesApi = {
 
   delete: (id: string) =>
     client.delete(`/resources/${id}`),
+
+  /** Upload a file and get back a URL to use as a resource's URL — any file type. */
+  uploadFile: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return client
+      .post<ApiResponse<{ url: string }>>('/resources/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then(r => r.data.data.url)
+  },
 }
