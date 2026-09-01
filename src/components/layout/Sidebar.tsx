@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
-  ChevronLeft, ChevronRight, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper,
+  ChevronLeft, ChevronRight, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -23,6 +23,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Cases',        icon: Users },
     { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
+    { to: ROUTES.resources,    label: 'Resources',    icon: Library },
     { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
@@ -36,6 +37,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,     label: 'Cases',        icon: Users },
     { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
+    { to: ROUTES.resources,    label: 'Resources',    icon: Library },
     { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
@@ -48,6 +50,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
     { to: ROUTES.patients,  label: 'Cases',     icon: Users },
     { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
+    { to: ROUTES.resources,  label: 'Resources', icon: Library },
     { to: ROUTES.tasks,     label: 'My Tasks',  icon: ListTodo },
     { to: ROUTES.calendar,  label: 'Calendar',  icon: CalendarDays },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
@@ -57,6 +60,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
     { to: ROUTES.clinics,   label: 'Clinics',   icon: Stethoscope },
     { to: ROUTES.patients,  label: 'Cases',     icon: Users },
+    { to: ROUTES.resources, label: 'Resources', icon: Library },
     { to: ROUTES.tasks,     label: 'My Tasks',  icon: ListTodo },
     { to: ROUTES.calendar,  label: 'Calendar',  icon: CalendarDays },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
@@ -67,6 +71,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.inquiries,  label: 'Inquiries',  icon: Inbox },
     { to: ROUTES.patients,   label: 'Cases',      icon: Users },
     { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
+    { to: ROUTES.resources,  label: 'Resources',  icon: Library },
     { to: ROUTES.analytics,  label: 'Analytics',  icon: TrendingUp },
     { to: ROUTES.tasks,      label: 'Tasks',      icon: ListTodo },
     { to: ROUTES.calendar,   label: 'Calendar',   icon: CalendarDays },
@@ -77,12 +82,14 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },
     { to: ROUTES.feed,       label: 'Feed',        icon: Newspaper },
     { to: ROUTES.myChildren, label: 'My Children', icon: Baby },
+    { to: ROUTES.resources,  label: 'Resources',   icon: Library },
     { to: ROUTES.analytics,  label: 'Progress',    icon: TrendingUp },
     { to: ROUTES.calendar,   label: 'Calendar',    icon: CalendarDays },
   ],
   PATIENT: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
     { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
+    { to: ROUTES.resources, label: 'Resources', icon: Library },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
 }

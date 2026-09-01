@@ -1928,3 +1928,50 @@ export interface PatientAssessmentResponse {
   maxScore: number
   classification: string | null
 }
+
+// ── Resources (external activities/worksheets library) ────────────────────────
+
+export type ResourceType = 'LINK' | 'VIDEO' | 'IMAGE'
+
+export interface ResourceFolderResponse {
+  id: string
+  parentFolderId: string | null
+  name: string
+  subfolderCount: number
+  resourceCount: number
+  createdAt: string
+}
+
+export interface ResourceResponse {
+  id: string
+  folderId: string | null
+  name: string
+  type: ResourceType
+  url: string
+  createdAt: string
+}
+
+export interface ResourceFolderContentsResponse {
+  folder: ResourceFolderResponse | null
+  breadcrumb: ResourceFolderResponse[]
+  subfolders: ResourceFolderResponse[]
+  resources: ResourceResponse[]
+}
+
+export interface CreateResourceFolderRequest {
+  name: string
+  parentFolderId?: string
+}
+
+export interface CreateResourceRequest {
+  name: string
+  type: ResourceType
+  url: string
+  folderId?: string
+}
+
+export interface UpdateResourceRequest {
+  name: string
+  type: ResourceType
+  url: string
+}

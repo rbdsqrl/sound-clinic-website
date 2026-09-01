@@ -25,6 +25,7 @@ export const ROUTES = {
   analytics:          '/analytics',
   activities:         '/activities',
   activity:           (id: string) => `/activities/${id}`,
+  resources:          '/resources',
   createActivity:     '/activities/new',
   editActivity:       (id: string) => `/activities/${id}/edit`,
 } as const
