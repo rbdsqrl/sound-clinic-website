@@ -43,7 +43,7 @@ export default function ActivityDetailPage() {
 
   const { data: patients = [] } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
   const { data: staff = [] } = useQuery({ queryKey: ['assignable'], queryFn: () => usersApi.listAssignable() })
-  const therapists = staff.filter((u) => u.role === 'THERAPIST' || u.role === 'DOCTOR')
+  const therapists = staff.filter((u) => u.role === 'THERAPIST')
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<AssignActivityRequest>()
 

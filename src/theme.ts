@@ -85,7 +85,6 @@ export const colors = {
     BUSINESS_OWNER: '#E0A840',   // warm amber
     CLINIC_HEAD:    '#D96060',   // coral-red
     THERAPIST:      '#9864DC',   // soft purple
-    DOCTOR:         '#2B80C8',   // blue (matches accent)
     PARENT:         '#DC64A0',   // soft pink
     PATIENT:        '#6B8499',   // slate
     OFFICE_ADMIN:   '#5C6FD8',   // indigo

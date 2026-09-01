@@ -155,6 +155,7 @@ export default function PatientsPage() {
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
   const isOfficeAdmin = currentRole === 'OFFICE_ADMIN'
+  const canAddCase = currentRole !== 'THERAPIST'
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
 
@@ -269,9 +270,11 @@ export default function PatientsPage() {
             />
           </div>
 
-          <Button onClick={() => setShowModal(true)}>
-            <Plus size={15} /> Add Case
-          </Button>
+          {canAddCase && (
+            <Button onClick={() => setShowModal(true)}>
+              <Plus size={15} /> Add Case
+            </Button>
+          )}
         </div>
       </div>
 
@@ -302,7 +305,7 @@ export default function PatientsPage() {
           icon={<Users size={32} />}
           title="No cases match your filters"
           description="Try adjusting the filters above or add a new case."
-          action={{ label: 'Add Case', onClick: () => setShowModal(true) }}
+          action={canAddCase ? { label: 'Add Case', onClick: () => setShowModal(true) } : undefined}
         />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -135,7 +135,7 @@ src/
     │
     ├── leave/
     │   ├── LeaveManagementPage.tsx  # BUSINESS_OWNER/CLINIC_HEAD: review + approve/reject leave requests
-    │   └── MyLeavePage.tsx          # THERAPIST/DOCTOR: apply + view own leave requests
+    │   └── MyLeavePage.tsx          # THERAPIST: apply + view own leave requests
     │
     ├── patients/
     │   ├── MyChildrenPage.tsx       # PARENT role: their linked children
@@ -147,7 +147,7 @@ src/
     │   └── ProgramsPage.tsx         # Manage programs
     │
     └── therapists/
-        └── TherapistsPage.tsx       # List therapists/doctors; filter by clinic + search
+        └── TherapistsPage.tsx       # List therapists; filter by clinic + search
 ```
 
 ---
@@ -188,7 +188,7 @@ src/
 BUSINESS_OWNER / CLINIC_HEAD:
   Dashboard, Inquiries, Organisation, Clinics, Therapists, Patients, Programs, Calendar, Leave Requests, Add Members
 
-THERAPIST / DOCTOR:
+THERAPIST:
   Dashboard, Clinics, Patients, Calendar, My Leave
 
 PARENT:

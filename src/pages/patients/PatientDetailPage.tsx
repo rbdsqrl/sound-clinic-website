@@ -1423,14 +1423,11 @@ export default function PatientDetailPage() {
   const currentRoleEarly = activeRole ?? user?.role
   const isParentRole = currentRoleEarly === 'PARENT'
 
-  // DOCTOR isn't part of the shared-media/notes feature — every other role sees the tab.
   // OFFICE_ADMIN runs onboarding/scheduling, not clinical documentation — only the
   // administrative/operational tabs are shown; IEP, per-case Activities, Assessments,
   // Baseline Report and Media & Notes stay hidden (they have no backend access to them).
   const visibleTabs: Tab[] = currentRoleEarly === 'OFFICE_ADMIN'
     ? TABS.filter(t => t === 'Overview' || t === 'Therapy')
-    : currentRoleEarly === 'DOCTOR'
-    ? TABS.filter(t => t !== 'Media & Notes')
     : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
@@ -1589,7 +1586,7 @@ export default function PatientDetailPage() {
   const currentRole = currentRoleEarly
   const isParent            = isParentRole
   const isOfficeAdmin       = currentRole === 'OFFICE_ADMIN'
-  const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'DOCTOR', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
@@ -1812,7 +1809,7 @@ export default function PatientDetailPage() {
                 <CardHeader
                   title="Parents / Guardians"
                   subtitle={`${patient.parents.length} linked`}
-                  action={<Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button>}
+                  action={canEditDetails ? <Button size="sm" onClick={() => setParentModal(true)}><Plus size={14} /> Link</Button> : undefined}
                 />
                 {!patient.parents.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No parents linked.</p>
@@ -1847,7 +1844,7 @@ export default function PatientDetailPage() {
                 <CardHeader
                   title="Assigned Therapists"
                   subtitle={`${patient.therapists.length} assigned`}
-                  action={<Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button>}
+                  action={canEditDetails ? <Button size="sm" onClick={() => setTherapistModal(true)}><Plus size={14} /> Assign</Button> : undefined}
                 />
                 {!patient.therapists.length ? (
                   <p className="text-sm" style={{ color: colors.text.dim }}>No therapists assigned.</p>
@@ -2292,9 +2289,7 @@ export default function PatientDetailPage() {
                             currentUserId={user?.id ?? ''}
                             canSchedule={canCreateEnrollment}
                             canSeeFeedback={canSeeReviewFeedback}
-                            canGiveTherapistFeedback={
-                              currentRole === 'THERAPIST' || currentRole === 'DOCTOR'
-                            }
+                            canGiveTherapistFeedback={currentRole === 'THERAPIST'}
                             isParent={isParent}
                           />
                         </div>
@@ -2702,7 +2697,7 @@ function ChangeTherapistModal({
     .filter((t: UserResponse) => t.id !== enrollment.therapistId)
     .map((t: UserResponse) => ({
       value: t.id,
-      label: `${t.firstName} ${t.lastName}${t.role === 'DOCTOR' ? ' (Doctor)' : ''}`,
+      label: `${t.firstName} ${t.lastName}`,
     }))
 
   const mut = useMutation({

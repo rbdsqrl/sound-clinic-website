@@ -1581,7 +1581,7 @@ export default function CalendarPage() {
   const canSeeLeaves     = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT')
   const canSeeSessions   = !!user && !hasRole(user, 'PATIENT')
   const canUpdateSession = !!user && (
-    hasRole(user, 'THERAPIST') || hasRole(user, 'DOCTOR') ||
+    hasRole(user, 'THERAPIST') ||
     hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER')
   )
   const canHandleOutcomes = canSeeInquiries
@@ -1589,6 +1589,9 @@ export default function CalendarPage() {
   // Parents and patients attend meetings but never schedule them. Office Admin schedules
   // therapy sessions/review meetings, not general staff Meetings — kept out deliberately.
   const canCreateMeetings = !!user && !hasRole(user, 'PARENT') && !hasRole(user, 'PATIENT') && !hasRole(user, 'OFFICE_ADMIN')
+  // Scheduling a brand-new meeting (vs. cancelling one you're already in, which
+  // canCreateMeetings above still allows) is a front-desk/management action.
+  const canAddMeeting = !!user && canCreateMeetings && !hasRole(user, 'THERAPIST')
   // Booking from the calendar is a front-desk action; clinical staff read the grid.
   const canBookSlots = !!user && (
     hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN')
@@ -1850,7 +1853,7 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        {canCreateMeetings && (
+        {canAddMeeting && (
           <button
             onClick={() => setNewMeetingOpen(true)}
             className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
@@ -2096,7 +2099,7 @@ export default function CalendarPage() {
           slot={slotSelection}
           onClose={() => setSlotSelection(null)}
           onPick={(what, tuned) => { setSlotSelection(tuned); setSlotChoice(what) }}
-          canCreateMeetings={canCreateMeetings}
+          canCreateMeetings={canAddMeeting}
         />
       )}
 

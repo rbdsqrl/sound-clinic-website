@@ -2,7 +2,7 @@ import client from './client'
 import type { ApiResponse, LeaveResponse, CreateLeaveRequest, ReviewLeaveRequest, LeaveStatus } from '../types'
 
 export const leavesApi = {
-  /** Apply for leave (THERAPIST / DOCTOR) */
+  /** Apply for leave (THERAPIST) */
   apply: (data: CreateLeaveRequest) =>
     client.post<ApiResponse<LeaveResponse>>('/leaves', data).then(r => r.data.data),
 
@@ -20,7 +20,7 @@ export const leavesApi = {
   review: (id: string, data: ReviewLeaveRequest) =>
     client.patch<ApiResponse<LeaveResponse>>(`/leaves/${id}/review`, data).then(r => r.data.data),
 
-  /** Cancel own pending leave (THERAPIST / DOCTOR) */
+  /** Cancel own pending leave (THERAPIST) */
   cancel: (id: string) =>
     client.delete(`/leaves/${id}`),
 }

@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
     enabled: tab === 'schedule',
   })
   const scheduleTherapistOptions = (scheduleStaffQuery.data ?? []).filter(
-    u => u.role === 'THERAPIST' || u.role === 'DOCTOR'
+    u => u.role === 'THERAPIST'
   )
   const scheduleProgramsQuery = useQuery({
     queryKey: ['programs'],
@@ -549,7 +549,7 @@ export default function AnalyticsPage() {
       {tab === 'members' && (
         <Panel
           title="Members"
-          subtitle="Every therapist/doctor — cases and activities assigned, activities created, cancellations and IEP plans for the selected window"
+          subtitle="Every therapist — cases and activities assigned, activities created, cancellations and IEP plans for the selected window"
         >
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <div className="relative min-w-[220px] flex-1 max-w-sm">
@@ -585,7 +585,7 @@ export default function AnalyticsPage() {
             <Loading />
           ) : filteredMembers.length === 0 ? (
             <p className="py-8 text-center text-sm" style={{ color: colors.text.dim }}>
-              {membersQuery.data?.length ? 'No members match your search.' : 'No therapists or doctors yet.'}
+              {membersQuery.data?.length ? 'No members match your search.' : 'No therapists yet.'}
             </p>
           ) : (
             <div className="overflow-x-auto">

@@ -719,7 +719,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
               <EmptyState
                 icon={<XCircle size={22} />}
                 title="No cancellation requests"
-                description="Requests from therapists or doctors to cancel a session will show up here for approval."
+                description="Requests from therapists to cancel a session will show up here for approval."
               />
             </div>
           ) : (
@@ -863,7 +863,7 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
   )
 }
 
-// ── Session update modal (therapist / doctor dashboard shortcut) ───────────────
+// ── Session update modal (therapist dashboard shortcut) ───────────────
 
 function SessionUpdateModal({
   session,
@@ -1242,8 +1242,8 @@ export default function DashboardPage() {
   const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
   const isTherapistRole    = activeRole === 'THERAPIST'
   const canReschedule      = isOwnerOrAdmin
-  const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
-  const canUpdateSession   = activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
+  const isStaff            = isOwnerOrAdmin || isTherapistRole
+  const canUpdateSession   = isTherapistRole
 
   const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
 

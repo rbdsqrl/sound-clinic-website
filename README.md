@@ -142,13 +142,13 @@ When `true`, the app injects a hardcoded dev user (role: `BUSINESS_OWNER`) and s
 | `/organisation` | Org settings | BUSINESS_OWNER, ADMIN |
 | `/clinics` | Clinic list | All |
 | `/clinics/:id` | Clinic detail | All |
-| `/patients` | Patient list | BUSINESS_OWNER, ADMIN, THERAPIST, DOCTOR |
-| `/patients/:id` | Patient detail | BUSINESS_OWNER, ADMIN, THERAPIST, DOCTOR |
+| `/patients` | Patient list | BUSINESS_OWNER, ADMIN, THERAPIST|
+| `/patients/:id` | Patient detail | BUSINESS_OWNER, ADMIN, THERAPIST|
 | `/my-children` | Linked children | PARENT |
 | `/therapists` | Therapist directory | BUSINESS_OWNER, ADMIN |
 | `/appointments` | Appointment list | All |
 | `/appointments/book` | Book appointment | PARENT, BUSINESS_OWNER |
-| `/my-leave` | Apply for leave | THERAPIST, DOCTOR |
+| `/my-leave` | Apply for leave | THERAPIST|
 | `/leave-management` | Review leave requests | BUSINESS_OWNER, ADMIN |
 | `/invitations` | Staff invitations | BUSINESS_OWNER, ADMIN |
 | `/login` | Login | Public |

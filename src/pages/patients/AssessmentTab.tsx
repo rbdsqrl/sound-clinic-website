@@ -29,7 +29,7 @@ const CLASSIFICATION_COLOR: Record<string, PaletteKey> = {
   'High Risk': 'red',
 }
 
-const CAN_FILL_ROLES = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST', 'DOCTOR']
+const CAN_FILL_ROLES = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST']
 
 export default function AssessmentTab({
   patientId, type, title, description,

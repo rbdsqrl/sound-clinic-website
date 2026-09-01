@@ -233,7 +233,7 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
             <option value="">Select therapist…</option>
             {therapists.map(t => (
               <option key={t.id} value={t.id}>
-                {t.firstName} {t.lastName}{t.role === 'DOCTOR' ? ' (Doctor)' : ''}
+                {t.firstName} {t.lastName}
               </option>
             ))}
           </select>

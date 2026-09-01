@@ -14,6 +14,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function ClinicDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +22,8 @@ export default function ClinicDetailPage() {
   const [showMapPicker, setShowMapPicker] = useState(false)
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
+  const { user, activeRole } = useAuth()
+  const canEditClinic = (activeRole ?? user?.role) !== 'THERAPIST'
 
   const { data: clinic, isLoading } = useQuery({
     queryKey: ['clinics', id],
@@ -79,7 +82,7 @@ export default function ClinicDetailPage() {
       <Card>
         <CardHeader
           title="Details"
-          action={!editing ? (
+          action={!editing && canEditClinic ? (
             <Button variant="secondary" size="sm" onClick={startEdit}><Pencil size={14} /> Edit</Button>
           ) : undefined}
         />

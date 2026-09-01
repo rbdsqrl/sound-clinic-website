@@ -34,7 +34,6 @@ colors.role = {
   BUSINESS_OWNER: '#E0A840',  // amber
   OFFICE_ADMIN:   '#2B80C8',  // blue
   THERAPIST:      '#9864DC',  // purple
-  DOCTOR:         '#2B80C8',  // blue
   PARENT:         '#DC64A0',  // pink
   ADMIN:          '#D96060',  // coral-red
   PATIENT:        '#6B8499',  // slate

@@ -955,7 +955,7 @@ export default function InquiriesPage() {
   const navigate = useNavigate()
   const { user }  = useAuth()
 
-  const canHandleOutcomes = user && ['BUSINESS_OWNER', 'DOCTOR'].includes(user.role)
+  const canHandleOutcomes = user && ['BUSINESS_OWNER'].includes(user.role)
   // Routes are not role-guarded, so gate the action rather than relying on the
   // sidebar to keep other roles off this page.
   const canAddInquiry = !!user &&

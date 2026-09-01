@@ -116,7 +116,7 @@ export const analyticsApi = {
       .get<ApiResponse<CaseSummaryResponse[]>>('/analytics/cases', { params: { from, to } })
       .then(r => r.data.data),
 
-  /** One row per therapist/doctor — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
+  /** One row per therapist — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
   members: (from: string, to: string) =>
     client
       .get<ApiResponse<MemberSummaryResponse[]>>('/analytics/members', { params: { from, to } })

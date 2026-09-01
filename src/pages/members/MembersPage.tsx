@@ -48,21 +48,18 @@ const ROLE_LABELS: Partial<Record<Role, string>> = {
   BUSINESS_OWNER: 'Business Owner',
   CLINIC_HEAD:    'Clinic Head',
   THERAPIST:      'Therapist',
-  DOCTOR:         'Doctor',
   OFFICE_ADMIN:   'Office Admin',
 }
 
 const STAFF_ROLES: { value: string; label: string }[] = [
   { value: 'CLINIC_HEAD',   label: 'Clinic Head' },
   { value: 'THERAPIST',     label: 'Therapist' },
-  { value: 'DOCTOR',        label: 'Doctor' },
   { value: 'OFFICE_ADMIN',  label: 'Office Admin' },
 ]
 
 // Parents (and patients) are invited from the patient's own page, not here.
 export const INVITABLE_ROLES: { value: Role; label: string }[] = [
   { value: 'CLINIC_HEAD',    label: 'Clinic Head' },
-  { value: 'DOCTOR',         label: 'Doctor' },
   { value: 'THERAPIST',      label: 'Therapist' },
   { value: 'OFFICE_ADMIN',   label: 'Office Admin' },
   { value: 'BUSINESS_OWNER', label: 'Business Owner' },
@@ -130,7 +127,7 @@ function MemberCard({
 }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
-  const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
+  const isClinical = member.role === 'THERAPIST'
 
   return (
     <div
@@ -251,7 +248,7 @@ function MemberRow({
 }) {
   const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
-  const isClinical = member.role === 'THERAPIST' || member.role === 'DOCTOR'
+  const isClinical = member.role === 'THERAPIST'
 
   return (
     <tr onClick={onSelect} className="border-b cursor-pointer transition-colors" style={{ borderColor: border.divider }}>
@@ -344,9 +341,6 @@ export default function MembersPage() {
   const { user, activeRole } = useAuth()
   const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
   const isOfficeAdmin = (activeRole ?? user?.role) === 'OFFICE_ADMIN'
-  // Office Admin can invite and browse, but withdrawing/resending an invite is
-  // an ownership-level action — same boundary as delete/activate/reinvite below.
-  const canManageInvites = !isOfficeAdmin
   // Office Admin can invite front-line staff, but not org leadership.
   const invitableRoles = isOfficeAdmin
     ? INVITABLE_ROLES.filter(r => r.value !== 'BUSINESS_OWNER' && r.value !== 'CLINIC_HEAD')
@@ -387,7 +381,7 @@ export default function MembersPage() {
   // ── Invite form ───────────────────────────────────────────────────────────────
   const { register, handleSubmit, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm<InviteRequest>()
   const selectedRole = watch('role') as Role | undefined
-  const needsClinic  = selectedRole === 'THERAPIST' || selectedRole === 'DOCTOR' || selectedRole === 'PARENT'
+  const needsClinic  = selectedRole === 'THERAPIST' || selectedRole === 'PARENT'
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const inviteMut = useMutation({
@@ -646,7 +640,7 @@ export default function MembersPage() {
                           <Link2 size={12} /> View link
                         </button>
                       )}
-                      {canManageInvites && canWithdraw(inv.status) && (
+                      {canWithdraw(inv.status) && (
                         <>
                           <button
                             onClick={() => resendMut.mutate(inv.id)}
@@ -700,7 +694,7 @@ export default function MembersPage() {
                               <Link2 size={13} /> View link
                             </button>
                           )}
-                          {canManageInvites && canWithdraw(inv.status) ? (
+                          {canWithdraw(inv.status) ? (
                             <>
                               <button
                                 onClick={() => resendMut.mutate(inv.id)}
@@ -770,7 +764,6 @@ export default function MembersPage() {
           <p className="text-xs text-center" style={{ color: colors.text.dim }}>
             {shownMembers.length} of {(tab === 'archived' ? archivedMembers : activeMembers).length} member{shownMembers.length !== 1 ? 's' : ''}
             {shownMembers.filter(m => m.role === 'THERAPIST').length > 0 && ` · ${shownMembers.filter(m => m.role === 'THERAPIST').length} therapist${shownMembers.filter(m => m.role === 'THERAPIST').length !== 1 ? 's' : ''}`}
-            {shownMembers.filter(m => m.role === 'DOCTOR').length > 0    && ` · ${shownMembers.filter(m => m.role === 'DOCTOR').length} doctor${shownMembers.filter(m => m.role === 'DOCTOR').length !== 1 ? 's' : ''}`}
           </p>
         )}
       </div>

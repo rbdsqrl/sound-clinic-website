@@ -6,7 +6,7 @@ export const usersApi = {
     client.get<ApiResponse<UserResponse>>('/users/me').then((r) => r.data.data),
 
   /**
-   * All THERAPIST and DOCTOR users in the org.
+   * All THERAPIST users in the org.
    * Pass clinicId to scope to a single clinic.
    * Only callable by BUSINESS_OWNER / CLINIC_HEAD.
    */

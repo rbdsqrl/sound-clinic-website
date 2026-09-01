@@ -17,6 +17,7 @@ import { getApiError } from '../../lib/apiError'
 import { TIMEZONES } from '../../lib/timezones'
 import { colors, border, surface, styles, accentAlpha } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
+import { useAuth } from '../../contexts/AuthContext'
 
 const TIMEZONE_GROUPS = Array.from(
   TIMEZONES.reduce((map, tz) => {
@@ -31,6 +32,8 @@ export default function ClinicsPage() {
   const [showModal, setShowModal] = useState(false)
   const { toasts, toast, dismiss } = useToast()
   const queryClient = useQueryClient()
+  const { user, activeRole } = useAuth()
+  const canCreateClinic = (activeRole ?? user?.role) !== 'THERAPIST'
 
   const { data: clinics, isLoading } = useQuery({
     queryKey: ['clinics'],
@@ -63,9 +66,11 @@ export default function ClinicsPage() {
             {clinics?.length ?? 0} clinic{clinics?.length !== 1 ? 's' : ''} in your organisation
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={16} /> New Clinic
-        </Button>
+        {canCreateClinic && (
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={16} /> New Clinic
+          </Button>
+        )}
       </div>
 
       {!clinics?.length ? (
@@ -74,7 +79,7 @@ export default function ClinicsPage() {
             icon={<Building2 size={32} />}
             title="No clinics yet"
             description="Create your first clinic to start managing cases and therapists."
-            action={{ label: 'Create clinic', onClick: () => setShowModal(true) }}
+            action={canCreateClinic ? { label: 'Create clinic', onClick: () => setShowModal(true) } : undefined}
           />
         </Card>
       ) : (
