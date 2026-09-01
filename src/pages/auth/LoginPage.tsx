@@ -43,9 +43,9 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="mb-10 flex flex-col items-center">
-          <img src={LOGO_SRC} alt="SimpleHearing" className="h-20 w-auto mb-5 brand-logo" />
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: colors.text.heading }}>
-            SimpleHearing
+          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-20 w-auto mb-5 brand-logo" />
+          <h1 className="text-2xl font-bold tracking-tight text-center" style={{ color: colors.text.heading }}>
+            Simple Hearing And Speech Care
           </h1>
           <p className="mt-1.5 text-xs font-medium tracking-widest uppercase" style={{ color: colors.accent, letterSpacing: '0.2em' }}>
             Clinic Management Portal

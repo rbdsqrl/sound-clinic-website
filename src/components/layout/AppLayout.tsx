@@ -68,9 +68,9 @@ export default function AppLayout() {
           </button>
 
           <div className="flex items-center gap-2">
-            <img src={LOGO_SRC} alt="SimpleHearing" className="h-8 w-auto brand-logo" />
+            <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-8 w-auto brand-logo" />
             <span className="text-sm font-semibold" style={{ color: colors.textLight.primary }}>
-              SimpleHearing
+              Simple Hearing And Speech Care
             </span>
           </div>
         </header>

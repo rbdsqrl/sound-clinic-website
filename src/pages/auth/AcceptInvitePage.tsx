@@ -119,7 +119,7 @@ export default function AcceptInvitePage() {
 
         {/* Logo + heading */}
         <div className="mb-8 flex flex-col items-center">
-          <img src={LOGO_SRC} alt="SimpleHearing" className="h-16 w-auto mb-4 brand-logo" />
+          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-16 w-auto mb-4 brand-logo" />
           <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Set up your account</h1>
           <p className="mt-1 text-sm text-center" style={{ color: colors.text.muted }}>
             You've been invited to join <strong style={{ color: colors.text.primary }}>{preview.orgName}</strong> as{' '}

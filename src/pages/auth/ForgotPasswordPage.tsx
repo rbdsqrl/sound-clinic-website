@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
 
         <div className="mb-8 flex flex-col items-center">
-          <img src={LOGO_SRC} alt="SimpleHearing" className="h-16 w-auto mb-4 brand-logo" />
+          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-16 w-auto mb-4 brand-logo" />
           <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Forgot your password?</h1>
           <p className="mt-1.5 text-sm text-center" style={{ color: colors.text.muted }}>
             Enter your registered email and we'll send you a link to set a new one.

@@ -143,11 +143,11 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
       )}>
         {/* Logo */}
         <div className={clsx('flex items-center', collapsed ? 'justify-center' : 'gap-3')}>
-          <img src={LOGO_SRC} alt="SimpleHearing" className="h-9 w-auto flex-shrink-0 brand-logo" />
+          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-9 w-auto flex-shrink-0 brand-logo" />
           {!collapsed && (
             <div>
-              <span className="text-sm font-semibold tracking-tight" style={{ color: colors.textLight.primary }}>
-                SimpleHearing
+              <span className="text-sm font-semibold tracking-tight leading-tight" style={{ color: colors.textLight.primary }}>
+                Simple Hearing And Speech Care
               </span>
               <div className="text-[10.35px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
                 Clinic Portal

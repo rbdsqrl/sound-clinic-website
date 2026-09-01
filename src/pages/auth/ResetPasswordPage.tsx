@@ -120,7 +120,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md">
 
         <div className="mb-8 flex flex-col items-center">
-          <img src={LOGO_SRC} alt="SimpleHearing" className="h-16 w-auto mb-4 brand-logo" />
+          <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-16 w-auto mb-4 brand-logo" />
           <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Set a new password</h1>
           <p className="mt-1.5 text-sm text-center" style={{ color: colors.text.muted }}>
             Choose a new password for your account.
