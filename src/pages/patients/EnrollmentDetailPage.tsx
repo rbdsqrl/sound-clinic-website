@@ -42,6 +42,7 @@ export default function EnrollmentDetailPage() {
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
   const canUpdateSession = ['THERAPIST', 'DOCTOR', 'CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canRescheduleSession = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
 
   const [notesState, setNotesState] = useState<{ session: TherapySessionResponse; canEdit: boolean } | null>(null)
   const [editingCareStatus, setEditingCareStatus] = useState(false)
@@ -295,6 +296,7 @@ export default function EnrollmentDetailPage() {
         <SessionList
           enrollmentId={enrollment.id}
           canUpdate={canUpdate}
+          canReschedule={canRescheduleSession}
           onOpenNotes={(s) => setNotesState({ session: s, canEdit: canUpdate })}
         />
       </Card>

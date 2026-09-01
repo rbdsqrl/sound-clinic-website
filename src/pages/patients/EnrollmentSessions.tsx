@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight,
+  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
+import { usersApi } from '../../api/users'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
 import { StarRating } from './ReviewMeetings'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
-import { isPastDateTime } from '../../lib/schedule'
-import { format } from 'date-fns'
-import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput } from '../../types'
+import { isPastDateTime, todayStr } from '../../lib/schedule'
+import { format, parseISO } from 'date-fns'
+import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
@@ -107,14 +110,20 @@ const SESSION_PREVIEW = 5
 export function SessionList({
   enrollmentId,
   canUpdate,
+  canReschedule = false,
   onOpenNotes,
 }: {
   enrollmentId: string
   canUpdate: boolean
+  /** Business Owner / Clinic Head / Office Admin can reschedule a session even
+   *  though Office Admin can't touch its notes — a separate permission. */
+  canReschedule?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
   const [tab, setTab] = useState<'completed' | 'upcoming'>('upcoming')
   const [showAll, setShowAll] = useState(false)
+  const [reschedulingSession, setReschedulingSession] = useState<TherapySessionResponse | null>(null)
+  const qc = useQueryClient()
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', 'enrollment', enrollmentId],
@@ -292,6 +301,19 @@ export function SessionList({
                 {hasNotes && (
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.accent }} />
                 )}
+
+                {canReschedule && s.status === 'SCHEDULED' && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setReschedulingSession(s) }}
+                    className="flex items-center gap-1 text-[11.5px] font-medium px-2 py-1 rounded-lg flex-shrink-0 transition-colors"
+                    style={{ color: colors.accent }}
+                    onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
+                    onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
+                    <CalendarClock size={12} /> Reschedule
+                  </button>
+                )}
               </div>
             )
           })}
@@ -306,7 +328,126 @@ export function SessionList({
           </Button>
         </div>
       )}
+
+      {reschedulingSession && (
+        <RescheduleSessionModal
+          session={reschedulingSession}
+          onClose={() => setReschedulingSession(null)}
+          onDone={() => {
+            setReschedulingSession(null)
+            qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// ── RescheduleSessionModal (shared with the Calendar page) ────────────────────
+
+export function RescheduleSessionModal({
+  session, onClose, onDone,
+}: {
+  session: TherapySessionResponse
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [date, setDate]       = useState(session.sessionDate)
+  const [time, setTime]       = useState(session.startTime.substring(0, 5))
+  const [therapistId, setTherapistId] = useState('')
+  const [reason, setReason]   = useState('')
+  const [error, setError]     = useState('')
+
+  const { data: therapists = [] } = useQuery({
+    queryKey: ['therapists'],
+    queryFn:  () => usersApi.listTherapists(),
+  })
+
+  const mut = useMutation({
+    mutationFn: () => therapySessionsApi.reschedule(session.id, {
+      newDate: date !== session.sessionDate ? date : undefined,
+      newStartTime: time !== session.startTime.substring(0, 5) ? time : undefined,
+      substituteTherapistId: therapistId || undefined,
+      reason: reason.trim() || undefined,
+    }),
+    onSuccess: onDone,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not reschedule the session')),
+  })
+
+  const unchanged = date === session.sessionDate
+    && time === session.startTime.substring(0, 5)
+    && !therapistId
+
+  return (
+    <Modal open title="Reschedule session" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl px-3 py-2.5 text-sm"
+          style={{ background: surface.rowHover, color: colors.text.muted }}>
+          Currently{' '}
+          <span style={{ color: colors.text.primary, fontWeight: 600 }}>
+            {format(parseISO(session.sessionDate + 'T00:00:00'), 'EEE, d MMM yyyy')}
+            {' at '}{session.startTime.substring(0, 5)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">New date</label>
+            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)}
+              className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">New time</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)}
+              className="form-input w-full" />
+          </div>
+        </div>
+        <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
+          The session keeps its current length.
+        </p>
+
+        <Select
+          label="Different therapist (optional)"
+          value={therapistId}
+          onChange={e => setTherapistId(e.target.value)}
+          placeholder="Keep the current therapist"
+          options={therapists
+            .filter((t: UserResponse) => t.id !== session.therapistId)
+            .map((t: UserResponse) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+        />
+
+        <Input
+          label="Reason (optional)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Therapist is at a conference that morning"
+        />
+
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          The family and the therapist are emailed the new time. If you swap the therapist, the one
+          coming off the session is told as well.
+        </p>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (unchanged) { setError('Change the date, the time, or the therapist'); return }
+            if (date < todayStr()) { setError('New date cannot be in the past'); return }
+            if (isPastDateTime(date, time)) { setError('New time cannot be in the past'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Reschedule &amp; notify
+        </Button>
+      </div>
+    </Modal>
   )
 }
 

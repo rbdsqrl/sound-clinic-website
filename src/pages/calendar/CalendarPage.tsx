@@ -32,7 +32,7 @@ import { meetingsApi } from '../../api/meetings'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
-import { SessionNotesModal } from '../patients/EnrollmentSessions'
+import { SessionNotesModal, RescheduleSessionModal } from '../patients/EnrollmentSessions'
 import AdHocSessionModal from './AdHocSessionModal'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
 import type { SlotSelection } from './types'
@@ -1232,112 +1232,8 @@ function NewMeetingModal({
 }
 
 // ── Move a planned session ────────────────────────────────────────────────────
-
-function RescheduleSessionModal({
-  session, onClose, onDone,
-}: {
-  session: TherapySessionResponse
-  onClose: () => void
-  onDone: () => void
-}) {
-  const [date, setDate]       = useState(session.sessionDate)
-  const [time, setTime]       = useState(session.startTime.substring(0, 5))
-  const [therapistId, setTherapistId] = useState('')
-  const [reason, setReason]   = useState('')
-  const [error, setError]     = useState('')
-
-  const { data: therapists = [] } = useQuery({
-    queryKey: ['therapists'],
-    queryFn:  () => usersApi.listTherapists(),
-  })
-
-  const mut = useMutation({
-    mutationFn: () => therapySessionsApi.reschedule(session.id, {
-      newDate: date !== session.sessionDate ? date : undefined,
-      newStartTime: time !== session.startTime.substring(0, 5) ? time : undefined,
-      substituteTherapistId: therapistId || undefined,
-      reason: reason.trim() || undefined,
-    }),
-    onSuccess: onDone,
-    onError: (err: unknown) => setError(getApiError(err, 'Could not reschedule the session')),
-  })
-
-  const unchanged = date === session.sessionDate
-    && time === session.startTime.substring(0, 5)
-    && !therapistId
-
-  return (
-    <Modal open title="Reschedule session" onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <div className="rounded-xl px-3 py-2.5 text-sm"
-          style={{ background: surface.rowHover, color: colors.text.muted }}>
-          Currently{' '}
-          <span style={{ color: colors.text.primary, fontWeight: 600 }}>
-            {format(parseISO(session.sessionDate + 'T00:00:00'), 'EEE, d MMM yyyy')}
-            {' at '}{session.startTime.substring(0, 5)}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="form-label">New date</label>
-            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)}
-              className="form-input w-full" />
-          </div>
-          <div>
-            <label className="form-label">New time</label>
-            <input type="time" value={time} onChange={e => setTime(e.target.value)}
-              className="form-input w-full" />
-          </div>
-        </div>
-        <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
-          The session keeps its current length.
-        </p>
-
-        <Select
-          label="Different therapist (optional)"
-          value={therapistId}
-          onChange={e => setTherapistId(e.target.value)}
-          placeholder="Keep the current therapist"
-          options={therapists
-            .filter((t: UserResponse) => t.id !== session.therapistId)
-            .map((t: UserResponse) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
-        />
-
-        <Input
-          label="Reason (optional)"
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          placeholder="Therapist is at a conference that morning"
-        />
-
-        <p className="text-xs" style={{ color: colors.text.dim }}>
-          The family and the therapist are emailed the new time. If you swap the therapist, the one
-          coming off the session is told as well.
-        </p>
-
-        {error && <p className="form-error">{error}</p>}
-      </div>
-
-      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button
-          variant="primary"
-          loading={mut.isPending}
-          onClick={() => {
-            if (unchanged) { setError('Change the date, the time, or the therapist'); return }
-            if (date < todayStr()) { setError('New date cannot be in the past'); return }
-            if (isPastDateTime(date, time)) { setError('New time cannot be in the past'); return }
-            setError('')
-            mut.mutate()
-          }}
-        >
-          Reschedule &amp; notify
-        </Button>
-      </div>
-    </Modal>
-  )
-}
+// RescheduleSessionModal now lives in EnrollmentSessions.tsx (imported above) so
+// the case Sessions panel can reuse the exact same modal.
 
 // ── Event detail drawer ───────────────────────────────────────────────────────
 

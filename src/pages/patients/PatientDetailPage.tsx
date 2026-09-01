@@ -1767,10 +1767,13 @@ export default function PatientDetailPage() {
                 {activeEnrollments.length > 0 && (
                   <div className="mt-4 flex flex-col gap-2">
                     {activeEnrollments.map(e => (
-                      <div
+                      <Link
                         key={e.id}
-                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
+                        to={ROUTES.enrollment(patient.id, e.id)}
+                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors"
                         style={{ background: successAlpha(0.08), border: `1px solid ${successAlpha(0.18)}` }}
+                        onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = successAlpha(0.14)}
+                        onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = successAlpha(0.08)}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <CheckCircle2 size={13} style={{ color: palette.green.text, flexShrink: 0 }} />
@@ -1781,7 +1784,7 @@ export default function PatientDetailPage() {
                         <span className="text-xs font-medium flex-shrink-0" style={{ color: colors.text.muted }}>
                           {e.sessionsCompleted}/{e.totalSessions} sessions
                         </span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
