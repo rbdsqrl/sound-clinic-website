@@ -137,42 +137,7 @@ export default function ResourcesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {subfolders.map(f => (
-            <div
-              key={f.id}
-              onClick={() => openFolder(f.id)}
-              role="button"
-              tabIndex={0}
-              className={gridCardStyle}
-              style={styles.card}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
-            >
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
-                <Folder size={17} style={{ color: colors.accent }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                  {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
-                  {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
-                  {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-              {canManage && (
-                <button
-                  onClick={e => { e.stopPropagation(); setDeleteFolderTarget(f) }}
-                  className="p-2 rounded-lg transition-colors flex-shrink-0"
-                  style={{ color: colors.text.dim }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-
+          {/* Resources (links/videos/images) first, folders last within every hierarchy level */}
           {resources.map(r => {
             const meta = TYPE_META[r.type]
             const Icon = meta.icon
@@ -219,6 +184,42 @@ export default function ResourcesPage() {
               </a>
             )
           })}
+
+          {subfolders.map(f => (
+            <div
+              key={f.id}
+              onClick={() => openFolder(f.id)}
+              role="button"
+              tabIndex={0}
+              className={gridCardStyle}
+              style={styles.card}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+            >
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
+                <Folder size={17} style={{ color: colors.accent }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                  {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
+                  {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
+                  {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              {canManage && (
+                <button
+                  onClick={e => { e.stopPropagation(); setDeleteFolderTarget(f) }}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0"
+                  style={{ color: colors.text.dim }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
