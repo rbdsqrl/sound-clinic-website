@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, subDays } from 'date-fns'
 import DOMPurify from 'dompurify'
 import { clinicsApi } from '../api/clinics'
 import { slotsApi } from '../api/appointments'
@@ -1226,6 +1226,8 @@ export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
   const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  const isBusinessOwner    = activeRole === 'BUSINESS_OWNER'
+  const isTherapistRole    = activeRole === 'THERAPIST'
   const canReschedule      = isOwnerOrAdmin
   const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
   const canUpdateSession   = activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
@@ -1254,15 +1256,26 @@ export default function DashboardPage() {
     staleTime: 2 * 60 * 1000,
   })
   // Still SCHEDULED but the session's own date/time has already passed — nobody
-  // marked it complete/missed or wrote it up. Filtered client-side since the
-  // backend's status-only lookup doesn't know "overdue".
+  // marked it complete/missed or wrote it up. Filtered client-side since neither
+  // query path below knows "overdue" on its own.
+  //
+  // Only Business Owner and the assigned Therapist can ever act on this (session
+  // notes can only be updated by whoever's assigned, or the Business Owner), so
+  // it's the only two dashboards that show it — Business Owner org-wide via the
+  // unscoped status lookup, Therapist scoped to their own caseload via the
+  // date-range endpoint (the status-only lookup ignores caller role entirely,
+  // so it can't be used here without leaking every other therapist's sessions).
   const { data: scheduledSessions = [] } = useQuery({
-    queryKey: ['sessions-scheduled-all'],
-    queryFn: () => therapySessionsApi.list({ status: 'SCHEDULED' }),
-    enabled: isOwnerOrAdmin,
+    queryKey: ['sessions-scheduled-all', activeRole],
+    queryFn: () => isBusinessOwner
+      ? therapySessionsApi.list({ status: 'SCHEDULED' })
+      : therapySessionsApi.list({ from: format(subDays(new Date(), 90), 'yyyy-MM-dd'), to: today }),
+    enabled: isBusinessOwner || isTherapistRole,
     staleTime: 2 * 60 * 1000,
   })
-  const pendingNotes = scheduledSessions.filter(s => isPastDateTime(s.sessionDate, s.startTime.slice(0, 5)))
+  const pendingNotes = scheduledSessions
+    .filter(s => s.status === 'SCHEDULED')
+    .filter(s => isPastDateTime(s.sessionDate, s.startTime.slice(0, 5)))
 
   const { data: upcomingBirthdays = [] } = useQuery({
     queryKey: ['upcoming-birthdays'],
@@ -1393,7 +1406,7 @@ export default function DashboardPage() {
       {(() => {
         const hasReschedule   = canReschedule && pendingReschedule.length > 0
         const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
-        const hasPendingNotes = isOwnerOrAdmin && pendingNotes.length > 0
+        const hasPendingNotes = (isBusinessOwner || isTherapistRole) && pendingNotes.length > 0
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
