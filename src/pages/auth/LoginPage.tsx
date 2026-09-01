@@ -44,10 +44,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="mb-10 flex flex-col items-center">
           <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-20 w-auto mb-5 brand-logo" />
-          <h1 className="text-2xl font-bold tracking-tight text-center" style={{ color: colors.text.heading }}>
+          <h1 className="brand-name text-lg sm:text-xl" style={{ color: colors.text.heading }}>
             Simple Hearing And Speech Care
           </h1>
-          <p className="mt-1.5 text-xs font-medium tracking-widest uppercase" style={{ color: colors.accent, letterSpacing: '0.2em' }}>
+          <p className="mt-1.5 text-xs font-medium tracking-widest uppercase" style={{ color: colors.brandFixed, letterSpacing: '0.2em' }}>
             Clinic Management Portal
           </p>
         </div>

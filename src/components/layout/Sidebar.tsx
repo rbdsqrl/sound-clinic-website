@@ -170,11 +170,11 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
         {/* Logo */}
         <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-10 w-auto flex-shrink-0 brand-logo" />
         {!collapsed && (
-          <div className="mt-2.5 text-center max-w-[180px]">
-            <div className="text-[13px] font-semibold leading-snug" style={{ color: colors.textLight.primary }}>
+          <div className="mt-2.5 text-center">
+            <div className="brand-name text-[13px]" style={{ color: colors.textLight.primary }}>
               Simple Hearing And Speech Care
             </div>
-            <div className="text-[10px] tracking-widest uppercase mt-1" style={{ color: colors.accent }}>
+            <div className="text-[10px] tracking-widest uppercase mt-1" style={{ color: colors.brandFixed }}>
               Clinic Portal
             </div>
           </div>

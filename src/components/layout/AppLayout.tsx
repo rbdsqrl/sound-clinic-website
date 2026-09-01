@@ -69,7 +69,7 @@ export default function AppLayout() {
 
           <div className="flex items-center gap-2 min-w-0">
             <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-8 w-auto flex-shrink-0 brand-logo" />
-            <span className="text-sm font-semibold truncate" style={{ color: colors.textLight.primary }}>
+            <span className="brand-name text-xs" style={{ color: colors.textLight.primary }}>
               Simple Hearing And Speech Care
             </span>
           </div>

@@ -51,6 +51,9 @@ export const colors = {
   cta:       v('--color-cta'),
   /** Sky Blue — highlights, secondary info */
   secondary: v('--color-secondary'),
+  /** Fixed brand blue — same hex in light and dark, for brand marks that must read
+   *  identically regardless of theme (unlike `accent`, which shifts per theme) */
+  brandFixed: v('--color-brand-fixed'),
 
   /** Dark-surface / page text hierarchy */
   text: {

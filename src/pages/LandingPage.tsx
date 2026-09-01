@@ -85,10 +85,10 @@ function Navbar() {
       <div className="flex items-center gap-4">
         <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-14 w-auto" />
         <div>
-          <span className="text-xl font-bold tracking-tight" style={{ color: colors.text.heading }}>
+          <span className="brand-name text-sm sm:text-lg" style={{ color: colors.text.heading }}>
             Simple Hearing And Speech Care
           </span>
-          <div className="text-[11.5px] tracking-widest uppercase mt-0.5" style={{ color: colors.accent }}>
+          <div className="text-[11.5px] tracking-widest uppercase mt-0.5" style={{ color: colors.brandFixed }}>
             Pune's Specialist Audiology Clinic
           </div>
         </div>
@@ -474,7 +474,7 @@ function Footer() {
       <div className="mx-auto max-w-6xl flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div className="flex items-center gap-3">
           <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-8 w-auto" />
-          <span className="text-sm font-semibold text-white opacity-90">Simple Hearing And Speech Care</span>
+          <span className="brand-name text-xs sm:text-sm text-white opacity-90">Simple Hearing And Speech Care</span>
         </div>
 
         <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.40)' }}>
