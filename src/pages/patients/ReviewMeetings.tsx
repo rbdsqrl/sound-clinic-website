@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { todayStr, isPastDateTime } from '../../lib/schedule'
 import {
   colors, border, surface, accentAlpha, dangerAlpha, paletteStyle, palette,
 } from '../../theme'
@@ -419,6 +420,8 @@ export function ScheduleModal({
     if (!startTime) e.time = 'Pick a time'
     if (!endDate) e.end = 'Pick an end date'
     if (endDate && firstDate && endDate < firstDate) e.end = 'End date is before the first meeting'
+    if (firstDate && firstDate < todayStr()) e.first = 'First meeting cannot be in the past'
+    else if (firstDate && startTime && isPastDateTime(firstDate, startTime)) e.time = 'Time cannot be in the past'
     setErrors(e)
     if (Object.keys(e).length === 0) mut.mutate()
   }
@@ -462,10 +465,11 @@ export function ScheduleModal({
           <div>
             <label className="form-label">First meeting</label>
             <input
-              type="date" value={firstDate} min={enrollmentStartDate}
+              type="date" value={firstDate} min={enrollmentStartDate > todayStr() ? enrollmentStartDate : todayStr()}
               onChange={e => setFirstDate(e.target.value)}
               className="form-input w-full"
             />
+            {errors.first && <p className="form-error mt-1">{errors.first}</p>}
             <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>
               Defaults to {intervalWeeks} week{intervalWeeks > 1 ? 's' : ''} after the therapy starts
             </p>
@@ -514,7 +518,7 @@ function AddMeetingModal({
       <div className="flex flex-col gap-4">
         <div>
           <label className="form-label">Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-input w-full" />
+          <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
           {error && <p className="form-error mt-1">{error}</p>}
         </div>
         <TimePicker label="Time" value={startTime} onChange={setStartTime} />
@@ -532,7 +536,12 @@ function AddMeetingModal({
         <Button
           variant="primary"
           loading={mut.isPending}
-          onClick={() => { if (!date) { setError('Pick a date'); return } setError(''); mut.mutate() }}>
+          onClick={() => {
+            if (!date) { setError('Pick a date'); return }
+            if (date < todayStr()) { setError('Date cannot be in the past'); return }
+            if (isPastDateTime(date, startTime)) { setError('Time cannot be in the past'); return }
+            setError(''); mut.mutate()
+          }}>
           Schedule
         </Button>
       </div>

@@ -35,6 +35,7 @@ import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
+import { todayStr, isPastDateTime } from '../../lib/schedule'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette } from '../../theme'
 import { format } from 'date-fns'
@@ -835,6 +836,8 @@ function EnrollmentModal({
     if (!subscriptionId) e.sub = 'Select a subscription'
     if (!startDate) e.date = 'Select a start date'
     if (!startTime) e.time = 'Select a time'
+    if (startDate && startDate < todayStr()) e.date = 'Start date cannot be in the past'
+    else if (startDate && startTime && isPastDateTime(startDate, startTime)) e.time = 'Start time cannot be in the past'
     setStep1Errors(e)
     return Object.keys(e).length === 0
   }
@@ -962,14 +965,34 @@ function EnrollmentModal({
 
             {/* Schedule — two columns on anything wider than a phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-              {/* Duration */}
+              {/* Duration — quick-pick chips, or type any value */}
               <div>
                 <label className="form-label">Session Duration</label>
-                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="form-input w-full">
+                <div className="flex gap-1.5 mb-2 flex-wrap">
                   {SESSION_DURATION_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setDuration(o.value)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        background: duration === o.value ? accentAlpha(0.12) : surface.filterStrip,
+                        color: duration === o.value ? colors.accent : colors.text.muted,
+                        border: `1px solid ${duration === o.value ? accentAlpha(0.3) : 'transparent'}`,
+                      }}
+                    >
+                      {o.label}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={5} max={240} step={5} value={duration}
+                    onChange={e => setDuration(Math.max(5, Number(e.target.value) || 0))}
+                    className="form-input w-full"
+                  />
+                  <span className="text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>min</span>
+                </div>
               </div>
 
               {/* Time */}
@@ -983,7 +1006,7 @@ function EnrollmentModal({
               {/* Start date — the plan's end is derived from this plus the session count */}
               <div>
                 <label className="form-label">Start Date</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                <input type="date" value={startDate} min={todayStr()} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
                 {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
               </div>
             </div>
@@ -1390,6 +1413,15 @@ export default function PatientDetailPage() {
   const [enrollContinuation,  setEnrollContinuation]  = useState(false)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
+  // Program cards start collapsed so more of them fit on screen at once — expanded
+  // per-card by clicking its chevron.
+  const [expandedSubs,     setExpandedSubs]     = useState<Set<string>>(new Set())
+  const toggleSubExpanded = (subId: string) =>
+    setExpandedSubs(prev => {
+      const next = new Set(prev)
+      next.has(subId) ? next.delete(subId) : next.add(subId)
+      return next
+    })
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
   const [conditionsPage,   setConditionsPage]   = useState(0)
   const [sidebarSearch,    setSidebarSearch]    = useState('')
@@ -1948,6 +1980,7 @@ export default function PatientDetailPage() {
                   const progressPct       = sub.numSessions > 0
                     ? Math.min(100, (sessionsCompleted / sub.numSessions) * 100)
                     : 0
+                  const isExpanded = expandedSubs.has(sub.id)
 
                   // A cancelled plan has no progress worth showing — a full card with a
                   // 0% hero just reads as a live plan that isn't working. One line instead.
@@ -1982,8 +2015,15 @@ export default function PatientDetailPage() {
                       style={{ border: `1px solid ${accentAlpha(0.18)}` }}
                     >
                       <div className="p-4" style={{ background: accentAlpha(0.03) }}>
-                        {/* Header: icon + program name + therapist + badges */}
-                        <div className="flex items-start justify-between gap-3 mb-4">
+                        {/* Header: icon + program name + therapist + badges — always visible;
+                            clicking toggles the rest of the card, collapsed by default so more
+                            programs fit on screen at once. */}
+                        <button
+                          type="button"
+                          onClick={() => toggleSubExpanded(sub.id)}
+                          className="w-full flex items-start justify-between gap-3 text-left"
+                          style={{ marginBottom: isExpanded ? '1rem' : 0 }}
+                        >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div
                               className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -2002,32 +2042,58 @@ export default function PatientDetailPage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span
-                              className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                              style={paymentStatusStyle(sub.paymentStatus)}
-                            >
-                              {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
-                            </span>
-                            {isEnrolled && (
+                          <div className="flex items-center gap-2.5 flex-shrink-0">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
                               <span
                                 className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                style={paletteStyle('teal', 0.12, 0)}
+                                style={paymentStatusStyle(sub.paymentStatus)}
                               >
-                                Active
+                                {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
                               </span>
-                            )}
-                            {!isEnrolled && isPaid && !isCancelled && (
+                              {isEnrolled && (
+                                <span
+                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                  style={paletteStyle('teal', 0.12, 0)}
+                                >
+                                  Active
+                                </span>
+                              )}
+                              {!isEnrolled && isPaid && !isCancelled && (
+                                <span
+                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                  style={paletteStyle('yellow', 0.14, 0)}
+                                >
+                                  Not enrolled
+                                </span>
+                              )}
+                            </div>
+                            {!isExpanded && (
                               <span
-                                className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                style={paletteStyle('yellow', 0.14, 0)}
+                                className="text-xs font-semibold tabular-nums whitespace-nowrap"
+                                style={{
+                                  color: progressPct >= 100
+                                    ? palette.green.text
+                                    : progressPct > 0
+                                      ? colors.accent
+                                      : colors.text.dim,
+                                }}
                               >
-                                Not enrolled
+                                {sessionsCompleted}/{sub.numSessions} · {Math.round(progressPct)}%
                               </span>
                             )}
+                            <ChevronRight
+                              size={16}
+                              style={{
+                                color: colors.text.muted,
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.15s ease',
+                              }}
+                            />
                           </div>
-                        </div>
+                        </button>
 
+                        {isExpanded && (
+                        <>
                         {/* Session progress — hero element */}
                         <div className="mb-4">
                           <div className="flex items-end justify-between mb-2">
@@ -2195,10 +2261,12 @@ export default function PatientDetailPage() {
                             )}
                           </div>
                         )}
+                        </>
+                        )}
                       </div>
 
                       {/* Review meetings — available for any ongoing plan */}
-                      {isEnrolled && enrollment && (
+                      {isExpanded && isEnrolled && enrollment && (
                         <div style={{ borderTop: `1px solid ${border.divider}` }}>
                           <ReviewMeetingsPanel
                             enrollmentId={enrollment.id}

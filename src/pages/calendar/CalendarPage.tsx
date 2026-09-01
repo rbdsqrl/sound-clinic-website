@@ -37,6 +37,7 @@ import AdHocSessionModal from './AdHocSessionModal'
 import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
+import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
@@ -988,6 +989,8 @@ function SlotChoiceModal({
 
   function choose(what: 'meeting' | 'session') {
     if (!valid) { setError('End time must be after the start time'); return }
+    if (date < todayStr()) { setError('Date cannot be in the past'); return }
+    if (isPastDateTime(date, start)) { setError('Start time cannot be in the past'); return }
     onPick(what, { date, start, end })
   }
 
@@ -1011,7 +1014,7 @@ function SlotChoiceModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="form-label">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)}
               className="form-input w-full" />
           </div>
           <div>
@@ -1087,11 +1090,15 @@ function NewMeetingModal({
   initial?: SlotSelection
 }) {
   const pad = (h: number) => `${String(h).padStart(2, '0')}:00`
+  const initialDuration = initial
+    ? Math.max(15, (Number(initial.end.split(':')[0]) * 60 + Number(initial.end.split(':')[1]))
+        - (Number(initial.start.split(':')[0]) * 60 + Number(initial.start.split(':')[1])))
+    : 30
   const [title, setTitle]         = useState('')
   const [description, setDesc]    = useState('')
   const [date, setDate]           = useState(initial?.date ?? format(new Date(), 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState(initial?.start ?? '10:00')
-  const [endTime, setEndTime]     = useState(initial?.end ?? '10:30')
+  const [duration, setDuration]   = useState(initialDuration)
   const [location, setLocation]   = useState('')
   const [picked, setPicked]       = useState<string[]>([])
   const [search, setSearch]       = useState('')
@@ -1116,7 +1123,7 @@ function NewMeetingModal({
       description: description.trim() || undefined,
       meetingDate: date,
       startTime,
-      endTime,
+      endTime: addMinutesToTime(startTime, duration),
       location: location.trim() || undefined,
       participantIds: picked,
     }),
@@ -1127,7 +1134,8 @@ function NewMeetingModal({
   function submit() {
     if (!title.trim())       { setError('Give the meeting a title'); return }
     if (picked.length === 0) { setError('Pick at least one participant'); return }
-    if (endTime <= startTime) { setError('End time must be after the start time'); return }
+    if (date < todayStr())   { setError('Date cannot be in the past'); return }
+    if (isPastDateTime(date, startTime)) { setError('Start time cannot be in the past'); return }
     setError('')
     mut.mutate()
   }
@@ -1141,7 +1149,7 @@ function NewMeetingModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="form-label">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)}
               className="form-input w-full" />
           </div>
           <div>
@@ -1150,9 +1158,12 @@ function NewMeetingModal({
               className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">Ends</label>
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-              className="form-input w-full" />
+            <label className="form-label">Duration (min)</label>
+            <input
+              type="number" min={5} max={240} step={5} value={duration}
+              onChange={e => setDuration(Math.max(5, Number(e.target.value) || 0))}
+              className="form-input w-full"
+            />
           </div>
         </div>
 
@@ -1270,7 +1281,7 @@ function RescheduleSessionModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">New date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)}
               className="form-input w-full" />
           </div>
           <div>
@@ -1315,6 +1326,8 @@ function RescheduleSessionModal({
           loading={mut.isPending}
           onClick={() => {
             if (unchanged) { setError('Change the date, the time, or the therapist'); return }
+            if (date < todayStr()) { setError('New date cannot be in the past'); return }
+            if (isPastDateTime(date, time)) { setError('New time cannot be in the past'); return }
             setError('')
             mut.mutate()
           }}

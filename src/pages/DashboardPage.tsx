@@ -206,7 +206,7 @@ function TodaySessions({
                 ) : (
                   <Link
                     key={s.id}
-                    to={`/patients/${s.patientId}`}
+                    to={`/patients/${s.patientId}/enrollments/${s.enrollmentId}`}
                     className={rowClass}
                     style={dividerStyle}
                     onMouseEnter={ROW_HOVER_IN}

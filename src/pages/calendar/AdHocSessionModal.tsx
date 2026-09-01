@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
+import { isPastDateTime } from '../../lib/schedule'
 import { colors, surface, border, accentAlpha, warningAlpha } from '../../theme'
 import type { PatientResponse, EnrollmentResponse } from '../../types'
 import type { SlotSelection } from './types'
@@ -133,7 +134,7 @@ export default function AdHocSessionModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="form-label">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-input w-full" />
+            <input type="date" value={date} min={today} onChange={e => setDate(e.target.value)} className="form-input w-full" />
           </div>
           <div>
             <label className="form-label">Starts</label>
@@ -199,6 +200,8 @@ export default function AdHocSessionModal({
           onClick={() => {
             if (!planEnrollmentId) { setError('Pick a case with an active therapy plan'); return }
             if (end <= start)      { setError('End time must be after the start time'); return }
+            if (date < today)      { setError('Date cannot be in the past'); return }
+            if (isPastDateTime(date, start)) { setError('Start time cannot be in the past'); return }
             setError('')
             mut.mutate()
           }}
