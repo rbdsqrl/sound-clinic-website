@@ -403,10 +403,14 @@ function RecordPaymentModal({
   subscription,
   onClose,
   onSaved,
+  continuedFromCreate,
 }: {
   subscription: SubscriptionResponse
   onClose: () => void
   onSaved: (sub: SubscriptionResponse) => void
+  /** Opened automatically right after creating this subscription — shows a hint that
+   *  closing here is fine, payment can always be recorded later from the Programs list. */
+  continuedFromCreate?: boolean
 }) {
   const { toast } = useToast()
   const [discount, setDiscount] = useState(String(subscription.discountPercent))
@@ -457,6 +461,17 @@ function RecordPaymentModal({
         <p className="text-sm mb-4" style={{ color: colors.text.muted }}>
           {subscription.programName} · {subscription.numSessions} sessions
         </p>
+
+        {continuedFromCreate && (
+          <div className="rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2"
+            style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.15)}` }}>
+            <Sparkles size={13} style={{ color: colors.accent, marginTop: 2, flexShrink: 0 }} />
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              Plan created — record the payment now to keep going, or close and come back to it
+              anytime from the Programs list.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -777,12 +792,16 @@ function EnrollmentModal({
   preselectedSub,
   onClose,
   onCreated,
+  continuedFromPayment,
 }: {
   subscriptions: SubscriptionResponse[]
   patientId: string
   preselectedSub?: SubscriptionResponse
   onClose: () => void
   onCreated: (enrollment: EnrollmentResponse) => void
+  /** Opened automatically right after recording payment — shows a hint that closing
+   *  here is fine, the schedule can always be set up later from the Programs list. */
+  continuedFromPayment?: boolean
 }) {
   const { toast } = useToast()
 
@@ -900,6 +919,16 @@ function EnrollmentModal({
         {/* ── Step 1: Slot details ── */}
         {step === 1 && (
           <div className="flex flex-col gap-4">
+            {continuedFromPayment && (
+              <div className="rounded-xl px-3 py-2.5 flex items-start gap-2"
+                style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.15)}` }}>
+                <Sparkles size={13} style={{ color: colors.accent, marginTop: 2, flexShrink: 0 }} />
+                <p className="text-xs" style={{ color: colors.text.muted }}>
+                  Payment recorded — set up the schedule now, or close and come back to it
+                  anytime from the Programs list.
+                </p>
+              </div>
+            )}
             {/* Subscription — locked when pre-selected, dropdown otherwise */}
             {preselectedSub ? (
               <div className="rounded-xl px-4 py-3 flex items-center gap-3"
@@ -1354,6 +1383,11 @@ export default function PatientDetailPage() {
   const [paymentTarget,    setPaymentTarget]    = useState<SubscriptionResponse | null>(null)
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
+  // Whether the payment/enrollment modal above was opened automatically as the next
+  // step of the Add Program → Record Payment → Schedule flow, rather than clicked
+  // directly — only then do we show the "you can close this and continue later" hint.
+  const [paymentContinuation, setPaymentContinuation] = useState(false)
+  const [enrollContinuation,  setEnrollContinuation]  = useState(false)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
   const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
@@ -1688,9 +1722,9 @@ export default function PatientDetailPage() {
               onAddSubscription={() => setSubModal(true)}
               onSetupSchedule={() => {
                 const paidSub = subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
-                if (paidSub) setEnrollForSub(paidSub)
+                if (paidSub) { setEnrollContinuation(false); setEnrollForSub(paidSub) }
               }}
-              onRecordPayment={(sub) => setPaymentTarget(sub)}
+              onRecordPayment={(sub) => { setPaymentContinuation(false); setPaymentTarget(sub) }}
               onPayNow={isParent ? (sub) => setMockPayTarget(sub) : undefined}
               onOpenDetails={() => setActiveTab('Therapy')}
             />
@@ -2066,7 +2100,7 @@ export default function PatientDetailPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               {canEnroll && (
                                 <button
-                                  onClick={() => setEnrollForSub(sub)}
+                                  onClick={() => { setEnrollContinuation(false); setEnrollForSub(sub) }}
                                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                                   style={{ color: '#fff', background: colors.accent }}
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
@@ -2112,7 +2146,7 @@ export default function PatientDetailPage() {
                               )}
                               {canRecordPayment && !isPaid && (
                                 <button
-                                  onClick={() => setPaymentTarget(sub)}
+                                  onClick={() => { setPaymentContinuation(false); setPaymentTarget(sub) }}
                                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                                   style={{ color: '#fff', background: colors.accent }}
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
@@ -2399,22 +2433,32 @@ export default function PatientDetailPage() {
           subscriptions={subscriptions}
           patientId={id!}
           preselectedSub={enrollForSub}
-          onClose={() => setEnrollForSub(null)}
+          continuedFromPayment={enrollContinuation}
+          onClose={() => { setEnrollForSub(null); setEnrollContinuation(false) }}
           onCreated={() => {
             refetchEnrollments()
             refetchSubs()
             toast('Enrollment created — sessions generated', 'success')
             setEnrollForSub(null)
+            setEnrollContinuation(false)
           }}
         />
       )}
 
-      {/* Create subscription modal */}
+      {/* Create subscription modal — for staff who can also record payment/schedule
+          (Business Owner, Clinic Head, Office Admin), this walks straight into those next
+          steps instead of dropping them back at the list each time. Each step can still be
+          closed on its own — nothing forces the rest of the flow. */}
       {subModal && (
         <CreateSubscriptionModal
           patientId={id!}
           onClose={() => setSubModal(false)}
-          onCreated={() => { refetchSubs(); toast('Subscription created', 'success'); setSubModal(false) }}
+          onCreated={(sub) => {
+            refetchSubs()
+            toast('Subscription created', 'success')
+            setSubModal(false)
+            if (canRecordPayment) { setPaymentContinuation(true); setPaymentTarget(sub) }
+          }}
         />
       )}
 
@@ -2422,8 +2466,18 @@ export default function PatientDetailPage() {
       {paymentTarget && (
         <RecordPaymentModal
           subscription={paymentTarget}
-          onClose={() => setPaymentTarget(null)}
-          onSaved={() => { refetchSubs(); toast('Payment recorded', 'success'); setPaymentTarget(null) }}
+          continuedFromCreate={paymentContinuation}
+          onClose={() => { setPaymentTarget(null); setPaymentContinuation(false) }}
+          onSaved={(sub) => {
+            refetchSubs()
+            toast('Payment recorded', 'success')
+            setPaymentTarget(null)
+            setPaymentContinuation(false)
+            if (paymentContinuation && canCreateEnrollment && sub.paymentStatus === 'PAID') {
+              setEnrollContinuation(true)
+              setEnrollForSub(sub)
+            }
+          }}
         />
       )}
 
