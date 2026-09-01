@@ -343,6 +343,14 @@ export default function MembersPage() {
   const { toasts, toast, dismiss } = useToast()
   const { user, activeRole } = useAuth()
   const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
+  const isOfficeAdmin = (activeRole ?? user?.role) === 'OFFICE_ADMIN'
+  // Office Admin can invite and browse, but withdrawing/resending an invite is
+  // an ownership-level action — same boundary as delete/activate/reinvite below.
+  const canManageInvites = !isOfficeAdmin
+  // Office Admin can invite front-line staff, but not org leadership.
+  const invitableRoles = isOfficeAdmin
+    ? INVITABLE_ROLES.filter(r => r.value !== 'BUSINESS_OWNER' && r.value !== 'CLINIC_HEAD')
+    : INVITABLE_ROLES
 
   const [tab, setTab]               = useState<Tab>('members')
   const [deleteTarget, setDeleteTarget] = useState<StaffMemberResponse | null>(null)
@@ -638,7 +646,7 @@ export default function MembersPage() {
                           <Link2 size={12} /> View link
                         </button>
                       )}
-                      {canWithdraw(inv.status) && (
+                      {canManageInvites && canWithdraw(inv.status) && (
                         <>
                           <button
                             onClick={() => resendMut.mutate(inv.id)}
@@ -692,7 +700,7 @@ export default function MembersPage() {
                               <Link2 size={13} /> View link
                             </button>
                           )}
-                          {canWithdraw(inv.status) ? (
+                          {canManageInvites && canWithdraw(inv.status) ? (
                             <>
                               <button
                                 onClick={() => resendMut.mutate(inv.id)}
@@ -784,7 +792,7 @@ export default function MembersPage() {
             error={errors.email?.message}
             disabled={!!reinviteTarget}
             {...register('email', { required: 'Email is required' })} />
-          <Select label="Role" placeholder="Select a role…" options={INVITABLE_ROLES}
+          <Select label="Role" placeholder="Select a role…" options={invitableRoles}
             error={errors.role?.message}
             {...register('role', { required: 'Role is required' })} />
           {needsClinic && clinicOptions.length > 0 && (

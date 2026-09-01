@@ -70,6 +70,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.analytics,  label: 'Analytics',  icon: TrendingUp },
     { to: ROUTES.tasks,      label: 'Tasks',      icon: ListTodo },
     { to: ROUTES.calendar,   label: 'Calendar',   icon: CalendarDays },
+    { to: ROUTES.members,    label: 'Members',    icon: UserCog },
   ],
   PARENT: [
     { to: ROUTES.dashboard,  label: 'Dashboard',   icon: LayoutDashboard },

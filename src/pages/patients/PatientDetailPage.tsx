@@ -37,7 +37,7 @@ import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
 import { useAuth } from '../../contexts/AuthContext'
-import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette } from '../../theme'
+import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
 import type {
   AddConditionRequest,
@@ -80,47 +80,25 @@ const STAGE_LABELS: Record<PatientStage, string> = {
   DISCHARGED:        'Discharged',
 }
 
-// ── Stage Progress Bar (read-only) ────────────────────────────────────────────
+/** Badge colour per stage — kept separate from STAGE_LABELS so the palette key
+ *  stays a plain lookup, not string logic sprinkled through the JSX. */
+const STAGE_BADGE_COLOR: Record<PatientStage, PaletteKey> = {
+  INQUIRY_CONVERTED: 'slate',
+  PRE_ASSESSMENT:    'blue',
+  ASSESSMENT_DONE:   'blue',
+  ENROLLMENT:        'yellow',
+  ENROLLED:          'yellow',
+  THERAPY_ACTIVE:    'teal',
+  DISCHARGED:        'slate',
+}
 
-function StageProgress({ current }: { current: PatientStage }) {
-  const currentIdx = STAGES.indexOf(current)
-  return (
-    <div className="flex items-center overflow-x-auto pb-1 gap-0">
-      {STAGES.map((stage, idx) => {
-        const isPast    = idx < currentIdx
-        const isCurrent = idx === currentIdx
-        return (
-          <div key={stage} className="flex items-center flex-shrink-0">
-            <div className="flex flex-col items-center gap-1.5">
-              <div
-                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-all"
-                style={{
-                  background: isCurrent ? colors.accent : isPast ? accentAlpha(0.25) : surface.filterStrip,
-                  color: isCurrent ? '#fff' : isPast ? colors.accent : colors.text.dim,
-                  border: !isCurrent && !isPast ? `1.5px solid ${border.divider}` : 'none',
-                  boxShadow: isCurrent ? `0 0 0 3px ${accentAlpha(0.18)}` : 'none',
-                }}
-              >
-                {isPast ? '✓' : idx + 1}
-              </div>
-              <span
-                className="text-[10.35px] font-medium text-center whitespace-nowrap max-w-[60px] leading-tight"
-                style={{ color: isCurrent ? colors.accent : isPast ? colors.text.muted : colors.text.dim }}
-              >
-                {STAGE_LABELS[stage]}
-              </span>
-            </div>
-            {idx < STAGES.length - 1 && (
-              <div
-                className="h-0.5 w-6 sm:w-10 flex-shrink-0 -mt-4 mx-0.5"
-                style={{ background: isPast ? accentAlpha(0.35) : border.divider }}
-              />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
+/** The stored `patient.stage` can lag behind reality once a case has more than
+ *  one therapy plan — e.g. it still reads "Enrolled" after a second plan's
+ *  sessions are already under way. Deriving the displayed status from the
+ *  actual enrollments avoids showing a stale stage. */
+function displayStage(stage: PatientStage, hasActiveEnrollment: boolean): PatientStage {
+  if (stage === 'DISCHARGED') return 'DISCHARGED'
+  return hasActiveEnrollment ? 'THERAPY_ACTIVE' : stage
 }
 
 // ── Journey Card (next action prompt) ─────────────────────────────────────────
@@ -208,6 +186,11 @@ function JourneyCard({
     },
   }[step]
 
+  // "Therapy is active" is shown per-plan in the Case Info card instead — with
+  // more than one program, this single card could only ever speak for one of
+  // them, which read as wrong the moment a second plan existed.
+  if (step === 'active') return null
+
   return (
     <div
       onClick={onOpenDetails}
@@ -216,10 +199,10 @@ function JourneyCard({
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onOpenDetails() }}
       className="rounded-2xl p-4 flex items-start gap-4 cursor-pointer transition-opacity hover:opacity-90"
       style={{
-        background: step === 'active' || step === 'done'
+        background: step === 'done'
           ? surface.filterStrip
           : accentAlpha(0.05),
-        border: `1px solid ${step === 'active' || step === 'done' ? border.divider : accentAlpha(0.15)}`,
+        border: `1px solid ${step === 'done' ? border.divider : accentAlpha(0.15)}`,
       }}
     >
       <div
@@ -1564,6 +1547,7 @@ export default function PatientDetailPage() {
     enabled: !!id,
     staleTime: 2 * 60 * 1000,
   })
+  const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE')
 
   const cancelEnrollmentMutation = useMutation({
     mutationFn: (enrollId: string) => enrollmentsApi.cancel(enrollId),
@@ -1690,9 +1674,17 @@ export default function PatientDetailPage() {
       {/* ── Overview tab ─────────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
           <div className="space-y-4">
-            <Card>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-sm" style={{ color: colors.text.muted }}>{clinicName}</p>
+            <Card padding={false}>
+              <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <p className="text-sm truncate" style={{ color: colors.text.muted }}>{clinicName}</p>
+                  <span
+                    className="text-[11.5px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex-shrink-0"
+                    style={paletteStyle(STAGE_BADGE_COLOR[displayStage(patient.stage, activeEnrollments.length > 0)], 0.12, 0)}
+                  >
+                    {STAGE_LABELS[displayStage(patient.stage, activeEnrollments.length > 0)]}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {canEditDetails && (
                     <button
@@ -1739,10 +1731,6 @@ export default function PatientDetailPage() {
             </Card>
 
             <ConcernsBanner patientId={id!} canAct={!isParentRole && !isOfficeAdmin} />
-
-            <Card>
-              <StageProgress current={patient.stage} />
-            </Card>
 
             <DischargeHistoryPanel patientId={id!} />
 
@@ -1852,6 +1840,27 @@ export default function PatientDetailPage() {
                     </div>
                   ))}
                 </dl>
+                {activeEnrollments.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {activeEnrollments.map(e => (
+                      <div
+                        key={e.id}
+                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
+                        style={{ background: successAlpha(0.08), border: `1px solid ${successAlpha(0.18)}` }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 size={13} style={{ color: palette.green.text, flexShrink: 0 }} />
+                          <span className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                            {e.programName}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium flex-shrink-0" style={{ color: colors.text.muted }}>
+                          {e.sessionsCompleted}/{e.totalSessions} sessions
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {patient.notes && (
                   <div
                     className="mt-4 rounded-xl p-3 text-sm"

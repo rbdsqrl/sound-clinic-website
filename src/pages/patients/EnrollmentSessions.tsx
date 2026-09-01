@@ -10,7 +10,8 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha, paletteStyle, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
+import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
+import { isPastDateTime } from '../../lib/schedule'
 import { format } from 'date-fns'
 import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput } from '../../types'
 
@@ -112,6 +113,7 @@ export function SessionList({
   canUpdate: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
+  const [tab, setTab] = useState<'completed' | 'upcoming'>('upcoming')
   const [showAll, setShowAll] = useState(false)
 
   const { data: sessions = [], isLoading } = useQuery({
@@ -133,10 +135,16 @@ export function SessionList({
   const total     = sessions.length
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
 
+  // A SCHEDULED session whose own date/time has already passed — nobody marked it
+  // done/missed or wrote it up yet.
+  const isOverdue = (s: TherapySessionResponse) =>
+    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
+  const pendingNotesCount = sessions.filter(isOverdue).length
+
   // Sorted by the session's actual date, not its sessionNumber — an ad-hoc session is numbered
   // after the generated block regardless of when it falls, so ordering by number would always
   // push it to the end even when its date sits in the middle of the plan.
-  const pastRows = sessions
+  const completedRows = sessions
     .filter(s => s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE' && s.status !== 'CANCELLATION_REQUESTED')
     .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate) || b.sessionNumber - a.sessionNumber)
 
@@ -144,11 +152,9 @@ export function SessionList({
     .filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE' || s.status === 'CANCELLATION_REQUESTED')
     .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate) || a.sessionNumber - b.sessionNumber)
 
-  const shownPast     = showAll ? pastRows     : pastRows.slice(0, SESSION_PREVIEW)
-  const shownUpcoming = showAll ? upcomingRows : upcomingRows.slice(0, SESSION_PREVIEW)
-  const displayRows   = [...shownPast, ...shownUpcoming]
-
-  const hiddenCount = (pastRows.length - shownPast.length) + (upcomingRows.length - shownUpcoming.length)
+  const rowsForTab  = tab === 'completed' ? completedRows : upcomingRows
+  const displayRows = showAll ? rowsForTab : rowsForTab.slice(0, SESSION_PREVIEW)
+  const hiddenCount = rowsForTab.length - displayRows.length
 
   return (
     <div style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -178,8 +184,42 @@ export function SessionList({
         <ScoreSparkline sessions={sessions} />
       </div>
 
+      {pendingNotesCount > 0 && (
+        <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg px-3 py-2"
+          style={{ background: warningAlpha(0.09) }}>
+          <AlertTriangle size={13} className="flex-shrink-0" style={{ color: colors.status.warning }} />
+          <p className="text-xs font-medium" style={{ color: colors.status.warning }}>
+            {pendingNotesCount} session{pendingNotesCount !== 1 ? 's' : ''} past its scheduled time still {pendingNotesCount !== 1 ? 'need' : 'needs'} notes
+          </p>
+        </div>
+      )}
+
+      {/* Completed / Upcoming tabs */}
+      <div className="flex gap-2 px-4 pb-3">
+        {([
+          { key: 'upcoming' as const,  label: 'Upcoming',  count: upcomingRows.length },
+          { key: 'completed' as const, label: 'Completed', count: completedRows.length },
+        ]).map(t => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => { setTab(t.key); setShowAll(false) }}
+            className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+            style={tab === t.key ? styles.filterTabActive : styles.filterTabInactive}
+          >
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
+
       {/* Session rows */}
-      {displayRows.length > 0 && (
+      {displayRows.length === 0 ? (
+        <div className="px-4 py-6 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <p className="text-xs" style={{ color: colors.text.dim }}>
+            {tab === 'completed' ? 'No completed sessions yet.' : 'No upcoming sessions.'}
+          </p>
+        </div>
+      ) : (
         <div style={{ borderTop: `1px solid ${border.divider}` }}>
           {displayRows.map((s, i) => {
             const hasNotes  = !!(s.feedback || s.progressReport || s.notes)
@@ -233,10 +273,18 @@ export function SessionList({
 
                 <span className="flex-1" />
 
-                <span className="text-[12.65px] font-medium flex-shrink-0"
-                  style={{ color: sessionRowStatusColor(s.status) }}>
-                  {sessionRowStatusLabel(s.status)}
-                </span>
+                {isOverdue(s) ? (
+                  <span className="flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: warningAlpha(0.14), color: colors.status.warning }}
+                    title="This session's time has passed and it hasn't been marked done — notes are pending">
+                    <AlertTriangle size={10} /> Notes overdue
+                  </span>
+                ) : (
+                  <span className="text-[12.65px] font-medium flex-shrink-0"
+                    style={{ color: sessionRowStatusColor(s.status) }}>
+                    {sessionRowStatusLabel(s.status)}
+                  </span>
+                )}
 
                 {s.performanceScore != null && <ScorePill score={s.performanceScore} />}
 
@@ -253,7 +301,7 @@ export function SessionList({
       {(hiddenCount > 0 || showAll) && (
         <div className="px-4 py-3 flex justify-center" style={{ borderTop: `1px solid ${border.divider}` }}>
           <Button variant="secondary" size="sm" onClick={() => setShowAll(v => !v)}>
-            {showAll ? 'Show less' : `Show all ${total} sessions`}
+            {showAll ? 'Show less' : `Show all ${rowsForTab.length} sessions`}
           </Button>
         </div>
       )}

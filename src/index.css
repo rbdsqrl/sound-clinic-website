@@ -105,25 +105,26 @@
 }
 
 /* ── Dark mode overrides ──────────────────────────────────────────────────── */
-/* Mellow warm-charcoal palette: calm, clinical, soft on the eyes.            */
-/* Backgrounds sit in the warm-slate mid-dark range (not pitch-black).        */
-/* Accent is a desaturated teal — calming, clinical, healthcare-appropriate.  */
+/* Warm-charcoal palette: calm, clinical, soft on the eyes — but with a       */
+/* brighter, more saturated accent + status set than the light palette, so   */
+/* badges and highlights still read clearly against the dark surfaces        */
+/* instead of blending into them.                                            */
 .dark {
-  /* Accent and CTA — muted clinical teal, low saturation */
-  --color-accent:          #5BABB4;
-  --color-accent-raw:      91, 171, 180;
-  --color-cta:             #74BFC4;
-  --color-cta-raw:         116, 191, 196;
-  --color-cta-end:         #469AA4;
-  --color-secondary:       #8ECECA;
-  --color-secondary-raw:   142, 206, 202;
+  /* Accent and CTA — vivid clinical teal/cyan, punchy against dark surfaces */
+  --color-accent:          #3FC1CC;
+  --color-accent-raw:      63, 193, 204;
+  --color-cta:             #6DDCE0;
+  --color-cta-raw:         109, 220, 224;
+  --color-cta-end:         #2E99A3;
+  --color-secondary:       #7FE0DC;
+  --color-secondary-raw:   127, 224, 220;
 
   /* Text — warm off-white hierarchy, reduced contrast */
   --text-heading:          #DCE2E8;        /* soft off-white headings          */
   --text-primary:          #B4BEC8;        /* warm grey body text              */
   --text-muted:            #7E909C;        /* secondary labels                 */
   --text-dim:              #526070;        /* placeholder / subtle             */
-  --text-link:             #5BABB4;
+  --text-link:             #3FC1CC;
   --text-sidebar-primary:  #DCE2E8;
   --text-sidebar-label:    #B4BEC8;
   --text-sidebar-muted:    #7E909C;
@@ -136,40 +137,40 @@
   --surface-overlay:       rgba(14, 17, 21, 0.90);
   --surface-mobile-overlay: rgba(18, 22, 27, 0.95);
   --surface-mobile-header: rgba(20, 24, 29, 0.97);
-  --surface-footer:        rgba(91, 171, 180, 0.06);
-  --surface-filter-strip:  rgba(91, 171, 180, 0.07);
-  --surface-row-hover:     rgba(91, 171, 180, 0.06);
+  --surface-footer:        rgba(63, 193, 204, 0.06);
+  --surface-filter-strip:  rgba(63, 193, 204, 0.07);
+  --surface-row-hover:     rgba(63, 193, 204, 0.06);
 
   /* Borders — quiet, no glow */
   --border-card:           1px solid rgba(255, 255, 255, 0.07);
   --border-divider:        rgba(255, 255, 255, 0.08);
-  --border-sidebar:        rgba(91, 171, 180, 0.14);
+  --border-sidebar:        rgba(63, 193, 204, 0.14);
   --border-medium:         1px solid rgba(255, 255, 255, 0.09);
   --border-drag:           rgba(255, 255, 255, 0.10);
   --border-raw:            255, 255, 255;
 
   /* Shadows — muted depth, no electric glow */
-  --shadow-card:           0 2px 14px rgba(0,0,0,0.36), 0 0 0 1px rgba(91, 171, 180, 0.04);
-  --shadow-glow:           0 0 18px rgba(91, 171, 180, 0.12);
-  --shadow-glow-sm:        0 0 10px rgba(91, 171, 180, 0.08);
-  --shadow-glow-lg:        0 0 36px rgba(91, 171, 180, 0.14);
-  --shadow-button-cta:     0 2px 10px rgba(116, 191, 196, 0.24);
-  --shadow-button-accent:  0 2px 10px rgba(91, 171, 180, 0.20);
-  --shadow-logo:           0 4px 16px rgba(91, 171, 180, 0.20);
-  --shadow-nav-active:     0 2px 8px rgba(91, 171, 180, 0.10);
+  --shadow-card:           0 2px 14px rgba(0,0,0,0.36), 0 0 0 1px rgba(63, 193, 204, 0.04);
+  --shadow-glow:           0 0 18px rgba(63, 193, 204, 0.12);
+  --shadow-glow-sm:        0 0 10px rgba(63, 193, 204, 0.08);
+  --shadow-glow-lg:        0 0 36px rgba(63, 193, 204, 0.14);
+  --shadow-button-cta:     0 2px 10px rgba(109, 220, 224, 0.24);
+  --shadow-button-accent:  0 2px 10px rgba(63, 193, 204, 0.20);
+  --shadow-logo:           0 4px 16px rgba(63, 193, 204, 0.20);
+  --shadow-nav-active:     0 2px 8px rgba(63, 193, 204, 0.10);
   --shadow-modal:          0 8px 32px rgba(0,0,0,0.48), 0 0 0 1px rgba(255,255,255,0.06);
-  --shadow-nav-dot:        0 0 8px rgba(91, 171, 180, 0.65);
+  --shadow-nav-dot:        0 0 8px rgba(63, 193, 204, 0.65);
 
   --card-backdrop:         blur(10px);
   --modal-backdrop:        blur(8px);
   --header-backdrop:       blur(12px);
   --sidebar-backdrop:      blur(16px);
 
-  --gradient-button-cta:   linear-gradient(135deg, #74BFC4 0%, #469AA4 100%);
-  --gradient-button-accent: linear-gradient(135deg, #5BABB4 0%, #3D8A94 100%);
-  --gradient-logo:         linear-gradient(135deg, #5BABB4 0%, #8ECECA 100%);
-  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(91,171,180,0.14) 0%, #141820 60%);
-  --gradient-summary:      linear-gradient(135deg, #5BABB4, #8ECECA);
+  --gradient-button-cta:   linear-gradient(135deg, #6DDCE0 0%, #2E99A3 100%);
+  --gradient-button-accent: linear-gradient(135deg, #3FC1CC 0%, #2A8F99 100%);
+  --gradient-logo:         linear-gradient(135deg, #3FC1CC 0%, #7FE0DC 100%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(63,193,204,0.14) 0%, #141820 60%);
+  --gradient-summary:      linear-gradient(135deg, #3FC1CC, #7FE0DC);
 
   /* Forms — warm dark glass */
   --form-bg:               #1C2128;
@@ -177,10 +178,26 @@
   --form-text:             #C0CAD2;
   --form-placeholder:      #5C7080;
   --form-label:            #7E909C;
-  --form-error:            #D98080;
+  --form-error:            #E8717A;
 
   --scrollbar-thumb:       #374450;
   --scrollbar-thumb-hover: #4A5C68;
+
+  /* Status / semantic — brighter + more saturated than the light palette so   */
+  /* badges (Paid, Active, Cancelled…) still pop against the dark card surface */
+  /* instead of reading as a muted tint close to the background.               */
+  --color-success:         #3ED17E;
+  --color-success-raw:     62, 209, 126;
+  --color-warning:         #F0B93E;
+  --color-warning-raw:     240, 185, 62;
+  --color-danger:          #E8717A;
+  --color-danger-raw:      232, 113, 122;
+  --color-info:            #5FB4E8;
+  --color-info-raw:        95, 180, 232;
+  --color-purple-raw:      172, 128, 238;
+  --color-slate-raw:       138, 156, 176;
+  --color-pink-raw:        236, 128, 182;
+  --color-amber-raw:       230, 164, 74;
 }
 
 .dark select.form-input {
@@ -241,7 +258,7 @@
   }
 
   html.dark body {
-    background-image: radial-gradient(circle, rgba(91, 171, 180, 0.04) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(63, 193, 204, 0.04) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 

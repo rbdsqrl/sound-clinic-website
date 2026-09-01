@@ -27,6 +27,7 @@ import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
 import { ROUTES } from '../lib/routes'
+import { isPastDateTime } from '../lib/schedule'
 import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse } from '../types'
 
@@ -123,9 +124,16 @@ function TodaySessions({
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
   }
 
+  const isOverdue = (s: TherapySessionResponse) =>
+    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
+
   const rowContent = (s: TherapySessionResponse) => (
     <>
-      <div className="flex-shrink-0">{sessionStatusIcon(s.status)}</div>
+      <div className="flex-shrink-0">
+        {isOverdue(s)
+          ? <AlertTriangle size={14} style={{ color: colors.status.warning }} />
+          : sessionStatusIcon(s.status)}
+      </div>
 
       <div className="flex items-center gap-1 flex-shrink-0 w-24">
         <Clock size={11} style={{ color: colors.text.dim }} />
@@ -153,8 +161,10 @@ function TodaySessions({
           #{s.sessionNumber}/{s.totalSessions}
         </span>
         <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
-          {sessionStatusLabel(s.status)}
+          style={isOverdue(s)
+            ? { background: warningAlpha(0.14), color: colors.status.warning }
+            : { background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
+          {isOverdue(s) ? 'Notes overdue' : sessionStatusLabel(s.status)}
         </span>
       </div>
     </>
@@ -508,6 +518,99 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
+    </>
+  )
+}
+
+function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionResponse[] }) {
+  const [showAll, setShowAll] = useState(false)
+
+  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
+    <Link
+      key={s.id}
+      to={ROUTES.enrollment(s.patientId, s.enrollmentId)}
+      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+    >
+      <div className="flex-shrink-0 w-20 sm:w-24">
+        <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
+          {format(new Date(s.sessionDate), 'MMM d')}
+        </p>
+        <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
+          {s.startTime.slice(0, 5)}
+        </p>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
+          {s.patientFirstName} {s.patientLastName}
+        </p>
+        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+          {s.programName}
+          <span style={{ color: colors.text.dim }}>
+            {' · '}{s.therapistFirstName} {s.therapistLastName}
+          </span>
+        </p>
+      </div>
+
+      <span
+        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg"
+        style={{ background: warningAlpha(0.09), color: colors.status.warning }}
+      >
+        <AlertTriangle size={12} /> Notes overdue
+      </span>
+    </Link>
+  )
+
+  return (
+    <>
+      <div style={{
+        ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.warning}`,
+        minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+      }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} style={{ color: colors.status.warning }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Pending Session Notes
+            </h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: warningAlpha(0.09), color: colors.status.warning }}>
+              {sessions.length}
+            </span>
+          </div>
+          <p className="text-xs" style={{ color: colors.text.muted }}>Sessions past their time, still unmarked</p>
+        </div>
+
+        <div className="flex-1">
+          <div>
+            {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
+          </div>
+        </div>
+
+        {sessions.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button
+              onClick={() => setShowAll(true)}
+              className="text-xs font-medium"
+              style={{ color: colors.status.warning }}
+            >
+              View all {sessions.length} sessions
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Pending Session Notes (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {sessions.map((s, i) => row(s, i, sessions))}
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
@@ -1150,6 +1253,16 @@ export default function DashboardPage() {
     enabled: isOwnerOrAdmin,
     staleTime: 2 * 60 * 1000,
   })
+  // Still SCHEDULED but the session's own date/time has already passed — nobody
+  // marked it complete/missed or wrote it up. Filtered client-side since the
+  // backend's status-only lookup doesn't know "overdue".
+  const { data: scheduledSessions = [] } = useQuery({
+    queryKey: ['sessions-scheduled-all'],
+    queryFn: () => therapySessionsApi.list({ status: 'SCHEDULED' }),
+    enabled: isOwnerOrAdmin,
+    staleTime: 2 * 60 * 1000,
+  })
+  const pendingNotes = scheduledSessions.filter(s => isPastDateTime(s.sessionDate, s.startTime.slice(0, 5)))
 
   const { data: upcomingBirthdays = [] } = useQuery({
     queryKey: ['upcoming-birthdays'],
@@ -1249,35 +1362,30 @@ export default function DashboardPage() {
   }
 
   // ── Staff dashboard ───────────────────────────────────────────────────────
-  const completedToday = todaySessions.filter(s => s.status === 'COMPLETED').length
 
   return (
     <div className="space-y-6">
-      {/* Compact header — name + role + date on one line */}
-      <div className="flex items-center gap-3">
-        <div
-          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{ background: accentAlpha(0.12), color: colors.accent }}
-        >
-          {user?.firstName?.[0]}{user?.lastName?.[0]}
+      {/* Compact header — name + role + date on the left, attendance check-in/out on the right */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}
+          >
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
+              {user?.firstName} {user?.lastName}
+            </span>
+            {activeRole && roleBadge(activeRole)}
+            <span className="text-xs" style={{ color: colors.text.dim }}>
+              {format(new Date(), 'EEE, d MMM yyyy')}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
-            {user?.firstName} {user?.lastName}
-          </span>
-          {activeRole && roleBadge(activeRole)}
-          <span className="text-xs" style={{ color: colors.text.dim }}>
-            {format(new Date(), 'EEE, d MMM yyyy')}
-          </span>
-        </div>
-      </div>
 
-      <AttendanceWidget />
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatCard label="Sessions Today"   value={todaySessions.length}        icon={<CalendarDays size={22} />} color="purple" />
-        <StatCard label="Completed"        value={completedToday}              icon={<CheckCircle2 size={22} />} color="green" />
-        <StatCard label="Remaining"        value={todaySessions.filter(s => s.status === 'SCHEDULED').length} icon={<Clock size={22} />} color="blue" />
+        <AttendanceWidget />
       </div>
 
       {/* Uniform 2-column tile grid. Reschedule/Cancellation are on-demand alerts — they only
@@ -1285,6 +1393,7 @@ export default function DashboardPage() {
       {(() => {
         const hasReschedule   = canReschedule && pendingReschedule.length > 0
         const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
+        const hasPendingNotes = isOwnerOrAdmin && pendingNotes.length > 0
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1300,6 +1409,10 @@ export default function DashboardPage() {
                 sessions={cancellationRequests}
                 onDone={() => refetchCancelRequests()}
               />
+            )}
+
+            {hasPendingNotes && (
+              <PendingSessionNotesPanel sessions={pendingNotes} />
             )}
 
             <TodaySessions
