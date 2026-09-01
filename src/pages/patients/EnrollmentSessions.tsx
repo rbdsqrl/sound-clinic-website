@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronDown, ChevronRight,
+  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
@@ -135,10 +135,11 @@ export function SessionList({
   const total     = sessions.length
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
 
-  // A SCHEDULED session whose own date/time has already passed — nobody marked it
-  // done/missed or wrote it up yet.
+  // A SCHEDULED session whose own end time has already passed — nobody marked it
+  // done/missed or wrote it up yet. Based on end time, not start, so a session
+  // still in progress isn't flagged as overdue.
   const isOverdue = (s: TherapySessionResponse) =>
-    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
+    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.endTime.slice(0, 5))
   const pendingNotesCount = sessions.filter(isOverdue).length
 
   // Sorted by the session's actual date, not its sessionNumber — an ad-hoc session is numbered
@@ -507,15 +508,31 @@ export function SessionNotesModal({
             only shown when the session's program has a template configured, collapsed by default
             since it's supplementary detail rather than something every save needs to touch. */}
         {!feedbackLoading && feedback && feedback.template.length > 0 && (
-          <div className="rounded-xl" style={{ border: border.card }}>
+          <div className="rounded-xl overflow-hidden" style={{ border: border.card }}>
             <button
               type="button"
               onClick={() => setDetailedOpen(o => !o)}
-              className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold"
-              style={{ color: colors.text.primary }}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold transition-colors"
+              style={{ color: colors.text.primary, background: detailedOpen ? surface.filterStrip : surface.rowHover }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = detailedOpen ? surface.filterStrip : surface.rowHover}
             >
-              Detailed Feedback Options
-              {detailedOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <span className="flex items-center gap-2">
+                Detailed Feedback Options
+                {!detailedOpen && (
+                  <span className="text-xs font-normal" style={{ color: colors.text.dim }}>
+                    ({feedback.template.length} question{feedback.template.length !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </span>
+              <ChevronRight
+                size={15}
+                style={{
+                  transform: detailedOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s ease',
+                  flexShrink: 0,
+                }}
+              />
             </button>
 
             {detailedOpen && (

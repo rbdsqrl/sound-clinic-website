@@ -124,15 +124,21 @@ function TodaySessions({
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
   }
 
+  // Notes are only actually overdue once the session has finished — while it's
+  // still running, "Notes overdue" would just be wrong.
   const isOverdue = (s: TherapySessionResponse) =>
-    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
+    s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.endTime.slice(0, 5))
+  const isOngoing = (s: TherapySessionResponse) =>
+    s.status === 'SCHEDULED' && !isOverdue(s) && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
 
   const rowContent = (s: TherapySessionResponse) => (
     <>
       <div className="flex-shrink-0">
         {isOverdue(s)
           ? <AlertTriangle size={14} style={{ color: colors.status.warning }} />
-          : sessionStatusIcon(s.status)}
+          : isOngoing(s)
+            ? <Clock size={14} style={{ color: colors.accent }} />
+            : sessionStatusIcon(s.status)}
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0 w-24">
@@ -163,8 +169,10 @@ function TodaySessions({
         <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
           style={isOverdue(s)
             ? { background: warningAlpha(0.14), color: colors.status.warning }
-            : { background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
-          {isOverdue(s) ? 'Notes overdue' : sessionStatusLabel(s.status)}
+            : isOngoing(s)
+              ? { background: accentAlpha(0.14), color: colors.accent }
+              : { background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
+          {isOverdue(s) ? 'Notes overdue' : isOngoing(s) ? 'Ongoing' : sessionStatusLabel(s.status)}
         </span>
       </div>
     </>
@@ -1226,7 +1234,6 @@ export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
   const isOwnerOrAdmin     = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
-  const isBusinessOwner    = activeRole === 'BUSINESS_OWNER'
   const isTherapistRole    = activeRole === 'THERAPIST'
   const canReschedule      = isOwnerOrAdmin
   const isStaff            = isOwnerOrAdmin || activeRole === 'THERAPIST' || activeRole === 'DOCTOR'
@@ -1255,27 +1262,21 @@ export default function DashboardPage() {
     enabled: isOwnerOrAdmin,
     staleTime: 2 * 60 * 1000,
   })
-  // Still SCHEDULED but the session's own date/time has already passed — nobody
-  // marked it complete/missed or wrote it up. Filtered client-side since neither
-  // query path below knows "overdue" on its own.
-  //
-  // Only Business Owner and the assigned Therapist can ever act on this (session
-  // notes can only be updated by whoever's assigned, or the Business Owner), so
-  // it's the only two dashboards that show it — Business Owner org-wide via the
-  // unscoped status lookup, Therapist scoped to their own caseload via the
-  // date-range endpoint (the status-only lookup ignores caller role entirely,
-  // so it can't be used here without leaking every other therapist's sessions).
+  // Still SCHEDULED but the session's own end time has already passed — nobody
+  // marked it complete/missed or wrote it up. Only shows on the assigned
+  // Therapist's own dashboard, since they're the one who has to act on it.
+  // Scoped to their own caseload via the date-range endpoint — the status-only
+  // lookup ignores caller role entirely, so it can't be used here without
+  // leaking every other therapist's sessions.
   const { data: scheduledSessions = [] } = useQuery({
     queryKey: ['sessions-scheduled-all', activeRole],
-    queryFn: () => isBusinessOwner
-      ? therapySessionsApi.list({ status: 'SCHEDULED' })
-      : therapySessionsApi.list({ from: format(subDays(new Date(), 90), 'yyyy-MM-dd'), to: today }),
-    enabled: isBusinessOwner || isTherapistRole,
+    queryFn: () => therapySessionsApi.list({ from: format(subDays(new Date(), 90), 'yyyy-MM-dd'), to: today }),
+    enabled: isTherapistRole,
     staleTime: 2 * 60 * 1000,
   })
   const pendingNotes = scheduledSessions
     .filter(s => s.status === 'SCHEDULED')
-    .filter(s => isPastDateTime(s.sessionDate, s.startTime.slice(0, 5)))
+    .filter(s => isPastDateTime(s.sessionDate, s.endTime.slice(0, 5)))
 
   const { data: upcomingBirthdays = [] } = useQuery({
     queryKey: ['upcoming-birthdays'],
@@ -1406,7 +1407,7 @@ export default function DashboardPage() {
       {(() => {
         const hasReschedule   = canReschedule && pendingReschedule.length > 0
         const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
-        const hasPendingNotes = (isBusinessOwner || isTherapistRole) && pendingNotes.length > 0
+        const hasPendingNotes = isTherapistRole && pendingNotes.length > 0
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
