@@ -1888,18 +1888,22 @@ export interface CaseHistoryResponse {
 
 export type UpdateCaseHistoryRequest = Omit<CaseHistoryResponse, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
 
-// ── Patient assessments (ISAA / PRBA) ───────────────────────────────────────────
+// ── Patient assessments (generic engine — ISAA, PRBA, M-CHAT-R, ADL, Pre Assessment Form) ──
 
-export type AssessmentType = 'ISAA' | 'PRBA'
+export type AssessmentType = 'ISAA' | 'PRBA' | 'MCHAT_R' | 'ADL' | 'PRE_ASSESSMENT_FORM'
+
+export type AssessmentItemType = 'SINGLE_SELECT' | 'MULTI_SELECT' | 'TEXT' | 'FILE'
 
 export interface AssessmentOption {
+  id: string
   label: string
-  score: number
+  score: number | null
 }
 
 export interface AssessmentItem {
   number: number
   text: string
+  itemType: AssessmentItemType
   options: AssessmentOption[]
 }
 
@@ -1909,23 +1913,32 @@ export interface AssessmentSection {
 }
 
 export interface AssessmentDefinitionResponse {
-  assessmentType: AssessmentType
-  maxScore: number
-  sections: AssessmentSection[]
+  code: AssessmentType
+  name: string
+  description: string | null
+  scoringType: 'SUM_SCORE' | 'NONE'
+  maxScore: number | null
+  categories: AssessmentSection[]
+}
+
+export interface AssessmentItemAnswer {
+  optionId?: string
+  optionIds?: string[]
+  text?: string
 }
 
 export interface CreateAssessmentRequest {
   assessmentDate: string   // "YYYY-MM-DD"
-  itemScores: Record<number, number>
+  responses: Record<number, AssessmentItemAnswer>
 }
 
 export interface PatientAssessmentResponse {
   id: string
-  assessmentType: AssessmentType
+  definitionCode: AssessmentType
   assessmentDate: string   // "YYYY-MM-DD"
   filledByName: string | null
-  totalScore: number
-  maxScore: number
+  totalScore: number | null
+  maxScore: number | null
   classification: string | null
 }
 

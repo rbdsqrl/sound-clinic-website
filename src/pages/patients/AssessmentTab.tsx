@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { Plus, ClipboardList, Download } from 'lucide-react'
+import { Plus, ClipboardList, Download, Paperclip, Check } from 'lucide-react'
 import { assessmentsApi } from '../../api/assessments'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -15,7 +15,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, accentAlpha, type PaletteKey } from '../../theme'
 import ScoreChart, { type ScorePoint } from '../../components/charts/ScoreChart'
-import type { AssessmentType, PatientAssessmentResponse } from '../../types'
+import type { AssessmentDefinitionResponse, AssessmentItem, AssessmentItemAnswer, AssessmentType, PatientAssessmentResponse } from '../../types'
 
 const CLASSIFICATION_COLOR: Record<string, PaletteKey> = {
   'No Autism': 'green',
@@ -24,6 +24,9 @@ const CLASSIFICATION_COLOR: Record<string, PaletteKey> = {
   'Severe Autism': 'red',
   'Adequate': 'green',
   'Inadequate': 'red',
+  'Low Risk': 'green',
+  'Medium Risk': 'amber',
+  'High Risk': 'red',
 }
 
 const CAN_FILL_ROLES = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST', 'DOCTOR']
@@ -61,11 +64,14 @@ export default function AssessmentTab({
 
   if (defLoading || historyLoading) return <PageLoader />
 
-  const points: ScorePoint[] = history.map(h => ({
-    label: format(new Date(h.assessmentDate + 'T00:00:00'), 'd MMM'),
-    value: Math.round((h.totalScore / h.maxScore) * 100),
-    meta: `${h.totalScore}/${h.maxScore}${h.classification ? ` · ${h.classification}` : ''}`,
-  }))
+  const scored = definition?.scoringType === 'SUM_SCORE'
+  const points: ScorePoint[] = scored ? history
+    .filter(h => h.totalScore != null && h.maxScore)
+    .map(h => ({
+      label: format(new Date(h.assessmentDate + 'T00:00:00'), 'd MMM'),
+      value: Math.round((h.totalScore! / h.maxScore!) * 100),
+      meta: `${h.totalScore}/${h.maxScore}${h.classification ? ` · ${h.classification}` : ''}`,
+    })) : []
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,17 +94,19 @@ export default function AssessmentTab({
           />
         ) : (
           <>
-            <div className="mb-5">
-              <ScoreChart points={points} variant="line" />
-            </div>
+            {scored && points.length > 0 && (
+              <div className="mb-5">
+                <ScoreChart points={points} variant="line" />
+              </div>
+            )}
 
             <div className="overflow-x-auto rounded-xl" style={{ border: border.card }}>
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${border.divider}` }}>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Date</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Score</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Classification</th>
+                    {scored && <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Score</th>}
+                    {scored && <th className="text-left px-3 py-2 font-medium" style={{ color: colors.text.muted }}>Classification</th>}
                     <th className="text-left px-3 py-2 font-medium hidden md:table-cell" style={{ color: colors.text.muted }}>Filled by</th>
                     <th className="px-3 py-2"></th>
                   </tr>
@@ -109,14 +117,18 @@ export default function AssessmentTab({
                       <td className="px-3 py-2" style={{ color: colors.text.primary }}>
                         {format(new Date(h.assessmentDate + 'T00:00:00'), 'd MMM yyyy')}
                       </td>
-                      <td className="px-3 py-2 font-semibold" style={{ color: colors.text.primary }}>
-                        {h.totalScore}/{h.maxScore}
-                      </td>
-                      <td className="px-3 py-2">
-                        {h.classification
-                          ? <Badge variant={CLASSIFICATION_COLOR[h.classification] ?? 'slate'}>{h.classification}</Badge>
-                          : <span style={{ color: colors.text.dim }}>—</span>}
-                      </td>
+                      {scored && (
+                        <td className="px-3 py-2 font-semibold" style={{ color: colors.text.primary }}>
+                          {h.totalScore}/{h.maxScore}
+                        </td>
+                      )}
+                      {scored && (
+                        <td className="px-3 py-2">
+                          {h.classification
+                            ? <Badge variant={CLASSIFICATION_COLOR[h.classification] ?? 'slate'}>{h.classification}</Badge>
+                            : <span style={{ color: colors.text.dim }}>—</span>}
+                        </td>
+                      )}
                       <td className="px-3 py-2 hidden md:table-cell" style={{ color: colors.text.muted }}>
                         {h.filledByName ?? '—'}
                       </td>
@@ -152,32 +164,49 @@ export default function AssessmentTab({
   )
 }
 
+function answered(item: AssessmentItem, answer: AssessmentItemAnswer | undefined): boolean {
+  if (!answer) return false
+  switch (item.itemType) {
+    case 'SINGLE_SELECT': return !!answer.optionId
+    case 'MULTI_SELECT': return !!answer.optionIds && answer.optionIds.length > 0
+    case 'TEXT':
+    case 'FILE': return !!answer.text && answer.text.trim().length > 0
+  }
+}
+
 function NewAssessmentModal({
   patientId, type, title, definition, onClose,
 }: {
   patientId: string
   type: AssessmentType
   title: string
-  definition: { maxScore: number; sections: { name: string; items: { number: number; text: string; options: { label: string; score: number }[] }[] }[] }
+  definition: AssessmentDefinitionResponse
   onClose: () => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [assessmentDate, setAssessmentDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [scores, setScores] = useState<Map<number, number>>(new Map())
+  const [answers, setAnswers] = useState<Map<number, AssessmentItemAnswer>>(new Map())
 
-  const totalItems = definition.sections.reduce((n, s) => n + s.items.length, 0)
-  const answered = scores.size
-  const canSave = answered === totalItems
+  const allItems = definition.categories.flatMap(c => c.items)
+  const totalItems = allItems.length
+  const answeredCount = allItems.filter(i => answered(i, answers.get(i.number))).length
+  const canSave = answeredCount === totalItems
+
+  const setAnswer = (itemNumber: number, answer: AssessmentItemAnswer) =>
+    setAnswers(prev => new Map(prev).set(itemNumber, answer))
 
   const saveMut = useMutation({
     mutationFn: () => assessmentsApi.create(patientId, type, {
       assessmentDate,
-      itemScores: Object.fromEntries(scores),
+      responses: Object.fromEntries(answers),
     }),
     onSuccess: (created: PatientAssessmentResponse) => {
       qc.invalidateQueries({ queryKey: ['assessment-history', patientId, type] })
-      toast(`Saved — score ${created.totalScore}/${created.maxScore}${created.classification ? ` (${created.classification})` : ''}`, 'success')
+      const scoreMsg = created.totalScore != null
+        ? ` — score ${created.totalScore}/${created.maxScore}${created.classification ? ` (${created.classification})` : ''}`
+        : ''
+      toast(`Saved${scoreMsg}`, 'success')
       onClose()
     },
     onError: (err) => toast(getApiError(err, 'Failed to save assessment'), 'error'),
@@ -198,7 +227,7 @@ function NewAssessmentModal({
           )}
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="primary" loading={saveMut.isPending} disabled={!canSave} onClick={() => saveMut.mutate()}>
-            Save ({answered}/{totalItems})
+            Save ({answeredCount}/{totalItems})
           </Button>
         </>
       }
@@ -213,39 +242,128 @@ function NewAssessmentModal({
       </div>
 
       <div className="flex flex-col gap-6">
-        {definition.sections.map(section => (
-          <div key={section.name}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: colors.text.heading }}>{section.name}</h3>
+        {definition.categories.map(category => (
+          <div key={category.name}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: colors.text.heading }}>{category.name}</h3>
             <div className="flex flex-col gap-4">
-              {section.items.map(item => (
-                <div key={item.number}>
-                  <p className="text-sm mb-2" style={{ color: colors.text.primary }}>
-                    {item.number}. {item.text}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {item.options.map(opt => {
-                      const selected = scores.get(item.number) === opt.score
-                      return (
-                        <button
-                          key={opt.label}
-                          type="button"
-                          onClick={() => setScores(prev => new Map(prev).set(item.number, opt.score))}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
-                          style={selected
-                            ? { background: colors.accent, color: '#fff', border: `1px solid ${colors.accent}` }
-                            : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.card}` }}
-                        >
-                          {opt.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
+              {category.items.map(item => (
+                <ItemInput
+                  key={item.number}
+                  patientId={patientId}
+                  type={type}
+                  item={item}
+                  answer={answers.get(item.number)}
+                  onChange={a => setAnswer(item.number, a)}
+                />
               ))}
             </div>
           </div>
         ))}
       </div>
     </Modal>
+  )
+}
+
+function ItemInput({
+  patientId, type, item, answer, onChange,
+}: {
+  patientId: string
+  type: AssessmentType
+  item: AssessmentItem
+  answer: AssessmentItemAnswer | undefined
+  onChange: (answer: AssessmentItemAnswer) => void
+}) {
+  const { toast } = useToast()
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => assessmentsApi.uploadFile(patientId, type, file),
+    onSuccess: (url) => onChange({ text: url }),
+    onError: (err) => toast(getApiError(err, 'Failed to upload file'), 'error'),
+  })
+
+  return (
+    <div>
+      <p className="text-sm mb-2" style={{ color: colors.text.primary }}>
+        {item.number}. {item.text}
+      </p>
+
+      {item.itemType === 'SINGLE_SELECT' && (
+        <div className="flex flex-wrap gap-2">
+          {item.options.map(opt => {
+            const selected = answer?.optionId === opt.id
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => onChange({ optionId: opt.id })}
+                className="text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
+                style={selected
+                  ? { background: colors.accent, color: '#fff', border: `1px solid ${colors.accent}` }
+                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.card}` }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {item.itemType === 'MULTI_SELECT' && (
+        <div className="flex flex-wrap gap-2">
+          {item.options.map(opt => {
+            const selected = (answer?.optionIds ?? []).includes(opt.id)
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  const current = answer?.optionIds ?? []
+                  const next = selected ? current.filter(id => id !== opt.id) : [...current, opt.id]
+                  onChange({ optionIds: next })
+                }}
+                className="text-xs font-medium px-3 py-1.5 rounded-full border transition-all inline-flex items-center gap-1"
+                style={selected
+                  ? { background: colors.accent, color: '#fff', border: `1px solid ${colors.accent}` }
+                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.card}` }}
+              >
+                {selected && <Check size={11} />} {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {item.itemType === 'TEXT' && (
+        <Input
+          value={answer?.text ?? ''}
+          onChange={e => onChange({ text: e.target.value })}
+        />
+      )}
+
+      {item.itemType === 'FILE' && (
+        <div className="flex items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border cursor-pointer transition-all"
+            style={{ color: colors.text.muted, border: `1px solid ${border.card}` }}>
+            <Paperclip size={12} />
+            {uploadMut.isPending ? 'Uploading…' : answer?.text ? 'Replace file' : 'Attach file'}
+            <input
+              type="file"
+              className="hidden"
+              disabled={uploadMut.isPending}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) uploadMut.mutate(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+          {answer?.text && (
+            <a href={answer.text} target="_blank" rel="noopener noreferrer"
+              className="text-xs truncate max-w-[220px]" style={{ color: colors.accent }}>
+              View uploaded file
+            </a>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

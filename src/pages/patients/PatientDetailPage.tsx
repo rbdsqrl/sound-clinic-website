@@ -56,6 +56,7 @@ import type {
   TherapySessionResponse,
   TherapySessionStatus,
   SessionAttachmentResponse,
+  AssessmentType,
 } from '../../types'
 
 // ── Stage config ───────────────────────────────────────────────────────────────
@@ -1131,33 +1132,41 @@ function EnrollmentModal({
 const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Media & Notes'] as const
 type Tab = typeof TABS[number]
 
-// ── Assessments tab (ISAA + PRBA, switched by an inner sub-tab) ─────────────────
+// ── Assessments tab (switched by an inner sub-tab) ───────────────────────────
+
+const ASSESSMENT_TABS: { type: AssessmentType; label: string; title: string; description: string }[] = [
+  { type: 'ISAA', label: 'Indian Scale for Assessment of Autism', title: 'Indian Scale for Assessment of Autism',
+    description: 'Indian Scale for Assessment of Autism — 40 items across 6 domains' },
+  { type: 'PRBA', label: 'Pre-Requisite Behavior Assessment', title: 'Pre-Requisite Behavior Assessment',
+    description: 'Pre-Requisite Behavior Assessment — 20 items across 6 sections' },
+  { type: 'MCHAT_R', label: 'M-CHAT-R', title: 'M-CHAT-R',
+    description: 'Modified Checklist for Autism in Toddlers, Revised — 20-item Yes/No screener' },
+  { type: 'ADL', label: 'ADL Assessment', title: 'ADL Assessment',
+    description: 'Activities of Daily Living checklist across 30 domains' },
+  { type: 'PRE_ASSESSMENT_FORM', label: 'Pre Assessment Form', title: 'Pre Assessment Form',
+    description: 'Intake questionnaire completed ahead of a child’s first assessment' },
+]
 
 function AssessmentsTab({ patientId }: { patientId: string }) {
-  const [sub, setSub] = useState<'ISAA' | 'PRBA'>('ISAA')
+  const [sub, setSub] = useState<AssessmentType>('ISAA')
+  const active = ASSESSMENT_TABS.find(t => t.type === sub)!
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
-        {(['ISAA', 'PRBA'] as const).map(s => (
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
+        {ASSESSMENT_TABS.map(t => (
           <button
-            key={s}
-            onClick={() => setSub(s)}
-            className="px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors"
-            style={sub === s ? styles.filterTabActive : styles.filterTabInactive}
+            key={t.type}
+            onClick={() => setSub(t.type)}
+            className="flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors"
+            style={sub === t.type ? styles.filterTabActive : styles.filterTabInactive}
           >
-            {s}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {sub === 'ISAA' ? (
-        <AssessmentTab patientId={patientId} type="ISAA" title="ISAA"
-          description="Indian Scale for Assessment of Autism — 40 items across 6 domains" />
-      ) : (
-        <AssessmentTab patientId={patientId} type="PRBA" title="PRBA"
-          description="Pre-Requisite Behavior Assessment — 20 items across 6 sections" />
-      )}
+      <AssessmentTab patientId={patientId} type={active.type} title={active.title} description={active.description} />
     </div>
   )
 }
