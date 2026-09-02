@@ -2,9 +2,6 @@ import client from './client'
 import type { ApiResponse, UserResponse, StaffMemberResponse, AssignableUser, Role, MemberProfileResponse, UpdateMemberProfileRequest } from '../types'
 
 export const usersApi = {
-  me: () =>
-    client.get<ApiResponse<UserResponse>>('/users/me').then((r) => r.data.data),
-
   /**
    * All THERAPIST users in the org.
    * Pass clinicId to scope to a single clinic.

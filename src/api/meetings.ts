@@ -8,9 +8,6 @@ export const meetingsApi = {
       .get<ApiResponse<MeetingResponse[]>>('/meetings', { params: { from, to } })
       .then(r => r.data.data),
 
-  get: (id: string) =>
-    client.get<ApiResponse<MeetingResponse>>(`/meetings/${id}`).then(r => r.data.data),
-
   create: (payload: CreateMeetingRequest) =>
     client.post<ApiResponse<MeetingResponse>>('/meetings', payload).then(r => r.data.data),
 

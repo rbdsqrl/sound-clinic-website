@@ -14,7 +14,7 @@ import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
 import SessionHeatmap from '../../components/charts/SessionHeatmap'
 import { Select } from '../../components/ui/Select'
-import { Users, UserCog, Mail, Clock, Search, Download } from 'lucide-react'
+import { Users, UserCog, Mail, Clock, Search, Download, ArrowLeft } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain, EnrollmentCareStatus } from '../../types'
@@ -275,6 +275,7 @@ export default function AnalyticsPage() {
   // DISCHARGE once the patient's stage actually reflects a completed discharge (a later, separate
   // event from an enrollment being marked PROGRAM_COMPLETED).
   const selectedPatient = (patients.data ?? []).find(p => p.id === patientId)
+  const selectedMember = (membersQuery.data ?? []).find(m => m.therapistId === therapistId)
   const CARE_STATUS_SEVERITY: Record<EnrollmentCareStatus, number> =
     { NEEDS_ATTENTION: 3, REVIEW: 2, ON_TRACK: 1, PROGRAM_COMPLETED: 0 }
   const worstCareStatus = (enrollmentsQuery.data ?? [])
@@ -444,8 +445,9 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Cases list — staff only. Selecting a row drills into that patient's progress below. */}
-      {tab === 'cases' && !isParentUser && (
+      {/* Cases list — staff only. Selecting a row collapses the list and shows that
+          patient's progress in its place — a long roster never buries the detail. */}
+      {tab === 'cases' && !isParentUser && !patientId && (
         <Panel
           title="Cases"
           subtitle="Every active case — sessions, assignments and payment status for the selected window"
@@ -546,8 +548,9 @@ export default function AnalyticsPage() {
         </Panel>
       )}
 
-      {/* Members list. Selecting a row drills into that therapist's caseload below. */}
-      {tab === 'members' && (
+      {/* Members list. Selecting a row collapses the list and shows that therapist's
+          caseload in its place. */}
+      {tab === 'members' && !therapistId && (
         <Panel
           title="Members"
           subtitle="Every therapist — cases and activities assigned, activities created, cancellations and IEP plans for the selected window"
@@ -912,6 +915,28 @@ export default function AnalyticsPage() {
 
       {activeSeries && totals && !loading && (
         <div className="space-y-5">
+          {/* Back to the list this detail replaced — parents pick their child from the
+              Select above instead of a list, so there's nothing to collapse back to. */}
+          {!(tab === 'cases' && isParentUser) && (
+            <button
+              type="button"
+              onClick={() => tab === 'cases' ? setPatientId('') : setTherapistId('')}
+              className="inline-flex items-center gap-1 text-sm font-medium transition-colors"
+              style={{ color: colors.text.muted }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+            >
+              <ArrowLeft size={14} /> {tab === 'cases' ? 'All cases' : 'All members'}
+            </button>
+          )}
+
+          {/* Whose analytics these are — lost when the list collapsed to make room for them */}
+          <h2 className="text-lg font-semibold" style={{ color: colors.text.heading }}>
+            {tab === 'cases'
+              ? (selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '')
+              : (selectedMember?.therapistName ?? '')}
+          </h2>
+
           {/* Current status — cases only; a therapist's caseload has no single status of its own */}
           {tab === 'cases' && currentStatus && (
             <div className="flex items-center gap-2 text-sm" style={{ color: colors.text.dim }}>

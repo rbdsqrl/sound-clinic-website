@@ -11,10 +11,6 @@ export const concernsApi = {
   list: (params: { enrollmentId?: string; patientId?: string; status?: ConcernStatus }) =>
     client.get<ApiResponse<ConcernResponse[]>>('/enrollment-concerns', { params }).then(r => r.data.data),
 
-  /** Count of open concerns — org-wide for admin roles, own-caseload for a therapist */
-  openCount: () =>
-    client.get<ApiResponse<number>>('/enrollment-concerns/open-count').then(r => r.data.data),
-
   acknowledge: (id: string) =>
     client.patch<ApiResponse<ConcernResponse>>(`/enrollment-concerns/${id}/acknowledge`).then(r => r.data.data),
 

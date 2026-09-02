@@ -1,32 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, XCircle, LogIn, LogOut, ClipboardList, AlertTriangle, Clock } from 'lucide-react'
+import {
+  CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
+  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft,
+} from 'lucide-react'
+import { eachDayOfInterval, differenceInCalendarDays, format as formatDate, parseISO } from 'date-fns'
 import { attendanceApi } from '../../api/attendance'
-import { Card } from '../../components/ui/Card'
+import { usersApi } from '../../api/users'
+import { clinicsApi } from '../../api/clinics'
+import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
-import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ToastContainer } from '../../components/ui/Toast'
+import { Avatar } from '../../components/shared/Avatar'
+import AttendanceTrendChart, { type AttendanceTrendPoint } from '../../components/charts/AttendanceTrendChart'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatTime } from '../../lib/format'
-import { colors, styles, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
-import type { AttendanceResponse } from '../../types'
+import { roleLabel } from '../../components/ui/Badge'
+import { colors, styles, warningAlpha, successAlpha, dangerAlpha, palette } from '../../theme'
+import type { AttendanceResponse, StaffMemberResponse } from '../../types'
 
 function VerifyIcon({ ok }: { ok: boolean }) {
   return ok
     ? <CheckCircle size={14} style={{ color: colors.status.success }} />
     : <XCircle    size={14} style={{ color: colors.status.error }} />
-}
-
-function StatusBadge({ status }: { status: AttendanceResponse['status'] }) {
-  return (
-    <Badge variant={status === 'CHECKED_OUT' ? 'green' : 'amber'}>
-      {status === 'CHECKED_OUT' ? 'Checked Out' : 'Checked In'}
-    </Badge>
-  )
 }
 
 function OverrideBadge({ approved }: { approved: boolean | null }) {
@@ -60,22 +60,211 @@ function OverrideBadge({ approved }: { approved: boolean | null }) {
   )
 }
 
+// ── Per-employee aggregation ────────────────────────────────────────────────
+
+interface EmployeeStats {
+  member: StaffMemberResponse
+  records: AttendanceResponse[]
+  present: number
+  absent: number
+  verified: number
+  avgHours: number | null
+}
+
+function minutesSinceMidnight(iso: string): number {
+  const d = new Date(iso)
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+function minutesToLabel(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = Math.round(mins % 60)
+  const period = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`
+}
+
+function hoursWorked(r: AttendanceResponse): number | null {
+  if (!r.checkInTime || !r.checkOutTime) return null
+  return (new Date(r.checkOutTime).getTime() - new Date(r.checkInTime).getTime()) / 3_600_000
+}
+
+// ── Employee detail panel ────────────────────────────────────────────────────
+// Rendered in place of the employee list (not a modal/drawer) — same pattern as
+// Analytics > Cases: select one row, the list gets out of the way, an "All
+// employees" link brings it back. Keeps the loaded detail directly where you were
+// looking instead of appended below a list that can run long.
+
+function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
+  stats: EmployeeStats; from: string; to: string; clinicName: string; onBack: () => void
+}) {
+  const { member, records, present, absent, verified, avgHours } = stats
+
+  const dayRange = useMemo(
+    () => eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }),
+    [from, to]
+  )
+  const recordsByDate = useMemo(
+    () => new Map(records.map(r => [r.attendanceDate, r])),
+    [records]
+  )
+
+  const hoursPoints: AttendanceTrendPoint[] = dayRange.map(d => {
+    const key = formatDate(d, 'yyyy-MM-dd')
+    const r = recordsByDate.get(key)
+    return { date: key, label: formatDate(d, 'd MMM'), value: r ? hoursWorked(r) : null }
+  })
+
+  const checkInPoints: AttendanceTrendPoint[] = dayRange.map(d => {
+    const key = formatDate(d, 'yyyy-MM-dd')
+    const r = recordsByDate.get(key)
+    return {
+      date: key, label: formatDate(d, 'd MMM'),
+      value: r?.checkInTime ? minutesSinceMidnight(r.checkInTime) : null,
+    }
+  })
+
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-sm font-medium mb-4 transition-colors"
+        style={{ color: colors.text.muted }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+      >
+        <ArrowLeft size={14} /> All employees
+      </button>
+
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <Avatar
+            initials={`${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`}
+            name={`${member.firstName} ${member.lastName}`}
+            size="xl" bold
+          />
+          <div className="min-w-0">
+            <p className="font-semibold truncate" style={{ color: colors.text.heading }}>
+              {member.firstName} {member.lastName}
+            </p>
+            <p className="text-sm truncate" style={{ color: colors.text.muted }}>
+              {roleLabel(member.role)}{clinicName && ` · ${clinicName}`}
+            </p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Present"            value={present}  icon={<CalendarCheck size={18} />} color="green" />
+          <StatCard label="Absent"              value={absent}   icon={<CalendarX size={18} />}     color="purple" />
+          <StatCard label="Biometric Verified"  value={verified} icon={<Fingerprint size={18} />}    color="blue" />
+          <StatCard
+            label="Avg Hours / Day"
+            value={avgHours === null ? '—' : avgHours.toFixed(1)}
+            icon={<Timer size={18} />}
+            color="teal"
+          />
+        </div>
+
+        {/* Charts */}
+        <div>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: colors.text.heading }}>Hours worked per day</h3>
+          <AttendanceTrendChart
+            points={hoursPoints}
+            valueLabel="Hours"
+            formatValue={v => `${v.toFixed(1)}h`}
+            accentColor={palette.teal.text}
+          />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: colors.text.heading }}>Check-in time per day</h3>
+          <AttendanceTrendChart
+            points={checkInPoints}
+            valueLabel="Check-in"
+            formatValue={minutesToLabel}
+            accentColor={palette.purple.text}
+          />
+        </div>
+
+        {/* Daily records */}
+        <div>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: colors.text.heading }}>Daily records</h3>
+          {records.length === 0 ? (
+            <p className="text-sm" style={{ color: colors.text.dim }}>No attendance records in this period.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {[...records].reverse().map(r => (
+                <div key={r.id} className="rounded-xl p-3" style={styles.card}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
+                      {new Date(r.attendanceDate + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </p>
+                    {r.faceOverride && <OverrideBadge approved={r.overrideApproved} />}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs" style={{ color: colors.text.muted }}>
+                    <span>In {formatTime(r.checkInTime)}</span>
+                    <span>Out {formatTime(r.checkOutTime)}</span>
+                    <span className="flex items-center gap-1"><VerifyIcon ok={r.geoVerified} /> Geo</span>
+                    <span className="flex items-center gap-1"><VerifyIcon ok={r.faceVerified} /> Face</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function AttendanceManagementPage({ asTab = false }: { asTab?: boolean }) {
   const today = new Date().toISOString().split('T')[0]
   // Default to the last seven days inclusive of today — a single-day window
   // opened on an empty table before anyone had checked in.
   const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0]
+  // The native date input fires onChange for every intermediate field it commits (year, then
+  // month, then day) while its own popup is still open — driving the query straight off that
+  // reloads the page mid-selection. `from`/`to` (what the query keys off) only catch up to the
+  // draft values a moment after typing/clicking stops, so the picker stays put until you're done.
+  const [fromDraft, setFromDraft] = useState(sevenDaysAgo)
+  const [toDraft, setToDraft]     = useState(today)
   const [from, setFrom] = useState(sevenDaysAgo)
   const [to, setTo]     = useState(today)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => setFrom(fromDraft), 600)
+    return () => clearTimeout(t)
+  }, [fromDraft])
+
+  useEffect(() => {
+    const t = setTimeout(() => setTo(toDraft), 600)
+    return () => clearTimeout(t)
+  }, [toDraft])
 
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data: records = [], isLoading: recordsLoading } = useQuery({
     queryKey: ['attendance', 'all', from, to],
     queryFn: () => attendanceApi.listAll(from, to),
+    // Keep the outgoing range's records on screen while a new range loads, instead of
+    // blanking the whole page (and the date filters with it) on every date change.
+    placeholderData: (previousData) => previousData,
   })
+
+  const { data: members = [], isLoading: membersLoading } = useQuery({
+    queryKey: ['members'],
+    queryFn: () => usersApi.listMembers(),
+  })
+
+  const { data: clinics = [] } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
+  const clinicMap = useMemo(() => Object.fromEntries(clinics.map(c => [c.id, c.name])), [clinics])
 
   const reviewMut = useMutation({
     mutationFn: ({ id, approved }: { id: string; approved: boolean }) =>
@@ -89,19 +278,47 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
     onError: (err) => toast(getApiError(err, 'Review failed'), 'error'),
   })
 
-  const total    = records.length
-  const present  = records.filter(r => r.checkInTime).length
-  const verified = records.filter(r => r.geoVerified && r.faceVerified).length
+  const daysInRange = Math.max(1, differenceInCalendarDays(parseISO(to), parseISO(from)) + 1)
+
+  const employeeStats = useMemo<EmployeeStats[]>(() => {
+    const byUser = new Map<string, AttendanceResponse[]>()
+    for (const r of records) {
+      const list = byUser.get(r.userId) ?? []
+      list.push(r)
+      byUser.set(r.userId, list)
+    }
+    return members
+      .filter(m => m.isActive)
+      .map(member => {
+        const recs = (byUser.get(member.id) ?? []).slice().sort((a, b) => a.attendanceDate.localeCompare(b.attendanceDate))
+        const present = recs.filter(r => r.checkInTime).length
+        const verified = recs.filter(r => r.geoVerified && r.faceVerified).length
+        const hours = recs.map(hoursWorked).filter((h): h is number => h !== null)
+        return {
+          member, records: recs, present,
+          absent: Math.max(0, daysInRange - present),
+          verified,
+          avgHours: hours.length ? hours.reduce((a, b) => a + b, 0) / hours.length : null,
+        }
+      })
+      .sort((a, b) => `${a.member.firstName} ${a.member.lastName}`.localeCompare(`${b.member.firstName} ${b.member.lastName}`))
+  }, [records, members, daysInRange])
+
+  const selectedStats = employeeStats.find(e => e.member.id === selectedId) ?? null
 
   const pendingOverrides = records.filter(r => r.faceOverride && r.overrideApproved === null)
+
+  // Only the roster gates the full-page loader — records use placeholderData above, so a date
+  // change refetches quietly in the background instead of unmounting the filters mid-use.
+  const isLoading = membersLoading
 
   if (isLoading) return <PageLoader />
 
   const DateFilters = (
     <div className="flex items-center gap-2">
-      <Input label="" type="date" value={from} onChange={e => setFrom(e.target.value)} className="text-sm" />
+      <Input label="" type="date" value={fromDraft} onChange={e => setFromDraft(e.target.value)} className="text-sm" />
       <span className="text-sm" style={{ color: colors.text.muted }}>to</span>
-      <Input label="" type="date" value={to} onChange={e => setTo(e.target.value)} className="text-sm" />
+      <Input label="" type="date" value={toDraft} onChange={e => setToDraft(e.target.value)} className="text-sm" />
     </div>
   )
 
@@ -184,56 +401,67 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
         </Card>
       )}
 
-      {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-        {[
-          { label: 'Total Records', value: total,    color: colors.accent },
-          { label: 'Present',       value: present,  color: colors.status.success },
-          { label: 'Fully Verified',value: verified, color: colors.status.warning },
-        ].map(({ label, value, color }) => (
-          <Card key={label}>
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</p>
-            <p className="text-2xl font-bold mt-1" style={{ color }}>{value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* ── Records ── */}
-      {records.length === 0 ? (
-        <EmptyState icon={<ClipboardList size={32} />} title="No records found" description="No attendance records for the selected date range" />
+      {/* ── Employees ──
+          Selecting one replaces the list with its detail panel — like Analytics > Cases,
+          but collapsing the list instead of appending the detail below it, so a long
+          roster never buries the thing you just clicked on. */}
+      {selectedStats ? (
+        <EmployeeDetailPanel
+          stats={selectedStats}
+          from={from}
+          to={to}
+          clinicName={selectedStats.member.clinicId ? (clinicMap[selectedStats.member.clinicId] ?? '') : ''}
+          onBack={() => setSelectedId(null)}
+        />
+      ) : employeeStats.length === 0 ? (
+        <EmptyState icon={<ClipboardList size={32} />} title="No active staff" description="No active staff members to show attendance for" />
       ) : (
         <>
           {/* Mobile card list */}
           <div className="flex flex-col gap-3 md:hidden">
-            {records.map(r => (
-              <div key={r.id} className="rounded-xl p-4" style={styles.card}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
-                        {r.userFirstName} {r.userLastName}
-                      </p>
-                      {r.faceOverride && <OverrideBadge approved={r.overrideApproved} />}
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{r.clinicName}</p>
-                    <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                      {new Date(r.attendanceDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+            {employeeStats.map(stats => (
+              <button
+                key={stats.member.id}
+                onClick={() => setSelectedId(stats.member.id)}
+                className="text-left rounded-xl p-4 w-full"
+                style={styles.card}
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    initials={`${stats.member.firstName[0] ?? ''}${stats.member.lastName[0] ?? ''}`}
+                    name={`${stats.member.firstName} ${stats.member.lastName}`}
+                    bold
+                  />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate" style={{ color: colors.text.primary }}>
+                      {stats.member.firstName} {stats.member.lastName}
+                    </p>
+                    <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+                      {roleLabel(stats.member.role)}{stats.member.clinicId && ` · ${clinicMap[stats.member.clinicId] ?? ''}`}
                     </p>
                   </div>
-                  <StatusBadge status={r.status} />
                 </div>
-                <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: colors.text.muted }}>
-                  <span className="flex items-center gap-1"><LogIn size={11} /> {formatTime(r.checkInTime)}</span>
-                  <span className="flex items-center gap-1"><LogOut size={11} /> {formatTime(r.checkOutTime)}</span>
-                  <span className="flex items-center gap-1"><VerifyIcon ok={r.geoVerified} /> Geo</span>
-                  <span className="flex items-center gap-1"><VerifyIcon ok={r.faceVerified} /> Face</span>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: colors.status.success }}>{stats.present}</p>
+                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Present</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: colors.status.error }}>{stats.absent}</p>
+                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Absent</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: colors.accent }}>{stats.verified}</p>
+                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Verified</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: colors.text.primary }}>
+                      {stats.avgHours === null ? '—' : stats.avgHours.toFixed(1)}
+                    </p>
+                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Avg hrs</p>
+                  </div>
                 </div>
-                {r.faceOverride && r.overrideReviewedByName && (
-                  <p className="text-xs mt-2" style={{ color: colors.text.muted }}>
-                    Reviewed by {r.overrideReviewedByName}
-                  </p>
-                )}
-              </div>
+              </button>
             ))}
           </div>
 
@@ -242,7 +470,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: `1px solid ${colors.text.dim}20` }}>
-                  {['Name', 'Clinic', 'Date', 'Check In', 'Check Out', 'Geo', 'Face', 'Override', 'Status'].map(h => (
+                  {['Employee', 'Clinic', 'Present', 'Absent', 'Biometric Verified', 'Avg Hours'].map(h => (
                     <th key={h} className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
                       {h}
                     </th>
@@ -250,23 +478,39 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
                 </tr>
               </thead>
               <tbody>
-                {records.map(r => (
-                  <tr key={r.id} style={{ borderBottom: `1px solid ${colors.text.dim}10` }}>
-                    <td className="py-3 px-4 font-medium" style={{ color: colors.text.primary }}>
-                      {r.userFirstName} {r.userLastName}
-                    </td>
-                    <td className="py-3 px-4" style={{ color: colors.text.muted }}>{r.clinicName}</td>
-                    <td className="py-3 px-4" style={{ color: colors.text.muted }}>
-                      {new Date(r.attendanceDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </td>
-                    <td className="py-3 px-4" style={{ color: colors.text.primary }}>{formatTime(r.checkInTime)}</td>
-                    <td className="py-3 px-4" style={{ color: colors.text.primary }}>{formatTime(r.checkOutTime)}</td>
-                    <td className="py-3 px-4"><VerifyIcon ok={r.geoVerified} /></td>
-                    <td className="py-3 px-4"><VerifyIcon ok={r.faceVerified} /></td>
+                {employeeStats.map(stats => (
+                  <tr
+                    key={stats.member.id}
+                    onClick={() => setSelectedId(stats.member.id)}
+                    className="cursor-pointer transition-colors"
+                    style={{ borderBottom: `1px solid ${colors.text.dim}10` }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = warningAlpha(0.03)}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
                     <td className="py-3 px-4">
-                      {r.faceOverride ? <OverrideBadge approved={r.overrideApproved} /> : <span style={{ color: colors.text.dim }}>—</span>}
+                      <div className="flex items-center gap-2.5">
+                        <Avatar
+                          initials={`${stats.member.firstName[0] ?? ''}${stats.member.lastName[0] ?? ''}`}
+                          name={`${stats.member.firstName} ${stats.member.lastName}`}
+                          size="sm" bold
+                        />
+                        <div className="min-w-0">
+                          <p className="font-medium truncate" style={{ color: colors.text.primary }}>
+                            {stats.member.firstName} {stats.member.lastName}
+                          </p>
+                          <p className="text-xs truncate" style={{ color: colors.text.dim }}>{roleLabel(stats.member.role)}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
+                    <td className="py-3 px-4" style={{ color: colors.text.muted }}>
+                      {stats.member.clinicId ? (clinicMap[stats.member.clinicId] ?? '—') : '—'}
+                    </td>
+                    <td className="py-3 px-4 font-medium" style={{ color: colors.status.success }}>{stats.present}</td>
+                    <td className="py-3 px-4 font-medium" style={{ color: colors.status.error }}>{stats.absent}</td>
+                    <td className="py-3 px-4 font-medium" style={{ color: colors.accent }}>{stats.verified}</td>
+                    <td className="py-3 px-4" style={{ color: colors.text.primary }}>
+                      {stats.avgHours === null ? '—' : `${stats.avgHours.toFixed(1)}h`}
+                    </td>
                   </tr>
                 ))}
               </tbody>

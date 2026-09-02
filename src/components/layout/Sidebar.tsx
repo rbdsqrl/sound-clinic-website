@@ -368,10 +368,10 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
               >
                 <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} size="sm" />
                 <span
-                  className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full h-3.5 w-3.5"
-                  style={{ background: surface.sidebarFooter, color: colors.textLight.muted, border: `1px solid ${border.sidebar}` }}
+                  className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full h-4 w-4"
+                  style={{ background: colors.accent, color: '#fff', border: `2px solid ${surface.sidebarFooter}`, boxShadow: shadow.card }}
                 >
-                  <ChevronUp size={9} />
+                  <ChevronUp size={10} strokeWidth={3} />
                 </span>
               </button>
               <div className="flex-1 min-w-0">

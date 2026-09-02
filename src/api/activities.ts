@@ -27,9 +27,6 @@ export const activitiesApi = {
   update: (id: string, data: UpdateActivityRequest) =>
     client.put<ApiResponse<ActivityResponse>>(`/activities/${id}`, data).then((r) => r.data.data),
 
-  deactivate: (id: string) =>
-    client.delete<ApiResponse<void>>(`/activities/${id}`).then((r) => r.data),
-
   aiStatus: () =>
     client.get<ApiResponse<{ enabled: boolean }>>('/activities/ai-status').then((r) => r.data.data),
 

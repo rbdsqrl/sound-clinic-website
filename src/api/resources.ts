@@ -19,9 +19,6 @@ export const resourcesApi = {
   createFolder: (data: CreateResourceFolderRequest) =>
     client.post<ApiResponse<ResourceFolderResponse>>('/resources/folders', data).then(r => r.data.data),
 
-  renameFolder: (id: string, name: string) =>
-    client.patch<ApiResponse<ResourceFolderResponse>>(`/resources/folders/${id}`, { name }).then(r => r.data.data),
-
   deleteFolder: (id: string) =>
     client.delete(`/resources/folders/${id}`),
 

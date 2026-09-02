@@ -37,9 +37,4 @@ export const baselineReportApi = {
     client.post<ApiResponse<BaselineProgressEntryResponse>>(
       `/patients/${patientId}/baseline-report/domains/${domain}/progress`, data,
     ).then(r => normaliseEntry(r.data.data)),
-
-  listProgress: (patientId: string, domain: BaselineDomain) =>
-    client.get<ApiResponse<BaselineProgressEntryResponse[]>>(
-      `/patients/${patientId}/baseline-report/domains/${domain}/progress`,
-    ).then(r => r.data.data.map(normaliseEntry)),
 }

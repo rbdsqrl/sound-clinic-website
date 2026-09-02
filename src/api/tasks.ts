@@ -14,9 +14,6 @@ export const tasksApi = {
   list: () =>
     client.get<ApiResponse<TaskResponse[]>>('/tasks').then(r => r.data.data),
 
-  get: (id: string) =>
-    client.get<ApiResponse<TaskResponse>>(`/tasks/${id}`).then(r => r.data.data),
-
   create: (data: CreateTaskRequest) =>
     client.post<ApiResponse<TaskResponse>>('/tasks', data).then(r => r.data.data),
 

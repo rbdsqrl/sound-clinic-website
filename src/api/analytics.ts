@@ -76,12 +76,6 @@ export const analyticsApi = {
         }
       }),
 
-  /** Organisation rollup. The API rejects DAILY here — weekly or monthly only. */
-  overview: (params: AnalyticsWindow) =>
-    client
-      .get<ApiResponse<TimeSeriesResponse>>('/analytics/overview', { params })
-      .then(r => normaliseSeries(r.data.data)),
-
   /** Activity assignment/attempt counts for one patient — additive to patientProgress. */
   patientActivityProgress: (patientId: string, from: string, to: string) =>
     client

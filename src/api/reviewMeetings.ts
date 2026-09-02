@@ -16,18 +16,9 @@ export const reviewMeetingsApi = {
       .get<ApiResponse<ReviewMeetingResponse[]>>('/review-meetings', { params: { enrollmentId } })
       .then(r => r.data.data),
 
-  /** Every meeting for a patient, across plans. */
-  listForPatient: (patientId: string) =>
-    client
-      .get<ApiResponse<ReviewMeetingResponse[]>>('/review-meetings', { params: { patientId } })
-      .then(r => r.data.data),
-
   /** The caller's own meetings — their children's if a parent, their own if a therapist. */
   listMine: () =>
     client.get<ApiResponse<ReviewMeetingResponse[]>>('/review-meetings').then(r => r.data.data),
-
-  get: (id: string) =>
-    client.get<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}`).then(r => r.data.data),
 
   /** Generates a recurring schedule for an existing plan. 409s if one already exists. */
   generateSchedule: (enrollmentId: string, data: ReviewScheduleRequest) =>
@@ -38,11 +29,6 @@ export const reviewMeetingsApi = {
   /** Adds a single ad-hoc meeting outside the recurring rhythm. */
   create: (data: CreateReviewMeetingRequest) =>
     client.post<ApiResponse<ReviewMeetingResponse>>('/review-meetings', data).then(r => r.data.data),
-
-  reschedule: (id: string, data: RescheduleReviewRequest) =>
-    client
-      .patch<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/reschedule`, data)
-      .then(r => r.data.data),
 
   cancel: (id: string, reason?: string) =>
     client
