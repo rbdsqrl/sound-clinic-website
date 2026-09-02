@@ -36,6 +36,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
+import { formatTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
@@ -1070,7 +1071,7 @@ function EnrollmentModal({
               <div className="rounded-xl p-4 text-center" style={{ background: surface.filterStrip }}>
                 <p className="text-sm font-medium mb-1" style={{ color: colors.text.heading }}>No therapists available</p>
                 <p className="text-xs" style={{ color: colors.text.muted }}>
-                  No therapist has a slot covering {startTime} for {duration} min on {startDate}, or all are on leave.
+                  No therapist has a slot covering {formatTimeStr(startTime)} for {duration} min on {startDate}, or all are on leave.
                 </p>
               </div>
             ) : (
@@ -2140,7 +2141,7 @@ export default function PatientDetailPage() {
                               </span>
                               <span className="flex items-center gap-1.5">
                                 <Clock size={11} style={{ color: colors.text.dim }} />
-                                {enrollment.startTime.slice(0, 5)} · {enrollment.sessionDurationMinutes}min
+                                {formatTimeStr(enrollment.startTime)} · {enrollment.sessionDurationMinutes}min
                               </span>
                             </>
                           )}

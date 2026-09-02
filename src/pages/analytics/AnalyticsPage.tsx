@@ -25,6 +25,7 @@ import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { ROUTES } from '../../lib/routes'
+import { formatTimeStr } from '../../lib/format'
 
 type TabKey = 'overview' | 'cases' | 'members' | 'schedule'
 
@@ -876,7 +877,7 @@ export default function AnalyticsPage() {
                     {filteredScheduleSessions.map(s => (
                       <tr key={s.sessionId} style={{ borderTop: `1px solid ${border.divider}` }}>
                         <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>{s.sessionDate}</td>
-                        <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{s.startTime.slice(0, 5)}</td>
+                        <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{formatTimeStr(s.startTime)}</td>
                         <td className="py-2.5 pr-4 text-right" style={{ color: colors.text.muted, fontVariantNumeric: 'tabular-nums' }}>{s.durationMinutes}m</td>
                         <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>{s.programName}</td>
                         <td className="py-2.5 pr-4 font-medium" style={{ color: colors.text.primary }}>{s.patientName}</td>

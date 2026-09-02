@@ -14,6 +14,7 @@ import { Input } from '../../components/ui/Input'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatTimeStr } from '../../lib/format'
 import { colors, styles, border, surface, palette, paletteStyle, rgba } from '../../theme'
 import type { CreateSlotRequest, DayOfWeek, SlotResponse, ClinicResponse, UserResponse } from '../../types'
 
@@ -157,7 +158,7 @@ export default function AvailabilityPage() {
                           <div key={slot.id} className="flex items-center justify-between gap-2">
                             <div>
                               <p className="text-xs font-medium" style={{ color: colors.text.primary }}>
-                                {slot.startTime.slice(0,5)} – {slot.endTime.slice(0,5)}
+                                {formatTimeStr(slot.startTime)} – {formatTimeStr(slot.endTime)}
                               </p>
                               <span className="text-[11.5px] rounded-full px-1.5 py-0.5 mt-0.5 inline-block" style={durationColor(slot.slotDurationMinutes)}>
                                 {slot.slotDurationMinutes} min

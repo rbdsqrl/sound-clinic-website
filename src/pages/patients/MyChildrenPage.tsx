@@ -16,6 +16,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatTimeStr } from '../../lib/format'
 import { colors, border, accentAlpha, palette, paletteStyle } from '../../theme'
 
 function RaiseConcernModal({ childId, childName, onClose }: { childId: string; childName: string; onClose: () => void }) {
@@ -151,7 +152,7 @@ function ChildSessions({ childId }: { childId: string }) {
                     </span>
                     <span className="text-xs flex items-center gap-1" style={{ color: colors.text.muted }}>
                       <Clock size={10} />
-                      {s.startTime.slice(0, 5)}
+                      {formatTimeStr(s.startTime)}
                     </span>
                     <span className="text-xs" style={{ color: colors.text.muted }}>
                       · {s.programName} #{s.sessionNumber}

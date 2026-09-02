@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { ROUTES } from '../../lib/routes'
+import { formatTimeStr } from '../../lib/format'
 import { colors, accentAlpha, paletteStyle, palette, border } from '../../theme'
 import type { TherapySessionResponse, EnrollmentCareStatus } from '../../types'
 
@@ -287,7 +288,7 @@ export default function EnrollmentDetailPage() {
           </span>
           <span className="flex items-center gap-1.5">
             <Clock size={11} style={{ color: colors.text.dim }} />
-            {enrollment.startTime.slice(0, 5)} · {enrollment.sessionDurationMinutes}min
+            {formatTimeStr(enrollment.startTime)} · {enrollment.sessionDurationMinutes}min
           </span>
         </div>
       </Card>

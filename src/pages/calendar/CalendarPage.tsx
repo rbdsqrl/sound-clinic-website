@@ -36,6 +36,7 @@ import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHoli
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
+import { formatTimeStr } from '../../lib/format'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
@@ -313,7 +314,7 @@ function EventChip({
       {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
       <span className="truncate">{event.title}</span>
       {!compact && !event.isAllDay && event.time && (
-        <span className="ml-1 opacity-60 font-normal">{event.time}</span>
+        <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
       )}
     </button>
   )
@@ -775,8 +776,8 @@ function DayView({
                       style={{ ...s, minHeight: 52 }}>
                       <p className="text-xs font-semibold leading-tight">{ev.title}</p>
                       <p className="text-[12.65px] mt-0.5 opacity-75">
-                        {ev.time}
-                        {rawSess && ` – ${rawSess.endTime.substring(0, 5)}`}
+                        {formatTimeStr(ev.time)}
+                        {rawSess && ` – ${formatTimeStr(rawSess.endTime)}`}
                       </p>
                       {ev.subtitle && (
                         <p className="text-[12.65px] mt-0.5 opacity-70 truncate">{ev.subtitle}</p>
@@ -1017,7 +1018,7 @@ function UpcomingPanel({
                       )}
                       {!ev.isAllDay && ev.time && (
                         <p className="text-xs mt-0.5 pl-4 flex items-center gap-1" style={{ color: dot }}>
-                          <Clock size={9} />{ev.time}
+                          <Clock size={9} />{formatTimeStr(ev.time)}
                         </p>
                       )}
                       {ev.isAllDay && (
@@ -1445,11 +1446,11 @@ function EventDetailDrawer({
             <Row icon={<CalendarDays size={14} />}
               label={format(parseISO(event.date + 'T00:00:00'), 'EEEE, d MMMM yyyy')} />
             {event.time && !isSession && (
-              <Row icon={<Clock size={14} />} label={event.time} />
+              <Row icon={<Clock size={14} />} label={formatTimeStr(event.time)} />
             )}
             {isSession && (
               <Row icon={<Clock size={14} />}
-                label={`${rawSession.startTime.substring(0, 5)} – ${rawSession.endTime.substring(0, 5)}`} />
+                label={`${formatTimeStr(rawSession.startTime)} – ${formatTimeStr(rawSession.endTime)}`} />
             )}
             {event.subtitle && !isSession && !isMeeting && (
               <Row icon={isConsultation ? <Clock size={14} /> : isReview ? <Users size={14} /> : <CalendarOff size={14} />}
@@ -1489,7 +1490,7 @@ function EventDetailDrawer({
           {isReview && (
             <>
               <Row icon={<Clock size={14} />}
-                label={`${rawReview.startTime.substring(0, 5)} – ${rawReview.endTime.substring(0, 5)}`} />
+                label={`${formatTimeStr(rawReview.startTime)} – ${formatTimeStr(rawReview.endTime)}`} />
               <ParticipantList participants={rawReview.participants ?? []} />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
@@ -1518,7 +1519,7 @@ function EventDetailDrawer({
           {isMeeting && (
             <>
               <Row icon={<Clock size={14} />}
-                label={`${rawMeeting.startTime.substring(0, 5)} – ${rawMeeting.endTime.substring(0, 5)}`} />
+                label={`${formatTimeStr(rawMeeting.startTime)} – ${formatTimeStr(rawMeeting.endTime)}`} />
               {rawMeeting.location && (
                 <Row icon={<MapPin size={14} />} label={rawMeeting.location} />
               )}
@@ -1886,7 +1887,7 @@ export default function CalendarPage() {
           new Notification(
             ev.kind === 'consultation' ? 'Upcoming Consultation' : 'Upcoming Event',
             {
-              body: `${ev.title} — ${ev.time}`,
+              body: `${ev.title} — ${formatTimeStr(ev.time)}`,
               tag:  ev.id,   // deduplicates in the OS notification centre
             }
           )

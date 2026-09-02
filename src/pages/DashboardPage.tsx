@@ -29,6 +29,7 @@ import { getApiError } from '../lib/apiError'
 import { ToastContainer } from '../components/ui/Toast'
 import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
+import { formatTimeStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse } from '../types'
 
@@ -81,7 +82,7 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
         matchedSlots.length > 0 ? (
           <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.status.success }}>
             <CheckCircle2 size={12} />
-            Available {matchedSlots.map(s => `${s.startTime.slice(0,5)}–${s.endTime.slice(0,5)}`).join(', ')}
+            Available {matchedSlots.map(s => `${formatTimeStr(s.startTime)}–${formatTimeStr(s.endTime)}`).join(', ')}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.status.warning }}>
@@ -142,10 +143,10 @@ function TodaySessions({
             : sessionStatusIcon(s.status)}
       </div>
 
-      <div className="flex items-center gap-1 flex-shrink-0 w-24">
+      <div className="flex items-center gap-1 flex-shrink-0 w-32">
         <Clock size={11} style={{ color: colors.text.dim }} />
         <span className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
-          {s.startTime.slice(0, 5)} – {s.endTime.slice(0, 5)}
+          {formatTimeStr(s.startTime)} – {formatTimeStr(s.endTime)}
         </span>
       </div>
 
@@ -333,7 +334,7 @@ function RescheduleModal({
           </p>
           <p>{session.programName} · Session #{session.sessionNumber}</p>
           <p>
-            Original: {format(new Date(session.sessionDate), 'MMM d, yyyy')} at {session.startTime.slice(0, 5)}
+            Original: {format(new Date(session.sessionDate), 'MMM d, yyyy')} at {formatTimeStr(session.startTime)}
             {' · '}Therapist {session.therapistFirstName} {session.therapistLastName}
           </p>
         </div>
@@ -416,12 +417,12 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
       style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
     >
       {/* Date */}
-      <div className="flex-shrink-0 w-20 sm:w-24">
+      <div className="flex-shrink-0 w-24 sm:w-28">
         <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
           {format(new Date(s.sessionDate), 'MMM d')}
         </p>
         <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
-          {s.startTime.slice(0, 5)}
+          {formatTimeStr(s.startTime)}
         </p>
       </div>
 
@@ -546,12 +547,12 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
       onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
     >
-      <div className="flex-shrink-0 w-20 sm:w-24">
+      <div className="flex-shrink-0 w-24 sm:w-28">
         <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
           {format(new Date(s.sessionDate), 'MMM d')}
         </p>
         <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
-          {s.startTime.slice(0, 5)}
+          {formatTimeStr(s.startTime)}
         </p>
       </div>
 
@@ -667,7 +668,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
             {s.patientFirstName} {s.patientLastName}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {s.startTime.slice(0, 5)} · {s.programName}
+            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {formatTimeStr(s.startTime)} · {s.programName}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
             {s.therapistFirstName} {s.therapistLastName}
@@ -913,7 +914,7 @@ function SessionUpdateModal({
             {session.patientFirstName} {session.patientLastName}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {session.startTime.slice(0, 5)} · {session.programName} · #{session.sessionNumber}/{session.totalSessions}
+            {formatTimeStr(session.startTime)} · {session.programName} · #{session.sessionNumber}/{session.totalSessions}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

@@ -12,6 +12,7 @@ import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
+import { formatTimeStr } from '../../lib/format'
 import {
   colors, border, surface, accentAlpha, dangerAlpha, paletteStyle, palette,
 } from '../../theme'
@@ -258,7 +259,7 @@ function MeetingRow({
           {format(parseISO(meeting.meetingDate), 'EEE, d MMM yyyy')}
         </span>
         <span className="text-xs flex-shrink-0" style={{ color: colors.text.muted }}>
-          {meeting.startTime.slice(0, 5)}
+          {formatTimeStr(meeting.startTime)}
         </span>
         <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
           · Review #{meeting.meetingNumber}

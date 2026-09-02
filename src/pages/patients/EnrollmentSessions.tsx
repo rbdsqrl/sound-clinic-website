@@ -15,6 +15,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { isPastDateTime, todayStr } from '../../lib/schedule'
+import { formatTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
 import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
 
@@ -391,7 +392,7 @@ export function RescheduleSessionModal({
           Currently{' '}
           <span style={{ color: colors.text.primary, fontWeight: 600 }}>
             {format(parseISO(session.sessionDate + 'T00:00:00'), 'EEE, d MMM yyyy')}
-            {' at '}{session.startTime.substring(0, 5)}
+            {' at '}{formatTimeStr(session.startTime)}
           </span>
         </div>
 
@@ -602,7 +603,7 @@ export function SessionNotesModal({
         <div className="flex-1">
           <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{session.sessionDate}</p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {session.startTime.slice(0, 5)} · {session.programName}
+            {formatTimeStr(session.startTime)} · {session.programName}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
             {session.patientFirstName} {session.patientLastName} · {session.therapistFirstName} {session.therapistLastName}
