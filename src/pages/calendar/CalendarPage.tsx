@@ -517,6 +517,14 @@ function WeekView({
   const ws   = getWeekStart(current, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i))
   const HOURS = Array.from({ length: 24 }, (_, i) => i) // full day, 12 AM – 11 PM
+  // "yyyy-MM-dd::hour" keys whose "+N more" has been expanded to show every event.
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set())
+  const toggleCell = (key: string) =>
+    setExpandedCells(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
 
   const hasAnyAllDay = days.some(d => allDayEventsOnDay(events, d).length > 0)
 
@@ -598,14 +606,28 @@ function WeekView({
                   {dayKeyH === todayKey && Math.floor(nowMins / 60) === hour && (
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
-                  {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')).slice(0, 3).map(ev => (
-                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
-                  ))}
-                  {timed.length > 3 && (
-                    <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
-                      +{timed.length - 3} more
-                    </p>
-                  )}
+                  {(() => {
+                    const cellKey = `${dayKeyH}::${hour}`
+                    const expanded = expandedCells.has(cellKey)
+                    const sortedTimed = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
+                    return (
+                      <>
+                        {sortedTimed.slice(0, expanded ? undefined : 3).map(ev => (
+                          <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
+                        ))}
+                        {timed.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCell(cellKey)}
+                            className="text-left text-[11.5px] pl-1 hover:underline"
+                            style={{ color: colors.text.muted }}
+                          >
+                            {expanded ? 'Show less' : `+${timed.length - 3} more`}
+                          </button>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               )
             })}
