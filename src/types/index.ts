@@ -737,6 +737,19 @@ export interface UpdateSessionNotesRequest {
   performanceScore?: number  // 1–5
 }
 
+/** One prior version of a session's notes, captured right before an edit overwrote it. */
+export interface SessionNotesHistoryResponse {
+  id: string
+  sessionId: string
+  changedBy: string
+  changedByName: string
+  changedAt: string
+  previousFeedback: string | null
+  previousProgressReport: string | null
+  previousNotes: string | null
+  previousPerformanceScore: number | null
+}
+
 // ── Program session-feedback checklist ──────────────────────────────────────
 
 export type FeedbackQuestionType = 'SINGLE_CHOICE' | 'MULTI_CHOICE' | 'TEXT'

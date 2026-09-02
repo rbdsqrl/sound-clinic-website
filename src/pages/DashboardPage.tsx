@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
+import { CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { format, parseISO, subDays } from 'date-fns'
+import { format, parseISO, subDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
 import { clinicsApi } from '../api/clinics'
 import { slotsApi } from '../api/appointments'
@@ -31,7 +31,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -765,6 +765,116 @@ function dayColor(days: number): string {
   return palette.purple.text
 }
 
+function joinedLabel(days: number): string {
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return `${days} days ago`
+}
+
+/** Cases added in the last 30 days, newest first — Clinic Head / Office Admin / Business Owner only. */
+function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
+  const [showAll, setShowAll] = useState(false)
+
+  const recentlyJoined = patients
+    .filter(p => differenceInCalendarDays(new Date(), parseISO(p.createdAt)) <= 30)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
+
+  const joinedRow = (p: PatientResponse, i: number, arr: PatientResponse[]) => (
+    <Link
+      key={p.id}
+      to={`/patients/${p.id}`}
+      className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      onMouseEnter={ROW_HOVER_IN}
+      onMouseLeave={ROW_HOVER_OUT}
+    >
+      <Avatar
+        initials={`${p.firstName[0]}${p.lastName[0]}`}
+        name={`${p.firstName} ${p.lastName}`}
+        bold
+      />
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+          {p.firstName} {p.lastName}
+        </p>
+        <p className="text-xs" style={{ color: colors.text.muted }}>
+          Joined {format(parseISO(p.createdAt), 'MMMM d')}
+        </p>
+      </div>
+
+      <span
+        className="flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full"
+        style={{ background: accentAlpha(0.12), color: colors.accent }}
+      >
+        {joinedLabel(differenceInCalendarDays(new Date(), parseISO(p.createdAt)))}
+      </span>
+    </Link>
+  )
+
+  return (
+    <>
+      <div style={sectionCard}>
+        <div
+          className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}
+        >
+          <div className="flex items-center gap-2">
+            <UserPlus size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Recently Joined
+            </h2>
+            <span
+              className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}
+            >
+              {recentlyJoined.length}
+            </span>
+          </div>
+          <p className="text-xs" style={{ color: colors.text.muted }}>Last 30 days</p>
+        </div>
+
+        <div className="flex-1">
+          {recentlyJoined.length === 0 ? (
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<UserPlus size={22} />}
+                title="No new cases yet"
+                description="Cases added in the last 30 days will show up here."
+              />
+            </div>
+          ) : (
+            <div>
+              {recentlyJoined.slice(0, PREVIEW).map((p, i) => joinedRow(p, i, recentlyJoined.slice(0, PREVIEW)))}
+            </div>
+          )}
+        </div>
+
+        {recentlyJoined.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {recentlyJoined.length} cases
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Recently Joined (${recentlyJoined.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {recentlyJoined.map((p, i) => joinedRow(p, i, recentlyJoined))}
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
   const [showAll, setShowAll] = useState(false)
 
@@ -1437,6 +1547,7 @@ export default function DashboardPage() {
             <FeedPanel posts={feedPosts} />
 
             <UpcomingBirthdays birthdays={upcomingBirthdays} />
+            {isOwnerOrAdmin && <RecentlyJoinedChildren patients={patients ?? []} />}
             <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
           </div>
         )

@@ -2130,7 +2130,7 @@ export default function CalendarPage() {
       {/* Therapy session — the same Session Notes modal used on the Patient → Therapy tab */}
       {selected && selected.kind === 'session' && (() => {
         const rawSession = selected.raw as TherapySessionResponse
-        const canManageNotes = !!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))
+        const canManageNotes = !!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN'))
         return (
           <SessionEventModal
             key={selected.id}

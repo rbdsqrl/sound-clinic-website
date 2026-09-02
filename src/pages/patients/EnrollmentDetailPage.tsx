@@ -42,7 +42,7 @@ export default function EnrollmentDetailPage() {
   const { patientId, enrollmentId } = useParams<{ patientId: string; enrollmentId: string }>()
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
-  const canUpdateSession = ['THERAPIST', 'CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canUpdateSession = ['THERAPIST', 'CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canRescheduleSession = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
 
   const [notesState, setNotesState] = useState<{ session: TherapySessionResponse; canEdit: boolean } | null>(null)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock,
+  CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { usersApi } from '../../api/users'
@@ -17,7 +17,7 @@ import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlph
 import { isPastDateTime, todayStr } from '../../lib/schedule'
 import { formatTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
-import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
+import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse, SessionNotesHistoryResponse } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
@@ -462,6 +462,69 @@ export function RescheduleSessionModal({
 
 // ── SessionNotesModal ──────────────────────────────────────────────────────────
 
+// ── Notes activity log ────────────────────────────────────────────────────────
+// Each entry is a prior version of the notes — what feedback/progress report/notes/
+// performance score held right before a later edit overwrote them.
+
+function SessionNotesHistoryPanel({ sessionId }: { sessionId: string }) {
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: ['session-notes-history', sessionId],
+    queryFn: () => therapySessionsApi.notesHistory(sessionId),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: `${colors.accent}30`, borderTopColor: colors.accent }} />
+      </div>
+    )
+  }
+
+  if (history.length === 0) {
+    return (
+      <p className="text-sm text-center py-10" style={{ color: colors.text.dim }}>
+        No edits yet — changes made after the notes are first saved will show up here.
+      </p>
+    )
+  }
+
+  const entryFields = (h: SessionNotesHistoryResponse) => [
+    { label: 'Performance Score', value: h.previousPerformanceScore !== null ? `${h.previousPerformanceScore}%` : null },
+    { label: 'Rating',            value: h.previousFeedback ? `${h.previousFeedback}/5` : null },
+    { label: 'Progress Report',   value: h.previousProgressReport },
+  ].filter((f): f is { label: string; value: string } => !!f.value)
+
+  return (
+    <div className="flex flex-col gap-3">
+      {history.map(h => {
+        const fields = entryFields(h)
+        return (
+          <div key={h.id} className="rounded-xl p-3" style={{ border: border.card }}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.changedByName}</p>
+              <p className="text-xs" style={{ color: colors.text.dim }}>
+                {format(parseISO(h.changedAt), 'd MMM yyyy, h:mm a')}
+              </p>
+            </div>
+            {fields.length === 0 ? (
+              <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>Notes were empty before this edit</p>
+            ) : (
+              <div className="mt-2 flex flex-col gap-1.5">
+                {fields.map(f => (
+                  <div key={f.label} className="text-xs">
+                    <span className="font-medium" style={{ color: colors.text.muted }}>{f.label}: </span>
+                    <span style={{ color: colors.text.dim }}>{f.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function SessionNotesModal({
   session,
   canEdit,
@@ -493,6 +556,7 @@ export function SessionNotesModal({
   const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
   const [score, setScore]                   = useState<number | null>(session.performanceScore ?? null)
   const [pendingAction, setPendingAction]   = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
+  const [notesTab, setNotesTab]             = useState<'notes' | 'history'>('notes')
 
   const { data: attachments = [], isLoading: attLoading } = useQuery({
     queryKey: ['session-attachments', session.id],
@@ -622,6 +686,27 @@ export function SessionNotesModal({
         </span>
       </div>
 
+      {/* Notes / Activity Log tabs */}
+      <div className="flex gap-0 border-b mb-4" style={{ borderColor: border.divider }}>
+        {([
+          { key: 'notes' as const,   label: 'Notes' },
+          { key: 'history' as const, label: 'Activity Log', icon: <History size={13} /> },
+        ]).map(t => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setNotesTab(t.key)}
+            className="flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+            style={notesTab === t.key ? styles.tabActive : styles.tabInactive}
+          >
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {notesTab === 'history' && <SessionNotesHistoryPanel sessionId={session.id} />}
+
+      {notesTab === 'notes' && (
       <div className="flex flex-col gap-4">
         {/* Performance Score */}
         <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={fieldsRequired} />
@@ -803,10 +888,11 @@ export function SessionNotesModal({
           )}
         </div>
       </div>
+      )}
 
       {/* Footer */}
       <div className="mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        {canEdit && session.status === 'SCHEDULED' && (
+        {notesTab === 'notes' && canEdit && session.status === 'SCHEDULED' && (
           <div className="mb-4">
             <p className="form-label">Mark session as</p>
             <div className="flex gap-2">
@@ -870,7 +956,7 @@ export function SessionNotesModal({
           </div>
         )}
 
-        {saveMut.isError && (
+        {notesTab === 'notes' && saveMut.isError && (
           <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-3"
             style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
             <AlertTriangle size={14} style={{ color: colors.status.danger, flexShrink: 0, marginTop: 1 }} />
@@ -882,7 +968,7 @@ export function SessionNotesModal({
 
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Close</Button>
-          {canEdit && (
+          {notesTab === 'notes' && canEdit && (
             <Button variant="primary" loading={saveMut.isPending} disabled={missingRequired} onClick={() => saveMut.mutate()}>
               Save
             </Button>

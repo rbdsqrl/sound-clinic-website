@@ -194,7 +194,7 @@ const SAMPLE_ROWS = [
 
 // ── Goal row ──────────────────────────────────────────────────────────────────
 
-function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete, onLogProgress, onViewProgress }: {
+function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete, onLogProgress, onViewProgress, onEdit }: {
   goal: IEPGoalResponse
   isEditor: boolean
   onStatusChange: (id: string, status: IEPGoalStatus) => void
@@ -202,6 +202,7 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
   onDelete: (id: string) => void
   onLogProgress: (goal: IEPGoalResponse) => void
   onViewProgress: (goal: IEPGoalResponse) => void
+  onEdit: (goal: IEPGoalResponse) => void
 }) {
   const statusMeta = STATUS_META[goal.status]
 
@@ -300,6 +301,14 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
                 title="Log progress"
               >
                 <Plus size={11} /> Progress
+              </button>
+              <button
+                onClick={() => onEdit(goal)}
+                className="p-1 rounded-lg transition-opacity hover:opacity-60"
+                style={{ color: colors.text.dim }}
+                title="Edit goal"
+              >
+                <Pencil size={13} />
               </button>
               <button
                 onClick={() => onDelete(goal.id)}
@@ -945,6 +954,68 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
   )
 }
 
+// ── Edit Goal modal ─────────────────────────────────────────────────────────
+// Case-level only — edits this goal's own row, never the template it may have been
+// added from (templates and case goals are independent copies once a plan is created).
+
+function EditGoalModal({ open, onClose, goal }: {
+  open: boolean
+  onClose: () => void
+  goal: IEPGoalResponse | null
+}) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
+
+  useEffect(() => {
+    if (goal) {
+      reset({
+        title: goal.title,
+        domain: goal.domain,
+        goalStatement: goal.goalStatement ?? '',
+        baseline: goal.baseline ?? '',
+        targetCriteria: goal.targetCriteria ?? '',
+        targetDate: goal.targetDate ?? '',
+      })
+    }
+  }, [goal, reset])
+
+  const mut = useMutation({
+    mutationFn: (data: CreateIEPGoalRequest) => iepApi.updateGoal(goal!.id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['iep'] })
+      toast('Goal updated', 'success')
+      onClose()
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update goal'), 'error'),
+  })
+
+  if (!goal) return null
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Edit Goal — ${goal.title}`}>
+      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+        <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={errors.title?.message}
+          {...register('title', { required: 'Required' })} />
+        <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={errors.domain?.message}
+          {...register('domain', { required: 'Required' })} />
+        <div>
+          <label className="form-label">Goal statement</label>
+          <textarea className="form-input resize-none" rows={3}
+            placeholder="Full SMART goal text…" {...register('goalStatement')} />
+        </div>
+        <Input label="Baseline" placeholder="Current performance level" {...register('baseline')} />
+        <Input label="Target criteria" placeholder='e.g. "80% accuracy over 3 sessions"' {...register('targetCriteria')} />
+        <Input label="Target date" type="date" {...register('targetDate')} />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={isSubmitting || mut.isPending}>Save Changes</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ── Log Progress modal ────────────────────────────────────────────────────────
 
 function LogProgressModal({ open, onClose, goal, patientId }: {
@@ -1070,6 +1141,7 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
   const [showPlanModal,  setShowPlanModal]  = useState(false)
   const [showCsvModal,   setShowCsvModal]   = useState(false)
   const [addGoalTarget,  setAddGoalTarget]  = useState<{ id: string; title: string } | null>(null)
+  const [editGoalTarget, setEditGoalTarget] = useState<IEPGoalResponse | null>(null)
   const [progressTarget, setProgressTarget] = useState<IEPGoalResponse | null>(null)
   const [historyTarget,  setHistoryTarget]  = useState<IEPGoalResponse | null>(null)
   const [expandedPlans,  setExpandedPlans]  = useState<Set<string>>(new Set())
@@ -1236,6 +1308,7 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                             onDelete={id => deleteGoalMut.mutate(id)}
                             onLogProgress={g => setProgressTarget(g)}
                             onViewProgress={g => setHistoryTarget(g)}
+                            onEdit={g => setEditGoalTarget(g)}
                           />
                         ))}
                       </div>
@@ -1293,6 +1366,12 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
               planTitle={addGoalTarget.title}
             />
           )}
+
+          <EditGoalModal
+            open={!!editGoalTarget}
+            onClose={() => setEditGoalTarget(null)}
+            goal={editGoalTarget}
+          />
 
           <LogProgressModal
             open={!!progressTarget}
