@@ -1,7 +1,9 @@
 function nameHash(name: string): number {
   let hash = 0
   for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+    // Force positive unsigned 32-bit integer conversion each step, so the result
+    // never needs Math.abs() downstream.
+    hash = (name.charCodeAt(i) + ((hash << 5) - hash)) >>> 0
   }
   return hash
 }
@@ -16,12 +18,12 @@ function nameHash(name: string): number {
  */
 export function getAvatarColorStyles(name: string, isDarkMode = false): { background: string; color: string } {
   const hash = nameHash(name)
-  const hue = Math.abs(hash) % 360
+  const hue = hash % 360
 
   const saturation = 70
   const lightness = isDarkMode
-    ? 65 + (Math.abs(hash) % 15) // 65% - 80%
-    : 35 + (Math.abs(hash) % 15) // 35% - 50%
+    ? 65 + (hash % 15) // 65% - 80%
+    : 35 + (hash % 15) // 35% - 50%
 
   const background = `hsl(${hue}, ${saturation}%, ${lightness}%)`
   const color = lightness > 60 ? '#111827' : '#FFFFFF'
@@ -36,7 +38,7 @@ export function getAvatarColorStyles(name: string, isDarkMode = false): { backgr
  */
 export function getAvatarChipStyle(name: string, isDarkMode = false): { background: string; color: string; borderLeft: string } {
   const hash = nameHash(name)
-  const hue = Math.abs(hash) % 360
+  const hue = hash % 360
   const saturation = 70
   const textLightness = isDarkMode ? 72 : 40
 
