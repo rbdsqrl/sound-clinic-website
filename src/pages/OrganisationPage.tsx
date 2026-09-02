@@ -471,7 +471,7 @@ export default function OrganisationPage() {
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()
   const { user } = useAuth()
-  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD'
+  const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD' || user?.role === 'OFFICE_ADMIN'
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: org, isLoading } = useQuery({ queryKey: ['organisation'], queryFn: organisationApi.get })
@@ -815,7 +815,7 @@ export default function OrganisationPage() {
             )}
           </Card>
 
-          {user?.role === 'BUSINESS_OWNER' && (
+          {(user?.role === 'BUSINESS_OWNER' || user?.role === 'OFFICE_ADMIN') && (
             <Card>
               <CardHeader
                 title="AI Assistant (Magic Fill)"

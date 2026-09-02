@@ -62,6 +62,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.dashboard,  label: 'Dashboard',  icon: LayoutDashboard },
     { to: ROUTES.feed,       label: 'Feed',       icon: Newspaper },
     { to: ROUTES.inquiries,  label: 'Inquiries',  icon: Inbox },
+    { to: ROUTES.organisation, label: 'Organisation', icon: Building2 },
     { to: ROUTES.patients,   label: 'Cases',      icon: Users },
     { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
     { to: ROUTES.resources,  label: 'Resources',  icon: Library },
