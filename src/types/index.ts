@@ -559,6 +559,8 @@ export interface EnrollmentResponse {
   startDate: string        // "YYYY-MM-DD"
   endDate: string | null   // "YYYY-MM-DD" — last day of the plan
   dayOfWeek: DayOfWeek
+  /** Weekdays sessions may land on. Empty — no restriction, every day is a candidate. */
+  sessionDays: DayOfWeek[]
   startTime: string        // "HH:mm:ss"
   status: EnrollmentStatus
   careStatus: EnrollmentCareStatus
@@ -609,6 +611,9 @@ export interface CreateEnrollmentRequest {
   startDate: string        // "YYYY-MM-DD"
   startTime: string        // "HH:mm"
   endDate?: string         // "YYYY-MM-DD" — defaults to the last generated session
+  /** Weekdays sessions may land on. Omit/empty — every day is a candidate (holidays and the
+   *  org's weekly off days are still skipped either way). */
+  sessionDays?: DayOfWeek[]
   reviewSchedule?: ReviewScheduleRequest   // omit for no review meetings
 }
 
@@ -857,6 +862,9 @@ export interface CreateSubscriptionRequest {
   programId: string
   numSessions: number
   notes?: string
+  /** Overrides the program's own per-session price for this one case. Omit to use the
+   *  program's price (with tax) as before — the program itself is never changed. */
+  perSessionCost?: number
 }
 
 export interface UpdatePaymentRequest {

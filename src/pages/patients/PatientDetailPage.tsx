@@ -20,6 +20,7 @@ import { enrollmentsApi } from '../../api/enrollments'
 import { concernsApi } from '../../api/concerns'
 import { dischargeApi } from '../../api/discharge'
 import { usersApi } from '../../api/users'
+import { organisationApi } from '../../api/organisation'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -53,6 +54,7 @@ import type {
   EnrollmentResponse,
   CreateEnrollmentRequest,
   AvailableTherapistResponse,
+  DayOfWeek,
   TherapySessionStatus,
   AssessmentType,
 } from '../../types'
@@ -107,6 +109,7 @@ function JourneyCard({
   subscriptions,
   enrollments,
   canManage,
+  hidePayment = false,
   onAddSubscription,
   onSetupSchedule,
   onRecordPayment,
@@ -117,6 +120,8 @@ function JourneyCard({
   subscriptions: import('../../types').SubscriptionResponse[]
   enrollments: import('../../types').EnrollmentResponse[]
   canManage: boolean
+  /** Therapists never see payment info — the "Confirm payment" step is skipped entirely for them. */
+  hidePayment?: boolean
   onAddSubscription: () => void
   onSetupSchedule: () => void
   onRecordPayment: (sub: import('../../types').SubscriptionResponse) => void
@@ -189,6 +194,8 @@ function JourneyCard({
   // more than one program, this single card could only ever speak for one of
   // them, which read as wrong the moment a second plan existed.
   if (step === 'active') return null
+  // Therapists don't see payment info at all — nothing useful left to prompt them with here.
+  if (step === 'payment' && hidePayment) return null
 
   return (
     <div
@@ -269,7 +276,10 @@ function CreateSubscriptionModal({
   const [programId, setProgramId] = useState('')
   const [numSessions, setNumSessions] = useState('')
   const [notes, setNotes] = useState('')
-  const [errors, setErrors] = useState<{ programId?: string; numSessions?: string }>({})
+  // Defaults to the program's own price whenever the program changes — editable per case
+  // without touching the program's price for anyone else.
+  const [perSessionCost, setPerSessionCost] = useState('')
+  const [errors, setErrors] = useState<{ programId?: string; numSessions?: string; perSessionCost?: string }>({})
 
   const { data: programs = [], isLoading: loadingPrograms } = useQuery({
     queryKey: ['programs', 'active'],
@@ -285,13 +295,22 @@ function CreateSubscriptionModal({
 
   const selectedProgram = programs.find(p => p.id === programId)
   const sessions = parseInt(numSessions) || 0
-  const previewTotal = selectedProgram ? formatINR(selectedProgram.totalCost * sessions) : null
+  const feePerSession = perSessionCost === '' ? (selectedProgram?.totalCost ?? 0) : Number(perSessionCost)
+  const previewTotal = selectedProgram ? formatINR(feePerSession * sessions) : null
+
+  useEffect(() => {
+    setPerSessionCost(selectedProgram ? String(selectedProgram.totalCost) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programId])
 
   const validate = () => {
     const e: typeof errors = {}
     if (!programId) e.programId = 'Select a program'
     const n = parseInt(numSessions)
     if (!numSessions || isNaN(n) || n < 1) e.numSessions = 'Enter at least 1 session'
+    if (perSessionCost !== '' && (isNaN(Number(perSessionCost)) || Number(perSessionCost) < 0)) {
+      e.perSessionCost = 'Enter a valid fee'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -299,7 +318,10 @@ function CreateSubscriptionModal({
   const handleSubmit = (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!validate()) return
-    createMut.mutate({ patientId, programId, numSessions: parseInt(numSessions), notes: notes || undefined })
+    createMut.mutate({
+      patientId, programId, numSessions: parseInt(numSessions), notes: notes || undefined,
+      perSessionCost: perSessionCost !== '' ? Number(perSessionCost) : undefined,
+    })
   }
 
   return (
@@ -347,6 +369,28 @@ function CreateSubscriptionModal({
             />
             {errors.numSessions && <p className="form-error">{errors.numSessions}</p>}
           </div>
+
+          {/* Fee per session — defaults to the program's price, editable for this case only */}
+          {selectedProgram && (
+            <div>
+              <label className="form-label">Fee per Session (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={perSessionCost}
+                onChange={e => setPerSessionCost(e.target.value)}
+                placeholder={String(selectedProgram.totalCost)}
+                className="form-input w-full"
+              />
+              {errors.perSessionCost && <p className="form-error">{errors.perSessionCost}</p>}
+              {Number(perSessionCost) !== selectedProgram.totalCost && (
+                <p className="text-xs mt-1" style={{ color: colors.text.dim }}>
+                  Program price is {formatINR(selectedProgram.totalCost)}/session — this only changes it for this case.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Preview total */}
           {previewTotal && sessions > 0 && (
@@ -650,6 +694,16 @@ const SESSION_DURATION_OPTIONS = [
   { value: 90,  label: '90 min' },
 ]
 
+const WEEK_DAYS: { value: DayOfWeek; label: string }[] = [
+  { value: 'MONDAY',    label: 'Mon' },
+  { value: 'TUESDAY',   label: 'Tue' },
+  { value: 'WEDNESDAY', label: 'Wed' },
+  { value: 'THURSDAY',  label: 'Thu' },
+  { value: 'FRIDAY',    label: 'Fri' },
+  { value: 'SATURDAY',  label: 'Sat' },
+  { value: 'SUNDAY',    label: 'Sun' },
+]
+
 
 function sessionStatusIcon(status: TherapySessionStatus) {
   if (status === 'COMPLETED') return <CheckCircle2 size={13} style={{ color: colors.status.success }} />
@@ -795,7 +849,25 @@ function EnrollmentModal({
   const [duration, setDuration]                 = useState<number>(45)
   const [startDate, setStartDate]               = useState('')
   const [startTime, setStartTime]               = useState('')
+  // Defaults to every day — same behaviour as before this existed — and the caller narrows it.
+  const [sessionDays, setSessionDays]           = useState<DayOfWeek[]>(WEEK_DAYS.map(d => d.value))
   const [step, setStep]                         = useState<1 | 2>(1)
+
+  // A day the org has marked as a weekly off would never generate a session anyway (see
+  // SessionGenerationService) — auto-deselect it in Session Days so picking it isn't a silent
+  // no-op, and disable its chip so it can't be re-selected.
+  const { data: weeklyOffDays = [] } = useQuery({
+    queryKey: ['organisation', 'weekly-off-days'],
+    queryFn: organisationApi.getWeeklyOffDays,
+  })
+  useEffect(() => {
+    setSessionDays(prev => {
+      // Only while every day is still selected — the moment the caller deselects
+      // one themselves, stop overwriting their choice.
+      if (prev.length !== WEEK_DAYS.length) return prev
+      return WEEK_DAYS.map(d => d.value).filter(d => !weeklyOffDays.includes(d))
+    })
+  }, [weeklyOffDays])
 
   // Review meetings — opt-in, fortnightly by default
   const [wantsReviews, setWantsReviews]         = useState(true)
@@ -813,11 +885,16 @@ function EnrollmentModal({
     onError: (err) => toast(getApiError(err, 'Failed to create enrollment'), 'error'),
   })
 
+  const toggleSessionDay = (day: DayOfWeek) => {
+    setSessionDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
+
   const validateStep1 = () => {
     const e: Record<string, string> = {}
     if (!subscriptionId) e.sub = 'Select a subscription'
     if (!startDate) e.date = 'Select a start date'
     if (!startTime) e.time = 'Select a time'
+    if (sessionDays.length === 0) e.days = 'Select at least one day'
     if (startDate && startDate < todayStr()) e.date = 'Start date cannot be in the past'
     else if (startDate && startTime && isPastDateTime(startDate, startTime)) e.time = 'Start time cannot be in the past'
     setStep1Errors(e)
@@ -851,6 +928,7 @@ function EnrollmentModal({
       sessionDurationMinutes: duration,
       startDate,
       startTime,
+      sessionDays,
       // No end date sent — the server derives it from the start date and the
       // number of sessions in the plan, and the review series inherits it.
       reviewSchedule: wantsReviews
@@ -991,6 +1069,32 @@ function EnrollmentModal({
                 <input type="date" value={startDate} min={todayStr()} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
                 {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
               </div>
+            </div>
+
+            {/* Session days — which weekdays sessions land on; holidays and the org's own
+                weekly off days are always skipped regardless of what's picked here. */}
+            <div>
+              <label className="form-label">Session Days</label>
+              <div className="flex flex-wrap gap-1.5">
+                {WEEK_DAYS.map(d => {
+                  const active = sessionDays.includes(d.value)
+                  const isWeeklyOff = weeklyOffDays.includes(d.value)
+                  return (
+                    <button
+                      key={d.value}
+                      type="button"
+                      disabled={isWeeklyOff}
+                      onClick={() => toggleSessionDay(d.value)}
+                      title={isWeeklyOff ? 'Weekly off day for this organisation' : undefined}
+                      className="rounded-full px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={active ? styles.filterTabActive : styles.filterTabInactive}
+                    >
+                      {d.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {step1Errors.days && <p className="form-error">{step1Errors.days}</p>}
             </div>
 
             {/* Review meetings */}
@@ -1577,6 +1681,9 @@ export default function PatientDetailPage() {
 
   const currentRole = currentRoleEarly
   const isParent            = isParentRole
+  // Therapists never see payment/charge information anywhere in a case — clinical role,
+  // not billing — so this gates the payment status badge, amounts, and payment prompts below.
+  const isTherapist         = currentRole === 'THERAPIST'
   const isOfficeAdmin       = currentRole === 'OFFICE_ADMIN'
   const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
@@ -1681,6 +1788,7 @@ export default function PatientDetailPage() {
               subscriptions={subscriptions}
               enrollments={enrollments}
               canManage={canManageSubs || canCreateEnrollment}
+              hidePayment={isTherapist}
               onAddSubscription={() => setSubModal(true)}
               onSetupSchedule={() => {
                 const paidSub = subscriptions.find(s => s.status === 'ACTIVE' && s.paymentStatus === 'PAID')
@@ -1990,9 +2098,11 @@ export default function PatientDetailPage() {
                         <p className="text-xs font-medium truncate flex-1" style={{ color: colors.text.muted }}>
                           {sub.programName}
                         </p>
-                        <span className="text-[12.65px] flex-shrink-0" style={{ color: colors.text.dim }}>
-                          {formatINR(sub.amountPaid)} paid
-                        </span>
+                        {!isTherapist && (
+                          <span className="text-[12.65px] flex-shrink-0" style={{ color: colors.text.dim }}>
+                            {formatINR(sub.amountPaid)} paid
+                          </span>
+                        )}
                         <span
                           className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
                           style={{ background: surface.card, color: colors.text.dim }}
@@ -2039,12 +2149,14 @@ export default function PatientDetailPage() {
                           </div>
                           <div className="flex items-center gap-2.5 flex-shrink-0">
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <span
-                                className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                style={paymentStatusStyle(sub.paymentStatus)}
-                              >
-                                {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
-                              </span>
+                              {!isTherapist && (
+                                <span
+                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                  style={paymentStatusStyle(sub.paymentStatus)}
+                                >
+                                  {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
+                                </span>
+                              )}
                               {isEnrolled && (
                                 <span
                                   className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
@@ -2143,15 +2255,25 @@ export default function PatientDetailPage() {
                                 <Clock size={11} style={{ color: colors.text.dim }} />
                                 {formatTimeStr(enrollment.startTime)} · {enrollment.sessionDurationMinutes}min
                               </span>
+                              {enrollment.sessionDays.length > 0 && enrollment.sessionDays.length < 7 && (
+                                <span className="flex items-center gap-1.5">
+                                  <CalendarDays size={11} style={{ color: colors.text.dim }} />
+                                  {WEEK_DAYS.filter(d => enrollment.sessionDays.includes(d.value)).map(d => d.label).join(', ')}
+                                </span>
+                              )}
                             </>
                           )}
-                          <span className="flex items-center gap-1.5">
-                            <IndianRupee size={11} style={{ color: colors.text.dim }} />
-                            {formatINR(sub.amountPaid)} paid
-                            {sub.discountPercent > 0 && ` · ${sub.discountPercent}% off`}
-                          </span>
-                          {sub.paymentNotes && (
-                            <span className="italic">{sub.paymentNotes}</span>
+                          {!isTherapist && (
+                            <>
+                              <span className="flex items-center gap-1.5">
+                                <IndianRupee size={11} style={{ color: colors.text.dim }} />
+                                {formatINR(sub.amountPaid)} paid
+                                {sub.discountPercent > 0 && ` · ${sub.discountPercent}% off`}
+                              </span>
+                              {sub.paymentNotes && (
+                                <span className="italic">{sub.paymentNotes}</span>
+                              )}
+                            </>
                           )}
                         </div>
 

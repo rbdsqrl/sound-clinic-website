@@ -113,6 +113,7 @@ export function SessionList({
   canUpdate,
   canReschedule = false,
   canView = false,
+  hidePayment = false,
   onOpenNotes,
 }: {
   enrollmentId: string
@@ -123,6 +124,8 @@ export function SessionList({
   /** Can open a completed session's report read-only (e.g. a Parent) — never
    *  applies to an upcoming session, which has nothing to view yet. */
   canView?: boolean
+  /** Therapists never see payment/charge info — hides the ad-hoc session's "Payment due"/"No charge" badge. */
+  hidePayment?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
   const [tab, setTab] = useState<'completed' | 'upcoming'>('upcoming')
@@ -275,7 +278,7 @@ export function SessionList({
                     Ad-hoc
                   </span>
                 )}
-                {s.adHoc && !s.countsTowardPlan && (
+                {s.adHoc && !s.countsTowardPlan && !hidePayment && (
                   <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                     style={s.requiresPayment
                       ? paletteStyle('amber', 0.14, 0)

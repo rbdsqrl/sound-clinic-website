@@ -302,6 +302,7 @@ export default function EnrollmentDetailPage() {
           canUpdate={canUpdate}
           canReschedule={canRescheduleSession}
           canView={canViewSessions}
+          hidePayment={currentRole === 'THERAPIST'}
           onOpenNotes={(s) => setNotesState({ session: s, canEdit: canUpdate })}
         />
       </Card>
