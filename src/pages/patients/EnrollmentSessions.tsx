@@ -111,6 +111,7 @@ export function SessionList({
   enrollmentId,
   canUpdate,
   canReschedule = false,
+  canView = false,
   onOpenNotes,
 }: {
   enrollmentId: string
@@ -118,6 +119,9 @@ export function SessionList({
   /** Business Owner / Clinic Head / Office Admin can reschedule a session even
    *  though Office Admin can't touch its notes — a separate permission. */
   canReschedule?: boolean
+  /** Can open a completed session's report read-only (e.g. a Parent) — never
+   *  applies to an upcoming session, which has nothing to view yet. */
+  canView?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
   const [tab, setTab] = useState<'completed' | 'upcoming'>('upcoming')
@@ -233,7 +237,8 @@ export function SessionList({
         <div style={{ borderTop: `1px solid ${border.divider}` }}>
           {displayRows.map((s, i) => {
             const hasNotes  = !!(s.feedback || s.progressReport || s.notes)
-            const clickable = canUpdate
+            const isCompletedRow = s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE' && s.status !== 'CANCELLATION_REQUESTED'
+            const clickable = canUpdate || (canView && isCompletedRow)
             return (
               <div
                 key={s.id}

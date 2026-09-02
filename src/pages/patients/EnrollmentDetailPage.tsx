@@ -108,6 +108,9 @@ export default function EnrollmentDetailPage() {
     ? user?.id === enrollment.therapistId
     : canUpdateSession
 
+  // A Parent can't edit a session's report, but can open a completed one read-only.
+  const canViewSessions = currentRole === 'PARENT'
+
   const canUpdateCareStatus = currentRole === 'THERAPIST'
     ? user?.id === enrollment.therapistId
     : ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
@@ -297,6 +300,7 @@ export default function EnrollmentDetailPage() {
           enrollmentId={enrollment.id}
           canUpdate={canUpdate}
           canReschedule={canRescheduleSession}
+          canView={canViewSessions}
           onOpenNotes={(s) => setNotesState({ session: s, canEdit: canUpdate })}
         />
       </Card>

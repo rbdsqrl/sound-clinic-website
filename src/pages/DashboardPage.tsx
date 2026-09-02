@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
+import { CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO, subDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -11,8 +11,8 @@ import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
-import { StatCard } from '../components/ui/Card'
 import { Avatar } from '../components/shared/Avatar'
+import ChildrenProgressChart from '../components/charts/ChildrenProgressChart'
 import { PageLoader } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
@@ -1327,11 +1327,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard label="Children"           value={myChildren?.length ?? 0}                                                   icon={<Baby size={22} />}        color="purple" />
-          <StatCard label="Conditions"          value={myChildren?.reduce((s, c) => s + c.conditions.length, 0) ?? 0}             icon={<Users size={22} />}       color="blue" />
-          <StatCard label="Assigned Therapists" value={new Set(myChildren?.flatMap(c => c.therapists.map(t => t.id)) ?? []).size} icon={<Stethoscope size={22} />} color="green" />
-        </div>
+        {myChildren && myChildren.length > 0 && (
+          <div style={{ ...styles.card, padding: 20 }}>
+            <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+              Progress — last 30 days
+            </h2>
+            <ChildrenProgressChart children={myChildren} />
+          </div>
+        )}
 
         {myChildren && myChildren.length > 0 && (
           <div style={{ ...styles.card, overflow: 'hidden', padding: 0 }}>
