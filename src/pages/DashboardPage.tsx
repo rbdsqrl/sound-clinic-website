@@ -11,6 +11,7 @@ import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
+import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
 import ChildrenProgressChart from '../components/charts/ChildrenProgressChart'
 import { PageLoader } from '../components/ui/Spinner'
@@ -31,7 +32,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -771,6 +772,134 @@ function joinedLabel(days: number): string {
   return `${days} days ago`
 }
 
+/** A ring split into coloured arc segments proportional to each value, with the total centred. */
+function StatRing({ segments, size = 92, strokeWidth = 10 }: {
+  segments: { value: number; color: string }[]
+  size?: number
+  strokeWidth?: number
+}) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0)
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+
+  let drawn = 0
+  const arcs = total === 0 ? [] : segments.map((s, i) => {
+    if (s.value === 0) return null
+    const dash = (s.value / total) * circumference
+    const arc = (
+      <circle
+        key={i}
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none"
+        stroke={s.color}
+        strokeWidth={strokeWidth}
+        strokeDasharray={`${dash} ${circumference - dash}`}
+        strokeDashoffset={-drawn}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    )
+    drawn += dash
+    return arc
+  })
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={border.divider} strokeWidth={strokeWidth} />
+      {arcs}
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        fontSize={size * 0.24} fontWeight={700} fill={colors.text.heading}>
+        {total}
+      </text>
+    </svg>
+  )
+}
+
+/** One ring + legend column, shared by the Cases and Members halves of OrgOverview. */
+function StatRingPanel({ title, ring, stats }: {
+  title: string
+  ring: { value: number; color: string }[]
+  stats: { label: string; count: number; color: string }[]
+}) {
+  const total = ring.reduce((sum, s) => sum + s.value, 0)
+  return (
+    <div className="p-4 sm:p-6 flex flex-col gap-4 flex-1">
+      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{title}</p>
+      <div className="flex items-center gap-5">
+        <div className="flex flex-col gap-3">
+          {stats.map(s => (
+            <div key={s.label} className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <div>
+                <p className="text-xs" style={{ color: colors.text.muted }}>{s.label}</p>
+                <p className="text-lg font-bold leading-tight" style={{ color: colors.text.primary }}>{s.count}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <StatRing segments={ring} />
+      </div>
+      <p className="text-xs" style={{ color: colors.text.muted }}>
+        Total <span className="font-semibold" style={{ color: colors.text.primary }}>{total}</span>
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Cases and Members active/invited counts, as two ring charts sharing one card.
+ * Discharged cases (isActive false) and deactivated members are excluded from both
+ * rings entirely — they're neither "active" nor "invited," so counting them in either
+ * bucket would be misleading.
+ */
+function OrgOverview({ patients, members, invites }: {
+  patients: PatientResponse[]
+  members: StaffMemberResponse[]
+  invites: InviteResponse[]
+}) {
+  const activeCases  = patients.filter(p => p.isActive && p.parents.length > 0).length
+  const invitedCases = patients.filter(p => p.isActive && p.parents.length === 0).length
+
+  const activeMembers  = members.filter(m => m.isActive).length
+  const invitedMembers = invites.filter(i => i.status === 'PENDING').length
+
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, padding: 0, overflow: 'hidden',
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
+
+  return (
+    <div style={sectionCard}>
+      <div className="px-4 sm:px-6 py-4" style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Organisation Overview</h2>
+      </div>
+      <div className="flex-1 flex flex-col sm:flex-row">
+        <StatRingPanel
+          title="Cases"
+          ring={[
+            { value: activeCases,  color: palette.green.text },
+            { value: invitedCases, color: palette.slate.text },
+          ]}
+          stats={[
+            { label: 'Active',      count: activeCases,  color: palette.green.text },
+            { label: 'Not Invited', count: invitedCases, color: palette.slate.text },
+          ]}
+        />
+        <StatRingPanel
+          title="Members"
+          ring={[
+            { value: activeMembers,  color: palette.green.text },
+            { value: invitedMembers, color: palette.yellow.text },
+          ]}
+          stats={[
+            { label: 'Active',  count: activeMembers,  color: palette.green.text },
+            { label: 'Invited', count: invitedMembers, color: palette.yellow.text },
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
 /** Cases added in the last 30 days, newest first — Clinic Head / Office Admin / Business Owner only. */
 function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
   const [showAll, setShowAll] = useState(false)
@@ -1409,6 +1538,19 @@ export default function DashboardPage() {
     staleTime: 2 * 60 * 1000,
   })
 
+  const { data: members = [] } = useQuery({
+    queryKey: ['members'],
+    queryFn: usersApi.listMembers,
+    enabled: isOwnerOrAdmin,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: invites = [] } = useQuery({
+    queryKey: ['invitations'],
+    queryFn: invitationsApi.list,
+    enabled: isOwnerOrAdmin,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const { data: feedPosts = [] } = useQuery({
     queryKey: ['feed'],
     queryFn: feedApi.list,
@@ -1548,6 +1690,7 @@ export default function DashboardPage() {
 
             <UpcomingBirthdays birthdays={upcomingBirthdays} />
             {isOwnerOrAdmin && <RecentlyJoinedChildren patients={patients ?? []} />}
+            {isOwnerOrAdmin && <OrgOverview patients={patients ?? []} members={members} invites={invites} />}
             <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
           </div>
         )
