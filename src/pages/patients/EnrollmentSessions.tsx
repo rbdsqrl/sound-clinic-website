@@ -572,9 +572,13 @@ export function SessionNotesModal({
     Array.from(files).forEach(f => uploadMut.mutate(f))
   }
 
-  // Performance Score and Rating are the two fields every session write-up must carry;
+  // A session being marked No Show, or cancelled/requested-for-cancellation, never
+  // happened — there's no performance to score or rate, so those two fields stay optional.
+  const skipRequiredFields = pendingAction === 'NO_SHOW' || pendingAction === 'CANCELLED' || pendingAction === 'REQUEST_CANCEL'
+  // Performance Score and Rating are the two fields every other session write-up must carry;
   // the checklist below them is optional, additional detail.
-  const missingRequired = canEdit && (score === null || rating === 0)
+  const fieldsRequired  = canEdit && !skipRequiredFields
+  const missingRequired = fieldsRequired && (score === null || rating === 0)
 
   // Filters the checklist as the therapist types: a header match keeps all its options,
   // otherwise only options whose own text matches are kept (header stays for context).
@@ -616,12 +620,12 @@ export function SessionNotesModal({
 
       <div className="flex flex-col gap-4">
         {/* Performance Score */}
-        <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={canEdit} />
+        <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={fieldsRequired} />
 
         {/* Rating */}
         <div>
           <label className="form-label">
-            Rating{canEdit && <span style={{ color: colors.status.danger }}> *</span>}
+            Rating{fieldsRequired && <span style={{ color: colors.status.danger }}> *</span>}
           </label>
           <div className="flex items-center gap-2">
             <StarRating value={rating} onChange={canEdit ? setRating : undefined} readOnly={!canEdit} />
