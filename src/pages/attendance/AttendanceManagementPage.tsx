@@ -185,6 +185,7 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
             valueLabel="Check-in"
             formatValue={minutesToLabel}
             accentColor={palette.purple.text}
+            padLeft={70}
           />
         </div>
 
