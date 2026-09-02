@@ -80,12 +80,13 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
     }
   }
   if (kind === 'session') {
-    if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309' }
-    if (status === 'CANCELLATION_REQUESTED') return { background: '#EF444418', color: '#dc2626' }
-    if (status === 'CANCELLED')             return { background: '#88888818', color: '#888' }
-    if (status === 'NO_SHOW')               return { background: '#f9731620', color: '#ea580c' }
-    if (status === 'COMPLETED')             return { background: '#10b98118', color: '#059669' }
-    return { background: `rgba(${palette.purple.raw}, 0.1)`, color: palette.purple.text }
+    const accent = `3px solid ${kindDot('session', status)}`
+    if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309', borderLeft: accent }
+    if (status === 'CANCELLATION_REQUESTED') return { background: '#EF444418', color: '#dc2626', borderLeft: accent }
+    if (status === 'CANCELLED')             return { background: '#88888818', color: '#888', borderLeft: accent }
+    if (status === 'NO_SHOW')               return { background: '#f9731620', color: '#ea580c', borderLeft: accent }
+    if (status === 'COMPLETED')             return { background: '#10b98118', color: '#059669', borderLeft: accent }
+    return { background: `rgba(${palette.purple.raw}, 0.1)`, color: palette.purple.text, borderLeft: accent }
   }
   // leave — approved = red, pending = amber, rejected = muted
   if (status === 'APPROVED') return { background: '#E05C5C18', color: '#E05C5C' }
@@ -628,11 +629,24 @@ function DayView({
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
   const nowMins = useNowMinutes()
   const nowRef  = useRef<HTMLDivElement>(null)
-  useEffect(() => { nowRef.current?.scrollIntoView({ block: 'center' }) }, [])
+  const firstEventRef = useRef<HTMLDivElement>(null)
   const showsToday = format(new Date(), 'yyyy-MM-dd') === format(current, 'yyyy-MM-dd')
   const dayKey    = format(current, 'yyyy-MM-dd')
   const isHoliday = holidayDates.has(dayKey)
   const HOURS     = Array.from({ length: 24 }, (_, i) => i) // full day, 12 AM – 11 PM
+  // The hour of this day's earliest event — so landing here from Month/Week's "+N more"
+  // (or any day other than today) scrolls straight to the events instead of parking at
+  // midnight and making the click look like it did nothing.
+  const firstEventHour = useMemo(() => {
+    for (let h = 0; h < 24; h++) {
+      if (timedEventsAtHour(events, current, h).length > 0) return h
+    }
+    return null
+  }, [events, current])
+  useEffect(() => {
+    if (showsToday) nowRef.current?.scrollIntoView({ block: 'center' })
+    else firstEventRef.current?.scrollIntoView({ block: 'center' })
+  }, [dayKey, showsToday, firstEventHour])
   // Hours whose "+N other events" has been expanded to show every event.
   const [expandedHours, setExpandedHours] = useState<Set<number>>(new Set())
   const toggleHour = (hour: number) =>
@@ -706,7 +720,7 @@ function DayView({
         {HOURS.map(hour => {
           const timed = timedEventsAtHour(events, current, hour)
           return (
-            <div key={hour} className="flex border-b"
+            <div key={hour} ref={hour === firstEventHour ? firstEventRef : undefined} className="flex border-b"
               style={{ borderColor: border.divider, minHeight: 64,
                        background: isHoliday ? '#FFFBEB30' : undefined }}>
               {/* Time label */}
@@ -793,7 +807,7 @@ function StaffDayView({
 }) {
   const nowMins = useNowMinutes()
   const nowRef  = useRef<HTMLDivElement>(null)
-  useEffect(() => { nowRef.current?.scrollIntoView({ block: 'center' }) }, [])
+  const firstEventRef = useRef<HTMLDivElement>(null)
   const showsToday = format(new Date(), 'yyyy-MM-dd') === format(current, 'yyyy-MM-dd')
   const dayKey    = format(current, 'yyyy-MM-dd')
   const isHoliday = holidayDates.has(dayKey)
@@ -802,6 +816,17 @@ function StaffDayView({
   const dayEvents = eventsOnDay(events, current)
   const gridCols  = `64px repeat(${columns.length}, minmax(200px, 1fr))`
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
+  // Same reasoning as DayView: land on the day's earliest event, not always midnight.
+  const firstEventHour = useMemo(() => {
+    for (let h = 0; h < 24; h++) {
+      if (dayEvents.some(e => !e.isAllDay && e.time != null && parseInt(e.time.split(':')[0]) === h)) return h
+    }
+    return null
+  }, [dayEvents])
+  useEffect(() => {
+    if (showsToday) nowRef.current?.scrollIntoView({ block: 'center' })
+    else firstEventRef.current?.scrollIntoView({ block: 'center' })
+  }, [dayKey, showsToday, firstEventHour])
   // "col.id::hour" keys whose "+N other events" has been expanded to show every event.
   const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set())
   const toggleCell = (key: string) =>
@@ -853,7 +878,7 @@ function StaffDayView({
       {/* Hour rows */}
       <div className="flex-1">
         {HOURS.map(hour => (
-          <div key={hour} className="grid border-b"
+          <div key={hour} ref={hour === firstEventHour ? firstEventRef : undefined} className="grid border-b"
             style={{ gridTemplateColumns: gridCols, borderColor: border.divider, minHeight: 56,
                      background: isHoliday ? '#FFFBEB30' : undefined }}>
             <div className="px-2 pt-1 text-right">
@@ -1271,11 +1296,11 @@ function NewMeetingModal({
 // actions that only make sense from the calendar — reschedule, and approving/rejecting a
 // pending cancellation — as optional props on the shared modal.
 function SessionEventModal({
-  session, canAccessNotes, canManageAll, canReschedule, onClose,
+  session, canAccessNotes, canCancel, canReschedule, onClose,
 }: {
   session: TherapySessionResponse
   canAccessNotes: boolean
-  canManageAll: boolean
+  canCancel: boolean
   canReschedule: boolean
   onClose: () => void
 }) {
@@ -1297,14 +1322,14 @@ function SessionEventModal({
     onSuccess: invalidateAndClose,
   })
 
-  const cancellationRequested = canManageAll && session.status === 'CANCELLATION_REQUESTED'
+  const cancellationRequested = canCancel && session.status === 'CANCELLATION_REQUESTED'
 
   return (
     <>
       <SessionNotesModal
         session={session}
         canEdit={canAccessNotes}
-        canDirectlyCancel={canManageAll}
+        canDirectlyCancel={canCancel}
         enrollmentId={session.enrollmentId}
         onClose={onClose}
         onReschedule={canReschedule && session.status === 'SCHEDULED' ? () => setRescheduleOpen(true) : undefined}
@@ -1626,8 +1651,15 @@ export default function CalendarPage() {
   const canReschedule = !!user && (
     hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN')
   )
-  // Seeing every therapist's schedule side by side is an org-management view.
+  // Office Admin can cancel a session (directly, or by approving a cancellation request)
+  // but never touches its clinical notes/feedback — see canAccessNotes at the call site.
+  const canCancelSession = canReschedule
+  // Seeing every therapist's schedule side by side is an org-management view —
+  // it's their only calendar layout now, not one of several to switch between.
   const canSeeStaffView = canBookSlots
+  useEffect(() => {
+    if (canSeeStaffView) setView('staff')
+  }, [canSeeStaffView])
   const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
@@ -1987,16 +2019,21 @@ export default function CalendarPage() {
             Today
           </button>
 
-          {/* View toggle — hidden below sm */}
-          <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
-            {([...(['day', 'week', 'month'] as ViewMode[]), ...(canSeeStaffView ? ['staff'] as ViewMode[] : [])]).map(m => (
-              <button key={m} onClick={() => setView(m)}
-                className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
-                style={view === m ? styles.filterTabActive : styles.filterTabInactive}>
-                {m === 'staff' ? 'Staff' : m}
-              </button>
-            ))}
-          </div>
+          {/* View toggle — hidden below sm. Admin-tier roles are locked to the Staff layout
+              (see the useEffect above), so this Day/Week/Month picker is only for everyone
+              else's single-timeline calendar; Staff's own Day/Week/Month zoom lives in the
+              filter bar below instead. */}
+          {!canSeeStaffView && (
+            <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
+              {(['day', 'week', 'month'] as ViewMode[]).map(m => (
+                <button key={m} onClick={() => setView(m)}
+                  className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
+                  style={view === m ? styles.filterTabActive : styles.filterTabInactive}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Staff view filters — Case / Therapist / Program + Day/Week toggle */}
@@ -2094,13 +2131,13 @@ export default function CalendarPage() {
       {/* Therapy session — the same Session Notes modal used on the Patient → Therapy tab */}
       {selected && selected.kind === 'session' && (() => {
         const rawSession = selected.raw as TherapySessionResponse
-        const canManageAll = !!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))
+        const canManageNotes = !!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))
         return (
           <SessionEventModal
             key={selected.id}
             session={rawSession}
-            canAccessNotes={canManageAll || rawSession.therapistId === user?.id}
-            canManageAll={canManageAll}
+            canAccessNotes={canManageNotes || rawSession.therapistId === user?.id}
+            canCancel={canCancelSession}
             canReschedule={canReschedule}
             onClose={() => setSelected(null)}
           />

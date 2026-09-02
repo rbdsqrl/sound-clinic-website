@@ -111,6 +111,8 @@ export interface ConvertInquiryResponse {
   patientId: string
   patientName: string
   linkedUserInviteLink?: string | null
+  /** Set when a linked parent/patient was requested but couldn't be created — the case itself still succeeded. */
+  linkedUserError?: string | null
 }
 
 export interface InquiryAnalyticsResponse {

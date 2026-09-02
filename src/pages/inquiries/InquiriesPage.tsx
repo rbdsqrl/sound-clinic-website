@@ -5,7 +5,7 @@ import {
   Inbox, Phone, Mail, Clock, CheckCircle2, XCircle, RefreshCw,
   ChevronRight, CalendarDays, X, Trash2,
   PhoneCall, MessageCircle, AtSign, FileText, UserCheck,
-  ArrowRightCircle, Zap, List, Users, BarChart2, Plus, Globe, Footprints,
+  ArrowRightCircle, Zap, List, Users, BarChart2, Plus, Globe, Footprints, AlertTriangle,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { inquiriesApi } from '../../api/inquiries'
@@ -19,10 +19,11 @@ import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { PageLoader } from '../../components/ui/Spinner'
+import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
-import { colors, styles, border, surface, accentAlpha, paletteStyle, borderAlpha } from '../../theme'
+import { colors, styles, border, surface, accentAlpha, warningAlpha, paletteStyle, borderAlpha } from '../../theme'
 import type {
   InquiryResponse, InquiryStatus, InquiryLogResponse,
   InquiryLogType, CreateInquiryLogRequest, PreferredTime, InquirySource,
@@ -197,7 +198,7 @@ function ConvertModal({
   onConverted: (patientId: string) => void
 }) {
   const qc = useQueryClient()
-  const { toast } = useToast()
+  const { toast, toasts, dismiss } = useToast()
 
   // Patient fields — pre-fill from inquiry name
   const parts = inquiry.name.trim().split(/\s+/)
@@ -214,6 +215,7 @@ function ConvertModal({
 
   // Success state — show invite link after conversion
   const [inviteLink,   setInviteLink]   = useState<string | null>(null)
+  const [linkError,    setLinkError]    = useState<string | null>(null)
   const [patientName,  setPatientName]  = useState('')
   const [convertedId,  setConvertedId]  = useState('')
   const [copied,       setCopied]       = useState(false)
@@ -265,7 +267,12 @@ function ConvertModal({
       qc.invalidateQueries({ queryKey: ['inquiries', 'NEW'] })
       setPatientName(data.patientName)
       setConvertedId(data.patientId)
-      if (data.linkedUserInviteLink) {
+      if (data.linkedUserError) {
+        // The case was created either way — only the parent/patient link failed.
+        // Surfaced as its own persistent step, not a toast, so it can't be missed
+        // or hidden behind the modal, and re-submitting won't create a duplicate case.
+        setLinkError(data.linkedUserError)
+      } else if (data.linkedUserInviteLink) {
         setInviteLink(data.linkedUserInviteLink)
       } else {
         toast(`${data.patientName} created as a patient`, 'success')
@@ -289,6 +296,7 @@ function ConvertModal({
   // ── Step 2: Subscription plan assignment ─────────────────────────────────
   if (showSubscription) {
     return (
+      <>
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
         <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]"
           style={{ background: surface.card, border: `1px solid ${border.card}` }}>
@@ -363,6 +371,53 @@ function ConvertModal({
           </div>
         </div>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      </>
+    )
+  }
+
+  // ── Step 1a: Case created, but linking the parent/patient failed ──────────
+  if (linkError) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+        <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4"
+          style={{ background: surface.card, border: `1px solid ${border.card}` }}>
+          <div className="p-6 flex flex-col items-center text-center gap-4">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ background: warningAlpha(0.15) }}>
+              <AlertTriangle size={22} style={{ color: colors.status.warning }} />
+            </div>
+            <div>
+              <p className="font-semibold text-base" style={{ color: colors.text.primary }}>
+                {patientName} was created as a case
+              </p>
+              <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
+                But linking the {linkedRole === 'PARENT' ? 'parent / guardian' : 'patient'} failed:
+              </p>
+            </div>
+            <div className="w-full rounded-xl p-3 text-left"
+              style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}` }}>
+              <p className="text-sm" style={{ color: colors.text.primary }}>{linkError}</p>
+            </div>
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              The case is otherwise ready to go — you can link the {linkedRole === 'PARENT' ? 'parent' : 'patient'} account
+              from the case's profile page at any time.
+            </p>
+          </div>
+          <div className="px-6 pb-6 flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => { onClose(); onConverted(convertedId) }}
+            >
+              Go to Case
+            </Button>
+            <Button className="flex-1" onClick={() => { setLinkError(null); setShowSubscription(true) }}>
+              Next: Assign Plan
+            </Button>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -415,6 +470,7 @@ function ConvertModal({
 
   // ── Convert form ──────────────────────────────────────────────────────────
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
       <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4"
         style={{ background: surface.card, border: `1px solid ${border.card}` }}>
@@ -529,6 +585,8 @@ function ConvertModal({
         </div>
       </div>
     </div>
+    <ToastContainer toasts={toasts} onDismiss={dismiss} />
+    </>
   )
 }
 
