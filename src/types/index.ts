@@ -570,6 +570,9 @@ export interface EnrollmentResponse {
   sessionsCompleted: number
   totalSessions: number
   createdAt: string
+  /** Set only when this enrollment was closed by a patient discharge — null on a program that
+   *  was force-completed via the care-status override, which is the only case "Reactivate" applies to. */
+  dischargedInRecordId: string | null
 }
 
 // ── Enrollment Concerns ──────────────────────────────────────────────────────

@@ -7,9 +7,11 @@ import { enrollmentsApi } from '../../api/enrollments'
 import { analyticsApi } from '../../api/analytics'
 import { SessionList, SessionNotesModal } from './EnrollmentSessions'
 import { Card } from '../../components/ui/Card'
+import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { Select } from '../../components/ui/Select'
+import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -31,11 +33,12 @@ const CARE_STATUS_VARIANT: Record<EnrollmentCareStatus, { label: string; style: 
   PROGRAM_COMPLETED: { label: 'Program Completed', style: paletteStyle('teal', 0.12, 0) },
 }
 
+// PROGRAM_COMPLETED is deliberately not offered here — it's a Clinic Head/Office Admin/
+// Business Owner-only override, set via the dedicated "Mark as Completed" action below.
 const CARE_STATUS_OPTIONS = [
   { value: 'ON_TRACK', label: 'On Track' },
   { value: 'NEEDS_ATTENTION', label: 'Needs Attention' },
   { value: 'REVIEW', label: 'Review' },
-  { value: 'PROGRAM_COMPLETED', label: 'Program Completed' },
 ]
 
 export default function EnrollmentDetailPage() {
@@ -49,19 +52,68 @@ export default function EnrollmentDetailPage() {
   const [editingCareStatus, setEditingCareStatus] = useState(false)
   const [careDraft, setCareDraft] = useState<EnrollmentCareStatus>('ON_TRACK')
   const [careNote, setCareNote] = useState('')
+  const [confirmingComplete, setConfirmingComplete] = useState(false)
+  const [completeNote, setCompleteNote] = useState('')
+  const [completeGoalMastery, setCompleteGoalMastery] = useState('')
+  const [completeParentSatisfaction, setCompleteParentSatisfaction] = useState('')
+  const [completeTherapistSignoff, setCompleteTherapistSignoff] = useState(false)
+  const [confirmingReactivate, setConfirmingReactivate] = useState(false)
 
   const qc = useQueryClient()
   const { toast } = useToast()
 
   const careStatusMut = useMutation({
     mutationFn: (payload: { careStatus: EnrollmentCareStatus; note: string }) =>
-      enrollmentsApi.updateCareStatus(enrollmentId!, payload.careStatus, payload.note || undefined),
+      enrollmentsApi.updateCareStatus(enrollmentId!, payload.careStatus, { note: payload.note || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
       toast('Care status updated', 'success')
       setEditingCareStatus(false)
     },
     onError: () => toast('Failed to update care status', 'error'),
+  })
+
+  // Separate from careStatusMut so its own toast/modal don't get tangled with the
+  // regular care-status editor — this is the Clinic Head/Office Admin/Business Owner-only
+  // override that completes a program regardless of how many sessions were attended, and
+  // optionally backfills the discharge success criteria that will otherwise never arrive.
+  const markCompleteMut = useMutation({
+    mutationFn: (payload: {
+      note: string
+      manualGoalMasteryPct?: number
+      manualParentSatisfactionPct?: number
+      therapistSignedOff: boolean
+    }) =>
+      enrollmentsApi.updateCareStatus(enrollmentId!, 'PROGRAM_COMPLETED', {
+        note: payload.note || undefined,
+        manualGoalMasteryPct: payload.manualGoalMasteryPct,
+        manualParentSatisfactionPct: payload.manualParentSatisfactionPct,
+        therapistSignedOff: payload.therapistSignedOff || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+      qc.invalidateQueries({ queryKey: ['success-criteria', enrollmentId] })
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      toast('Program marked completed', 'success')
+      setConfirmingComplete(false)
+      setCompleteNote('')
+      setCompleteGoalMastery('')
+      setCompleteParentSatisfaction('')
+      setCompleteTherapistSignoff(false)
+    },
+    onError: () => toast('Failed to mark program completed', 'error'),
+  })
+
+  const reactivateMut = useMutation({
+    mutationFn: () => enrollmentsApi.reactivate(enrollmentId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+      qc.invalidateQueries({ queryKey: ['success-criteria', enrollmentId] })
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      toast('Program reactivated', 'success')
+      setConfirmingReactivate(false)
+    },
+    onError: () => toast('Failed to reactivate program', 'error'),
   })
 
   const signoffMut = useMutation({
@@ -112,9 +164,11 @@ export default function EnrollmentDetailPage() {
   // A Parent can't edit a session's report, but can open a completed one read-only.
   const canViewSessions = currentRole === 'PARENT'
 
+  const isAdminTier = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+
   const canUpdateCareStatus = currentRole === 'THERAPIST'
     ? user?.id === enrollment.therapistId
-    : ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+    : isAdminTier
 
   const careStatus = CARE_STATUS_VARIANT[enrollment.careStatus] ?? CARE_STATUS_VARIANT.ON_TRACK
 
@@ -170,14 +224,26 @@ export default function EnrollmentDetailPage() {
                     <p className="text-xs" style={{ color: colors.text.muted }}>{enrollment.careStatusNote}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0"
-                  style={{ color: colors.accent, background: accentAlpha(0.10) }}
-                  onClick={() => { setCareDraft(enrollment.careStatus); setCareNote(enrollment.careStatusNote ?? ''); setEditingCareStatus(true) }}
-                >
-                  Update care status
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isAdminTier && (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+                      style={{ color: palette.green.text, background: paletteStyle('green', 0.10).background }}
+                      onClick={() => setConfirmingComplete(true)}
+                    >
+                      Mark as Completed
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+                    style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                    onClick={() => { setCareDraft(enrollment.careStatus); setCareNote(enrollment.careStatusNote ?? ''); setEditingCareStatus(true) }}
+                  >
+                    Update care status
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
@@ -208,6 +274,22 @@ export default function EnrollmentDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {enrollment.status === 'COMPLETED' && !enrollment.dischargedInRecordId && isAdminTier && (
+          <div className="mb-4 pb-4 border-b flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: border.divider }}>
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              This program was completed via the "Mark as Completed" override.
+            </p>
+            <button
+              type="button"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+              style={{ color: colors.accent, background: accentAlpha(0.10) }}
+              onClick={() => setConfirmingReactivate(true)}
+            >
+              Reactivate Program
+            </button>
           </div>
         )}
 
@@ -316,6 +398,91 @@ export default function EnrollmentDetailPage() {
           onClose={() => setNotesState(null)}
         />
       )}
+
+      <Modal open={confirmingComplete} onClose={() => setConfirmingComplete(false)} title="Mark Program Completed">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: colors.text.primary }}>
+            {enrollment.sessionsCompleted < enrollment.totalSessions
+              ? `This program has only ${enrollment.sessionsCompleted} of ${enrollment.totalSessions} sessions completed. Marking it completed now overrides that, closes the program early, and cancels its remaining upcoming sessions.`
+              : 'This marks the program completed, closes it, and cancels any remaining upcoming sessions.'}
+          </p>
+
+          <p className="text-xs" style={{ color: colors.text.muted }}>
+            Goal mastery and parent satisfaction are normally calculated from ongoing session/review
+            data, which a program closed early won't have. Fill them in by hand if you have them —
+            leave either blank to leave that criterion showing "No data".
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              type="number" min={0} max={100} step={1}
+              label="Goal Mastery %"
+              placeholder="e.g. 85"
+              value={completeGoalMastery}
+              onChange={e => setCompleteGoalMastery(e.target.value)}
+            />
+            <Input
+              type="number" min={0} max={100} step={1}
+              label="Parent Satisfaction %"
+              placeholder="e.g. 80"
+              value={completeParentSatisfaction}
+              onChange={e => setCompleteParentSatisfaction(e.target.value)}
+            />
+          </div>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox" className="h-4 w-4" style={{ accentColor: colors.accent }}
+              checked={completeTherapistSignoff}
+              onChange={e => setCompleteTherapistSignoff(e.target.checked)}
+            />
+            <span className="text-sm" style={{ color: colors.text.primary }}>
+              Record therapist sign-off on this program's goals
+            </span>
+          </label>
+
+          <div className="space-y-1">
+            <label className="form-label">Note (optional)</label>
+            <textarea
+              className="form-input"
+              rows={2}
+              value={completeNote}
+              onChange={e => setCompleteNote(e.target.value)}
+              placeholder="Why is this being marked completed now?"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => markCompleteMut.mutate({
+                note: completeNote,
+                manualGoalMasteryPct: completeGoalMastery === '' ? undefined : Number(completeGoalMastery),
+                manualParentSatisfactionPct: completeParentSatisfaction === '' ? undefined : Number(completeParentSatisfaction),
+                therapistSignedOff: completeTherapistSignoff,
+              })}
+              loading={markCompleteMut.isPending}
+            >
+              Mark as Completed
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmingComplete(false)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={confirmingReactivate} onClose={() => setConfirmingReactivate(false)} title="Reactivate Program">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: colors.text.primary }}>
+            This sets the program back to Active with care status On Track, clears any manually
+            entered goal mastery/parent satisfaction values, and restores to Scheduled the sessions
+            that were cancelled when it was marked completed.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => reactivateMut.mutate()} loading={reactivateMut.isPending}>
+              Reactivate Program
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmingReactivate(false)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

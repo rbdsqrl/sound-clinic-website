@@ -35,15 +35,35 @@ export const enrollmentsApi = {
   cancel: (id: string) =>
     client.patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/cancel`).then(r => r.data.data),
 
-  /** Set the clinical-health signal on an active enrollment (assigned therapist or admin-tier roles) */
-  updateCareStatus: (id: string, careStatus: EnrollmentCareStatus, note?: string) =>
+  /**
+   * Set the clinical-health signal on an active enrollment (assigned therapist or admin-tier
+   * roles). The manual* fields are only honoured when careStatus is PROGRAM_COMPLETED and the
+   * caller is admin-tier — they fill in the discharge success criteria that would otherwise
+   * never arrive on a program force-completed this way.
+   */
+  updateCareStatus: (id: string, careStatus: EnrollmentCareStatus, opts?: {
+    note?: string
+    manualGoalMasteryPct?: number
+    manualParentSatisfactionPct?: number
+    therapistSignedOff?: boolean
+  }) =>
     client
-      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/care-status`, { careStatus, note })
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/care-status`, { careStatus, ...opts })
       .then(r => r.data.data),
 
   /** Assigned therapist confirms the program's goals were met — only once care status is Review or Program Completed */
   therapistSignoff: (id: string, notes?: string) =>
     client
       .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/therapist-signoff`, { notes })
+      .then(r => r.data.data),
+
+  /**
+   * Undo a "Mark as Completed" override — back to ACTIVE/ON_TRACK, clears the manual success-
+   * criteria overrides, and restores exactly the sessions that override auto-cancelled. Only
+   * for a program force-completed that way, not one closed by a patient discharge.
+   */
+  reactivate: (id: string) =>
+    client
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/reactivate`)
       .then(r => r.data.data),
 }
