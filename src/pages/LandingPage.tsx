@@ -4,9 +4,9 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   Phone, Mail, MapPin, Clock, ChevronRight,
   Baby, Brain, Activity, Waves, Mic2, Stethoscope,
-  Award, Star, Users, ArrowRight, CheckCircle2,
+  Award, ArrowRight, CheckCircle2,
 } from 'lucide-react'
-import { colors, gradient, shadow, accentAlpha, ctaAlpha, border, surface, LOGO_SRC } from '../theme'
+import { colors, gradient, shadow, accentAlpha, border, LOGO_SRC } from '../theme'
 import { inquiriesApi } from '../api/inquiries'
 import { publicApi } from '../api/public'
 import type { PreferredTime } from '../types'

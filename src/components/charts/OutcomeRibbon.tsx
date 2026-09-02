@@ -1,4 +1,4 @@
-import { colors, border, surface } from '../../theme'
+import { colors, border } from '../../theme'
 import type { AnalyticsBucket } from '../../types'
 
 interface Props {

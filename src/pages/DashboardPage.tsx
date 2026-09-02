@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
+import { Users, Stethoscope, Baby, CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO, subDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -12,6 +12,7 @@ import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
 import { StatCard } from '../components/ui/Card'
+import { Avatar } from '../components/shared/Avatar'
 import { PageLoader } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
@@ -1314,12 +1315,7 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <div
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}
-          >
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
+          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} bold />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}
@@ -1388,12 +1384,7 @@ export default function DashboardPage() {
       {/* Compact header — name + role + date on the left, attendance check-in/out on the right */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <div
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}
-          >
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
+          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} bold />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}

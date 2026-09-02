@@ -14,16 +14,12 @@ import { useToast } from '../../hooks/useToast'
 import { useFaceScan } from '../../hooks/useFaceScan'
 import type { FaceMatchStatus } from '../../hooks/useFaceScan'
 import { getApiError } from '../../lib/apiError'
+import { formatTime } from '../../lib/format'
 import { colors, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
 import { CameraView } from './CameraView'
 import type { AttendanceResponse } from '../../types'
 
 const MODELS_PATH = '/models'
-
-function formatTime(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 type VerifyBadgeProps = { ok: boolean; label: string }
 function VerifyBadge({ ok, label }: VerifyBadgeProps) {

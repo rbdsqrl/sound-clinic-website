@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Save, Sun, MessageSquare, MapPin, Plus,
+  Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus,
 } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
@@ -25,16 +25,14 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
-import { colors, styles, border, surface, accentAlpha, dangerAlpha, warningAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
+import { colors, styles, border, surface, accentAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { meetingsApi } from '../../api/meetings'
-import { patientsApi } from '../../api/patients'
-import { enrollmentsApi } from '../../api/enrollments'
 import { usersApi } from '../../api/users'
 import { SessionNotesModal, RescheduleSessionModal } from '../patients/EnrollmentSessions'
 import AdHocSessionModal from './AdHocSessionModal'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, TherapySessionStatus, UpdateSessionNotesRequest, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, UserResponse, PatientResponse, EnrollmentResponse } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser } from '../../types'
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
@@ -635,6 +633,14 @@ function DayView({
   const dayKey    = format(current, 'yyyy-MM-dd')
   const isHoliday = holidayDates.has(dayKey)
   const HOURS     = Array.from({ length: 24 }, (_, i) => i) // full day, 12 AM – 11 PM
+  // Hours whose "+N other events" has been expanded to show every event.
+  const [expandedHours, setExpandedHours] = useState<Set<number>>(new Set())
+  const toggleHour = (hour: number) =>
+    setExpandedHours(prev => {
+      const next = new Set(prev)
+      next.has(hour) ? next.delete(hour) : next.add(hour)
+      return next
+    })
 
   const allDayEvs = allDayEventsOnDay(events, current)
 
@@ -723,7 +729,8 @@ function DayView({
                 {showsToday && Math.floor(nowMins / 60) === hour && (
                   <NowLine minutes={nowMins} innerRef={nowRef} />
                 )}
-                {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')).slice(0, 3).map(ev => {
+                {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
+                  .slice(0, expandedHours.has(hour) ? undefined : 3).map(ev => {
                   const s = kindStyle(ev.kind, ev.status)
                   const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
                   return (
@@ -748,9 +755,14 @@ function DayView({
                   )
                 })}
                 {timed.length > 3 && (
-                  <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
-                    +{timed.length - 3} other events
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleHour(hour)}
+                    className="text-left text-[11.5px] pl-1 hover:underline"
+                    style={{ color: colors.text.muted }}
+                  >
+                    {expandedHours.has(hour) ? 'Show less' : `+${timed.length - 3} other events`}
+                  </button>
                 )}
               </div>
             </div>
@@ -790,6 +802,14 @@ function StaffDayView({
   const dayEvents = eventsOnDay(events, current)
   const gridCols  = `64px repeat(${columns.length}, minmax(200px, 1fr))`
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
+  // "col.id::hour" keys whose "+N other events" has been expanded to show every event.
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set())
+  const toggleCell = (key: string) =>
+    setExpandedCells(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-auto">
@@ -848,6 +868,8 @@ function StaffDayView({
               )
               const sorted = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
               const drag   = onSlotSelect ? cellProps(`${dayKey}::${col.id}`, hour, dayKey) : null
+              const cellKey = `${col.id}::${hour}`
+              const expanded = expandedCells.has(cellKey)
               return (
                 <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 relative min-w-0"
                   onMouseDown={drag?.onMouseDown}
@@ -861,13 +883,18 @@ function StaffDayView({
                   {showsToday && col === columns[0] && Math.floor(nowMins / 60) === hour && (
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
-                  {sorted.slice(0, 2).map(ev => (
+                  {sorted.slice(0, expanded ? undefined : 2).map(ev => (
                     <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
                   ))}
                   {sorted.length > 2 && (
-                    <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
-                      +{sorted.length - 2} other events
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => toggleCell(cellKey)}
+                      className="text-left text-[11.5px] pl-1 hover:underline"
+                      style={{ color: colors.text.muted }}
+                    >
+                      {expanded ? 'Show less' : `+${sorted.length - 2} other events`}
+                    </button>
                   )}
                 </div>
               )

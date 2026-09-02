@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarOff, Plus, X, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { CalendarOff, Plus, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
 import { leavesApi } from '../../api/leaves'
@@ -11,32 +11,9 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, styles, border, surface, palette, rgba, paletteStyle } from '../../theme'
-import type { CreateLeaveRequest, LeaveResponse, LeaveStatus, LeaveType } from '../../types'
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-const STATUS_META: Record<LeaveStatus, { label: string; icon: React.ElementType; style: React.CSSProperties }> = {
-  PENDING:  { label: 'Pending',  icon: Clock,         style: paletteStyle('yellow', 0.10) },
-  APPROVED: { label: 'Approved', icon: CheckCircle2,  style: paletteStyle('teal',   0.10) },
-  REJECTED: { label: 'Rejected', icon: XCircle,       style: paletteStyle('slate',  0.10) },
-}
-
-const TYPE_LABEL: Record<LeaveType, string> = {
-  FULL_DAY: 'Full Day',
-  HALF_DAY: 'Half Day',
-}
-
-function StatusBadge({ status }: { status: LeaveStatus }) {
-  const meta = STATUS_META[status]
-  const Icon = meta.icon
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={meta.style}>
-      <Icon size={11} />
-      {meta.label}
-    </span>
-  )
-}
+import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
+import { LeaveStatusBadge, LEAVE_STATUS_META, LEAVE_TYPE_LABEL } from '../../components/shared/LeaveStatusBadge'
+import type { CreateLeaveRequest, LeaveResponse, LeaveStatus } from '../../types'
 
 // ── Leave card ─────────────────────────────────────────────────────────────────
 
@@ -53,9 +30,9 @@ function LeaveCard({ leave, onCancel, cancelling }: {
             {format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')}
           </p>
           <span className="text-xs px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08)}>
-            {TYPE_LABEL[leave.leaveType]}
+            {LEAVE_TYPE_LABEL[leave.leaveType]}
           </span>
-          <StatusBadge status={leave.status} />
+          <LeaveStatusBadge status={leave.status} />
         </div>
 
         {leave.reason && (
@@ -212,7 +189,7 @@ export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={filterStatus === s ? styles.filterTabActive : styles.filterTabInactive}
             >
-              {s === '' ? 'All' : STATUS_META[s].label}
+              {s === '' ? 'All' : LEAVE_STATUS_META[s].label}
             </button>
           ))}
         </div>

@@ -84,23 +84,28 @@ src/
 │
 ├── lib/
 │   ├── clsx.ts                      # Minimal className joiner utility
+│   ├── format.ts                    # Shared display formatters (e.g. formatTime)
 │   └── timezones.ts                 # IANA timezone list for select inputs
 │
 ├── components/
 │   ├── layout/
 │   │   ├── AppLayout.tsx            # Mobile header + Sidebar + <Outlet> shell for protected pages
-│   │   └── Sidebar.tsx              # Nav links (role-scoped), theme toggle (bottom), user footer
-│   └── ui/
-│       ├── Badge.tsx                # Coloured pill badge (variant prop)
-│       ├── Button.tsx               # Primary / secondary / ghost variants + loading state
-│       ├── Card.tsx                 # Surface card with optional padding prop
-│       ├── EmptyState.tsx           # Centered empty-state with icon + message
-│       ├── Input.tsx                # Labelled text input with error display
-│       ├── Modal.tsx                # Overlay modal with title + close button
-│       ├── Select.tsx               # Labelled select with error display
-│       ├── Spinner.tsx              # Loading spinner + PageLoader full-screen variant
-│       ├── Toast.tsx                # Toast notification component
-│       └── UserSearchPicker.tsx     # Async user search-and-select input
+│   │   └── Sidebar.tsx              # Nav links (role-scoped), user footer with profile menu (theme toggle + sign out)
+│   ├── ui/
+│   │   ├── Badge.tsx                # Coloured pill badge (variant prop) + roleLabel() role→display-name helper
+│   │   ├── Button.tsx               # Primary / secondary / ghost variants + loading state
+│   │   ├── Card.tsx                 # Surface card with optional padding prop
+│   │   ├── EmptyState.tsx           # Centered empty-state with icon + message
+│   │   ├── Input.tsx                # Labelled text input with error display
+│   │   ├── Modal.tsx                # Overlay modal with title + close button
+│   │   ├── Select.tsx               # Labelled select with error display
+│   │   ├── Spinner.tsx              # Loading spinner + PageLoader full-screen variant
+│   │   ├── Toast.tsx                # Toast notification component
+│   │   └── UserSearchPicker.tsx     # Async user search-and-select input
+│   └── shared/                      # Reusable pieces used across 2+ pages — see "Shared Components" below
+│       ├── Avatar.tsx               # Initials circle (person avatar) — size/shape/color/bold props
+│       ├── CopyLinkBox.tsx          # Copy-to-clipboard invite/sign-up link box with "Copied" confirmation
+│       └── LeaveStatusBadge.tsx     # Leave status pill + LEAVE_STATUS_META / LEAVE_TYPE_LABEL maps
 │
 └── pages/
     ├── DashboardPage.tsx            # Role-scoped summary cards + recent data
@@ -245,6 +250,20 @@ Only reach for a raw `<input>` / `<select>` / `<button>` when:
 2. You are building a new reusable component inside `src/components/ui/` itself.
 
 In all other cases, use the component — inconsistent styling is a bug.
+
+---
+
+## Shared Components (`src/components/shared/`)
+
+Higher-level pieces built from the `ui/` primitives above, factored out because the same markup was hand-rolled in 2+ pages. `ui/` holds design-system atoms (a button, an input); `shared/` holds small composed widgets used across features (an avatar, a copy-link box). **Before hand-rolling a person-initials circle, a copy-to-clipboard invite link box, or a leave status pill, check here first — and when you duplicate any other UI pattern into a third file, factor it out here instead.**
+
+| Component | Import | Use for |
+|-----------|--------|---------|
+| `Avatar` | `../../components/shared/Avatar` | Initials circle for a person (staff, therapist, parent). Props: `initials` (caller computes the letters — one for a free-text name, two for first+last), `size` (`xs`\|`sm`\|`md`\|`lg`\|`xl`, default `md`), `shape` (`circle`\|`square`), `bold`, `color` (defaults to the standard accent tint), `title`, `className`. |
+| `CopyLinkBox` | `../../components/shared/CopyLinkBox` | Sign-up/invite link with a copy button and a 2.5s "Copied" confirmation. Props: `link` (path relative to origin), optional `title`/`footer` to customise the copy per call site. |
+| `LeaveStatusBadge` | `../../components/shared/LeaveStatusBadge` | Leave request status pill. Also exports `LEAVE_STATUS_META` (label/icon/style per `LeaveStatus`) and `LEAVE_TYPE_LABEL` (Full Day / Half Day) for pages that need the raw metadata, not just the badge. |
+
+`roleLabel(role)` (from `../../components/ui/Badge`) is the single source of truth for a role's display name — it title-cases any role automatically, so don't write a local `ROLE_LABELS` map next to it. `formatTime(iso)` (from `../../lib/format`) formats an ISO timestamp as a local `h:mm AM/PM` string (or `—` when null) — reuse it instead of a local helper.
 
 ---
 

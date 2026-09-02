@@ -16,7 +16,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha, palette, paletteStyle } from '../../theme'
+import { colors, border, accentAlpha, palette, paletteStyle } from '../../theme'
 
 function RaiseConcernModal({ childId, childName, onClose }: { childId: string; childName: string; onClose: () => void }) {
   const qc = useQueryClient()

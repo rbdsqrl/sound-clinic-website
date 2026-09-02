@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, CalendarDays, Clock, Zap } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, Zap } from 'lucide-react'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  eachDayOfInterval, isSameMonth, isSameDay, isToday,
+  eachDayOfInterval, isSameMonth, isToday,
   startOfWeek as weekStart, addDays,
 } from 'date-fns'
 import { colors, border, surface, accentAlpha, paletteStyle, styles } from '../../theme'

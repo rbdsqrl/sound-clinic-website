@@ -32,7 +32,7 @@ import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
-  ProgramResponse, ConditionResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
+  ProgramResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'

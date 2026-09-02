@@ -11,13 +11,9 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatTime } from '../../lib/format'
 import { colors, styles, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
 import type { AttendanceResponse } from '../../types'
-
-function formatTime(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 function VerifyIcon({ ok }: { ok: boolean }) {
   return ok

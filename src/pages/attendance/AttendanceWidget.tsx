@@ -4,11 +4,7 @@ import { LogIn, LogOut, CheckCircle2, Clock } from 'lucide-react'
 import { attendanceApi } from '../../api/attendance'
 import { colors, accentAlpha, successAlpha, dangerAlpha } from '../../theme'
 import { ROUTES } from '../../lib/routes'
-
-function formatTime(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+import { formatTime } from '../../lib/format'
 
 export default function AttendanceWidget() {
   const navigate = useNavigate()

@@ -7,13 +7,14 @@ import { clinicsApi } from '../../api/clinics'
 import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
+import { Avatar } from '../../components/shared/Avatar'
 import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, styles, border, surface, palette, paletteStyle, rgba, borderAlpha } from '../../theme'
+import { colors, styles, border, surface, palette, paletteStyle, rgba } from '../../theme'
 import type { CreateSlotRequest, DayOfWeek, SlotResponse, ClinicResponse, UserResponse } from '../../types'
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -128,12 +129,11 @@ export default function AvailabilityPage() {
               <Card key={therapistId} padding={false}>
                 {/* Therapist header */}
                 <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
-                  <div
-                    className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
-                    style={{ background: rgba(palette.teal.raw, 0.10), color: palette.teal.text }}
-                  >
-                    {first.therapistFirstName[0]}{first.therapistLastName[0]}
-                  </div>
+                  <Avatar
+                    initials={`${first.therapistFirstName[0]}${first.therapistLastName[0]}`}
+                    size="lg"
+                    color={{ background: rgba(palette.teal.raw, 0.10), color: palette.teal.text }}
+                  />
                   <div>
                     <p className="font-semibold" style={{ color: colors.text.primary }}>
                       {first.therapistFirstName} {first.therapistLastName}

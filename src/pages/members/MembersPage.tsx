@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
   Search, LayoutGrid, List, UserPlus, Briefcase,
-  Mail, Phone, Users, Building2, Check, Copy,
+  Mail, Phone, Users, Building2,
   Link2, CalendarDays, Send, Trash2, XCircle, UserCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -18,11 +18,13 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { statusBadge, roleBadge } from '../../components/ui/Badge'
+import { statusBadge, roleBadge, roleLabel } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
 import { ToastContainer } from '../../components/ui/Toast'
+import { Avatar } from '../../components/shared/Avatar'
+import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
 import {
   colors, styles, surface, border, shadow,
   accentAlpha, successAlpha, dangerAlpha,
@@ -43,13 +45,6 @@ const AVATAR_COLORS = [
 ]
 
 function avatarColor(idx: number) { return AVATAR_COLORS[idx % AVATAR_COLORS.length] }
-
-const ROLE_LABELS: Partial<Record<Role, string>> = {
-  BUSINESS_OWNER: 'Business Owner',
-  CLINIC_HEAD:    'Clinic Head',
-  THERAPIST:      'Therapist',
-  OFFICE_ADMIN:   'Office Admin',
-}
 
 const STAFF_ROLES: { value: string; label: string }[] = [
   { value: 'CLINIC_HEAD',   label: 'Clinic Head' },
@@ -72,44 +67,6 @@ type InviteStatusFilter = 'ALL' | 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLE
 /** An invitation nobody took up — still resendable, still withdrawable. */
 function canWithdraw(status: InviteResponse['status']): boolean {
   return status === 'PENDING' || status === 'EXPIRED'
-}
-
-// ── Copy link box ─────────────────────────────────────────────────────────────
-
-function CopyLinkBox({ link }: { link: string }) {
-  const [copied, setCopied] = useState(false)
-  const fullUrl = `${window.location.origin}${link}`
-  const copy = async () => {
-    await navigator.clipboard.writeText(fullUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2500)
-  }
-  return (
-    <div className="rounded-xl p-4" style={{ border: border.card, background: accentAlpha(0.08) }}>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.primary }}>
-        Sign-up link — share this with the person
-      </p>
-      <div className="flex items-center gap-2">
-        <code
-          className="flex-1 rounded-lg px-3 py-2 text-xs font-mono break-all select-all"
-          style={{ background: surface.filterStrip, color: colors.text.primary, border: border.card }}
-        >
-          {fullUrl}
-        </code>
-        <button
-          type="button"
-          onClick={copy}
-          className="flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
-          style={{ background: colors.accent, color: '#fff' }}
-        >
-          {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
-        </button>
-      </div>
-      <p className="mt-2 text-xs" style={{ color: colors.text.muted }}>
-        Valid for 72 hours. The person sets their own name and password when they open it.
-      </p>
-    </div>
-  )
 }
 
 // ── Member card ───────────────────────────────────────────────────────────────
@@ -136,12 +93,7 @@ function MemberCard({
       style={{ background: surface.card, border: border.card, boxShadow: shadow.card }}
     >
       <div className="flex items-start gap-3">
-        <div
-          className="h-12 w-12 rounded-xl flex items-center justify-center text-base font-bold flex-shrink-0"
-          style={{ background: bg, color: text }}
-        >
-          {initials}
-        </div>
+        <Avatar initials={initials} size="xl" shape="square" bold color={{ background: bg, color: text }} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold truncate" style={{ color: colors.text.primary }}>
             {member.firstName} {member.lastName}
@@ -150,7 +102,7 @@ function MemberCard({
             className="inline-block text-[12.65px] font-medium px-2 py-0.5 rounded-full mt-0.5"
             style={{ background: accentAlpha(0.1), color: colors.accent }}
           >
-            {ROLE_LABELS[member.role] ?? member.role}
+            {roleLabel(member.role)}
           </span>
         </div>
         <div
@@ -271,7 +223,7 @@ function MemberRow({
       <td className="px-4 py-3 hidden sm:table-cell">
         <span className="text-[12.65px] font-medium px-2 py-0.5 rounded-full"
           style={{ background: accentAlpha(0.1), color: colors.accent }}>
-          {ROLE_LABELS[member.role] ?? member.role}
+          {roleLabel(member.role)}
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell text-xs truncate" style={{ color: colors.text.muted }}>

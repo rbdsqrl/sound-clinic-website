@@ -7,17 +7,10 @@ import { invitationsApi } from '../../api/invitations'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
-import { colors, styles, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
+import { colors, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
 import type { AcceptInviteRequest } from '../../types'
 import { ROUTES } from '../../lib/routes'
-
-const ROLE_LABELS: Record<string, string> = {
-  THERAPIST:      'Therapist',
-  CLINIC_HEAD:    'Clinic Head',
-  PARENT:         'Parent',
-  PATIENT:        'Patient',
-  BUSINESS_OWNER: 'Business Owner',
-}
+import { roleLabel } from '../../components/ui/Badge'
 
 export default function AcceptInvitePage() {
   const [searchParams] = useSearchParams()
@@ -122,7 +115,7 @@ export default function AcceptInvitePage() {
           <h1 className="text-2xl font-bold" style={{ color: colors.text.heading }}>Set up your account</h1>
           <p className="mt-1 text-sm text-center" style={{ color: colors.text.muted }}>
             You've been invited to join <strong style={{ color: colors.text.primary }}>{preview.orgName}</strong> as{' '}
-            <strong style={{ color: colors.text.primary }}>{ROLE_LABELS[preview.role] ?? preview.role}</strong>
+            <strong style={{ color: colors.text.primary }}>{roleLabel(preview.role)}</strong>
           </p>
         </div>
 

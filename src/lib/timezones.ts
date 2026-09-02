@@ -68,9 +68,3 @@ export const TIMEZONES: TimezoneOption[] = [
   // UTC
   { value: 'UTC',                    label: 'UTC — Coordinated Universal Time',     region: 'UTC' },
 ]
-
-/** Flat list for use with the existing Select component */
-export const TIMEZONE_OPTIONS = TIMEZONES.map((tz) => ({
-  value: tz.value,
-  label: tz.label,
-}))

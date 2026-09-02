@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Inbox, Phone, Mail, Clock, CheckCircle2, XCircle, RefreshCw,
-  ChevronRight, ChevronLeft, CalendarDays, X, Trash2,
+  ChevronRight, CalendarDays, X, Trash2,
   PhoneCall, MessageCircle, AtSign, FileText, UserCheck,
   ArrowRightCircle, Zap, List, Users, BarChart2, Plus, Globe, Footprints,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import { clinicsApi } from '../../api/clinics'
 import { programsApi } from '../../api/programs'
 import { subscriptionsApi } from '../../api/subscriptions'
 import { Card } from '../../components/ui/Card'
+import { Avatar } from '../../components/shared/Avatar'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
@@ -1124,10 +1125,11 @@ export default function InquiriesPage() {
                   <div className="hidden md:grid grid-cols-[2fr_1fr_2.5fr_1.5fr_1.5fr_44px] gap-5 items-center px-5 py-4">
                     {/* Name */}
                     <button className="flex items-center gap-2.5 text-left min-w-0" onClick={() => setSelected(inq)}>
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                        style={{ background: accentAlpha(0.15), color: colors.accent }}>
-                        {inq.name.charAt(0).toUpperCase()}
-                      </div>
+                      <Avatar
+                        initials={inq.name.charAt(0).toUpperCase()}
+                        bold
+                        color={{ background: accentAlpha(0.15), color: colors.accent }}
+                      />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
                         <SourceBadge source={inq.source} />
@@ -1184,10 +1186,11 @@ export default function InquiriesPage() {
                   <div className="md:hidden px-4 py-3">
                     <button className="w-full text-left" onClick={() => setSelected(inq)}>
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                          style={{ background: accentAlpha(0.15), color: colors.accent }}>
-                          {inq.name.charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar
+                          initials={inq.name.charAt(0).toUpperCase()}
+                          bold
+                          color={{ background: accentAlpha(0.15), color: colors.accent }}
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{inq.name}</p>

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { colors, styles, shadow, gradient, accentAlpha, dangerAlpha, LOGO_SRC } from '../../theme'
+import { colors, gradient, dangerAlpha, LOGO_SRC } from '../../theme'
 import type { LoginRequest } from '../../types'
 import { ROUTES } from '../../lib/routes'
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Upload, FileText, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Copy, Check, Mail } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Mail } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
@@ -19,9 +19,7 @@ import { subscriptionsApi } from '../../api/subscriptions'
 import { enrollmentsApi } from '../../api/enrollments'
 import { concernsApi } from '../../api/concerns'
 import { dischargeApi } from '../../api/discharge'
-import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
 import { usersApi } from '../../api/users'
-import { therapySessionsApi } from '../../api/therapySessions'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -32,6 +30,8 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { TimePicker } from '../../components/ui/TimePicker'
+import { Avatar } from '../../components/shared/Avatar'
+import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
@@ -40,7 +40,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
 import type {
-  AddConditionRequest,
   AssignTherapistRequest,
   LinkParentRequest,
   UserResponse,
@@ -53,9 +52,7 @@ import type {
   EnrollmentResponse,
   CreateEnrollmentRequest,
   AvailableTherapistResponse,
-  TherapySessionResponse,
   TherapySessionStatus,
-  SessionAttachmentResponse,
   AssessmentType,
 } from '../../types'
 
@@ -744,12 +741,12 @@ function PatientSwitcher({
                   onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) }}
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
-                  <div
-                    className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                    style={{ background: accentAlpha(isActive ? 0.20 : 0.08), color: colors.accent }}
-                  >
-                    {p.firstName[0]}{p.lastName[0]}
-                  </div>
+                  <Avatar
+                    initials={`${p.firstName[0]}${p.lastName[0]}`}
+                    size="xs"
+                    bold
+                    color={{ background: accentAlpha(isActive ? 0.20 : 0.08), color: colors.accent }}
+                  />
                   <div className="min-w-0 flex-1 leading-tight">
                     <p className="text-[13px] font-medium truncate"
                       style={{ color: isActive ? colors.accent : colors.text.primary }}>
@@ -1091,10 +1088,11 @@ function EnrollmentModal({
                         border: `1px solid ${selected ? colors.accent : 'transparent'}`,
                       }}
                     >
-                      <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                        style={{ background: accentAlpha(0.15), color: colors.accent }}>
-                        {t.firstName[0]}{t.lastName[0]}
-                      </div>
+                      <Avatar
+                        initials={`${t.firstName[0]}${t.lastName[0]}`}
+                        bold
+                        color={{ background: accentAlpha(0.15), color: colors.accent }}
+                      />
                       <div className="min-w-0">
                         <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
                         <p className="text-xs truncate" style={{ color: colors.text.muted }}>{t.clinicName}</p>
@@ -1503,7 +1501,6 @@ export default function PatientDetailPage() {
   const [parentMode,   setParentMode]   = useState<'existing' | 'invite'>('existing')
   const [inviteEmail,  setInviteEmail]  = useState('')
   const [inviteLink,   setInviteLink]   = useState<string | null>(null)
-  const [inviteCopied, setInviteCopied] = useState(false)
   const inviteParentMutation = useMutation({
     mutationFn: (email: string) => patientsApi.inviteParent(id!, { email }),
     onSuccess: (res) => { setInviteLink(res.inviteLink); toast('Invite sent', 'success') },
@@ -1511,13 +1508,7 @@ export default function PatientDetailPage() {
   })
   const closeParentModal = () => {
     setParentModal(false); setSelectedParent(null)
-    setParentMode('existing'); setInviteEmail(''); setInviteLink(null); setInviteCopied(false)
-  }
-  const copyInviteLink = async () => {
-    if (!inviteLink) return
-    await navigator.clipboard.writeText(`${window.location.origin}${inviteLink}`)
-    setInviteCopied(true)
-    setTimeout(() => setInviteCopied(false), 2500)
+    setParentMode('existing'); setInviteEmail(''); setInviteLink(null)
   }
 
   // Therapist mutations
@@ -1821,12 +1812,7 @@ export default function PatientDetailPage() {
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                            style={styles.avatar}
-                          >
-                            {p.firstName[0]}{p.lastName[0]}
-                          </div>
+                          <Avatar initials={`${p.firstName[0]}${p.lastName[0]}`} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
@@ -1856,12 +1842,7 @@ export default function PatientDetailPage() {
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                            style={styles.avatar}
-                          >
-                            {t.firstName[0]}{t.lastName[0]}
-                          </div>
+                          <Avatar initials={`${t.firstName[0]}${t.lastName[0]}`} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
@@ -2423,30 +2404,11 @@ export default function PatientDetailPage() {
             </>
           ) : inviteLink ? (
             <>
-              <div className="rounded-xl p-4" style={{ border: border.card, background: accentAlpha(0.08) }}>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.primary }}>
-                  Sign-up link — share this with the parent
-                </p>
-                <div className="flex items-center gap-2">
-                  <code
-                    className="flex-1 rounded-lg px-3 py-2 text-xs font-mono break-all select-all"
-                    style={{ background: surface.filterStrip, color: colors.text.primary, border: border.card }}
-                  >
-                    {`${window.location.origin}${inviteLink}`}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={copyInviteLink}
-                    className="flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
-                    style={{ background: colors.accent, color: '#fff' }}
-                  >
-                    {inviteCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs" style={{ color: colors.text.muted }}>
-                  Valid for 72 hours. Once they sign up, they'll be linked to this patient automatically.
-                </p>
-              </div>
+              <CopyLinkBox
+                link={inviteLink}
+                title="Sign-up link — share this with the parent"
+                footer="Valid for 72 hours. Once they sign up, they'll be linked to this patient automatically."
+              />
               <div className="flex justify-end">
                 <Button type="button" onClick={closeParentModal}>Done</Button>
               </div>

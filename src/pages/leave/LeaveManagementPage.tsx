@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarOff, CheckCircle2, XCircle, Clock, User } from 'lucide-react'
+import { CalendarOff, CheckCircle2, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { leavesApi } from '../../api/leaves'
 import { Card } from '../../components/ui/Card'
@@ -9,31 +9,9 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
-import type { LeaveResponse, LeaveStatus, LeaveType } from '../../types'
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-const STATUS_META: Record<LeaveStatus, { label: string; icon: React.ElementType; style: React.CSSProperties }> = {
-  PENDING:  { label: 'Pending',  icon: Clock,        style: paletteStyle('yellow', 0.10) },
-  APPROVED: { label: 'Approved', icon: CheckCircle2, style: paletteStyle('teal',   0.10) },
-  REJECTED: { label: 'Rejected', icon: XCircle,      style: paletteStyle('slate',  0.10) },
-}
-
-const TYPE_LABEL: Record<LeaveType, string> = {
-  FULL_DAY: 'Full Day',
-  HALF_DAY: 'Half Day',
-}
-
-function StatusBadge({ status }: { status: LeaveStatus }) {
-  const meta = STATUS_META[status]
-  const Icon = meta.icon
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={meta.style}>
-      <Icon size={11} />
-      {meta.label}
-    </span>
-  )
-}
+import { Avatar } from '../../components/shared/Avatar'
+import { LeaveStatusBadge, LEAVE_STATUS_META, LEAVE_TYPE_LABEL } from '../../components/shared/LeaveStatusBadge'
+import type { LeaveResponse, LeaveStatus } from '../../types'
 
 // ── Leave row ──────────────────────────────────────────────────────────────────
 
@@ -50,12 +28,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
       style={{ borderBottom: `1px solid ${border.divider}` }}
     >
       {/* Avatar */}
-      <div
-        className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
-        style={{ background: paletteStyle('teal', 0.10).background, color: palette.teal.text }}
-      >
-        {initials}
-      </div>
+      <Avatar initials={initials} size="lg" color={{ background: paletteStyle('teal', 0.10).background, color: palette.teal.text }} />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -63,9 +36,9 @@ function LeaveRow({ leave, onReview, reviewing }: {
           <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>
             {leave.therapistFirstName} {leave.therapistLastName}
           </p>
-          <StatusBadge status={leave.status} />
+          <LeaveStatusBadge status={leave.status} />
           <span className="text-xs px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08)}>
-            {TYPE_LABEL[leave.leaveType]}
+            {LEAVE_TYPE_LABEL[leave.leaveType]}
           </span>
         </div>
 
@@ -176,7 +149,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
             className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
             style={filterStatus === s ? styles.filterTabActive : styles.filterTabInactive}
           >
-            {s === '' ? 'All' : STATUS_META[s].label}
+            {s === '' ? 'All' : LEAVE_STATUS_META[s].label}
             {s === 'PENDING' && pendingCount > 0 && (
               <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[11.5px] font-semibold" style={paletteStyle('yellow', 0.15)}>
                 {pendingCount}
@@ -192,7 +165,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
           <div className="flex flex-col items-center py-12 text-center">
             <div className="rounded-2xl p-5 mb-4" style={styles.emptyIcon}><CalendarOff size={32} /></div>
             <p className="text-base font-semibold" style={{ color: colors.text.primary }}>
-              {filterStatus ? `No ${STATUS_META[filterStatus as LeaveStatus].label.toLowerCase()} requests` : 'No leave requests yet'}
+              {filterStatus ? `No ${LEAVE_STATUS_META[filterStatus as LeaveStatus].label.toLowerCase()} requests` : 'No leave requests yet'}
             </p>
             <p className="mt-1 text-sm" style={{ color: colors.text.muted }}>
               {filterStatus === 'PENDING' ? 'All caught up — no pending requests.' : 'Try a different filter.'}
