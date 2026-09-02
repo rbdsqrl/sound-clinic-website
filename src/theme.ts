@@ -340,6 +340,28 @@ export const styles = {
     border:     `1px solid ${borderAlpha(0.14)}`,
   } as React.CSSProperties,
 
+  /**
+   * Segmented control (e.g. a Day/Week/Month switch) — one pill-shaped track holding
+   * every option, not individually-bordered chips. Segments never carry their own
+   * border, so they don't show seams against each other or the track.
+   * Track: className="inline-flex rounded-full p-0.5". Segment: className="rounded-full
+   * px-3 py-1.5 text-xs font-medium transition-all", style={active ? segmentActive : segmentInactive}.
+   */
+  segmentTrack: {
+    background: surface.filterStrip,
+    border:     `1px solid ${border.divider}`,
+  } as React.CSSProperties,
+
+  segmentActive: {
+    background: colors.accent,
+    color:      '#fff',
+  } as React.CSSProperties,
+
+  segmentInactive: {
+    background: 'transparent',
+    color:      colors.text.muted,
+  } as React.CSSProperties,
+
   /** Appointment time block */
   timeBlock: {
     background: accentAlpha(0.07),

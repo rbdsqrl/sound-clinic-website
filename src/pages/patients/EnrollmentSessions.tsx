@@ -587,7 +587,7 @@ export function SessionNotesModal({
     : feedback?.template ?? []
 
   return (
-    <Modal open title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg">
+    <Modal open title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg" variant="side">
       {/* Session info strip */}
       <div className="flex items-center gap-3 mb-5 p-3 rounded-xl" style={{ background: accentAlpha(0.05) }}>
         <div className="flex-1">

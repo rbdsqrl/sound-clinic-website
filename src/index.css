@@ -125,38 +125,38 @@
   --color-secondary-raw:   127, 224, 220;
   /* Fixed brand blue — intentionally NOT overridden here, stays identical to :root */
 
-  /* Text — warm off-white hierarchy, reduced contrast */
-  --text-heading:          #DCE2E8;        /* soft off-white headings          */
-  --text-primary:          #B4BEC8;        /* warm grey body text              */
-  --text-muted:            #7E909C;        /* secondary labels                 */
-  --text-dim:              #526070;        /* placeholder / subtle             */
+  /* Text — crisp near-white hierarchy, high contrast */
+  --text-heading:          #F4F7FA;        /* crisp near-white headings        */
+  --text-primary:          #CBD3DA;        /* bright grey body text            */
+  --text-muted:            #8B99A6;        /* secondary labels                 */
+  --text-dim:              #5E6D7A;        /* placeholder / subtle             */
   --text-link:             #3FC1CC;
-  --text-sidebar-primary:  #DCE2E8;
-  --text-sidebar-label:    #B4BEC8;
-  --text-sidebar-muted:    #7E909C;
+  --text-sidebar-primary:  #F4F7FA;
+  --text-sidebar-label:    #CBD3DA;
+  --text-sidebar-muted:    #8B99A6;
 
-  /* Surfaces — warm dark charcoal, lifted from pitch-black */
-  --surface-app:           #191D22;        /* warm dark grey, not midnight     */
-  --surface-card:          #21262D;        /* one step lighter warm grey       */
-  --surface-card-raw:      33, 38, 45;
-  --surface-sidebar:       #161A1F;        /* subtle step darker than app      */
-  --surface-overlay:       rgba(14, 17, 21, 0.90);
-  --surface-mobile-overlay: rgba(18, 22, 27, 0.95);
-  --surface-mobile-header: rgba(20, 24, 29, 0.97);
+  /* Surfaces — near-black neutral, crisp rather than warm charcoal */
+  --surface-app:           #101317;        /* near-black app background        */
+  --surface-card:          #171B20;        /* one step lighter than app        */
+  --surface-card-raw:      23, 27, 32;
+  --surface-sidebar:       #0C0F12;        /* darkest step, sidebar recedes    */
+  --surface-overlay:       rgba(6, 8, 10, 0.92);
+  --surface-mobile-overlay: rgba(10, 13, 16, 0.95);
+  --surface-mobile-header: rgba(12, 15, 18, 0.97);
   --surface-footer:        rgba(63, 193, 204, 0.06);
   --surface-filter-strip:  rgba(63, 193, 204, 0.07);
   --surface-row-hover:     rgba(63, 193, 204, 0.06);
 
-  /* Borders — quiet, no glow */
-  --border-card:           1px solid rgba(255, 255, 255, 0.07);
-  --border-divider:        rgba(255, 255, 255, 0.08);
+  /* Borders — defined, still quiet, no glow */
+  --border-card:           1px solid rgba(255, 255, 255, 0.10);
+  --border-divider:        rgba(255, 255, 255, 0.11);
   --border-sidebar:        rgba(63, 193, 204, 0.14);
-  --border-medium:         1px solid rgba(255, 255, 255, 0.09);
-  --border-drag:           rgba(255, 255, 255, 0.10);
+  --border-medium:         1px solid rgba(255, 255, 255, 0.13);
+  --border-drag:           rgba(255, 255, 255, 0.14);
   --border-raw:            255, 255, 255;
 
   /* Shadows — muted depth, no electric glow */
-  --shadow-card:           0 2px 14px rgba(0,0,0,0.36), 0 0 0 1px rgba(63, 193, 204, 0.04);
+  --shadow-card:           0 2px 14px rgba(0,0,0,0.48), 0 0 0 1px rgba(63, 193, 204, 0.04);
   --shadow-glow:           0 0 18px rgba(63, 193, 204, 0.12);
   --shadow-glow-sm:        0 0 10px rgba(63, 193, 204, 0.08);
   --shadow-glow-lg:        0 0 36px rgba(63, 193, 204, 0.14);
@@ -175,19 +175,19 @@
   --gradient-button-cta:   linear-gradient(135deg, #6DDCE0 0%, #2E99A3 100%);
   --gradient-button-accent: linear-gradient(135deg, #3FC1CC 0%, #2A8F99 100%);
   --gradient-logo:         linear-gradient(135deg, #3FC1CC 0%, #7FE0DC 100%);
-  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(63,193,204,0.14) 0%, #141820 60%);
+  --gradient-login-bg:     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(63,193,204,0.14) 0%, #0A0C0E 60%);
   --gradient-summary:      linear-gradient(135deg, #3FC1CC, #7FE0DC);
 
-  /* Forms — warm dark glass */
-  --form-bg:               #1C2128;
-  --form-border:           rgba(255, 255, 255, 0.09);
-  --form-text:             #C0CAD2;
-  --form-placeholder:      #5C7080;
-  --form-label:            #7E909C;
+  /* Forms — crisp dark glass */
+  --form-bg:               #14171B;
+  --form-border:           rgba(255, 255, 255, 0.12);
+  --form-text:             #D2D9DF;
+  --form-placeholder:      #647684;
+  --form-label:            #8B99A6;
   --form-error:            #E8717A;
 
-  --scrollbar-thumb:       #374450;
-  --scrollbar-thumb-hover: #4A5C68;
+  --scrollbar-thumb:       #2E3944;
+  --scrollbar-thumb-hover: #445260;
 
   /* Status / semantic — brighter + more saturated than the light palette so   */
   /* badges (Paid, Active, Cancelled…) still pop against the dark card surface */
@@ -207,7 +207,7 @@
 }
 
 .dark select.form-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237E909C' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B99A6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-color: rgba(var(--color-accent-raw), 0.05);
 }
 

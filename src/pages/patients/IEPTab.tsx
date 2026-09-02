@@ -6,6 +6,7 @@ import {
   Plus, Upload, Download, ChevronDown, ChevronUp, Check,
   Target, Trash2, FileText, AlertCircle, CheckCircle2,
   Clock, PauseCircle, ShieldCheck, CalendarDays, Pencil,
+  ArrowLeft, Layers,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { iepApi } from '../../api/iep'
@@ -589,11 +590,38 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
+  const [mode, setMode] = useState<'choice' | 'template' | 'custom'>('choice')
   const [selectedTemplate, setSelectedTemplate] = useState<IEPTemplateResponse | null>(null)
+  const [goalDrafts,   setGoalDrafts]   = useState<CreateIEPGoalRequest[]>([])
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
 
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<{
     title: string; startDate: string; endDate: string; tags: string; therapistId: string
   }>()
+
+  // Field names deliberately don't collide with the plan-level form's fields above
+  // (e.g. "goalTitle" not "title") — two inputs sharing a `name` on the same page
+  // confuses the browser's autofill/value-sync heuristics even outside a <form>.
+  const {
+    register: registerGoal, handleSubmit: handleGoalSubmit, reset: resetGoalForm,
+    formState: { errors: goalErrors },
+  } = useForm<{
+    goalTitle: string; domain: IEPGoalDomain; goalStatement?: string
+    baseline?: string; targetCriteria?: string; targetDate?: string
+  }>()
+
+  const addGoalDraft = (data: {
+    goalTitle: string; domain: IEPGoalDomain; goalStatement?: string
+    baseline?: string; targetCriteria?: string; targetDate?: string
+  }) => {
+    setGoalDrafts(prev => [...prev, {
+      title: data.goalTitle, domain: data.domain, goalStatement: data.goalStatement,
+      baseline: data.baseline, targetCriteria: data.targetCriteria, targetDate: data.targetDate,
+    }])
+    resetGoalForm()
+    setShowGoalForm(false)
+  }
 
   // Default the therapist: self if the creator is one of the patient's assigned therapists,
   // else the sole assigned therapist, else leave it for the dropdown when there are several.
@@ -621,26 +649,47 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
     }
   }
 
-  const handleClose = () => { reset(); setSelectedTemplate(null); onClose() }
+  const handleClose = () => {
+    reset(); setMode('choice'); setSelectedTemplate(null); setGoalDrafts([]); setShowGoalForm(false); setSaveAsTemplate(false)
+    resetGoalForm(); onClose()
+  }
+
+  const backToChoice = () => {
+    setMode('choice'); setSelectedTemplate(null); setValue('title', ''); setValue('tags', '')
+  }
 
   const mut = useMutation({
     mutationFn: async (data: CreateIEPPlanRequest) => {
       const plan = await iepApi.createPlan(patientId, data)
-      if (selectedTemplate) {
-        for (const g of selectedTemplate.goals) {
-          if (!g.domain) continue
-          await iepApi.addGoal(plan.id, {
-            title: g.title,
-            domain: g.domain,
-            goalStatement: g.goalStatement,
-            baseline: g.baseline,
-            targetCriteria: g.targetCriteria,
+
+      const templateGoals: CreateIEPGoalRequest[] = selectedTemplate
+        ? selectedTemplate.goals
+            .filter((g): g is typeof g & { domain: IEPGoalDomain } => !!g.domain)
+            .map(g => ({
+              title: g.title, domain: g.domain, goalStatement: g.goalStatement,
+              baseline: g.baseline, targetCriteria: g.targetCriteria,
+            }))
+        : []
+      const allGoals = [...templateGoals, ...goalDrafts]
+
+      for (const g of allGoals) {
+        await iepApi.addGoal(plan.id, g)
+      }
+
+      // Bank this plan's goals as a reusable template for future cases too.
+      if (saveAsTemplate) {
+        const template = await iepTemplatesApi.create({ name: data.title, tags: data.tags })
+        for (const g of allGoals) {
+          await iepTemplatesApi.addGoal(template.id, {
+            title: g.title, goalStatement: g.goalStatement, domain: g.domain,
+            baseline: g.baseline, targetCriteria: g.targetCriteria,
           })
         }
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
+      if (saveAsTemplate) qc.invalidateQueries({ queryKey: ['iep-templates'] })
       toast('IEP plan created', 'success')
       handleClose()
     },
@@ -657,10 +706,55 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
 
   return (
     <Modal open={open} onClose={handleClose} title="New IEP Plan" size="lg">
-      {templates.length > 0 && (
+      {mode === 'choice' ? (
+        <div className="space-y-3">
+          <p className="text-sm mb-1" style={{ color: colors.text.muted }}>How would you like to start this plan?</p>
+          <button
+            type="button"
+            disabled={templates.length === 0}
+            onClick={() => setMode('template')}
+            className="w-full flex items-start gap-3 text-left rounded-xl px-4 py-3.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ border: `1px solid ${border.divider}`, background: surface.card }}
+          >
+            <div className="rounded-lg p-2 flex-shrink-0" style={{ background: accentAlpha(0.1), color: colors.accent }}>
+              <Layers size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>Add from Template</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
+                {templates.length > 0
+                  ? `Start from a saved template and its goals (${templates.length} available)`
+                  : 'No templates saved yet'}
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('custom')}
+            className="w-full flex items-start gap-3 text-left rounded-xl px-4 py-3.5 transition-all"
+            style={{ border: `1px solid ${border.divider}`, background: surface.card }}
+          >
+            <div className="rounded-lg p-2 flex-shrink-0" style={{ background: accentAlpha(0.1), color: colors.accent }}>
+              <Pencil size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>Add custom plan</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
+                Build the plan and its goals from scratch
+              </p>
+            </div>
+          </button>
+        </div>
+      ) : (
+      <>
+      <button type="button" onClick={backToChoice}
+        className="flex items-center gap-1 text-xs font-medium mb-4" style={{ color: colors.text.muted }}>
+        <ArrowLeft size={13} /> Back
+      </button>
+      {mode === 'template' && (
         <div className="mb-5 pb-5 border-b" style={{ borderColor: border.divider }}>
           <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: colors.text.dim }}>
-            Start from template <span className="normal-case font-normal tracking-normal" style={{ color: colors.text.muted }}>(optional)</span>
+            Choose a template
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
             {templates.map(t => (
@@ -695,7 +789,11 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
           )}
         </div>
       )}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {/* Not a <form> — the inline goal-draft fields below share field names (title, domain, …)
+          with this plan form, and two same-named inputs inside one native <form> is a real
+          footgun (autofill/reset confusion). Submission is wired up manually instead, same as
+          the "Add" goal button already does. */}
+      <div className="space-y-4">
         <Input label="Plan title" placeholder="e.g. Annual IEP 2025" error={errors.title?.message}
           {...register('title', { required: 'Title is required' })} />
         <div className="grid grid-cols-2 gap-3">
@@ -716,11 +814,86 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
             No therapist assigned to this case yet — a Business Owner or Clinic Head can assign one to this plan later.
           </p>
         )}
+
+        {/* Goals — added inline so a plan doesn't have to start empty */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="form-label !mb-0">
+              Goals <span className="font-normal normal-case" style={{ color: colors.text.dim }}>(optional)</span>
+            </span>
+            {!showGoalForm && (
+              <button type="button" onClick={() => setShowGoalForm(true)}
+                className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.accent }}>
+                <Plus size={13} /> Add Goal
+              </button>
+            )}
+          </div>
+
+          {(selectedTemplate ? selectedTemplate.goalCount : 0) > 0 && (
+            <p className="text-xs mb-2" style={{ color: colors.text.dim }}>
+              + {selectedTemplate!.goalCount} goal{selectedTemplate!.goalCount !== 1 ? 's' : ''} from the selected template
+            </p>
+          )}
+
+          {goalDrafts.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {goalDrafts.map((g, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+                  style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{g.title}</p>
+                    <p className="text-xs" style={{ color: colors.text.dim }}>
+                      {DOMAINS.find(d => d.value === g.domain)?.label}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setGoalDrafts(prev => prev.filter((_, idx) => idx !== i))}
+                    style={{ color: colors.text.dim }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showGoalForm && (
+            <div className="rounded-xl p-3 space-y-3" style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
+              <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={goalErrors.goalTitle?.message}
+                {...registerGoal('goalTitle', { required: 'Required' })} />
+              <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={goalErrors.domain?.message}
+                {...registerGoal('domain', { required: 'Required' })} />
+              <div>
+                <label className="form-label">Goal statement</label>
+                <textarea className="form-input resize-none" rows={2}
+                  placeholder="Full SMART goal text…" {...registerGoal('goalStatement')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Baseline" placeholder="Current level" {...registerGoal('baseline')} />
+                <Input label="Target criteria" placeholder='e.g. "80% over 3 sessions"' {...registerGoal('targetCriteria')} />
+              </div>
+              <Input label="Target date" type="date" {...registerGoal('targetDate')} />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" size="sm"
+                  onClick={() => { resetGoalForm(); setShowGoalForm(false) }}>Cancel</Button>
+                <Button type="button" size="sm" onClick={handleGoalSubmit(addGoalDraft)}>Add</Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text.primary }}>
+          <input type="checkbox" checked={saveAsTemplate} onChange={e => setSaveAsTemplate(e.target.checked)} />
+          Also save as a reusable template in the library
+        </label>
+
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
-          <Button type="submit" loading={isSubmitting || mut.isPending}>Create Plan</Button>
+          <Button type="button" loading={isSubmitting || mut.isPending} onClick={handleSubmit(onSubmit)}>
+            Create Plan
+          </Button>
         </div>
-      </form>
+      </div>
+      </>
+      )}
     </Modal>
   )
 }
@@ -1017,9 +1190,27 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                     </div>
                   </div>
 
-                  {/* Completion ring + chevron */}
+                  {/* Completion ring, or a highlighted nudge when the plan has no goals yet + chevron */}
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <CompletionRing completed={plan.completedGoals} total={plan.totalGoals} />
+                    {plan.totalGoals === 0 ? (
+                      isEditor ? (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setAddGoalTarget({ id: plan.id, title: plan.title }) }}
+                          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-opacity hover:opacity-80"
+                          style={paletteStyle('yellow', 0.14, 0)}
+                        >
+                          <AlertCircle size={12} /> No goals — Add Goal
+                        </button>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full"
+                          style={paletteStyle('yellow', 0.14, 0)}>
+                          <AlertCircle size={12} /> No goals added
+                        </span>
+                      )
+                    ) : (
+                      <CompletionRing completed={plan.completedGoals} total={plan.totalGoals} />
+                    )}
                     {isOpen
                       ? <ChevronUp size={16} style={{ color: colors.text.dim }} />
                       : <ChevronDown size={16} style={{ color: colors.text.dim }} />}
@@ -1057,7 +1248,7 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                           className="flex items-center gap-1.5 text-xs font-medium"
                           style={{ color: colors.accent }}
                         >
-                          <Plus size={13} /> Add ST Goal
+                          <Plus size={13} /> Add Goal
                         </button>
                         <button
                           onClick={() => deletePlanMut.mutate(plan.id)}

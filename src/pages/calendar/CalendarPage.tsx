@@ -1406,12 +1406,11 @@ function EventDetailDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40 lg:hidden" onClick={onClose}
-        style={{ background: 'rgba(0,0,0,0.3)' }} />
+      {/* Backdrop — dims and blurs the page behind the drawer on every breakpoint. */}
+      <div className="fixed inset-0 z-40" onClick={onClose} style={styles.modalBackdrop} />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full z-50 w-full sm:w-80 flex flex-col shadow-2xl"
+      <div className="fixed right-0 top-0 h-full z-50 w-full sm:max-w-md flex flex-col shadow-2xl"
         style={{ background: surface.card, borderLeft: `1px solid ${border.card}` }}>
 
         {/* Header */}
@@ -1676,12 +1675,17 @@ export default function CalendarPage() {
   // Office Admin can cancel a session (directly, or by approving a cancellation request)
   // but never touches its clinical notes/feedback — see canAccessNotes at the call site.
   const canCancelSession = canReschedule
-  // Seeing every therapist's schedule side by side is an org-management view —
-  // it's their only calendar layout now, not one of several to switch between.
+  // Seeing every therapist's schedule side by side is an org-management view — this
+  // gates the multi-therapist column set specifically (staffColumns below), not the
+  // Staff layout itself.
   const canSeeStaffView = canBookSlots
+  // Therapists use the same multi-column Staff layout too, just scoped to their own
+  // single "Me" column (staffColumns below) — it's their only calendar layout now,
+  // not one of several to switch between, same as the admin-tier roles above.
+  const useStaffLayout = canSeeStaffView || (!!user && hasRole(user, 'THERAPIST'))
   useEffect(() => {
-    if (canSeeStaffView) setView('staff')
-  }, [canSeeStaffView])
+    if (useStaffLayout) setView('staff')
+  }, [useStaffLayout])
   const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
@@ -1807,10 +1811,14 @@ export default function CalendarPage() {
     const me: StaffColumn = {
       id: user?.id ?? '', firstName: user?.firstName ?? '', lastName: user?.lastName ?? '', label: 'Me',
     }
+    // Therapists only ever see their own column here — seeing every therapist side by
+    // side is the org-management view canSeeStaffView gates (staffTherapists is empty
+    // for them anyway, since the API that populates it excludes therapists).
+    if (!canSeeStaffView) return [me]
     return [me, ...staffTherapists.map(t => ({
       id: t.id, firstName: t.firstName, lastName: t.lastName, label: `${t.firstName} ${t.lastName}`,
     }))]
-  }, [user, staffTherapists])
+  }, [user, staffTherapists, canSeeStaffView])
 
   const caseOptions = useMemo(() => {
     const byId = new Map<string, string>()
@@ -1843,10 +1851,15 @@ export default function CalendarPage() {
   }, [events, view, caseFilter, programFilter])
 
   // Further narrows to one therapist's own events — "show only their cases".
+  // For a plain Therapist (no admin-tier role), this is never optional: they only
+  // ever get their own single "Me" column, so their events must always be scoped to
+  // themselves here too — Week/Month have no per-column render filter like Day view
+  // does, so without this they'd see every admin-scoped event that slipped through.
   const staffFilteredEvents = useMemo(() => {
-    if (!staffTherapistId) return staffEvents
-    return staffEvents.filter(ev => eventOwnerIds(ev).includes(staffTherapistId))
-  }, [staffEvents, staffTherapistId])
+    const ownerId = staffTherapistId || (!canSeeStaffView ? user?.id : undefined)
+    if (!ownerId) return staffEvents
+    return staffEvents.filter(ev => eventOwnerIds(ev).includes(ownerId))
+  }, [staffEvents, staffTherapistId, canSeeStaffView, user])
 
   const staffDayColumns = useMemo(
     () => staffTherapistId ? staffColumns.filter(c => c.id === staffTherapistId) : staffColumns,
@@ -1944,48 +1957,6 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Legend — its own horizontally-scrollable strip so it never wraps into a cramped block */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-          {canSeeInquiries && (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#2B80C8' }} />
-              Consultation
-            </span>
-          )}
-          {canSeeLeaves && (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#E05C5C' }} />
-              Leave (Approved)
-            </span>
-          )}
-          {canSeeLeaves && !canSeeInquiries && (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#F59E0B' }} />
-              Leave (Pending)
-            </span>
-          )}
-          {canSeeSessions && (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: palette.purple.text }} />
-              Session
-            </span>
-          )}
-          <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: palette.teal.text }} />
-            Review
-          </span>
-          <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: palette.pink.text }} />
-            Meeting
-          </span>
-          {publicHolidays.length > 0 && (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#B45309' }} />
-              Holiday
-            </span>
-          )}
-      </div>
-
       {/* Calendar card */}
       <div className="rounded-2xl overflow-hidden flex flex-col" style={{ ...styles.card, minHeight: 600, maxHeight: 'calc(100vh - 200px)' }}>
 
@@ -2041,16 +2012,16 @@ export default function CalendarPage() {
             Today
           </button>
 
-          {/* View toggle — hidden below sm. Admin-tier roles are locked to the Staff layout
-              (see the useEffect above), so this Day/Week/Month picker is only for everyone
-              else's single-timeline calendar; Staff's own Day/Week/Month zoom lives in the
-              filter bar below instead. */}
-          {!canSeeStaffView && (
-            <div className="hidden sm:flex rounded-full overflow-hidden border" style={{ borderColor: border.divider }}>
+          {/* View toggle — hidden below sm. Admin-tier roles and therapists are locked into
+              the Staff layout (see the useEffect above), so this Day/Week/Month picker is
+              only for everyone else's single-timeline calendar; Staff's own Day/Week/Month
+              zoom lives in the filter bar below instead. */}
+          {!useStaffLayout && (
+            <div className="hidden sm:inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
               {(['day', 'week', 'month'] as ViewMode[]).map(m => (
                 <button key={m} onClick={() => setView(m)}
-                  className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
-                  style={view === m ? styles.filterTabActive : styles.filterTabInactive}>
+                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                  style={view === m ? styles.segmentActive : styles.segmentInactive}>
                   {m}
                 </button>
               ))}
@@ -2066,19 +2037,21 @@ export default function CalendarPage() {
               <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
                 options={caseOptions} placeholder="All Cases" />
             </div>
-            <div className="w-44">
-              <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
-                options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
-            </div>
+            {canSeeStaffView && (
+              <div className="w-44">
+                <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
+                  options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
+              </div>
+            )}
             <div className="w-44">
               <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
                 options={programOptions} placeholder="All Programs" />
             </div>
-            <div className="flex rounded-full overflow-hidden border ml-auto" style={{ borderColor: border.divider }}>
+            <div className="inline-flex rounded-full p-0.5 gap-0.5 ml-auto" style={styles.segmentTrack}>
               {(['day', 'week', 'month'] as const).map(g => (
                 <button key={g} onClick={() => setStaffGranularity(g)}
-                  className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
-                  style={staffGranularity === g ? styles.filterTabActive : styles.filterTabInactive}>
+                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                  style={staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
                   {g}
                 </button>
               ))}
