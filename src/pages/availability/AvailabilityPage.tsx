@@ -132,8 +132,8 @@ export default function AvailabilityPage() {
                 <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
                   <Avatar
                     initials={`${first.therapistFirstName[0]}${first.therapistLastName[0]}`}
+                    name={`${first.therapistFirstName} ${first.therapistLastName}`}
                     size="lg"
-                    color={{ background: rgba(palette.teal.raw, 0.10), color: palette.teal.text }}
                   />
                   <div>
                     <p className="font-semibold" style={{ color: colors.text.primary }}>

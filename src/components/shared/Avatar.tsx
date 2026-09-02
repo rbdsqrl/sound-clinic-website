@@ -1,5 +1,6 @@
 import { clsx } from '../../lib/clsx'
 import { styles } from '../../theme'
+import { useAvatarColor } from '../../hooks/useAvatarColor'
 
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
@@ -14,18 +15,22 @@ const SIZE_CLASSES: Record<AvatarSize, string> = {
 interface AvatarProps {
   /** Pre-computed initials — callers vary in how many letters they show (e.g. one for a free-text name, two for first+last), so this stays their call. */
   initials: string
+  /** The person's full name — colors the circle deterministically (same person, same color everywhere). Omit to fall back to `color` or the default accent tint. */
+  name?: string
   size?: AvatarSize
   shape?: 'circle' | 'square'
   /** font-bold instead of the default font-semibold */
   bold?: boolean
-  /** Defaults to the standard accent avatar tint (`styles.avatar`) */
+  /** Explicit override. Takes priority over `name`-derived color; defaults to the standard accent avatar tint (`styles.avatar`) when neither is given. */
   color?: React.CSSProperties
   title?: string
   className?: string
 }
 
 /** Initials circle used for people (staff, therapists, parents) across the app. */
-export function Avatar({ initials, size = 'md', shape = 'circle', bold = false, color, title, className }: AvatarProps) {
+export function Avatar({ initials, name, size = 'md', shape = 'circle', bold = false, color, title, className }: AvatarProps) {
+  const nameColor = useAvatarColor(name ?? '')
+
   return (
     <div
       title={title}
@@ -36,7 +41,7 @@ export function Avatar({ initials, size = 'md', shape = 'circle', bold = false, 
         bold ? 'font-bold' : 'font-semibold',
         className,
       )}
-      style={color ?? styles.avatar}
+      style={color ?? (name ? nameColor : styles.avatar)}
     >
       {initials}
     </div>

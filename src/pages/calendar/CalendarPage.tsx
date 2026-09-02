@@ -13,6 +13,8 @@ import {
   startOfWeek as getWeekStart,
 } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
+import { getAvatarColorStyles, getAvatarChipStyle } from '../../lib/avatarColor'
 import { hasRole } from '../../types'
 import { inquiriesApi } from '../../api/inquiries'
 import { leavesApi } from '../../api/leaves'
@@ -142,7 +144,7 @@ function toLeaveEvent(l: LeaveResponse): CalendarEvent {
     id: `leave-${l.id}`,
     date: l.leaveDate,
     kind: 'leave',
-    title: `${l.therapistFirstName} ${l.therapistLastName}`,
+    title: `OOO - ${l.therapistFirstName} ${l.therapistLastName}`,
     subtitle: l.leaveType === 'HALF_DAY' ? 'Half Day' : 'Full Day',
     status: l.status,
     isAllDay: true,
@@ -266,16 +268,13 @@ function eventOwnerIds(ev: CalendarEvent): string[] {
   return [] // consultations and holidays aren't owned by a specific therapist
 }
 
-// Distinct colors cycled by column position — 'red'/'yellow' are reserved for status
-// (danger/warning) elsewhere, so they're left out here to avoid reading as an alert.
-const THERAPIST_PALETTE_KEYS: PaletteKey[] = ['teal', 'purple', 'blue', 'pink', 'green', 'amber', 'slate']
-
-function therapistChipStyle(ev: CalendarEvent, columns: StaffColumn[]): React.CSSProperties | undefined {
+// Same hue as the therapist's initials avatar, so their calendar events read as "their color".
+function therapistChipStyle(ev: CalendarEvent, columns: StaffColumn[], isDarkMode: boolean): React.CSSProperties | undefined {
   const ownerId = eventOwnerIds(ev)[0]
   if (!ownerId) return undefined
-  const idx = columns.findIndex(c => c.id === ownerId)
-  if (idx < 0) return undefined
-  return paletteStyle(THERAPIST_PALETTE_KEYS[idx % THERAPIST_PALETTE_KEYS.length], 0.14, 0.35)
+  const col = columns.find(c => c.id === ownerId)
+  if (!col) return undefined
+  return getAvatarChipStyle(`${col.firstName} ${col.lastName}`, isDarkMode)
 }
 
 function upcomingEvents(events: CalendarEvent[], limit = 40): CalendarEvent[] {
@@ -829,6 +828,7 @@ function StaffDayView({
   onSlotSelect?: (sel: SlotSelection) => void
 }) {
   const nowMins = useNowMinutes()
+  const { theme } = useTheme()
   const nowRef  = useRef<HTMLDivElement>(null)
   const firstEventRef = useRef<HTMLDivElement>(null)
   const showsToday = format(new Date(), 'yyyy-MM-dd') === format(current, 'yyyy-MM-dd')
@@ -869,7 +869,7 @@ function StaffDayView({
           <div key={col.id} className="py-2 px-1 text-center border-l flex flex-col items-center gap-1 min-w-0"
             style={{ borderColor: border.divider }}>
             <div className="h-7 w-7 rounded-full text-xs font-bold flex items-center justify-center"
-              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              style={getAvatarColorStyles(`${col.firstName} ${col.lastName ?? ''}`, theme === 'dark')}>
               {col.firstName[0]}{col.lastName[0] ?? ''}
             </div>
             <p className="text-xs font-semibold truncate w-full" style={{ color: colors.text.primary }}>
@@ -887,11 +887,12 @@ function StaffDayView({
         </div>
         {columns.map(col => {
           const allDay = dayEvents.filter(e => e.isAllDay && eventOwnerIds(e).includes(col.id))
+          const chipStyle = getAvatarChipStyle(`${col.firstName} ${col.lastName}`, theme === 'dark')
           return (
             <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
               style={{ borderColor: border.divider }}>
               {allDay.map(ev => (
-                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
+                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} />
               ))}
             </div>
           )
@@ -918,6 +919,7 @@ function StaffDayView({
               const drag   = onSlotSelect ? cellProps(`${dayKey}::${col.id}`, hour, dayKey) : null
               const cellKey = `${col.id}::${hour}`
               const expanded = expandedCells.has(cellKey)
+              const chipStyle = getAvatarChipStyle(`${col.firstName} ${col.lastName}`, theme === 'dark')
               return (
                 <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 relative min-w-0"
                   onMouseDown={drag?.onMouseDown}
@@ -932,7 +934,7 @@ function StaffDayView({
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
                   {sorted.slice(0, expanded ? undefined : 2).map(ev => (
-                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
+                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} />
                   ))}
                   {sorted.length > 2 && (
                     <button
@@ -1642,6 +1644,7 @@ type ViewMode = 'month' | 'week' | 'day' | 'staff'
 
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const [view,         setView]         = useState<ViewMode>('day')
   const [current,      setCurrent]      = useState(new Date())
@@ -2077,11 +2080,11 @@ export default function CalendarPage() {
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
-                      colorFn={ev => therapistChipStyle(ev, staffColumns)}
+                      colorFn={ev => therapistChipStyle(ev, staffColumns, theme === 'dark')}
                       onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                   ) : staffGranularity === 'month' ? (
                     <MonthView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
-                      colorFn={ev => therapistChipStyle(ev, staffColumns)}
+                      colorFn={ev => therapistChipStyle(ev, staffColumns, theme === 'dark')}
                       onDayClick={day => { setCurrent(day); setStaffGranularity('day') }} />
                   ) : (
                     <StaffDayView current={current} events={staffFilteredEvents} columns={staffDayColumns}

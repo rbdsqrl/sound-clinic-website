@@ -1185,8 +1185,8 @@ export default function InquiriesPage() {
                     <button className="flex items-center gap-2.5 text-left min-w-0" onClick={() => setSelected(inq)}>
                       <Avatar
                         initials={inq.name.charAt(0).toUpperCase()}
+                        name={inq.name}
                         bold
-                        color={{ background: accentAlpha(0.15), color: colors.accent }}
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{inq.name}</p>
@@ -1246,8 +1246,8 @@ export default function InquiriesPage() {
                       <div className="flex items-start gap-3">
                         <Avatar
                           initials={inq.name.charAt(0).toUpperCase()}
+                          name={inq.name}
                           bold
-                          color={{ background: accentAlpha(0.15), color: colors.accent }}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">

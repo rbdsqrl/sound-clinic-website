@@ -18,6 +18,8 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatTimeStr } from '../../lib/format'
 import { colors, border, accentAlpha, palette, paletteStyle } from '../../theme'
+import { useTheme } from '../../contexts/ThemeContext'
+import { getAvatarColorStyles } from '../../lib/avatarColor'
 
 function RaiseConcernModal({ childId, childName, onClose }: { childId: string; childName: string; onClose: () => void }) {
   const qc = useQueryClient()
@@ -206,6 +208,7 @@ function ChildSessions({ childId }: { childId: string }) {
 }
 
 export default function MyChildrenPage() {
+  const { theme } = useTheme()
   const { data: children, isLoading } = useQuery({
     queryKey: ['my-children'],
     queryFn: patientsApi.myChildren,
@@ -240,10 +243,7 @@ export default function MyChildrenPage() {
                 {/* Avatar */}
                 <div
                   className="h-10 w-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0"
-                  style={{
-                    background: `rgba(${palette.pink.raw}, 0.12)`,
-                    color: palette.pink.text,
-                  }}
+                  style={getAvatarColorStyles(`${child.firstName} ${child.lastName}`, theme === 'dark')}
                 >
                   {child.firstName[0]}{child.lastName[0]}
                 </div>

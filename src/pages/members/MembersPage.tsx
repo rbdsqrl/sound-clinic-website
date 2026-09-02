@@ -33,19 +33,6 @@ import type { StaffMemberResponse, Role, InviteResponse, InviteRequest } from '.
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const AVATAR_COLORS = [
-  { bg: '#6366f1', text: '#fff' },
-  { bg: '#0ea5e9', text: '#fff' },
-  { bg: '#10b981', text: '#fff' },
-  { bg: '#f59e0b', text: '#fff' },
-  { bg: '#ec4899', text: '#fff' },
-  { bg: '#8b5cf6', text: '#fff' },
-  { bg: '#14b8a6', text: '#fff' },
-  { bg: '#f97316', text: '#fff' },
-]
-
-function avatarColor(idx: number) { return AVATAR_COLORS[idx % AVATAR_COLORS.length] }
-
 const STAFF_ROLES: { value: string; label: string }[] = [
   { value: 'CLINIC_HEAD',   label: 'Clinic Head' },
   { value: 'THERAPIST',     label: 'Therapist' },
@@ -72,17 +59,15 @@ function canWithdraw(status: InviteResponse['status']): boolean {
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
-  member, idx, clinicName, onDelete, onActivate, onReinvite, onSelect,
+  member, clinicName, onDelete, onActivate, onReinvite, onSelect,
 }: {
   member: StaffMemberResponse
-  idx: number
   clinicName: string
   onDelete?: () => void
   onActivate?: () => void
   onReinvite?: () => void
   onSelect: () => void
 }) {
-  const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST'
 
@@ -93,7 +78,7 @@ function MemberCard({
       style={{ background: surface.card, border: border.card, boxShadow: shadow.card }}
     >
       <div className="flex items-start gap-3">
-        <Avatar initials={initials} size="xl" shape="square" bold color={{ background: bg, color: text }} />
+        <Avatar initials={initials} name={`${member.firstName} ${member.lastName}`} size="xl" shape="square" bold />
         <div className="min-w-0 flex-1">
           <p className="font-semibold truncate" style={{ color: colors.text.primary }}>
             {member.firstName} {member.lastName}
@@ -188,17 +173,15 @@ function MemberCard({
 // ── Member row (list view) ────────────────────────────────────────────────────
 
 function MemberRow({
-  member, idx, clinicName, onDelete, onActivate, onReinvite, onSelect,
+  member, clinicName, onDelete, onActivate, onReinvite, onSelect,
 }: {
   member: StaffMemberResponse
-  idx: number
   clinicName: string
   onDelete?: () => void
   onActivate?: () => void
   onReinvite?: () => void
   onSelect: () => void
 }) {
-  const { bg, text } = avatarColor(idx)
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
   const isClinical = member.role === 'THERAPIST'
 
@@ -206,12 +189,7 @@ function MemberRow({
     <tr onClick={onSelect} className="border-b cursor-pointer transition-colors" style={{ borderColor: border.divider }}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div
-            className="h-9 w-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
-            style={{ background: bg, color: text }}
-          >
-            {initials}
-          </div>
+          <Avatar initials={initials} name={`${member.firstName} ${member.lastName}`} size="lg" shape="square" bold />
           <div className="min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>
               {member.firstName} {member.lastName}
@@ -679,8 +657,8 @@ export default function MembersPage() {
           <EmptyState icon={<Users size={40} />} title={search ? 'No members match your search' : 'No members found'} />
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {shownMembers.map((m, i) => (
-              <MemberCard key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
+            {shownMembers.map((m) => (
+              <MemberCard key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
                 onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                 onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
                 onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}
@@ -699,8 +677,8 @@ export default function MembersPage() {
                 </tr>
               </thead>
               <tbody>
-                {shownMembers.map((m, i) => (
-                  <MemberRow key={m.id} member={m} idx={i} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
+                {shownMembers.map((m) => (
+                  <MemberRow key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
                     onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                     onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
                     onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}

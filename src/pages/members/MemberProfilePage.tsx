@@ -9,6 +9,7 @@ import { languagesApi } from '../../api/activityLookups'
 import { patientsApi } from '../../api/patients'
 import { analyticsApi } from '../../api/analytics'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAvatarColor } from '../../hooks/useAvatarColor'
 import { calcAge } from '../../lib/age'
 import { ROUTES } from '../../lib/routes'
 import { Card } from '../../components/ui/Card'
@@ -26,7 +27,7 @@ import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
 import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
-import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
+import { colors, border, surface, paletteStyle } from '../../theme'
 import type { Role } from '../../types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -121,6 +122,8 @@ export default function MemberProfilePage() {
     onError: (err: unknown) => toast(getApiError(err, 'Failed to activate member'), 'error'),
   })
 
+  const avatarColor = useAvatarColor(profile ? `${profile.firstName} ${profile.lastName}` : '')
+
   if (isLoading || !profile) return <PageLoader />
 
   const specializationTags = (profile.specialization ?? '').split(',').map(s => s.trim()).filter(Boolean)
@@ -137,7 +140,7 @@ export default function MemberProfilePage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-14 w-14 rounded-full font-bold text-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: accentAlpha(0.10), color: colors.accent }}>
+              style={avatarColor}>
               {profile.firstName[0]}{profile.lastName[0]}
             </div>
             <div className="min-w-0">

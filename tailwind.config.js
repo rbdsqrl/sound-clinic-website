@@ -43,9 +43,12 @@ export default {
       // Tailwind's default scale, every size (and its line height) multiplied by
       // 1.15 for readability. Overriding here rather than bumping the root
       // font-size keeps rem-based spacing and layout untouched — only text grows.
+      // `sm` (the standard "content/body" size — see DESIGN.md §8) is pinned to
+      // 13.5px directly rather than the 1.15x formula, per product request; the
+      // Sidebar nav menu explicitly opts back out to the old 16.1px (Sidebar.tsx).
       fontSize: {
         xs:    ['0.8625rem',  { lineHeight: '1.15rem'   }],  // 12px → 13.8px
-        sm:    ['1.00625rem', { lineHeight: '1.4375rem' }],  // 14px → 16.1px
+        sm:    ['0.84375rem', { lineHeight: '1.2rem'    }],  // → 13.5px
         base:  ['1.15rem',    { lineHeight: '1.725rem'  }],  // 16px → 18.4px
         lg:    ['1.29375rem', { lineHeight: '2.0125rem' }],  // 18px → 20.7px
         xl:    ['1.4375rem',  { lineHeight: '2.0125rem' }],  // 20px → 23px

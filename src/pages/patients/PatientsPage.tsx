@@ -15,21 +15,13 @@ import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { calcAge } from '../../lib/age'
-import { colors, border, styles, surface, accentAlpha, paletteStyle, palette } from '../../theme'
+import { colors, border, styles, surface, accentAlpha, paletteStyle } from '../../theme'
+import { useAvatarColor } from '../../hooks/useAvatarColor'
+import { getAvatarColorStyles } from '../../lib/avatarColor'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
 import { format } from 'date-fns'
-
-// ── Avatar colours (cycles through theme palette) ─────────────────────────────
-
-const AVATAR_STYLES = [
-  { bg: `rgba(var(--color-accent-raw), 0.15)`,   fg: `var(--color-accent)` },
-  { bg: `rgba(var(--color-purple-raw), 0.15)`,   fg: palette.purple.text },
-  { bg: `rgba(var(--color-info-raw), 0.15)`,     fg: `var(--color-info)` },
-  { bg: `rgba(var(--color-success-raw), 0.15)`,  fg: `var(--color-success)` },
-  { bg: `rgba(var(--color-warning-raw), 0.15)`,  fg: `var(--color-warning)` },
-  { bg: `rgba(var(--color-pink-raw), 0.15)`,     fg: palette.pink.text },
-]
 
 // ── Invite status ─────────────────────────────────────────────────────────────
 
@@ -69,12 +61,11 @@ const GENDERS: { value: Gender; label: string }[] = [
 
 // ── Patient card (grid view) ──────────────────────────────────────────────────
 
-function PatientCard({ patient, index, clinicName }: {
+function PatientCard({ patient, clinicName }: {
   patient: PatientResponse
-  index: number
   clinicName?: string
 }) {
-  const av      = AVATAR_STYLES[index % AVATAR_STYLES.length]
+  const av      = useAvatarColor(`${patient.firstName} ${patient.lastName}`)
   const status  = inviteStatus(patient)
   const initials = `${patient.firstName[0] ?? ''}${patient.lastName[0] ?? ''}`.toUpperCase()
   const therapies = patient.therapies ?? []
@@ -92,7 +83,7 @@ function PatientCard({ patient, index, clinicName }: {
           <div className="flex items-center gap-3 min-w-0">
             <div
               className="h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold"
-              style={{ background: av.bg, color: av.fg }}
+              style={av}
             >
               {initials}
             </div>
@@ -152,6 +143,7 @@ function PatientCard({ patient, index, clinicName }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PatientsPage() {
+  const { theme } = useTheme()
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
   const isOfficeAdmin = currentRole === 'OFFICE_ADMIN'
@@ -309,8 +301,8 @@ export default function PatientsPage() {
         />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((p, i) => (
-            <PatientCard key={p.id} patient={p} index={i} clinicName={clinicMap[p.clinicId]} />
+          {filtered.map((p) => (
+            <PatientCard key={p.id} patient={p} clinicName={clinicMap[p.clinicId]} />
           ))}
         </div>
       ) : (
@@ -318,8 +310,8 @@ export default function PatientsPage() {
         <>
           {/* Mobile cards */}
           <div className="flex flex-col gap-3 md:hidden">
-            {filtered.map((p, i) => {
-              const av      = AVATAR_STYLES[i % AVATAR_STYLES.length]
+            {filtered.map((p) => {
+              const av      = getAvatarColorStyles(`${p.firstName} ${p.lastName}`, theme === 'dark')
               const status  = inviteStatus(p)
               const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
               return (
@@ -327,7 +319,7 @@ export default function PatientsPage() {
                   <div className="rounded-xl p-4" style={styles.card}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: av.bg, color: av.fg }}>{initials}</div>
+                        <div className="h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={av}>{initials}</div>
                         <div className="min-w-0">
                           <p className="font-semibold text-sm truncate" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
                           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</p>
@@ -362,8 +354,8 @@ export default function PatientsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p, i) => {
-                  const av      = AVATAR_STYLES[i % AVATAR_STYLES.length]
+                {filtered.map((p) => {
+                  const av      = getAvatarColorStyles(`${p.firstName} ${p.lastName}`, theme === 'dark')
                   const status  = inviteStatus(p)
                   const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
                   return (
@@ -377,7 +369,7 @@ export default function PatientsPage() {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: av.bg, color: av.fg }}>{initials}</div>
+                          <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={av}>{initials}</div>
                           <span className="font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</span>
                         </div>
                       </td>

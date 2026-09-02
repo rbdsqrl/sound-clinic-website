@@ -352,7 +352,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
               title={`${user?.firstName} ${user?.lastName} · ${roleLabel(currentRole)}`}
               aria-label="Open profile menu"
             >
-              <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} />
+              <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} />
             </button>
           </div>
         ) : (
@@ -366,7 +366,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
                 style={{ '--tw-ring-color': accentAlpha(0.35) } as React.CSSProperties}
                 aria-label="Open profile menu"
               >
-                <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} size="sm" />
+                <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} size="sm" />
                 <span
                   className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full h-3.5 w-3.5"
                   style={{ background: surface.sidebarFooter, color: colors.textLight.muted, border: `1px solid ${border.sidebar}` }}

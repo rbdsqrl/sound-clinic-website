@@ -16,6 +16,8 @@ import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
+import { getAvatarColorStyles } from '../../lib/avatarColor'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, dangerAlpha, warningAlpha } from '../../theme'
 import { roleLabel } from '../../components/ui/Badge'
 import { format, isPast, parseISO, isToday } from 'date-fns'
@@ -68,6 +70,7 @@ function logIcon(logType: TaskLogResponse['logType']) {
 }
 
 function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?: number }) {
+  const { theme } = useTheme()
   const visible = assignees.slice(0, max)
   const rest = assignees.length - visible.length
   return (
@@ -78,8 +81,7 @@ function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?
           title={`${a.firstName} ${a.lastName}`}
           className="text-[11.5px] font-bold h-5 w-5 rounded-full flex items-center justify-center border"
           style={{
-            background: accentAlpha(0.12),
-            color: colors.accent,
+            ...getAvatarColorStyles(`${a.firstName} ${a.lastName}`, theme === 'dark'),
             borderColor: surface.card,
             marginLeft: idx > 0 ? -4 : 0,
             zIndex: visible.length - idx,
@@ -113,6 +115,7 @@ function MemberPickerModal({
   const [search, setSearch] = useState('')
   const [page, setPage]     = useState(0)
   const [draft, setDraft]   = useState<AssignableUser[]>(selected)
+  const { theme } = useTheme()
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['assignable-users'],
@@ -208,7 +211,7 @@ function MemberPickerModal({
 
               {/* Avatar */}
               <span className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
-                style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                style={getAvatarColorStyles(`${m.firstName} ${m.lastName}`, theme === 'dark')}>
                 {m.firstName[0]}{m.lastName[0]}
               </span>
 
@@ -432,6 +435,7 @@ function TaskDetailModal({
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  const { theme } = useTheme()
   const [commentText, setCommentText] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -649,7 +653,7 @@ function TaskDetailModal({
                 {task.assignees.map(a => (
                   <div key={a.id} className="flex items-center gap-1.5">
                     <span className="text-[11.5px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                      style={getAvatarColorStyles(`${a.firstName} ${a.lastName}`, theme === 'dark')}>
                       {a.firstName[0]}{a.lastName[0]}
                     </span>
                     <span className="text-xs" style={{ color: colors.text.primary }}>
@@ -810,7 +814,7 @@ function TaskDetailModal({
                 {comments.map((c: TaskCommentResponse) => (
                   <div key={c.id} className="flex gap-2.5 group">
                     <span className="text-[11.5px] font-bold h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                      style={getAvatarColorStyles(`${c.authorFirstName} ${c.authorLastName}`, theme === 'dark')}>
                       {initials(c.authorFirstName, c.authorLastName)}
                     </span>
                     <div className="flex-1">

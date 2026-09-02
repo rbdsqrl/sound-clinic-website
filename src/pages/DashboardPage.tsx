@@ -782,12 +782,11 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
       onMouseEnter={ROW_HOVER_IN}
       onMouseLeave={ROW_HOVER_OUT}
     >
-      <div
-        className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
-        style={{ background: accentAlpha(0.10), color: colors.accent }}
-      >
-        {b.firstName[0]}{b.lastName[0]}
-      </div>
+      <Avatar
+        initials={`${b.firstName[0]}${b.lastName[0]}`}
+        name={`${b.firstName} ${b.lastName}`}
+        bold
+      />
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
@@ -1316,7 +1315,7 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} bold />
+          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} bold />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}
@@ -1354,12 +1353,11 @@ export default function DashboardPage() {
                   onMouseEnter={ROW_HOVER_IN}
                   onMouseLeave={ROW_HOVER_OUT}
                 >
-                  <div
-                    className="h-9 w-9 rounded-full text-sm font-semibold flex items-center justify-center flex-shrink-0"
-                    style={{ background: rgba(palette.purple.raw, 0.10), color: palette.purple.text }}
-                  >
-                    {child.firstName[0]}{child.lastName[0]}
-                  </div>
+                  <Avatar
+                    initials={`${child.firstName[0]}${child.lastName[0]}`}
+                    name={`${child.firstName} ${child.lastName}`}
+                    size="lg"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium" style={{ color: colors.text.primary }}>{child.firstName} {child.lastName}</p>
                     <p className="text-xs" style={{ color: colors.text.dim }}>
@@ -1388,7 +1386,7 @@ export default function DashboardPage() {
       {/* Compact header — name + role + date on the left, attendance check-in/out on the right */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} bold />
+          <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} bold />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}

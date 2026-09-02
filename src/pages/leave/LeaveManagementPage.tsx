@@ -21,6 +21,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
   reviewing: boolean
 }) {
   const initials = `${leave.therapistFirstName[0] ?? ''}${leave.therapistLastName[0] ?? ''}`
+  const therapistName = `${leave.therapistFirstName} ${leave.therapistLastName}`
 
   return (
     <div
@@ -28,7 +29,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
       style={{ borderBottom: `1px solid ${border.divider}` }}
     >
       {/* Avatar */}
-      <Avatar initials={initials} size="lg" color={{ background: paletteStyle('teal', 0.10).background, color: palette.teal.text }} />
+      <Avatar initials={initials} name={therapistName} size="lg" />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
