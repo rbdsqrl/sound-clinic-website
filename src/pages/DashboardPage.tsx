@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -900,13 +900,41 @@ function OrgOverview({ patients, members, invites }: {
   )
 }
 
-/** Cases added in the last 30 days, newest first — Clinic Head / Office Admin / Business Owner only. */
+/** Cases added within a date range (last 30 days by default), filterable by therapist
+ *  and therapy/program — Clinic Head / Office Admin / Business Owner only. */
 function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
   const [showAll, setShowAll] = useState(false)
+  const [from, setFrom] = useState(() => format(subDays(new Date(), 30), 'yyyy-MM-dd'))
+  const [to, setTo] = useState(today)
+  const [therapistId, setTherapistId] = useState('')
+  const [therapyName, setTherapyName] = useState('')
+
+  const therapistOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    patients.forEach(p => p.therapists.forEach(t => byId.set(t.id, `${t.firstName} ${t.lastName}`)))
+    return [...byId.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [patients])
+
+  const therapyOptions = useMemo(() => {
+    const names = new Set<string>()
+    patients.forEach(p => p.therapies.forEach(t => names.add(t.name)))
+    return [...names].sort().map(name => ({ value: name, label: name }))
+  }, [patients])
 
   const recentlyJoined = patients
-    .filter(p => differenceInCalendarDays(new Date(), parseISO(p.createdAt)) <= 30)
+    .filter(p => {
+      const joinedDate = p.createdAt.slice(0, 10)
+      if (from && joinedDate < from) return false
+      if (to && joinedDate > to) return false
+      if (therapistId && !p.therapists.some(t => t.id === therapistId)) return false
+      if (therapyName && !p.therapies.some(t => t.name === therapyName)) return false
+      return true
+    })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  const hasNonDateFilter = !!therapistId || !!therapyName
 
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -950,22 +978,42 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
     <>
       <div style={sectionCard}>
         <div
-          className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          className="px-4 sm:px-6 py-4 flex items-center gap-2"
           style={{ borderBottom: `1px solid ${border.divider}` }}
         >
-          <div className="flex items-center gap-2">
-            <UserPlus size={16} style={{ color: colors.accent }} />
-            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
-              Recently Joined
-            </h2>
-            <span
-              className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-              style={{ background: accentAlpha(0.12), color: colors.accent }}
-            >
-              {recentlyJoined.length}
-            </span>
-          </div>
-          <p className="text-xs" style={{ color: colors.text.muted }}>Last 30 days</p>
+          <UserPlus size={16} style={{ color: colors.accent }} />
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+            Recently Joined
+          </h2>
+          <span
+            className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}
+          >
+            {recentlyJoined.length}
+          </span>
+        </div>
+
+        <div
+          className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-2"
+          style={{ borderBottom: `1px solid ${border.divider}` }}
+        >
+          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-[136px]" />
+          <span className="text-xs" style={{ color: colors.text.dim }}>to</span>
+          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-[136px]" />
+          <Select
+            value={therapistId}
+            onChange={e => setTherapistId(e.target.value)}
+            options={therapistOptions}
+            placeholder="All Therapists"
+            className="w-[152px]"
+          />
+          <Select
+            value={therapyName}
+            onChange={e => setTherapyName(e.target.value)}
+            options={therapyOptions}
+            placeholder="All Programs"
+            className="w-[152px]"
+          />
         </div>
 
         <div className="flex-1">
@@ -973,8 +1021,10 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
             <div className="h-full flex flex-col justify-center">
               <EmptyState
                 icon={<UserPlus size={22} />}
-                title="No new cases yet"
-                description="Cases added in the last 30 days will show up here."
+                title="No cases found"
+                description={hasNonDateFilter
+                  ? 'No cases joined in this date range match the selected therapist/program.'
+                  : 'Cases joined in this date range will show up here.'}
               />
             </div>
           ) : (
