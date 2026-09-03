@@ -43,6 +43,38 @@ const TILE_MIN_HEIGHT = 360
 const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
 
+/** Pulsing placeholder for a dashboard tile while its query is in flight — same footprint as a
+ *  real card so the grid doesn't jump when the content swaps in. */
+function CardSkeleton() {
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
+  return (
+    <div style={sectionCard} className="animate-pulse">
+      <div className="px-4 sm:px-6 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <div className="h-4 w-4 rounded-full flex-shrink-0" style={{ background: accentAlpha(0.15) }} />
+        <div className="h-3.5 w-28 rounded-full" style={{ background: accentAlpha(0.15) }} />
+      </div>
+      <div className="flex-1">
+        {Array.from({ length: PREVIEW }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 px-4 sm:px-6 py-3.5"
+            style={i < PREVIEW - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+          >
+            <div className="h-9 w-9 rounded-full flex-shrink-0" style={{ background: accentAlpha(0.10) }} />
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="h-3 rounded-full" style={{ width: '60%', background: accentAlpha(0.10) }} />
+              <div className="h-2.5 rounded-full" style={{ width: '35%', background: accentAlpha(0.07) }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const JS_TO_DOW: DayOfWeek[] = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY']
 const DOW_SHORT: Record<DayOfWeek, string> = {
   MONDAY: 'M', TUESDAY: 'T', WEDNESDAY: 'W', THURSDAY: 'T', FRIDAY: 'F', SATURDAY: 'S', SUNDAY: 'S',
@@ -524,7 +556,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           onDone={() => {
             setSelected(null)
             qc.invalidateQueries({ queryKey: ['sessions-pending-reschedule'] })
-            qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+            qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
             onRescheduled()
             toast('Session rescheduled', 'success')
           }}
@@ -642,7 +674,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
     mutationFn: (id: string) => therapySessionsApi.approveCancellation(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions-cancellation-requests'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       toast('Session cancelled', 'success')
       onDone()
     },
@@ -653,7 +685,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
     mutationFn: (id: string) => therapySessionsApi.rejectCancellation(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions-cancellation-requests'] })
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       toast('Cancellation rejected — session restored', 'success')
       onDone()
     },
@@ -900,11 +932,11 @@ function OrgOverview({ patients, members, invites }: {
   )
 }
 
-/** Cases added within a date range (last 30 days by default), filterable by therapist
+/** Cases added within a date range (last 7 days by default), filterable by therapist
  *  and therapy/program — Clinic Head / Office Admin / Business Owner only. */
 function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
   const [showAll, setShowAll] = useState(false)
-  const [from, setFrom] = useState(() => format(subDays(new Date(), 30), 'yyyy-MM-dd'))
+  const [from, setFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
   const [to, setTo] = useState(today)
   const [therapistId, setTherapistId] = useState('')
   const [therapyName, setTherapyName] = useState('')
@@ -1183,7 +1215,7 @@ function SessionUpdateModal({
       })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-today'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session saved', 'success')
       onClose()
     },
@@ -1292,15 +1324,31 @@ function dueDateLabel(dueDate: string | null): { label: string; color: string } 
   return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
 }
 
-function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
+/** My open/in-progress tasks, assigned server-side (not sliced client-side from a full fetch) so
+ *  the initial load only pulls PREVIEW rows; "View all" fetches the fuller list on demand. */
+function MyTasks({ userId }: { userId: string }) {
   const [showAll, setShowAll] = useState(false)
+  const filterParams = { mine: true, status: 'OPEN,IN_PROGRESS' }
 
-  const active = tasks.filter(
-    t => (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
-         t.assignees.some(a => a.id === userId)
-  )
+  const { data: previewPage, isLoading } = useQuery({
+    queryKey: ['tasks', 'dashboard-preview'],
+    queryFn: () => tasksApi.search({ size: PREVIEW, ...filterParams }),
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  })
 
-  const shown = active.slice(0, PREVIEW)
+  const { data: allPage, isLoading: loadingAll } = useQuery({
+    queryKey: ['tasks', 'dashboard-all'],
+    queryFn: () => tasksApi.search({ size: 200, ...filterParams }),
+    enabled: !!userId && showAll,
+    staleTime: 60 * 1000,
+  })
+
+  if (isLoading) return <CardSkeleton />
+
+  const shown = previewPage?.content ?? []
+  const total = previewPage?.totalElements ?? 0
+  const all = allPage?.content ?? []
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
@@ -1355,8 +1403,8 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
     )
   }
 
-  const inProgress = active.filter(t => t.status === 'IN_PROGRESS')
-  const open = active.filter(t => t.status === 'OPEN')
+  const inProgress = all.filter(t => t.status === 'IN_PROGRESS')
+  const open = all.filter(t => t.status === 'OPEN')
   const hasBothGroups = inProgress.length > 0 && open.length > 0
 
   return (
@@ -1369,7 +1417,7 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
             <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>My Tasks</h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
               style={{ background: accentAlpha(0.12), color: colors.accent }}>
-              {active.length}
+              {total}
             </span>
           </div>
           <Link to="/tasks" className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
@@ -1378,7 +1426,7 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
         </div>
 
         <div className="flex-1">
-          {active.length === 0 ? (
+          {total === 0 ? (
             <div className="h-full flex flex-col justify-center">
               <EmptyState
                 icon={<ListTodo size={22} />}
@@ -1393,32 +1441,36 @@ function MyTasks({ tasks, userId }: { tasks: TaskResponse[]; userId: string }) {
           )}
         </div>
 
-        {active.length > PREVIEW && (
+        {total > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
-              View all {active.length} tasks
+              View all {total} tasks
             </button>
           </div>
         )}
       </div>
 
       {showAll && (
-        <Modal open title={`My Tasks (${active.length})`} onClose={() => setShowAll(false)} size="lg">
+        <Modal open title={`My Tasks (${total})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
-            {hasBothGroups && inProgress.length > 0 && (
-              <p className="px-4 sm:px-6 py-2 text-[11.5px] font-semibold uppercase tracking-wide"
-                style={{ color: colors.text.dim, borderBottom: `1px solid ${border.divider}` }}>
-                In Progress
-              </p>
-            )}
-            {inProgress.map((task, i) => taskRow(task, i, inProgress))}
-            {hasBothGroups && open.length > 0 && (
-              <p className="px-4 sm:px-6 py-2 text-[11.5px] font-semibold uppercase tracking-wide"
-                style={{ color: colors.text.dim, borderTop: inProgress.length > 0 ? `1px solid ${border.divider}` : undefined, borderBottom: `1px solid ${border.divider}` }}>
-                Open
-              </p>
-            )}
-            {open.map((task, i) => taskRow(task, i, open))}
+            {loadingAll ? (
+              <div className="py-8"><PageLoader /></div>
+            ) : (<>
+              {hasBothGroups && inProgress.length > 0 && (
+                <p className="px-4 sm:px-6 py-2 text-[11.5px] font-semibold uppercase tracking-wide"
+                  style={{ color: colors.text.dim, borderBottom: `1px solid ${border.divider}` }}>
+                  In Progress
+                </p>
+              )}
+              {inProgress.map((task, i) => taskRow(task, i, inProgress))}
+              {hasBothGroups && open.length > 0 && (
+                <p className="px-4 sm:px-6 py-2 text-[11.5px] font-semibold uppercase tracking-wide"
+                  style={{ color: colors.text.dim, borderTop: inProgress.length > 0 ? `1px solid ${border.divider}` : undefined, borderBottom: `1px solid ${border.divider}` }}>
+                  Open
+                </p>
+              )}
+              {open.map((task, i) => taskRow(task, i, open))}
+            </>)}
           </div>
         </Modal>
       )}
@@ -1432,9 +1484,31 @@ function htmlToText(html: string): string {
   return div.textContent?.trim() || ''
 }
 
-function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
+/** Feed posts, fetched only PREVIEW at a time (not sliced client-side from a full fetch);
+ *  "View all" fetches the fuller list on demand. */
+function FeedPanel() {
+  const { user } = useAuth()
   const [showAll, setShowAll] = useState(false)
-  const shown = posts.slice(0, PREVIEW)
+
+  const { data: previewPage, isLoading } = useQuery({
+    queryKey: ['feed', 'dashboard-preview'],
+    queryFn: () => feedApi.search({ size: PREVIEW }),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const { data: allPage, isLoading: loadingAll } = useQuery({
+    queryKey: ['feed', 'dashboard-all'],
+    queryFn: () => feedApi.search({ size: 100 }),
+    enabled: !!user && showAll,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  if (isLoading) return <CardSkeleton />
+
+  const shown = previewPage?.content ?? []
+  const total = previewPage?.totalElements ?? 0
+  const all = allPage?.content ?? []
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
@@ -1479,7 +1553,7 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
             <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Feed</h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
               style={{ background: accentAlpha(0.12), color: colors.accent }}>
-              {posts.length}
+              {total}
             </span>
           </div>
           <Link to={ROUTES.feed} className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
@@ -1488,7 +1562,7 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
         </div>
 
         <div className="flex-1">
-          {posts.length === 0 ? (
+          {total === 0 ? (
             <div className="h-full flex flex-col justify-center">
               <EmptyState
                 icon={<Newspaper size={22} />}
@@ -1503,19 +1577,19 @@ function FeedPanel({ posts }: { posts: FeedPostResponse[] }) {
           )}
         </div>
 
-        {posts.length > PREVIEW && (
+        {total > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
-              View all {posts.length} posts
+              View all {total} posts
             </button>
           </div>
         )}
       </div>
 
       {showAll && (
-        <Modal open title={`Feed (${posts.length})`} onClose={() => setShowAll(false)} size="lg">
+        <Modal open title={`Feed (${total})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
-            {posts.map((post, i) => postRow(post, i, posts))}
+            {loadingAll ? <div className="py-8"><PageLoader /></div> : all.map((post, i) => postRow(post, i, all))}
           </div>
         </Modal>
       )}
@@ -1540,19 +1614,22 @@ export default function DashboardPage() {
   const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
   const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients'],    queryFn: patientsApi.list,       enabled: isStaff })
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
+  // Same queryKey shape as useCalendarBadge (Sidebar) and CalendarPage's 'therapy-sessions-cal'
+  // cache — both request today's sessions with identical params, so sharing the key means one
+  // network call instead of two whenever the Sidebar and Dashboard are mounted together.
   const { data: todaySessions = [], isLoading: loadingSessions } = useQuery({
-    queryKey: ['therapy-sessions-today'],
+    queryKey: ['therapy-sessions-cal', { from: today, to: today }],
     queryFn: () => therapySessionsApi.list({ from: today, to: today }),
     enabled: isStaff,
     staleTime: 2 * 60 * 1000,
   })
-  const { data: pendingReschedule = [], refetch: refetchPending } = useQuery({
+  const { data: pendingReschedule = [], isLoading: loadingReschedule, refetch: refetchPending } = useQuery({
     queryKey: ['sessions-pending-reschedule'],
     queryFn: () => therapySessionsApi.list({ status: 'PENDING_RESCHEDULE' }),
     enabled: canReschedule,
     staleTime: 2 * 60 * 1000,
   })
-  const { data: cancellationRequests = [], refetch: refetchCancelRequests } = useQuery({
+  const { data: cancellationRequests = [], isLoading: loadingCancellation, refetch: refetchCancelRequests } = useQuery({
     queryKey: ['sessions-cancellation-requests'],
     queryFn: () => therapySessionsApi.list({ status: 'CANCELLATION_REQUESTED' }),
     enabled: isOwnerOrAdmin,
@@ -1564,7 +1641,7 @@ export default function DashboardPage() {
   // Scoped to their own caseload via the date-range endpoint — the status-only
   // lookup ignores caller role entirely, so it can't be used here without
   // leaking every other therapist's sessions.
-  const { data: scheduledSessions = [] } = useQuery({
+  const { data: scheduledSessions = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ['sessions-scheduled-all', activeRole],
     queryFn: () => therapySessionsApi.list({ from: format(subDays(new Date(), 90), 'yyyy-MM-dd'), to: today }),
     enabled: isTherapistRole,
@@ -1574,21 +1651,14 @@ export default function DashboardPage() {
     .filter(s => s.status === 'SCHEDULED')
     .filter(s => isPastDateTime(s.sessionDate, s.endTime.slice(0, 5)))
 
-  const { data: upcomingBirthdays = [] } = useQuery({
+  const { data: upcomingBirthdays = [], isLoading: loadingBirthdays } = useQuery({
     queryKey: ['upcoming-birthdays'],
     queryFn: patientsApi.upcomingBirthdays,
     enabled: isStaff,
     staleTime: 60 * 60 * 1000,
   })
 
-  const { data: myTasksAll = [] } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: tasksApi.list,
-    enabled: isStaff,
-    staleTime: 2 * 60 * 1000,
-  })
-
-  const { data: members = [] } = useQuery({
+  const { data: members = [], isLoading: loadingMembers } = useQuery({
     queryKey: ['members'],
     queryFn: usersApi.listMembers,
     enabled: isOwnerOrAdmin,
@@ -1601,16 +1671,9 @@ export default function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: feedPosts = [] } = useQuery({
-    queryKey: ['feed'],
-    queryFn: feedApi.list,
-    enabled: !!user,
-    staleTime: 2 * 60 * 1000,
-  })
-
   const uniqueTherapistIds = new Set(patients?.flatMap(p => p.therapists).map(t => t.id) ?? [])
 
-  if (loadingClinics || loadingPatients || loadingChildren || loadingSessions) return <PageLoader />
+  void loadingClinics // no card on this page renders from it directly
 
   // ── Parent dashboard ──────────────────────────────────────────────────────
   if (isParentView) {
@@ -1629,7 +1692,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {myChildren && myChildren.length > 0 && (
+        {loadingChildren ? (
+          <CardSkeleton />
+        ) : myChildren && myChildren.length > 0 && (
           <div style={{ ...styles.card, padding: 20 }}>
             <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Progress — last 30 days
@@ -1638,7 +1703,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {myChildren && myChildren.length > 0 && (
+        {loadingChildren ? (
+          <CardSkeleton />
+        ) : myChildren && myChildren.length > 0 && (
           <div style={{ ...styles.card, overflow: 'hidden', padding: 0 }}>
             <div className="px-6 py-4 flex items-center justify-between"
               style={{ borderBottom: `1px solid ${border.divider}` }}>
@@ -1676,7 +1743,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <FeedPanel posts={feedPosts} />
+        <FeedPanel />
       </div>
     )
   }
@@ -1712,36 +1779,38 @@ export default function DashboardPage() {
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {hasReschedule && (
+            {canReschedule && (loadingReschedule ? <CardSkeleton /> : hasReschedule && (
               <PendingReschedulePanel
                 sessions={pendingReschedule}
                 onRescheduled={() => refetchPending()}
               />
-            )}
+            ))}
 
-            {hasCancellation && (
+            {isOwnerOrAdmin && (loadingCancellation ? <CardSkeleton /> : hasCancellation && (
               <CancellationRequestsPanel
                 sessions={cancellationRequests}
                 onDone={() => refetchCancelRequests()}
               />
-            )}
+            ))}
 
-            {hasPendingNotes && (
+            {isTherapistRole && (loadingScheduled ? <CardSkeleton /> : hasPendingNotes && (
               <PendingSessionNotesPanel sessions={pendingNotes} />
+            ))}
+
+            {loadingSessions ? <CardSkeleton /> : (
+              <TodaySessions
+                sessions={todaySessions}
+                showTherapist={isOwnerOrAdmin}
+                onSessionClick={canUpdateSession ? setEditingSession : undefined}
+              />
             )}
 
-            <TodaySessions
-              sessions={todaySessions}
-              showTherapist={isOwnerOrAdmin}
-              onSessionClick={canUpdateSession ? setEditingSession : undefined}
-            />
+            <FeedPanel />
 
-            <FeedPanel posts={feedPosts} />
-
-            <UpcomingBirthdays birthdays={upcomingBirthdays} />
-            {isOwnerOrAdmin && <RecentlyJoinedChildren patients={patients ?? []} />}
-            {isOwnerOrAdmin && <OrgOverview patients={patients ?? []} members={members} invites={invites} />}
-            <MyTasks tasks={myTasksAll} userId={user?.id ?? ''} />
+            {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
+            {isOwnerOrAdmin && (loadingPatients ? <CardSkeleton /> : <RecentlyJoinedChildren patients={patients ?? []} />)}
+            {isOwnerOrAdmin && ((loadingPatients || loadingMembers) ? <CardSkeleton /> : <OrgOverview patients={patients ?? []} members={members} invites={invites} />)}
+            <MyTasks userId={user?.id ?? ''} />
           </div>
         )
       })()}

@@ -1,6 +1,7 @@
 import client from './client'
 import type {
   ApiResponse,
+  PagedResponse,
   FeedPostResponse,
   FeedPostImageResponse,
   FeedCommentResponse,
@@ -9,8 +10,15 @@ import type {
 } from '../types'
 
 export const feedApi = {
+  /** Every feed post — for pages that need the full list, not a page of it. */
   list: () =>
-    client.get<ApiResponse<FeedPostResponse[]>>('/feed').then(r => r.data.data),
+    client.get<ApiResponse<PagedResponse<FeedPostResponse>>>('/feed', { params: { size: 1000 } })
+      .then(r => r.data.data.content),
+
+  /** Paginated feed posts — powers the Dashboard's feed preview and its "View all" fetch. Defaults to newest first. */
+  search: (params: { page?: number; size?: number } = {}) =>
+    client.get<ApiResponse<PagedResponse<FeedPostResponse>>>('/feed', { params })
+      .then(r => r.data.data),
 
   create: (data: CreateFeedPostRequest) =>
     client.post<ApiResponse<FeedPostResponse>>('/feed', data).then(r => r.data.data),

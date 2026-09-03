@@ -1,6 +1,7 @@
 import client from './client'
 import type {
   ApiResponse,
+  PagedResponse,
   TaskResponse,
   TaskCommentResponse,
   TaskAttachmentResponse,
@@ -11,8 +12,19 @@ import type {
 } from '../types'
 
 export const tasksApi = {
+  /** Every task visible to the caller — for pages that need the full list, not a page of it. */
   list: () =>
-    client.get<ApiResponse<TaskResponse[]>>('/tasks').then(r => r.data.data),
+    client.get<ApiResponse<PagedResponse<TaskResponse>>>('/tasks', { params: { size: 1000 } })
+      .then(r => r.data.data.content),
+
+  /**
+   * Paginated tasks — powers the Dashboard's "My Tasks" preview and its "View all" fetch.
+   * Defaults to newest first. `mine` scopes to tasks assigned to the caller; `status` is a
+   * comma-separated status filter (e.g. 'OPEN,IN_PROGRESS').
+   */
+  search: (params: { page?: number; size?: number; mine?: boolean; status?: string } = {}) =>
+    client.get<ApiResponse<PagedResponse<TaskResponse>>>('/tasks', { params })
+      .then(r => r.data.data),
 
   create: (data: CreateTaskRequest) =>
     client.post<ApiResponse<TaskResponse>>('/tasks', data).then(r => r.data.data),
