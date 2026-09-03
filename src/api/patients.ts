@@ -1,6 +1,7 @@
 import client from './client'
 import type {
   ApiResponse,
+  PagedResponse,
   PatientResponse,
   CreatePatientRequest,
   AddConditionRequest,
@@ -12,9 +13,26 @@ import type {
   UpcomingBirthdayResponse,
 } from '../types'
 
+export interface PatientSearchParams {
+  page?: number
+  size?: number
+  search?: string
+  /** Scope to patients assigned to the caller. Always on server-side for THERAPIST regardless of this. */
+  mine?: boolean
+  /** Comma-separated subset of ACTIVE,NOT_INVITED,INACTIVE. Omit for the default (ACTIVE,NOT_INVITED); pass '' to include every status. */
+  status?: string
+}
+
 export const patientsApi = {
+  /** Every patient in the org — for pickers/dashboards that need the full list, not a page of it. */
   list: () =>
-    client.get<ApiResponse<PatientResponse[]>>('/patients').then((r) => r.data.data),
+    client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params: { size: 1000, status: '' } })
+      .then((r) => r.data.data.content),
+
+  /** Paginated, filtered Cases list — powers the Cases page. Defaults to newest-joined first. */
+  search: (params: PatientSearchParams = {}) =>
+    client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params })
+      .then((r) => r.data.data),
 
   myChildren: () =>
     client.get<ApiResponse<PatientResponse[]>>('/patients/my-children').then((r) => r.data.data),

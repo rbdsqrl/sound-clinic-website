@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -6,6 +6,7 @@ import {
   Search, LayoutGrid, List, UserPlus, Briefcase,
   Mail, Phone, Users, Building2,
   Link2, CalendarDays, Send, Trash2, XCircle, UserCheck,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '../../api/users'
@@ -287,11 +288,43 @@ export default function MembersPage() {
   const [reinviteTarget, setReinviteTarget] = useState<StaffMemberResponse | null>(null)
   const [linkModal, setLinkModal]   = useState<InviteResponse | null>(null)
   const [cancelTarget, setCancelTarget] = useState<InviteResponse | null>(null)
+  const [page, setPage]             = useState(0)
+  const PAGE_SIZE = 20
+
+  // Debounce search so every keystroke doesn't fire a request.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Any filter change should land back on page 1.
+  useEffect(() => { setPage(0) }, [tab, debouncedSearch, roleFilter, clinicFilter])
 
   // ── Queries ──────────────────────────────────────────────────────────────────
-  const { data: members = [], isLoading: membersLoading } = useQuery({
-    queryKey: ['members'],
-    queryFn: () => usersApi.listMembers(),
+  // Tab badges show unfiltered totals for Members/Archived, so these are fetched
+  // independently of the search/role/clinic filters below (size:1 — only the count matters).
+  const { data: activeCountPage } = useQuery({
+    queryKey: ['members', 'count', 'active'],
+    queryFn: () => usersApi.searchMembers({ active: true, page: 0, size: 1 }),
+  })
+  const { data: archivedCountPage } = useQuery({
+    queryKey: ['members', 'count', 'archived'],
+    queryFn: () => usersApi.searchMembers({ active: false, page: 0, size: 1 }),
+  })
+
+  const { data: membersPage, isLoading: membersLoading, isFetching: membersFetching } = useQuery({
+    queryKey: ['members', 'search', { page, tab, debouncedSearch, roleFilter, clinicFilter }],
+    queryFn: () => usersApi.searchMembers({
+      page,
+      size: PAGE_SIZE,
+      search: debouncedSearch || undefined,
+      role: (roleFilter || undefined) as Role | undefined,
+      clinicId: clinicFilter || undefined,
+      active: tab !== 'archived',
+    }),
+    enabled: tab !== 'invites',
+    placeholderData: (prev) => prev,
   })
 
   const { data: invites = [], isLoading: invitesLoading } = useQuery({
@@ -374,20 +407,9 @@ export default function MembersPage() {
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
-  const activeMembers   = members.filter(m => m.isActive)
-  const archivedMembers = members.filter(m => !m.isActive)
-
-  function filterMembers(list: StaffMemberResponse[]) {
-    return list.filter(m => {
-      const q = search.toLowerCase()
-      const matchSearch = !q || `${m.firstName} ${m.lastName} ${m.email}`.toLowerCase().includes(q)
-      const matchRole   = !roleFilter   || m.role === roleFilter
-      const matchClinic = !clinicFilter || m.clinicId === clinicFilter
-      return matchSearch && matchRole && matchClinic
-    })
-  }
-
-  const shownMembers = filterMembers(tab === 'archived' ? archivedMembers : activeMembers)
+  const activeMembersCount   = activeCountPage?.totalElements ?? 0
+  const archivedMembersCount = archivedCountPage?.totalElements ?? 0
+  const shownMembers = membersPage?.content ?? []
 
   const filteredInvites = invites.filter(i => {
     const q = search.toLowerCase()
@@ -400,9 +422,9 @@ export default function MembersPage() {
   const isLoading    = tab === 'invites' ? invitesLoading : membersLoading
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
-    { key: 'members',  label: 'Members',  count: activeMembers.length },
+    { key: 'members',  label: 'Members',  count: activeMembersCount },
     { key: 'invites',  label: 'Invites',  count: pendingCount || undefined },
-    { key: 'archived', label: 'Archived', count: archivedMembers.length || undefined },
+    { key: 'archived', label: 'Archived', count: archivedMembersCount || undefined },
   ]
 
   const INVITE_STATUS_FILTERS: { value: InviteStatusFilter; label: string }[] = [
@@ -422,7 +444,7 @@ export default function MembersPage() {
           <div>
             <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Members</h1>
             <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
-              {activeMembers.length} active · {pendingCount} pending invite{pendingCount !== 1 ? 's' : ''}
+              {activeMembersCount} active · {pendingCount} pending invite{pendingCount !== 1 ? 's' : ''}
             </p>
           </div>
           <Button onClick={() => { reset(); setReinviteTarget(null); setShowInviteModal(true) }}>
@@ -689,10 +711,37 @@ export default function MembersPage() {
           </div>
         )}
 
+        {/* ── Pagination ── */}
+        {tab !== 'invites' && membersPage && membersPage.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs" style={{ color: colors.text.dim }}>
+              Page {membersPage.page + 1} of {membersPage.totalPages} · {membersPage.totalElements} member{membersPage.totalElements !== 1 ? 's' : ''}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0 || membersFetching}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                style={{ border: border.card, color: colors.text.primary }}
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(membersPage.totalPages - 1, p + 1))}
+                disabled={page + 1 >= membersPage.totalPages || membersFetching}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                style={{ border: border.card, color: colors.text.primary }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Summary strip */}
         {tab !== 'invites' && shownMembers.length > 0 && (
           <p className="text-xs text-center" style={{ color: colors.text.dim }}>
-            {shownMembers.length} of {(tab === 'archived' ? archivedMembers : activeMembers).length} member{shownMembers.length !== 1 ? 's' : ''}
+            {shownMembers.length} of {membersPage?.totalElements ?? 0} member{shownMembers.length !== 1 ? 's' : ''}
             {shownMembers.filter(m => m.role === 'THERAPIST').length > 0 && ` · ${shownMembers.filter(m => m.role === 'THERAPIST').length} therapist${shownMembers.filter(m => m.role === 'THERAPIST').length !== 1 ? 's' : ''}`}
           </p>
         )}

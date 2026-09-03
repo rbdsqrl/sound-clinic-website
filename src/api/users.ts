@@ -1,5 +1,15 @@
 import client from './client'
-import type { ApiResponse, UserResponse, StaffMemberResponse, AssignableUser, Role, MemberProfileResponse, UpdateMemberProfileRequest } from '../types'
+import type { ApiResponse, PagedResponse, UserResponse, StaffMemberResponse, AssignableUser, Role, MemberProfileResponse, UpdateMemberProfileRequest } from '../types'
+
+export interface MemberSearchParams {
+  page?: number
+  size?: number
+  search?: string
+  role?: Role
+  clinicId?: string
+  /** Members tab (true, default) vs Archived tab (false). */
+  active?: boolean
+}
 
 export const usersApi = {
   /**
@@ -14,10 +24,16 @@ export const usersApi = {
       })
       .then((r) => r.data.data),
 
-  /** Full staff directory with personal details. BUSINESS_OWNER / CLINIC_HEAD only. */
+  /** Every active staff member — for pickers/dashboards that need the full list, not a page of it. */
   listMembers: () =>
     client
-      .get<ApiResponse<StaffMemberResponse[]>>('/users/members')
+      .get<ApiResponse<PagedResponse<StaffMemberResponse>>>('/users/members', { params: { size: 1000 } })
+      .then((r) => r.data.data.content),
+
+  /** Paginated, filtered Members list — powers the Members page. Defaults to newest-joined first. */
+  searchMembers: (params: MemberSearchParams = {}) =>
+    client
+      .get<ApiResponse<PagedResponse<StaffMemberResponse>>>('/users/members', { params })
       .then((r) => r.data.data),
 
   /**

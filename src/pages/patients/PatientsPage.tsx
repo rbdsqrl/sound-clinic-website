@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Plus, Users, LayoutGrid, List, Search, Check } from 'lucide-react'
+import { Plus, Users, LayoutGrid, List, Search, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
 import { Button } from '../../components/ui/Button'
@@ -156,9 +156,35 @@ export default function PatientsPage() {
   const [tab,           setTab]           = useState<'all' | 'mine'>('all')
   const [search,        setSearch]        = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE', 'NOT_INVITED']))
+  const [page,          setPage]          = useState(0)
+  const PAGE_SIZE = 20
 
-  const { data: patients, isLoading } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
-  const { data: clinics }             = useQuery({ queryKey: ['clinics'],  queryFn: clinicsApi.list })
+  // Debounce search so every keystroke doesn't fire a request.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Any filter change should land back on page 1.
+  useEffect(() => { setPage(0) }, [tab, debouncedSearch, activeFilters])
+
+  const statusParam = activeFilters.size === 0 ? '' : Array.from(activeFilters).join(',')
+
+  const { data: patientsPage, isLoading, isFetching } = useQuery({
+    queryKey: ['patients', 'search', { page, tab, debouncedSearch, statusParam }],
+    queryFn: () => patientsApi.search({
+      page,
+      size: PAGE_SIZE,
+      search: debouncedSearch || undefined,
+      mine: tab === 'mine',
+      status: statusParam,
+    }),
+    placeholderData: (prev) => prev,
+  })
+  const { data: clinics } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
+
+  const filtered = patientsPage?.content ?? []
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreatePatientRequest>()
 
@@ -175,30 +201,6 @@ export default function PatientsPage() {
 
   const clinicOptions = (clinics ?? []).map(c => ({ value: c.id, label: c.name }))
   const clinicMap     = Object.fromEntries((clinics ?? []).map(c => [c.id, c.name]))
-
-  const filtered = useMemo(() => {
-    if (!patients) return []
-    let list = patients
-
-    if (tab === 'mine' && user) {
-      list = list.filter(p => p.therapists.some(t => t.id === user.id))
-    }
-
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(p => `${p.firstName} ${p.lastName}`.toLowerCase().includes(q))
-    }
-
-    if (activeFilters.size > 0) {
-      list = list.filter(p => {
-        if (!p.isActive) return activeFilters.has('INACTIVE')
-        if (inviteStatus(p) === 'ACTIVE') return activeFilters.has('ACTIVE')
-        return activeFilters.has('NOT_INVITED')
-      })
-    }
-
-    return list
-  }, [patients, tab, search, activeFilters, user])
 
   function toggleFilter(key: FilterKey) {
     setActiveFilters(prev => {
@@ -397,6 +399,33 @@ export default function PatientsPage() {
             </table>
           </div>
         </>
+      )}
+
+      {/* ── Pagination ── */}
+      {patientsPage && patientsPage.totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-xs" style={{ color: colors.text.dim }}>
+            Page {patientsPage.page + 1} of {patientsPage.totalPages} · {patientsPage.totalElements} case{patientsPage.totalElements !== 1 ? 's' : ''}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0 || isFetching}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+              style={{ border: border.card, color: colors.text.primary }}
+            >
+              <ChevronLeft size={14} /> Previous
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(patientsPage.totalPages - 1, p + 1))}
+              disabled={page + 1 >= patientsPage.totalPages || isFetching}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+              style={{ border: border.card, color: colors.text.primary }}
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Add patient modal ── */}
