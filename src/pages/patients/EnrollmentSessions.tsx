@@ -664,7 +664,25 @@ export function SessionNotesModal({
     : feedback?.template ?? []
 
   return (
-    <Modal open title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`} onClose={onClose} size="lg" variant="side">
+    <Modal
+      open
+      title={session.adHoc ? 'Ad-hoc Session Notes' : `Session #${session.sessionNumber} Notes`}
+      onClose={onClose}
+      size="lg"
+      variant="side"
+      headerActions={onReschedule && session.status === 'SCHEDULED' ? (
+        <button
+          type="button"
+          onClick={onReschedule}
+          className="flex items-center gap-1 text-[11.5px] font-medium px-2 py-1.5 rounded-lg flex-shrink-0 transition-colors"
+          style={{ color: colors.accent }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+        >
+          <CalendarClock size={12} /> Reschedule
+        </button>
+      ) : undefined}
+    >
       {/* Session info strip */}
       <div className="flex items-center gap-3 mb-5 p-3 rounded-xl" style={{ background: accentAlpha(0.05) }}>
         <div className="flex-1">
@@ -922,17 +940,6 @@ export function SessionNotesModal({
               </p>
             )}
           </div>
-        )}
-
-        {/* Calendar-only: moving a planned session */}
-        {onReschedule && session.status === 'SCHEDULED' && (
-          <button
-            onClick={onReschedule}
-            className="w-full text-sm font-semibold px-3 py-2.5 rounded-xl mb-4 transition-colors"
-            style={{ background: accentAlpha(0.10), color: colors.accent }}
-          >
-            Reschedule session
-          </button>
         )}
 
         {/* Calendar-only: admin approve/reject a pending cancellation */}
