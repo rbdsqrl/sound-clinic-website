@@ -21,6 +21,8 @@ export interface PatientSearchParams {
   mine?: boolean
   /** Comma-separated subset of ACTIVE,NOT_INVITED,INACTIVE. Omit for the default (ACTIVE,NOT_INVITED); pass '' to include every status. */
   status?: string
+  /** Returns parents/therapists as id-only stubs (blank name/email) — pass true when the caller only reads .length, not names. */
+  compact?: boolean
 }
 
 export const patientsApi = {

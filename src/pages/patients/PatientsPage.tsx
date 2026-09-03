@@ -157,7 +157,7 @@ export default function PatientsPage() {
   const [search,        setSearch]        = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE', 'NOT_INVITED']))
   const [page,          setPage]          = useState(0)
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 18
 
   // Debounce search so every keystroke doesn't fire a request.
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -179,6 +179,9 @@ export default function PatientsPage() {
       search: debouncedSearch || undefined,
       mine: tab === 'mine',
       status: statusParam,
+      // Only parents.length / therapists.length are ever read on this page (invite-status pill,
+      // specialist count) — never names, so skip resolving them to full User records server-side.
+      compact: true,
     }),
     placeholderData: (prev) => prev,
   })
