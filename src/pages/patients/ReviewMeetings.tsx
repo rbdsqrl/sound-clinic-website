@@ -5,10 +5,12 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
+import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { TimePicker } from '../../components/ui/TimePicker'
+import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
@@ -399,7 +401,13 @@ export function ScheduleModal({
   const [duration, setDuration] = useState(30)
   const [firstDate, setFirstDate] = useState('')
   const [endDate, setEndDate] = useState(enrollmentEndDate ?? '')
+  const [clinicHeadIds, setClinicHeadIds] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const { data: clinicHeads = [] } = useQuery({
+    queryKey: ['assignable', 'clinic-head'],
+    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
+  })
 
   const mut = useMutation({
     mutationFn: () => reviewMeetingsApi.generateSchedule(enrollmentId, {
@@ -408,6 +416,7 @@ export function ScheduleModal({
       intervalWeeks,
       firstMeetingDate: firstDate || undefined,
       endDate: endDate || undefined,
+      participantIds: clinicHeadIds,
     }),
     onSuccess: (created) => {
       toast(`${created.length} review meeting${created.length !== 1 ? 's' : ''} scheduled — invites sent`, 'success')
@@ -423,6 +432,7 @@ export function ScheduleModal({
     if (endDate && firstDate && endDate < firstDate) e.end = 'End date is before the first meeting'
     if (firstDate && firstDate < todayStr()) e.first = 'First meeting cannot be in the past'
     else if (firstDate && startTime && isPastDateTime(firstDate, startTime)) e.time = 'Time cannot be in the past'
+    if (clinicHeadIds.length === 0) e.participants = 'Pick at least one Clinic Head to invite'
     setErrors(e)
     if (Object.keys(e).length === 0) mut.mutate()
   }
@@ -432,7 +442,8 @@ export function ScheduleModal({
       <div className="flex flex-col gap-4">
         <p className="text-xs" style={{ color: colors.text.muted }}>
           Meetings repeat on this rhythm until the end date, skipping public holidays.
-          The therapist and every linked parent get a calendar invite.
+          Every linked parent and the Clinic Head(s) picked below get a calendar invite —
+          not the therapist.
         </p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -485,6 +496,15 @@ export function ScheduleModal({
             {errors.end && <p className="form-error mt-1">{errors.end}</p>}
           </div>
         </div>
+
+        <MultiSelectChips
+          label="Clinic Head(s) to invite"
+          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+          selected={clinicHeadIds}
+          onChange={setClinicHeadIds}
+          emptyMessage="No Clinic Head is set up in this organisation yet."
+        />
+        {errors.participants && <p className="form-error">{errors.participants}</p>}
       </div>
 
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -504,11 +524,17 @@ function AddMeetingModal({
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('16:00')
   const [duration, setDuration] = useState(30)
+  const [clinicHeadIds, setClinicHeadIds] = useState<string[]>([])
   const [error, setError] = useState('')
+
+  const { data: clinicHeads = [] } = useQuery({
+    queryKey: ['assignable', 'clinic-head'],
+    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
+  })
 
   const mut = useMutation({
     mutationFn: () => reviewMeetingsApi.create({
-      enrollmentId, meetingDate: date, startTime, durationMinutes: duration,
+      enrollmentId, meetingDate: date, startTime, durationMinutes: duration, participantIds: clinicHeadIds,
     }),
     onSuccess: () => { toast('Meeting scheduled — invites sent', 'success'); onDone() },
     onError: (err) => toast(getApiError(err, 'Failed to schedule meeting'), 'error'),
@@ -520,7 +546,6 @@ function AddMeetingModal({
         <div>
           <label className="form-label">Date</label>
           <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
-          {error && <p className="form-error mt-1">{error}</p>}
         </div>
         <TimePicker label="Time" value={startTime} onChange={setStartTime} />
         <div>
@@ -531,6 +556,14 @@ function AddMeetingModal({
             className="form-input w-full"
           />
         </div>
+        <MultiSelectChips
+          label="Clinic Head(s) to invite"
+          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+          selected={clinicHeadIds}
+          onChange={setClinicHeadIds}
+          emptyMessage="No Clinic Head is set up in this organisation yet."
+        />
+        {error && <p className="form-error">{error}</p>}
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -541,6 +574,7 @@ function AddMeetingModal({
             if (!date) { setError('Pick a date'); return }
             if (date < todayStr()) { setError('Date cannot be in the past'); return }
             if (isPastDateTime(date, startTime)) { setError('Time cannot be in the past'); return }
+            if (clinicHeadIds.length === 0) { setError('Pick at least one Clinic Head to invite'); return }
             setError(''); mut.mutate()
           }}>
           Schedule

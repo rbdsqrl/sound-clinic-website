@@ -68,10 +68,11 @@ src/
 │   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
 │   ├── programs.ts                  # program management
 │   ├── public.ts                    # public API endpoints
+│   ├── reassignments.ts             # bulk therapist case reassignment — list/create/cancelEarly
 │   ├── sharedMedia.ts               # list/upload/delete shared videos+notes for a patient
 │   ├── subscriptions.ts             # subscription management
 │   ├── therapySessions.ts           # therapy session management
-│   └── users.ts                     # me, listTherapists, search
+│   └── users.ts                     # me, listTherapists, search, listAssignable(includeParents?, role?)
 │
 ├── contexts/
 │   ├── AuthContext.tsx               # useAuth: user, isAuthenticated, login, logout, switchRole
@@ -126,7 +127,9 @@ src/
     │   └── AvailabilityPage.tsx     # Manage recurring weekly slots (file exists, route removed from nav)
     │
     ├── calendar/
-    │   └── CalendarPage.tsx         # Calendar view for appointments and schedules
+    │   └── CalendarPage.tsx         # Calendar view for appointments and schedules — review-meeting
+    │                                #   events in EventDetailDrawer have an inline "Edit" action
+    │                                #   (Admin Roles) to change participants/time without leaving the calendar
     │
     ├── clinics/
     │   ├── ClinicDetailPage.tsx     # View/edit single clinic
@@ -273,6 +276,11 @@ Higher-level pieces built from the `ui/` primitives above, factored out because 
 - Axios instance with `baseURL: /api/v1`
 - Request interceptor: attaches `Authorization: Bearer <token>` from localStorage
 - Response interceptor: on 401, attempts token refresh then retries; on second 401, clears auth and redirects to `/login`
+
+### Notable patterns
+
+- **`MemberProfilePage.tsx`** (Members section): the Cases panel supports selecting multiple cases and bulk-reassigning them to another therapist — permanently or for a time-bound window that hands back automatically — via `reassignmentsApi`. Gated on a `canReassign` flag (Admin Roles) kept separate from the page's existing `canEdit` flag, which is narrower.
+- **Review meetings** no longer auto-invite the assigned therapist — scheduling one (from `ReviewMeetings.tsx`) requires picking at least one Clinic Head via `usersApi.listAssignable(false, 'CLINIC_HEAD')`; participants can be edited afterward from the Calendar (see above) via `reviewMeetingsApi.updateParticipants`.
 
 ### Adding a new API module
 1. Create `src/api/<feature>.ts`

@@ -23,10 +23,11 @@ export const usersApi = {
   /**
    * Active staff as names + roles, for assignee pickers.
    * Callable by any staff member, since anyone can create and assign a task.
+   * Pass role to scope to just that role (e.g. the review-meeting Clinic-Head picker).
    */
-  listAssignable: (includeParents = false) =>
+  listAssignable: (includeParents = false, role?: Role) =>
     client
-      .get<ApiResponse<AssignableUser[]>>('/users/assignable', { params: { includeParents } })
+      .get<ApiResponse<AssignableUser[]>>('/users/assignable', { params: { includeParents, role } })
       .then((r) => r.data.data),
 
   /** Search users by partial name or email within the caller's organisation. */

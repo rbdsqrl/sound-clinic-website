@@ -1407,6 +1407,8 @@ function EventDetailDrawer({
     },
   })
 
+  const [editReviewOpen, setEditReviewOpen] = useState(false)
+
   return (
     <>
       {/* Backdrop — dims and blurs the page behind the drawer on every breakpoint. */}
@@ -1508,6 +1510,14 @@ function EventDetailDrawer({
                         : 'No feedback shared yet.'}
                 </p>
               </div>
+              {canManageAll && rawReview.status === 'SCHEDULED' && (
+                <button
+                  onClick={() => setEditReviewOpen(true)}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ color: colors.accent, background: accentAlpha(0.1) }}>
+                  Edit participants &amp; time
+                </button>
+              )}
               <button
                 onClick={() => { onClose(); navigate(`${ROUTES.patients}/${rawReview.patientId}`) }}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold"
@@ -1604,7 +1614,143 @@ function EventDetailDrawer({
           </div>
         )}
       </div>
+
+      {editReviewOpen && (
+        <EditReviewMeetingModal
+          meeting={rawReview}
+          onClose={() => setEditReviewOpen(false)}
+          onDone={() => {
+            setEditReviewOpen(false)
+            qc.invalidateQueries({ queryKey: ['review-meetings'] })
+            onClose()
+          }}
+        />
+      )}
     </>
+  )
+}
+
+// ── Edit a review meeting's participants/time from the calendar ────────────────
+
+function EditReviewMeetingModal({
+  meeting, onClose, onDone,
+}: {
+  meeting: ReviewMeetingResponse
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [date, setDate] = useState(meeting.meetingDate)
+  const [startTime, setStartTime] = useState(meeting.startTime.slice(0, 5))
+  const [duration, setDuration] = useState(Math.round(
+    (Number(meeting.endTime.slice(0, 2)) * 60 + Number(meeting.endTime.slice(3, 5)))
+    - (Number(meeting.startTime.slice(0, 2)) * 60 + Number(meeting.startTime.slice(3, 5)))))
+  const [picked, setPicked] = useState<string[]>(meeting.participants.map(p => p.id))
+  const [search, setSearch] = useState('')
+  const [error, setError] = useState('')
+
+  const { data: people = [] } = useQuery({
+    queryKey: ['assignable', 'with-parents'],
+    queryFn: () => usersApi.listAssignable(true),
+  })
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return people
+    return people.filter((u: AssignableUser) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(q))
+  }, [people, search])
+
+  const timeChanged = date !== meeting.meetingDate || startTime !== meeting.startTime.slice(0, 5)
+  const participantsChanged = picked.length !== meeting.participants.length
+    || picked.some(id => !meeting.participants.some(p => p.id === id))
+
+  const rescheduleMut = useMutation({
+    mutationFn: () => reviewMeetingsApi.reschedule(meeting.id, { meetingDate: date, startTime, durationMinutes: duration }),
+  })
+  const participantsMut = useMutation({
+    mutationFn: () => reviewMeetingsApi.updateParticipants(meeting.id, { participantIds: picked }),
+  })
+
+  const submit = async () => {
+    if (picked.length === 0) { setError('Pick at least one participant'); return }
+    if (date < todayStr()) { setError('Date cannot be in the past'); return }
+    if (isPastDateTime(date, startTime)) { setError('Start time cannot be in the past'); return }
+    setError('')
+    try {
+      if (timeChanged) await rescheduleMut.mutateAsync()
+      if (participantsChanged) await participantsMut.mutateAsync()
+      onDone()
+    } catch (err) {
+      setError(getApiError(err, 'Could not save changes'))
+    }
+  }
+
+  const pending = rescheduleMut.isPending || participantsMut.isPending
+
+  return (
+    <Modal open title="Edit review meeting" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
+          </div>
+          <div>
+            <label className="form-label">Starts</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="form-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Duration (min)</label>
+          <input
+            type="number" min={15} max={240} step={15} value={duration}
+            onChange={e => setDuration(Math.max(15, Number(e.target.value) || 0))}
+            className="form-input w-full"
+          />
+        </div>
+
+        <div>
+          <label className="form-label">
+            Participants{picked.length > 0 ? ` (${picked.length} selected)` : ''}
+          </label>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search staff and parents…"
+            className="form-input w-full mb-2"
+          />
+          <div className="max-h-52 overflow-y-auto rounded-xl" style={{ border: border.card }}>
+            {filtered.length === 0 ? (
+              <p className="text-xs p-3" style={{ color: colors.text.dim }}>No one matches that search.</p>
+            ) : filtered.map((u: AssignableUser) => {
+              const on = picked.includes(u.id)
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => setPicked(prev => on ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors"
+                  style={{ background: on ? accentAlpha(0.08) : 'transparent' }}
+                >
+                  <span className="text-sm truncate" style={{ color: colors.text.primary }}>
+                    {u.firstName} {u.lastName}
+                  </span>
+                  <span className="flex items-center gap-2 flex-shrink-0">
+                    {roleBadge(u.role)}
+                    {on && <CheckCircle2 size={15} style={{ color: colors.accent }} />}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" loading={pending} onClick={submit}>Save changes</Button>
+      </div>
+    </Modal>
   )
 }
 
@@ -2150,7 +2296,7 @@ export default function CalendarPage() {
           event={selected}
           onClose={() => setSelected(null)}
           canGoToInquiries={canGoToInquiries}
-          canManageAll={!!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER'))}
+          canManageAll={!!user && (hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'OFFICE_ADMIN'))}
           canCreateMeetings={canCreateMeetings}
           onLogOutcome={canHandleOutcomes ? (inq) => { setSelected(null); setActionTarget(inq) } : undefined}
         />

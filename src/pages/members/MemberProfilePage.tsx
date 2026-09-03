@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck } from 'lucide-react'
+import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck, Repeat } from 'lucide-react'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
 import { languagesApi } from '../../api/activityLookups'
 import { patientsApi } from '../../api/patients'
 import { analyticsApi } from '../../api/analytics'
+import { reassignmentsApi } from '../../api/reassignments'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAvatarColor } from '../../hooks/useAvatarColor'
 import { calcAge } from '../../lib/age'
@@ -28,7 +29,7 @@ import { Tile, Panel } from '../analytics/components'
 import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { colors, border, surface, paletteStyle } from '../../theme'
-import type { Role } from '../../types'
+import type { Role, ReassignmentType } from '../../types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -45,12 +46,16 @@ export default function MemberProfilePage() {
   const canEdit = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
   // Role changes are Business-Owner-only, and never on one's own account.
   const canChangeRole = activeRole === 'BUSINESS_OWNER' && user?.id !== id
+  // Admin Roles — separate from canEdit, which is narrower (missing OFFICE_ADMIN).
+  const canReassign = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
 
   const [range, setRange] = useState(defaultRange)
   const [editOpen, setEditOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
+  const [reassignOpen, setReassignOpen] = useState(false)
+  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['member-profile', id],
@@ -120,6 +125,37 @@ export default function MemberProfilePage() {
       toast('Member activated', 'success')
     },
     onError: (err: unknown) => toast(getApiError(err, 'Failed to activate member'), 'error'),
+  })
+
+  // Bulk case reassignment — Admin Roles only.
+  const { data: reassignments = [] } = useQuery({
+    queryKey: ['reassignments', id],
+    queryFn: () => reassignmentsApi.list(id!),
+    enabled: !!id && canReassign,
+  })
+  const invalidateAfterReassign = () => {
+    qc.invalidateQueries({ queryKey: ['patients'] })
+    qc.invalidateQueries({ queryKey: ['member-profile', id] })
+    qc.invalidateQueries({ queryKey: ['reassignments', id] })
+  }
+  const reassignMut = useMutation({
+    mutationFn: (data: { toTherapistId: string; type: ReassignmentType; startDate?: string; endDate?: string; reason?: string }) =>
+      reassignmentsApi.create({ fromTherapistId: id!, patientIds: selectedCaseIds, ...data }),
+    onSuccess: () => {
+      invalidateAfterReassign()
+      toast('Cases reassigned', 'success')
+      setSelectedCaseIds([])
+      setReassignOpen(false)
+    },
+    onError: (err: unknown) => toast(getApiError(err, 'Could not reassign cases'), 'error'),
+  })
+  const cancelReassignMut = useMutation({
+    mutationFn: (reassignmentId: string) => reassignmentsApi.cancelEarly(reassignmentId),
+    onSuccess: () => {
+      invalidateAfterReassign()
+      toast('Reassignment ended — cases handed back', 'success')
+    },
+    onError: (err: unknown) => toast(getApiError(err, 'Could not end the reassignment'), 'error'),
   })
 
   const avatarColor = useAvatarColor(profile ? `${profile.firstName} ${profile.lastName}` : '')
@@ -299,6 +335,12 @@ export default function MemberProfilePage() {
             >
               <Download size={14} /> Export
             </button>
+            {canReassign && (
+              <Button size="sm" variant="secondary" disabled={selectedCaseIds.length === 0}
+                onClick={() => setReassignOpen(true)}>
+                <Repeat size={14} /> Reassign{selectedCaseIds.length > 0 ? ` (${selectedCaseIds.length})` : ''}
+              </Button>
+            )}
             {canEdit && (
               <Button size="sm" onClick={() => setAssignOpen(true)}><Plus size={14} /> Assign</Button>
             )}
@@ -312,6 +354,7 @@ export default function MemberProfilePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ color: colors.text.dim }}>
+                  {canReassign && <th className="pb-2 pr-2 text-left"></th>}
                   <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
                   <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Age</th>
                   <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Conditions</th>
@@ -321,6 +364,18 @@ export default function MemberProfilePage() {
               <tbody>
                 {cases.map(p => (
                   <tr key={p.id} style={{ borderTop: `1px solid ${border.divider}` }}>
+                    {canReassign && (
+                      <td className="py-2.5 pr-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          style={{ accentColor: colors.accent }}
+                          checked={selectedCaseIds.includes(p.id)}
+                          onChange={e => setSelectedCaseIds(prev =>
+                            e.target.checked ? [...prev, p.id] : prev.filter(pid => pid !== p.id))}
+                        />
+                      </td>
+                    )}
                     <td className="py-2.5 pr-4">
                       <Link to={ROUTES.patient(p.id)} className="font-medium hover:underline" style={{ color: colors.text.primary }}>
                         {p.firstName} {p.lastName}
@@ -366,6 +421,63 @@ export default function MemberProfilePage() {
         )}
       </Panel>
 
+      {canReassign && reassignments.length > 0 && (
+        <Panel title="Reassignment History">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ color: colors.text.dim }}>
+                  <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Cases</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">To</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Window</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
+                  <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {reassignments.map(r => (
+                  <tr key={r.id} style={{ borderTop: `1px solid ${border.divider}` }}>
+                    <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>
+                      {r.cases.length} case{r.cases.length === 1 ? '' : 's'}
+                    </td>
+                    <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>
+                      {r.fromTherapistId === id ? r.toTherapistName : r.fromTherapistName}
+                    </td>
+                    <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>
+                      {r.type === 'PERMANENT' ? 'Permanent' : `${r.startDate} → ${r.endDate}`}
+                    </td>
+                    <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{r.status}</td>
+                    <td className="py-2.5 text-right">
+                      {r.status === 'ACTIVE' && r.type === 'TEMPORARY' && r.fromTherapistId === id && (
+                        <button
+                          onClick={() => cancelReassignMut.mutate(r.id)}
+                          disabled={cancelReassignMut.isPending}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg disabled:opacity-50"
+                          style={{ color: colors.status.danger, border: `1px solid ${colors.status.danger}30` }}
+                        >
+                          Cancel early
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
+
+      {/* Reassign selected cases */}
+      {reassignOpen && (
+        <ReassignCasesModal
+          therapistId={id!}
+          caseCount={selectedCaseIds.length}
+          pending={reassignMut.isPending}
+          onClose={() => setReassignOpen(false)}
+          onSubmit={data => reassignMut.mutate(data)}
+        />
+      )}
+
       {/* Assign a case */}
       <AssignCaseModal
         open={assignOpen}
@@ -393,6 +505,114 @@ export default function MemberProfilePage() {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
+}
+
+// ── Reassign selected cases ───────────────────────────────────────────────────
+
+function ReassignCasesModal({
+  therapistId, caseCount, pending, onClose, onSubmit,
+}: {
+  therapistId: string
+  caseCount: number
+  pending: boolean
+  onClose: () => void
+  onSubmit: (data: { toTherapistId: string; type: ReassignmentType; startDate?: string; endDate?: string; reason?: string }) => void
+}) {
+  const [toTherapistId, setToTherapistId] = useState('')
+  const [type, setType] = useState<ReassignmentType>('PERMANENT')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+
+  const { data: therapists = [] } = useQuery({
+    queryKey: ['therapists'],
+    queryFn: () => usersApi.listTherapists(),
+  })
+  const options = therapists.filter(t => t.id !== therapistId)
+
+  const submit = () => {
+    if (!toTherapistId) { setError('Choose a therapist to reassign these cases to'); return }
+    if (type === 'TEMPORARY' && !endDate) { setError('Pick an end date for the temporary window'); return }
+    setError('')
+    onSubmit({
+      toTherapistId,
+      type,
+      startDate: startDate || undefined,
+      endDate: type === 'TEMPORARY' ? endDate : undefined,
+      reason: reason.trim() || undefined,
+    })
+  }
+
+  return (
+    <Modal open title={`Reassign ${caseCount} case${caseCount === 1 ? '' : 's'}`} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <Select
+          label="New therapist"
+          placeholder="Choose a therapist"
+          value={toTherapistId}
+          onChange={e => setToTherapistId(e.target.value)}
+          options={options.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+        />
+
+        <div>
+          <label className="form-label">Duration</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setType('PERMANENT')}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
+              style={type === 'PERMANENT'
+                ? { background: 'var(--color-accent)', color: '#fff', borderColor: 'var(--color-accent)' }
+                : { color: colors.text.primary, borderColor: border.divider }}
+            >
+              Permanent
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('TEMPORARY')}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
+              style={type === 'TEMPORARY'
+                ? { background: 'var(--color-accent)', color: '#fff', borderColor: 'var(--color-accent)' }
+                : { color: colors.text.primary, borderColor: border.divider }}
+            >
+              For a time period
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Start date</label>
+            <input type="date" value={startDate} min={todayForInput()} onChange={e => setStartDate(e.target.value)}
+              className="form-input w-full" />
+            <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>Defaults to today</p>
+          </div>
+          {type === 'TEMPORARY' && (
+            <div>
+              <label className="form-label">End date</label>
+              <input type="date" value={endDate} min={startDate || todayForInput()} onChange={e => setEndDate(e.target.value)}
+                className="form-input w-full" />
+              <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>Hands back automatically</p>
+            </div>
+          )}
+        </div>
+
+        <Input label="Reason (optional)" value={reason} onChange={e => setReason(e.target.value)}
+          placeholder="e.g. Covering for planned leave" />
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" loading={pending} onClick={submit}>Reassign</Button>
+      </div>
+    </Modal>
+  )
+}
+
+function todayForInput() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 // ── Assign a case ────────────────────────────────────────────────────────────

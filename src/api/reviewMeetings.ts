@@ -5,6 +5,7 @@ import type {
   ReviewScheduleRequest,
   CreateReviewMeetingRequest,
   RescheduleReviewRequest,
+  UpdateReviewParticipantsRequest,
   ParentFeedbackRequest,
   TherapistFeedbackRequest,
 } from '../types'
@@ -30,9 +31,21 @@ export const reviewMeetingsApi = {
   create: (data: CreateReviewMeetingRequest) =>
     client.post<ApiResponse<ReviewMeetingResponse>>('/review-meetings', data).then(r => r.data.data),
 
+  /** Move a meeting; resends the invite to the current participant list. */
+  reschedule: (id: string, data: RescheduleReviewRequest) =>
+    client
+      .patch<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/reschedule`, data)
+      .then(r => r.data.data),
+
   cancel: (id: string, reason?: string) =>
     client
       .patch<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/cancel`, { reason })
+      .then(r => r.data.data),
+
+  /** Full-replacement edit of a meeting's participant list (Admin Roles). */
+  updateParticipants: (id: string, data: UpdateReviewParticipantsRequest) =>
+    client
+      .patch<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/participants`, data)
       .then(r => r.data.data),
 
   complete: (id: string) =>

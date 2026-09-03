@@ -604,6 +604,8 @@ export interface ReviewScheduleRequest {
   intervalWeeks: number         // defaults to a fortnightly rhythm
   firstMeetingDate?: string     // "YYYY-MM-DD"
   endDate?: string              // "YYYY-MM-DD"
+  /** Clinic Head(s) to invite in place of the therapist — required by the direct scheduling flow. */
+  participantIds?: string[]
 }
 
 export interface CreateEnrollmentRequest {
@@ -657,12 +659,18 @@ export interface CreateReviewMeetingRequest {
   meetingDate: string      // "YYYY-MM-DD"
   startTime: string        // "HH:mm"
   durationMinutes: number
+  /** Clinic Head(s) to invite in place of the therapist — required. */
+  participantIds: string[]
 }
 
 export interface RescheduleReviewRequest {
   meetingDate: string
   startTime: string
   durationMinutes?: number
+}
+
+export interface UpdateReviewParticipantsRequest {
+  participantIds: string[]
 }
 
 export interface ParentFeedbackRequest {
@@ -674,6 +682,43 @@ export interface ParentFeedbackRequest {
 export interface TherapistFeedbackRequest {
   summary: string
   progressNotes?: string
+}
+
+// ── Therapist Reassignments ─────────────────────────────────────────────────
+
+export type ReassignmentType = 'PERMANENT' | 'TEMPORARY'
+export type ReassignmentStatus = 'ACTIVE' | 'REVERTED' | 'CANCELLED'
+
+export interface ReassignmentCaseSummary {
+  patientId: string
+  patientName: string
+  enrollmentId: string | null
+}
+
+export interface ReassignmentResponse {
+  id: string
+  fromTherapistId: string
+  fromTherapistName: string
+  toTherapistId: string
+  toTherapistName: string
+  type: ReassignmentType
+  startDate: string           // "YYYY-MM-DD"
+  endDate: string | null      // "YYYY-MM-DD" — null for PERMANENT
+  status: ReassignmentStatus
+  reason: string | null
+  createdAt: string
+  revertedAt: string | null
+  cases: ReassignmentCaseSummary[]
+}
+
+export interface CreateReassignmentRequest {
+  fromTherapistId: string
+  toTherapistId: string
+  patientIds: string[]
+  type: ReassignmentType
+  startDate?: string          // "YYYY-MM-DD" — defaults to today
+  endDate?: string            // "YYYY-MM-DD" — required when type is TEMPORARY
+  reason?: string
 }
 
 export interface AvailableTherapistResponse {
