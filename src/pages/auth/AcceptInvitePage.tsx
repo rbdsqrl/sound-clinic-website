@@ -153,7 +153,7 @@ export default function AcceptInvitePage() {
                 label="Last name"
                 placeholder="Smith"
                 error={errors.lastName?.message}
-                {...register('lastName', { required: 'Required' })}
+                {...register('lastName')}
               />
             </div>
             <Input

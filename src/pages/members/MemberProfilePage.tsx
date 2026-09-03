@@ -177,7 +177,7 @@ export default function MemberProfilePage() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-14 w-14 rounded-full font-bold text-lg flex items-center justify-center flex-shrink-0"
               style={avatarColor}>
-              {profile.firstName[0]}{profile.lastName[0]}
+              {profile.firstName[0]}{profile.lastName[0] ?? ''}
             </div>
             <div className="min-w-0">
               <p className="text-base sm:text-lg font-semibold truncate" style={{ color: colors.text.heading }}>

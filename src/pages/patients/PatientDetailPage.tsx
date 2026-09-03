@@ -797,7 +797,7 @@ function PatientSwitcher({
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <Avatar
-                    initials={`${p.firstName[0]}${p.lastName[0]}`}
+                    initials={`${p.firstName[0]}${p.lastName[0] ?? ''}`}
                     size="xs"
                     bold
                     color={{ background: accentAlpha(isActive ? 0.20 : 0.08), color: colors.accent }}
@@ -1194,7 +1194,7 @@ function EnrollmentModal({
                       }}
                     >
                       <Avatar
-                        initials={`${t.firstName[0]}${t.lastName[0]}`}
+                        initials={`${t.firstName[0]}${t.lastName[0] ?? ''}`}
                         name={`${t.firstName} ${t.lastName}`}
                         bold
                       />
@@ -1744,7 +1744,7 @@ export default function PatientDetailPage() {
       {/* ── Page header — name only; everything else lives in the tabs below ── */}
       <div className="flex items-center gap-3">
         <Avatar
-          initials={`${patient.firstName[0]}${patient.lastName[0]}`}
+          initials={`${patient.firstName[0]}${patient.lastName[0] ?? ''}`}
           name={`${patient.firstName} ${patient.lastName}`}
           size="lg"
           bold
@@ -1921,7 +1921,7 @@ export default function PatientDetailPage() {
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
-                          <Avatar initials={`${p.firstName[0]}${p.lastName[0]}`} name={`${p.firstName} ${p.lastName}`} />
+                          <Avatar initials={`${p.firstName[0]}${p.lastName[0] ?? ''}`} name={`${p.firstName} ${p.lastName}`} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
@@ -1951,7 +1951,7 @@ export default function PatientDetailPage() {
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3">
-                          <Avatar initials={`${t.firstName[0]}${t.lastName[0]}`} name={`${t.firstName} ${t.lastName}`} />
+                          <Avatar initials={`${t.firstName[0]}${t.lastName[0] ?? ''}`} name={`${t.firstName} ${t.lastName}`} />
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
@@ -2704,7 +2704,7 @@ export default function PatientDetailPage() {
             />
             <Input
               label="Last name"
-              {...editForm.register('lastName', { required: 'Required' })}
+              {...editForm.register('lastName')}
               error={editForm.formState.errors.lastName?.message}
             />
             <Input

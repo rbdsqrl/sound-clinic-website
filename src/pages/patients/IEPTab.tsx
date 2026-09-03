@@ -426,6 +426,170 @@ function PlanTherapistBadge({ therapistName, therapists, canAssign, onAssign }: 
   )
 }
 
+function PlanTitle({ title, canEdit, onSave }: {
+  title: string
+  canEdit: boolean
+  onSave: (title: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(title)
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={value}
+        onClick={e => e.stopPropagation()}
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => {
+          const trimmed = value.trim()
+          if (trimmed && trimmed !== title) onSave(trimmed)
+          setEditing(false)
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { setValue(title); setEditing(false) }
+        }}
+        className="font-semibold text-sm rounded px-1.5 py-0.5 border outline-none"
+        style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.text.primary }}
+      />
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>{title}</p>
+      {canEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); setValue(title); setEditing(true) }}
+          className="hover:opacity-70 transition-opacity"
+          style={{ color: colors.text.dim }}
+          title="Rename plan"
+        >
+          <Pencil size={10} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+function PlanTags({ tags, canEdit, onSave }: {
+  tags: string[]
+  canEdit: boolean
+  onSave: (tags: string[]) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(tags.join(', '))
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={value}
+        placeholder="speech, language, motor"
+        onClick={e => e.stopPropagation()}
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => {
+          onSave(value.split(',').map(t => t.trim()).filter(Boolean))
+          setEditing(false)
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { setValue(tags.join(', ')); setEditing(false) }
+        }}
+        className="text-[12.65px] rounded-full px-2 py-0.5 border outline-none"
+        style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.text.primary, minWidth: 180 }}
+      />
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      {tags.map(tag => (
+        <span key={tag} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.07, 0.12)}>{tag}</span>
+      ))}
+      {canEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); setValue(tags.join(', ')); setEditing(true) }}
+          className="hover:opacity-70 transition-opacity"
+          style={{ color: colors.text.dim }}
+          title={tags.length > 0 ? 'Edit tags' : 'Add tags'}
+        >
+          <Pencil size={10} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+function PlanDateRange({ startDate, endDate, canEdit, onSave }: {
+  startDate: string | null
+  endDate: string | null
+  canEdit: boolean
+  onSave: (startDate: string, endDate: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [start, setStart] = useState(startDate ?? '')
+  const [end, setEnd] = useState(endDate ?? '')
+
+  if (editing) {
+    return (
+      <span
+        className="inline-flex items-center gap-1"
+        onClick={e => e.stopPropagation()}
+        onBlur={e => {
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return
+          if (start && end) onSave(start, end)
+          setEditing(false)
+        }}
+      >
+        <input
+          type="date"
+          autoFocus
+          value={start}
+          onChange={e => setStart(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') { setStart(startDate ?? ''); setEnd(endDate ?? ''); setEditing(false) }
+          }}
+          className="text-xs rounded px-1.5 py-0.5 border outline-none"
+          style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.text.primary }}
+        />
+        <span>–</span>
+        <input
+          type="date"
+          value={end}
+          onChange={e => setEnd(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') { setStart(startDate ?? ''); setEnd(endDate ?? ''); setEditing(false) }
+          }}
+          className="text-xs rounded px-1.5 py-0.5 border outline-none"
+          style={{ borderColor: accentAlpha(0.30), background: accentAlpha(0.06), color: colors.text.primary }}
+        />
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      {startDate && endDate
+        ? <span>{format(new Date(startDate), 'dd MMM yyyy')} – {format(new Date(endDate), 'dd MMM yyyy')}</span>
+        : (canEdit && <span style={{ color: colors.text.dim }}>No dates set</span>)}
+      {canEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); setStart(startDate ?? ''); setEnd(endDate ?? ''); setEditing(true) }}
+          className="hover:opacity-70 transition-opacity"
+          style={{ color: colors.text.dim }}
+          title="Edit dates"
+        >
+          <Pencil size={10} />
+        </button>
+      )}
+    </span>
+  )
+}
+
 // ── CSV Guide modal ───────────────────────────────────────────────────────────
 
 function CsvGuideModal({ open, onClose, onFileSelect }: {
@@ -1187,6 +1351,27 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
     onError: (err) => toast(getApiError(err, 'Failed to assign therapist'), 'error'),
   })
 
+  const renamePlanMut = useMutation({
+    mutationFn: ({ planId, title }: { planId: string; title: string }) =>
+      iepApi.updatePlan(planId, { title }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Plan renamed', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to rename plan'), 'error'),
+  })
+
+  const updatePlanTagsMut = useMutation({
+    mutationFn: ({ planId, tags }: { planId: string; tags: string[] }) =>
+      iepApi.updatePlan(planId, { tags }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Tags updated', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to update tags'), 'error'),
+  })
+
+  const updatePlanDatesMut = useMutation({
+    mutationFn: ({ planId, startDate, endDate }: { planId: string; startDate: string; endDate: string }) =>
+      iepApi.updatePlan(planId, { startDate, endDate }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Dates updated', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to update dates'), 'error'),
+  })
+
   const togglePlan = (id: string) =>
     setExpandedPlans(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -1244,10 +1429,16 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                   {/* Plan info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>{plan.title}</p>
-                      {plan.tags.map(tag => (
-                        <span key={tag} className="text-[12.65px] px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.07, 0.12)}>{tag}</span>
-                      ))}
+                      <PlanTitle
+                        title={plan.title}
+                        canEdit={isEditor}
+                        onSave={title => renamePlanMut.mutate({ planId: plan.id, title })}
+                      />
+                      <PlanTags
+                        tags={plan.tags}
+                        canEdit={isEditor}
+                        onSave={tags => updatePlanTagsMut.mutate({ planId: plan.id, tags })}
+                      />
                     </div>
                     <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: colors.text.dim }}>
                       <PlanTherapistBadge
@@ -1256,9 +1447,12 @@ export default function IEPTab({ patientId, therapists = [] }: { patientId: stri
                         canAssign={isAdmin}
                         onAssign={therapistId => assignTherapistMut.mutate({ planId: plan.id, therapistId })}
                       />
-                      {plan.startDate && plan.endDate && (
-                        <span>{format(new Date(plan.startDate), 'dd MMM yyyy')} – {format(new Date(plan.endDate), 'dd MMM yyyy')}</span>
-                      )}
+                      <PlanDateRange
+                        startDate={plan.startDate}
+                        endDate={plan.endDate}
+                        canEdit={isEditor}
+                        onSave={(startDate, endDate) => updatePlanDatesMut.mutate({ planId: plan.id, startDate, endDate })}
+                      />
                     </div>
                   </div>
 

@@ -88,7 +88,7 @@ function AssigneeChips({ assignees, max = 3 }: { assignees: TaskAssignee[]; max?
             position: 'relative',
           }}
         >
-          {a.firstName[0]}{a.lastName[0]}
+          {a.firstName[0]}{a.lastName[0] ?? ''}
         </span>
       ))}
       {rest > 0 && (
@@ -212,7 +212,7 @@ function MemberPickerModal({
               {/* Avatar */}
               <span className="h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
                 style={getAvatarColorStyles(`${m.firstName} ${m.lastName}`, theme === 'dark')}>
-                {m.firstName[0]}{m.lastName[0]}
+                {m.firstName[0]}{m.lastName[0] ?? ''}
               </span>
 
               {/* Name + role */}
@@ -654,7 +654,7 @@ function TaskDetailModal({
                   <div key={a.id} className="flex items-center gap-1.5">
                     <span className="text-[11.5px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
                       style={getAvatarColorStyles(`${a.firstName} ${a.lastName}`, theme === 'dark')}>
-                      {a.firstName[0]}{a.lastName[0]}
+                      {a.firstName[0]}{a.lastName[0] ?? ''}
                     </span>
                     <span className="text-xs" style={{ color: colors.text.primary }}>
                       {a.firstName} {a.lastName}

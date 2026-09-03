@@ -408,7 +408,7 @@ export default function PatientsPage() {
             <Input label="First name" placeholder="Alex" error={errors.firstName?.message}
               {...register('firstName', { required: 'Required' })} />
             <Input label="Last name" placeholder="Johnson" error={errors.lastName?.message}
-              {...register('lastName', { required: 'Required' })} />
+              {...register('lastName')} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Date of birth" type="date" {...register('dateOfBirth')} />

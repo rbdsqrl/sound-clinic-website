@@ -951,7 +951,7 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
       onMouseLeave={ROW_HOVER_OUT}
     >
       <Avatar
-        initials={`${p.firstName[0]}${p.lastName[0]}`}
+        initials={`${p.firstName[0]}${p.lastName[0] ?? ''}`}
         name={`${p.firstName} ${p.lastName}`}
         bold
       />
@@ -1072,7 +1072,7 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
       onMouseLeave={ROW_HOVER_OUT}
     >
       <Avatar
-        initials={`${b.firstName[0]}${b.lastName[0]}`}
+        initials={`${b.firstName[0]}${b.lastName[0] ?? ''}`}
         name={`${b.firstName} ${b.lastName}`}
         bold
       />
@@ -1656,7 +1656,7 @@ export default function DashboardPage() {
                   onMouseLeave={ROW_HOVER_OUT}
                 >
                   <Avatar
-                    initials={`${child.firstName[0]}${child.lastName[0]}`}
+                    initials={`${child.firstName[0]}${child.lastName[0] ?? ''}`}
                     name={`${child.firstName} ${child.lastName}`}
                     size="lg"
                   />

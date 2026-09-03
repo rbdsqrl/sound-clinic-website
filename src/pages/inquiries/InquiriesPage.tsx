@@ -282,7 +282,7 @@ function ConvertModal({
     onError: (err) => toast(getApiError(err, 'Conversion failed'), 'error'),
   })
 
-  const canSubmit = firstName.trim() && lastName.trim() && clinicId &&
+  const canSubmit = firstName.trim() && clinicId &&
     (!linkUser || linkedEmail.trim())
 
   function copyLink() {

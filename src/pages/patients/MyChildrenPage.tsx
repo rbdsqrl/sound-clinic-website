@@ -245,7 +245,7 @@ export default function MyChildrenPage() {
                   className="h-10 w-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0"
                   style={getAvatarColorStyles(`${child.firstName} ${child.lastName}`, theme === 'dark')}
                 >
-                  {child.firstName[0]}{child.lastName[0]}
+                  {child.firstName[0]}{child.lastName[0] ?? ''}
                 </div>
 
                 {/* Name + meta */}
