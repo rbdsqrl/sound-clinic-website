@@ -888,8 +888,8 @@ function OrgOverview({ patients, members, invites }: {
   members: StaffMemberResponse[]
   invites: InviteResponse[]
 }) {
-  const activeCases  = patients.filter(p => p.isActive && p.parents.length > 0).length
-  const invitedCases = patients.filter(p => p.isActive && p.parents.length === 0).length
+  const activeCases   = patients.filter(p => p.stage !== 'DISCHARGED').length
+  const inactiveCases = patients.filter(p => p.stage === 'DISCHARGED').length
 
   const activeMembers  = members.filter(m => m.isActive).length
   const invitedMembers = invites.filter(i => i.status === 'PENDING').length
@@ -908,12 +908,12 @@ function OrgOverview({ patients, members, invites }: {
         <StatRingPanel
           title="Cases"
           ring={[
-            { value: activeCases,  color: palette.green.text },
-            { value: invitedCases, color: palette.slate.text },
+            { value: activeCases,   color: palette.green.text },
+            { value: inactiveCases, color: palette.slate.text },
           ]}
           stats={[
-            { label: 'Active',      count: activeCases,  color: palette.green.text },
-            { label: 'Not Invited', count: invitedCases, color: palette.slate.text },
+            { label: 'Active',   count: activeCases,   color: palette.green.text },
+            { label: 'Inactive', count: inactiveCases, color: palette.slate.text },
           ]}
         />
         <StatRingPanel

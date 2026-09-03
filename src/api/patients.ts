@@ -19,7 +19,7 @@ export interface PatientSearchParams {
   search?: string
   /** Scope to patients assigned to the caller. Always on server-side for THERAPIST regardless of this. */
   mine?: boolean
-  /** Comma-separated subset of ACTIVE,NOT_INVITED,INACTIVE. Omit for the default (ACTIVE,NOT_INVITED); pass '' to include every status. */
+  /** Comma-separated subset of ACTIVE,INACTIVE (Active = not discharged, Inactive = stage DISCHARGED). Omit for the default (ACTIVE); pass '' to include every status. */
   status?: string
   /** Returns parents/therapists as id-only stubs (blank name/email) — pass true when the caller only reads .length, not names. */
   compact?: boolean

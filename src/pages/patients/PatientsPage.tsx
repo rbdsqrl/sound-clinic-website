@@ -23,32 +23,31 @@ import { getAvatarColorStyles } from '../../lib/avatarColor'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
 import { format } from 'date-fns'
 
-// ── Invite status ─────────────────────────────────────────────────────────────
+// ── Case status — active until discharged ───────────────────────────────────────
 
-type InviteStatus = 'ACTIVE' | 'NOT_INVITED'
+type CaseStatus = 'ACTIVE' | 'INACTIVE'
 
-function inviteStatus(p: PatientResponse): InviteStatus {
-  return p.parents.length > 0 ? 'ACTIVE' : 'NOT_INVITED'
+function caseStatus(p: PatientResponse): CaseStatus {
+  return p.stage === 'DISCHARGED' ? 'INACTIVE' : 'ACTIVE'
 }
 
-const INVITE_LABEL: Record<InviteStatus, string> = {
-  ACTIVE:      'Active',
-  NOT_INVITED: 'Not Invited',
+const STATUS_LABEL: Record<CaseStatus, string> = {
+  ACTIVE:   'Active',
+  INACTIVE: 'Inactive',
 }
 
-const INVITE_STYLE: Record<InviteStatus, React.CSSProperties> = {
-  ACTIVE:      paletteStyle('teal',  0.10),
-  NOT_INVITED: paletteStyle('slate', 0.10),
+const STATUS_STYLE: Record<CaseStatus, React.CSSProperties> = {
+  ACTIVE:   paletteStyle('teal',  0.10),
+  INACTIVE: paletteStyle('slate', 0.10),
 }
 
 // ── Filter pill types ─────────────────────────────────────────────────────────
 
-type FilterKey = 'ACTIVE' | 'NOT_INVITED' | 'INACTIVE'
+type FilterKey = CaseStatus
 
 const FILTER_PILLS: { key: FilterKey; label: string }[] = [
-  { key: 'ACTIVE',      label: 'Active'      },
-  { key: 'NOT_INVITED', label: 'Not Invited' },
-  { key: 'INACTIVE',    label: 'Inactive'    },
+  { key: 'ACTIVE',   label: 'Active'   },
+  { key: 'INACTIVE', label: 'Inactive' },
 ]
 
 // ── Genders ───────────────────────────────────────────────────────────────────
@@ -66,7 +65,7 @@ function PatientCard({ patient, clinicName }: {
   clinicName?: string
 }) {
   const av      = useAvatarColor(`${patient.firstName} ${patient.lastName}`)
-  const status  = inviteStatus(patient)
+  const status  = caseStatus(patient)
   const initials = `${patient.firstName[0] ?? ''}${patient.lastName[0] ?? ''}`.toUpperCase()
   const therapies = patient.therapies ?? []
 
@@ -99,9 +98,9 @@ function PatientCard({ patient, clinicName }: {
           </div>
           <span
             className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[12.65px] font-medium whitespace-nowrap"
-            style={INVITE_STYLE[status]}
+            style={STATUS_STYLE[status]}
           >
-            {INVITE_LABEL[status]}
+            {STATUS_LABEL[status]}
           </span>
         </div>
 
@@ -155,7 +154,7 @@ export default function PatientsPage() {
   const [viewMode,      setViewMode]      = useState<'grid' | 'list'>('grid')
   const [tab,           setTab]           = useState<'all' | 'mine'>('all')
   const [search,        setSearch]        = useState('')
-  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE', 'NOT_INVITED']))
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE']))
   const [page,          setPage]          = useState(0)
   const PAGE_SIZE = 18
 
@@ -317,7 +316,7 @@ export default function PatientsPage() {
           <div className="flex flex-col gap-3 md:hidden">
             {filtered.map((p) => {
               const av      = getAvatarColorStyles(`${p.firstName} ${p.lastName}`, theme === 'dark')
-              const status  = inviteStatus(p)
+              const status  = caseStatus(p)
               const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
               return (
                 <Link key={p.id} to={`/patients/${p.id}`}>
@@ -330,7 +329,7 @@ export default function PatientsPage() {
                           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.dateOfBirth ? calcAge(p.dateOfBirth) : '—'}</p>
                         </div>
                       </div>
-                      <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                      <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={STATUS_STYLE[status]}>{STATUS_LABEL[status]}</span>
                     </div>
                     {p.conditions.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
@@ -361,7 +360,7 @@ export default function PatientsPage() {
               <tbody>
                 {filtered.map((p) => {
                   const av      = getAvatarColorStyles(`${p.firstName} ${p.lastName}`, theme === 'dark')
-                  const status  = inviteStatus(p)
+                  const status  = caseStatus(p)
                   const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase()
                   return (
                     <tr
@@ -392,7 +391,7 @@ export default function PatientsPage() {
                       </td>
                       <td className="px-4 py-3" style={{ color: colors.text.muted }}>{p.therapists.length}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={INVITE_STYLE[status]}>{INVITE_LABEL[status]}</span>
+                        <span className="rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={STATUS_STYLE[status]}>{STATUS_LABEL[status]}</span>
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{format(new Date(p.createdAt), 'dd MMM yyyy')}</td>
                     </tr>

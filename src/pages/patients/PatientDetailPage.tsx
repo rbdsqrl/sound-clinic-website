@@ -1860,7 +1860,7 @@ export default function PatientDetailPage() {
                     ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
                     ['Gender', patient.gender?.toLowerCase()],
                     ['Clinic', clinicName],
-                    ['Status', patient.isActive ? 'Active' : 'Inactive'],
+                    ['Status', patient.stage === 'DISCHARGED' ? 'Inactive' : 'Active'],
                   ].map(([label, value]) => (
                     <div key={label as string}>
                       <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
