@@ -78,7 +78,7 @@ function Navbar() {
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(16px)',
-        borderBottom: `1px solid rgba(43,128,200,0.10)`,
+        borderBottom: `1px solid rgba(26,115,232,0.10)`,
       }}
     >
       {/* Logo + name */}
@@ -561,7 +561,7 @@ function InquiryForm() {
         {submitted ? (
           <div
             className="flex flex-col items-center gap-4 rounded-2xl p-10 text-center"
-            style={{ background: 'rgba(43,128,200,0.06)', border: '1px solid rgba(43,128,200,0.15)' }}
+            style={{ background: 'rgba(26,115,232,0.06)', border: '1px solid rgba(26,115,232,0.15)' }}
           >
             <CheckCircle2 size={40} style={{ color: colors.accent }} />
             <h3 className="text-xl font-bold" style={{ color: colors.text.heading }}>Thank you, {name}!</h3>
@@ -594,7 +594,7 @@ function InquiryForm() {
                   placeholder="Parent / Guardian name"
                   className="block w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-all"
                   style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.12)', color: '#374B5F' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#2B80C8')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#1A73E8')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
@@ -641,7 +641,7 @@ function InquiryForm() {
                 placeholder="you@email.com"
                 className="block w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-all"
                 style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.12)', color: '#374B5F' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#2B80C8')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#1A73E8')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </div>
@@ -655,7 +655,7 @@ function InquiryForm() {
                 placeholder="e.g. My child has speech delay, looking for hearing assessment…"
                 className="block w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-all resize-none"
                 style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.12)', color: '#374B5F' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#2B80C8')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#1A73E8')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </div>
@@ -671,7 +671,7 @@ function InquiryForm() {
                     className="flex-1 rounded-xl py-2 text-sm font-medium transition-all"
                     style={
                       time === t
-                        ? { background: 'rgba(43,128,200,0.12)', color: '#2B80C8', border: '1px solid rgba(43,128,200,0.30)' }
+                        ? { background: 'rgba(26,115,232,0.12)', color: '#1A73E8', border: '1px solid rgba(26,115,232,0.30)' }
                         : { background: '#F5F7FA', color: '#6B8499', border: '1px solid rgba(0,0,0,0.08)' }
                     }
                   >

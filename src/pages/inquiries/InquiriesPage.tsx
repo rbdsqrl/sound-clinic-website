@@ -50,11 +50,11 @@ const STATUS_META: Record<InquiryStatus, {
 }
 
 const LOG_META: Record<InquiryLogType, { label: string; icon: React.ElementType; color: string }> = {
-  CALL:                    { label: 'Call',                   icon: PhoneCall,        color: '#2B80C8' },
+  CALL:                    { label: 'Call',                   icon: PhoneCall,        color: '#1A73E8' },
   EMAIL:                   { label: 'Email',                  icon: AtSign,           color: '#7C5CBF' },
   WHATSAPP:                { label: 'WhatsApp',               icon: MessageCircle,    color: '#25D366' },
   NOTE:                    { label: 'Note',                   icon: FileText,         color: '#888' },
-  APPOINTMENT_SCHEDULED:   { label: 'Appointment Scheduled',  icon: CalendarDays,     color: '#2B80C8' },
+  APPOINTMENT_SCHEDULED:   { label: 'Appointment Scheduled',  icon: CalendarDays,     color: '#1A73E8' },
   APPOINTMENT_CANCELLED:   { label: 'Appointment Cancelled',  icon: CalendarDays,     color: '#E05C5C' },
   STATUS_CHANGED:          { label: 'Status Changed',         icon: ArrowRightCircle, color: '#888' },
   CONVERTED:               { label: 'Converted to Case',      icon: UserCheck,        color: '#4CAF50' },

@@ -60,7 +60,7 @@ interface CalendarEvent {
 
 function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   if (kind === 'consultation') {
-    return { background: '#2B80C818', color: '#2B80C8' }
+    return { background: '#1A73E818', color: '#1A73E8' }
   }
   if (kind === 'holiday') {
     return { background: '#F59E0B20', color: '#B45309' }
@@ -98,7 +98,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 }
 
 function kindDot(kind: EventKind, status?: string): string {
-  if (kind === 'consultation') return '#2B80C8'
+  if (kind === 'consultation') return '#1A73E8'
   if (kind === 'holiday')      return '#B45309'
   if (kind === 'review') {
     if (status === 'CANCELLED') return '#888'
