@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { Plus, Trash2, ChevronDown, ChevronUp, Pencil, BookOpen, Upload } from 'lucide-react'
@@ -11,7 +11,6 @@ import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
-import { ToastContainer } from '../../components/ui/Toast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
 import type {
@@ -191,8 +190,11 @@ function AddGoalModal({
   toast: ToastFn
 }) {
   const qc = useQueryClient()
+  const [formError, setFormError] = useState<string | null>(null)
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } =
     useForm<CreateIEPTemplateGoalRequest>()
+
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
     mutationFn: (data: CreateIEPTemplateGoalRequest) => iepTemplatesApi.addGoal(templateId, data),
@@ -202,12 +204,12 @@ function AddGoalModal({
       reset()
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to add goal'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to add goal')),
   })
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Add Goal — ${templateName}`}>
-      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Add Goal — ${templateName}`} error={formError}>
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input
           label="Goal title"
           placeholder="e.g. Phoneme Discrimination"
@@ -386,6 +388,7 @@ function TemplateModal({
   toast: ToastFn
 }) {
   const qc = useQueryClient()
+  const [formError, setFormError] = useState<string | null>(null)
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } =
     useForm<{ name: string; description: string; tags: string }>({
       defaultValues: {
@@ -394,6 +397,8 @@ function TemplateModal({
         tags:        editing?.tags.join(', ') ?? '',
       },
     })
+
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
   const tagsRaw = watch('tags') ?? ''
   const tagChips = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
@@ -409,7 +414,7 @@ function TemplateModal({
       reset()
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create template'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create template')),
   })
 
   const updateMut = useMutation({
@@ -421,17 +426,20 @@ function TemplateModal({
       reset()
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to update template'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to update template')),
   })
 
-  const onSubmit = (d: { name: string; description: string; tags: string }) =>
-    editing ? updateMut.mutateAsync(d) : createMut.mutateAsync(d)
+  const onSubmit = (d: { name: string; description: string; tags: string }) => {
+    setFormError(null)
+    return editing ? updateMut.mutateAsync(d) : createMut.mutateAsync(d)
+  }
 
   return (
     <Modal
       open={open}
       onClose={() => { reset(); onClose() }}
       title={editing ? 'Edit Template' : 'New IEP Template'}
+      error={formError}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
@@ -484,7 +492,7 @@ function TemplateModal({
 
 export default function IEPLibraryTab() {
   const { user, activeRole } = useAuth()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
 
   const currentRole = activeRole ?? user?.role
@@ -493,8 +501,11 @@ export default function IEPLibraryTab() {
   const [modalOpen,        setModalOpen]        = useState(false)
   const [editingTemplate,  setEditingTemplate]  = useState<IEPTemplateResponse | null>(null)
   const [deletingId,       setDeletingId]       = useState<string | null>(null)
+  const [deleteError,      setDeleteError]      = useState<string | null>(null)
   const [csvImporting,     setCsvImporting]     = useState(false)
   const csvInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (deletingId !== null) setDeleteError(null) }, [deletingId])
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -550,7 +561,7 @@ export default function IEPLibraryTab() {
       toast('Template deleted', 'success')
       setDeletingId(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete template'), 'error'),
+    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete template')),
   })
 
   const deleteGoalMut = useMutation({
@@ -637,6 +648,7 @@ export default function IEPLibraryTab() {
         onClose={() => setDeletingId(null)}
         title="Delete Template"
         size="sm"
+        error={deleteError}
       >
         <p className="text-sm mb-5" style={{ color: colors.text.primary }}>
           This will permanently delete the template and all its goals.
@@ -646,14 +658,12 @@ export default function IEPLibraryTab() {
           <Button
             variant="danger"
             loading={deleteMut.isPending}
-            onClick={() => deletingId && deleteMut.mutate(deletingId)}
+            onClick={() => { setDeleteError(null); deletingId && deleteMut.mutate(deletingId) }}
           >
             Delete
           </Button>
         </div>
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

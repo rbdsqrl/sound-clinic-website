@@ -13,7 +13,6 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { ToastContainer } from '../../components/ui/Toast'
 import { Avatar } from '../../components/shared/Avatar'
 import AttendanceTrendChart, { type AttendanceTrendPoint } from '../../components/charts/AttendanceTrendChart'
 import { useToast } from '../../hooks/useToast'
@@ -248,7 +247,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
     return () => clearTimeout(t)
   }, [toDraft])
 
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
 
   const { data: records = [], isLoading: recordsLoading } = useQuery({
@@ -519,8 +518,6 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
           </div>
         </>
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

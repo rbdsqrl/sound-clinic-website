@@ -768,6 +768,9 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   const [goalDrafts,   setGoalDrafts]   = useState<CreateIEPGoalRequest[]>([])
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<{
     title: string; startDate: string; endDate: string; tags: string; therapistId: string
@@ -866,10 +869,11 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
       toast('IEP plan created', 'success')
       handleClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create plan'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create plan')),
   })
 
   const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string; therapistId: string }) => {
+    setFormError(null)
     const tags = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : []
     return mut.mutateAsync({
       title: data.title, startDate: data.startDate || undefined, endDate: data.endDate || undefined, tags,
@@ -878,7 +882,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="New IEP Plan" size="lg">
+    <Modal open={open} onClose={handleClose} title="New IEP Plan" size="lg" error={formError}>
       {mode === 'choice' ? (
         <div className="space-y-3">
           <p className="text-sm mb-1" style={{ color: colors.text.muted }}>How would you like to start this plan?</p>
@@ -1081,7 +1085,10 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
+  const [formError, setFormError] = useState<string | null>(null)
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
+
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
     mutationFn: (data: CreateIEPGoalRequest) => iepApi.addGoal(planId, data),
@@ -1091,12 +1098,12 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
       reset()
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to add goal'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to add goal')),
   })
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Add Goal — ${planTitle}`}>
-      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Add Goal — ${planTitle}`} error={formError}>
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={errors.title?.message}
           {...register('title', { required: 'Required' })} />
         <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={errors.domain?.message}
@@ -1129,6 +1136,7 @@ function EditGoalModal({ open, onClose, goal }: {
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
+  const [formError, setFormError] = useState<string | null>(null)
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
 
   useEffect(() => {
@@ -1144,6 +1152,8 @@ function EditGoalModal({ open, onClose, goal }: {
     }
   }, [goal, reset])
 
+  useEffect(() => { if (open) setFormError(null) }, [open])
+
   const mut = useMutation({
     mutationFn: (data: CreateIEPGoalRequest) => iepApi.updateGoal(goal!.id, data),
     onSuccess: () => {
@@ -1151,14 +1161,14 @@ function EditGoalModal({ open, onClose, goal }: {
       toast('Goal updated', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to update goal'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to update goal')),
   })
 
   if (!goal) return null
 
   return (
-    <Modal open={open} onClose={onClose} title={`Edit Goal — ${goal.title}`}>
-      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+    <Modal open={open} onClose={onClose} title={`Edit Goal — ${goal.title}`} error={formError}>
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={errors.title?.message}
           {...register('title', { required: 'Required' })} />
         <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={errors.domain?.message}
@@ -1190,9 +1200,12 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
+  const [formError, setFormError] = useState<string | null>(null)
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<{
     sessionDate: string; note: string; trialsPassed: string; trialsTotal: string
   }>({ defaultValues: { sessionDate: new Date().toISOString().split('T')[0] } })
+
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
     mutationFn: (data: { sessionDate: string; note: string; trialsPassed: string; trialsTotal: string }) =>
@@ -1209,14 +1222,14 @@ function LogProgressModal({ open, onClose, goal, patientId }: {
       reset({ sessionDate: new Date().toISOString().split('T')[0] })
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to log progress'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to log progress')),
   })
 
   if (!goal) return null
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Log Progress — ${goal.title}`}>
-      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={`Log Progress — ${goal.title}`} error={formError}>
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input label="Session date" type="date" {...register('sessionDate', { required: 'Required' })} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Trials passed" type="number" placeholder="e.g. 4" {...register('trialsPassed')} />

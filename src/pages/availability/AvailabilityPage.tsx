@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, Plus, Trash2, ChevronDown } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
@@ -205,16 +205,18 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
   clinics: ClinicResponse[]; therapists: UserResponse[]; onCreated: () => void
 }) {
   const { toast } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
   type FormValues = Omit<CreateSlotRequest, 'slotDurationMinutes'> & { slotDurationMinutes: string }
   const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm<FormValues>()
 
   const createMut = useMutation({
     mutationFn: (data: CreateSlotRequest) => slotsApi.create(data),
     onSuccess: () => { toast('Slot added', 'success'); reset(); onCreated() },
-    onError: (err) => toast(getApiError(err, 'Failed to add slot'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to add slot')),
   })
 
   const onSubmit = handleSubmit(async (raw: FormValues) => {
+    setFormError(null)
     await createMut.mutateAsync({
       therapistId:         raw.therapistId,
       clinicId:            raw.clinicId,
@@ -225,8 +227,10 @@ function AddSlotModal({ open, onClose, clinics, therapists, onCreated }: {
     })
   })
 
+  useEffect(() => { if (open) setFormError(null) }, [open])
+
   return (
-    <Modal open={open} onClose={onClose} title="Add Availability Slot">
+    <Modal open={open} onClose={onClose} title="Add Availability Slot" error={formError}>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1">
           <label className="form-label">Therapist</label>

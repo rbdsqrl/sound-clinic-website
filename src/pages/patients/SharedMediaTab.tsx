@@ -9,7 +9,6 @@ import { Badge, roleBadge } from '../../components/ui/Badge'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
@@ -62,7 +61,7 @@ function tiltFor(id: string): number {
 }
 
 export default function SharedMediaTab({ patientId }: { patientId: string }) {
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const { user } = useAuth()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -70,6 +69,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState('')
   const [selected, setSelected] = useState<SharedMediaResponse | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['shared-media', patientId],
@@ -95,7 +95,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
       toast('Deleted', 'success')
       setSelected(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete'), 'error'),
+    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete')),
   })
 
   if (isLoading) return <PageLoader />
@@ -107,8 +107,6 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
 
   return (
     <div className="space-y-6">
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
-
       <Card>
         <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>Share a file and/or a note</p>
         <p className="text-xs mb-3" style={{ color: colors.text.muted }}>Videos, documents and images are all supported.</p>
@@ -176,10 +174,10 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
             return (
               <div
                 key={item.id}
-                onClick={() => setSelected(item)}
+                onClick={() => { setDeleteError(null); setSelected(item) }}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') setSelected(item) }}
+                onKeyDown={e => { if (e.key === 'Enter') { setDeleteError(null); setSelected(item) } }}
                 className="relative rounded-2xl p-4 pt-6 cursor-pointer transition-all hover:-translate-y-1"
                 style={{
                   ...styles.card,
@@ -236,7 +234,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
       )}
 
       {selected && (
-        <Modal open title="Shared note" onClose={() => setSelected(null)} size="md">
+        <Modal open title="Shared note" onClose={() => setSelected(null)} size="md" error={deleteError}>
           <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{selected.uploadedByName}</p>
@@ -288,7 +286,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
 
           {canDelete(selected) && (
             <div className="flex justify-end mt-5 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-              <Button variant="danger" loading={deleteMut.isPending} onClick={() => deleteMut.mutate(selected.id)}>
+              <Button variant="danger" loading={deleteMut.isPending} onClick={() => { setDeleteError(null); deleteMut.mutate(selected.id) }}>
                 <Trash2 size={14} /> Delete
               </Button>
             </div>

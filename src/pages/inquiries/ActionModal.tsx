@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
-  PhoneCall, PhoneOff, CalendarDays, XCircle, BellRing,
+  AlertCircle, PhoneCall, PhoneOff, CalendarDays, XCircle, BellRing,
   CheckCircle2, UserX, RefreshCw, ArrowRight, X, UserCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -10,7 +10,7 @@ import { inquiriesApi } from '../../api/inquiries'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface, accentAlpha, paletteStyle } from '../../theme'
+import { colors, border, surface, styles, accentAlpha, dangerAlpha, paletteStyle } from '../../theme'
 import type { InquiryResponse, InquiryStatus, InquiryActionOutcome } from '../../types'
 import { MiniCalendar } from './MiniCalendar'
 import { ROUTES } from '../../lib/routes'
@@ -239,6 +239,7 @@ export function ActionModal({
   const [apptDate,     setApptDate]     = useState<Date | null>(null)
   const [apptTime,     setApptTime]     = useState<string | null>(null)
   const [apptNotes,    setApptNotes]    = useState('')
+  const [actionError,  setActionError]  = useState<string | null>(null)
 
   const selectedOutcome = config?.outcomes.find(o => o.id === selected)
   const needsAppt       = selectedOutcome?.requiresAppointment ?? false
@@ -265,7 +266,7 @@ export function ActionModal({
       toast('Updated', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Action failed'), 'error'),
+    onError: (err) => setActionError(getApiError(err, 'Action failed')),
   })
 
   const canSubmit =
@@ -304,7 +305,8 @@ export function ActionModal({
         title={config.actionLabel}
         icon={<ActionIcon size={16} />}
         subtitle={inquiry.name}
-        onClose={onClose}>
+        onClose={onClose}
+        error={actionError}>
 
         <div className="flex flex-col gap-4">
 
@@ -398,6 +400,7 @@ export function ActionModal({
                   onRequestConvert?.()
                   onClose()
                 } else {
+                  setActionError(null)
                   mutation.mutate()
                 }
               }}
@@ -418,7 +421,7 @@ export function ActionModal({
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.55)' }}
+      style={styles.modalBackdrop}
       onClick={e => e.target === e.currentTarget && onClose()}>
       {children}
     </div>
@@ -426,13 +429,16 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
 }
 
 function ModalShell({
-  title, icon, subtitle, onClose, children,
+  title, icon, subtitle, onClose, children, error,
 }: {
   title: string
   icon?: React.ReactNode
   subtitle?: string
   onClose: () => void
   children: React.ReactNode
+  /** An operation/API failure tied to this modal — rendered inline below the header instead of
+   *  as a floating toast, which can go unnoticed or render behind the modal while it's open. */
+  error?: string | null
 }) {
   return (
     <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto"
@@ -455,6 +461,13 @@ function ModalShell({
           <X size={18} />
         </button>
       </div>
+      {error && (
+        <div className="flex items-start gap-2 mx-5 mt-4 rounded-xl px-3 py-2.5 text-sm"
+          style={{ background: dangerAlpha(0.10), border: `1px solid ${dangerAlpha(0.25)}`, color: colors.status.danger }}>
+          <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
       <div className="p-5">{children}</div>
     </div>
   )

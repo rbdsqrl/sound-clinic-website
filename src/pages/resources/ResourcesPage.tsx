@@ -15,7 +15,6 @@ import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
-import { ToastContainer } from '../../components/ui/Toast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, styles, paletteStyle, type PaletteKey } from '../../theme'
 import type { ResourceResponse, ResourceType, ResourceFolderResponse } from '../../types'
@@ -41,9 +40,11 @@ export default function ResourcesPage() {
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<ResourceFolderResponse | null>(null)
   const [deleteResourceTarget, setDeleteResourceTarget] = useState<ResourceResponse | null>(null)
   const [viewerTarget, setViewerTarget] = useState<ResourceResponse | null>(null)
+  const [deleteFolderError, setDeleteFolderError] = useState<string | null>(null)
+  const [deleteResourceError, setDeleteResourceError] = useState<string | null>(null)
 
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['resources', folderId ?? 'root'],
@@ -57,13 +58,13 @@ export default function ResourcesPage() {
   const deleteFolderMut = useMutation({
     mutationFn: (id: string) => resourcesApi.deleteFolder(id),
     onSuccess: () => { toast('Folder deleted', 'success'); setDeleteFolderTarget(null); invalidate() },
-    onError: (err) => toast(getApiError(err, 'Failed to delete folder'), 'error'),
+    onError: (err) => setDeleteFolderError(getApiError(err, 'Failed to delete folder')),
   })
 
   const deleteResourceMut = useMutation({
     mutationFn: (id: string) => resourcesApi.delete(id),
     onSuccess: () => { toast('Resource deleted', 'success'); setDeleteResourceTarget(null); invalidate() },
-    onError: (err) => toast(getApiError(err, 'Failed to delete resource'), 'error'),
+    onError: (err) => setDeleteResourceError(getApiError(err, 'Failed to delete resource')),
   })
 
   if (isLoading) return <PageLoader />
@@ -163,7 +164,7 @@ export default function ResourcesPage() {
                       <Pencil size={13} />
                     </button>
                     <button
-                      onClick={() => setDeleteResourceTarget(r)}
+                      onClick={() => { setDeleteResourceError(null); setDeleteResourceTarget(r) }}
                       className="p-2 rounded-lg transition-colors"
                       style={{ color: colors.text.dim }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
@@ -238,7 +239,7 @@ export default function ResourcesPage() {
               </div>
               {canManage && (
                 <button
-                  onClick={e => { e.stopPropagation(); setDeleteFolderTarget(f) }}
+                  onClick={e => { e.stopPropagation(); setDeleteFolderError(null); setDeleteFolderTarget(f) }}
                   className="p-2 rounded-lg transition-colors flex-shrink-0"
                   style={{ color: colors.text.dim }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
@@ -274,7 +275,7 @@ export default function ResourcesPage() {
       )}
 
       {deleteFolderTarget && (
-        <Modal open title="Delete folder" onClose={() => setDeleteFolderTarget(null)}>
+        <Modal open title="Delete folder" onClose={() => setDeleteFolderTarget(null)} error={deleteFolderError}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
             Delete <span style={{ color: colors.text.primary, fontWeight: 600 }}>{deleteFolderTarget.name}</span>?
             {(deleteFolderTarget.subfolderCount > 0 || deleteFolderTarget.resourceCount > 0) && (
@@ -283,7 +284,7 @@ export default function ResourcesPage() {
           </p>
           <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
             <Button variant="ghost" onClick={() => setDeleteFolderTarget(null)}>Cancel</Button>
-            <Button variant="danger" loading={deleteFolderMut.isPending} onClick={() => deleteFolderMut.mutate(deleteFolderTarget.id)}>
+            <Button variant="danger" loading={deleteFolderMut.isPending} onClick={() => { setDeleteFolderError(null); deleteFolderMut.mutate(deleteFolderTarget.id) }}>
               Delete
             </Button>
           </div>
@@ -291,20 +292,18 @@ export default function ResourcesPage() {
       )}
 
       {deleteResourceTarget && (
-        <Modal open title="Delete resource" onClose={() => setDeleteResourceTarget(null)}>
+        <Modal open title="Delete resource" onClose={() => setDeleteResourceTarget(null)} error={deleteResourceError}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
             Delete <span style={{ color: colors.text.primary, fontWeight: 600 }}>{deleteResourceTarget.name}</span>?
           </p>
           <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
             <Button variant="ghost" onClick={() => setDeleteResourceTarget(null)}>Cancel</Button>
-            <Button variant="danger" loading={deleteResourceMut.isPending} onClick={() => deleteResourceMut.mutate(deleteResourceTarget.id)}>
+            <Button variant="danger" loading={deleteResourceMut.isPending} onClick={() => { setDeleteResourceError(null); deleteResourceMut.mutate(deleteResourceTarget.id) }}>
               Delete
             </Button>
           </div>
         </Modal>
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
@@ -404,12 +403,13 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
   const [type, setType] = useState<ResourceType>(existing?.type ?? 'LINK')
   const [url, setUrl] = useState(existing?.url ?? '')
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({})
+  const [formError, setFormError] = useState('')
   const { toast } = useToast()
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => resourcesApi.uploadFile(file),
-    onSuccess: (uploadedUrl) => setUrl(uploadedUrl),
-    onError: (err) => toast(getApiError(err, 'Failed to upload file'), 'error'),
+    onSuccess: (uploadedUrl) => { setUrl(uploadedUrl); setFormError('') },
+    onError: (err) => setFormError(getApiError(err, 'Failed to upload file')),
   })
 
   const mut = useMutation({
@@ -417,7 +417,7 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
       ? resourcesApi.update(existing.id, { name: name.trim(), type, url: url.trim() })
       : resourcesApi.create({ name: name.trim(), type, url: url.trim(), folderId }),
     onSuccess: () => { toast(existing ? 'Resource updated' : 'Resource added', 'success'); onSaved() },
-    onError: (err) => toast(getApiError(err, 'Failed to save resource'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to save resource')),
   })
 
   function submit() {
@@ -425,6 +425,7 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
     if (!name.trim()) e.name = 'Give it a readable name'
     if (!url.trim()) e.url = 'A URL is required'
     setErrors(e)
+    setFormError('')
     if (Object.keys(e).length === 0) mut.mutate()
   }
 
@@ -455,6 +456,7 @@ function ResourceFormModal({ folderId, existing, onClose, onSaved }: {
           <p className="text-xs mt-2" style={{ color: colors.text.dim }}>
             Opens in a new tab — paste a Google Drive/YouTube/direct link above, or upload any file (image, video, PDF, doc) directly.
           </p>
+          {formError && <p className="form-error mt-2">{formError}</p>}
         </div>
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>

@@ -23,7 +23,6 @@ import { statusBadge, roleBadge, roleLabel } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
-import { ToastContainer } from '../../components/ui/Toast'
 import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
 import {
@@ -268,7 +267,7 @@ function MemberRow({
 export default function MembersPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const { user, activeRole } = useAuth()
   const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
   const isOfficeAdmin = (activeRole ?? user?.role) === 'OFFICE_ADMIN'
@@ -288,6 +287,8 @@ export default function MembersPage() {
   const [reinviteTarget, setReinviteTarget] = useState<StaffMemberResponse | null>(null)
   const [linkModal, setLinkModal]   = useState<InviteResponse | null>(null)
   const [cancelTarget, setCancelTarget] = useState<InviteResponse | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [page, setPage]             = useState(0)
   const PAGE_SIZE = 20
 
@@ -300,6 +301,9 @@ export default function MembersPage() {
 
   // Any filter change should land back on page 1.
   useEffect(() => { setPage(0) }, [tab, debouncedSearch, roleFilter, clinicFilter])
+
+  useEffect(() => { if (showInviteModal) setInviteError(null) }, [showInviteModal])
+  useEffect(() => { if (deleteTarget) setDeleteError(null) }, [deleteTarget])
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   // Tab badges show unfiltered totals for Members/Archived, so these are fetched
@@ -357,7 +361,7 @@ export default function MembersPage() {
       setLinkModal(res)
       setTab('invites')
     },
-    onError: (err) => toast(getApiError(err, 'Failed to send invite'), 'error'),
+    onError: (err) => setInviteError(getApiError(err, 'Failed to send invite')),
   })
 
   const activateMemberMut = useMutation({
@@ -403,7 +407,7 @@ export default function MembersPage() {
       toast('Member deleted', 'success')
       setDeleteTarget(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete member'), 'error'),
+    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete member')),
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
@@ -752,6 +756,7 @@ export default function MembersPage() {
         open={showInviteModal}
         onClose={() => { setShowInviteModal(false); setReinviteTarget(null); reset() }}
         title={reinviteTarget ? `Re-invite ${reinviteTarget.firstName} ${reinviteTarget.lastName}` : 'Invite Member'}
+        error={inviteError}
       >
         <div className="space-y-4">
           {reinviteTarget && (
@@ -772,7 +777,7 @@ export default function MembersPage() {
               {...register('clinicId')} />
           )}
           <div className="flex gap-3 pt-1">
-            <Button onClick={handleSubmit(d => inviteMut.mutate(d))} loading={isSubmitting || inviteMut.isPending}>
+            <Button onClick={handleSubmit(d => { setInviteError(null); inviteMut.mutate(d) })} loading={isSubmitting || inviteMut.isPending}>
               <Send size={14} /> Send Invite
             </Button>
             <Button variant="secondary" onClick={() => { setShowInviteModal(false); setReinviteTarget(null); reset() }}>Cancel</Button>
@@ -823,7 +828,7 @@ export default function MembersPage() {
       </Modal>
 
       {/* Delete member confirmation */}
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Member">
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Member" error={deleteError}>
         {deleteTarget && (
           <div className="space-y-4">
             <p className="text-sm" style={{ color: colors.text.primary }}>
@@ -831,7 +836,7 @@ export default function MembersPage() {
               They will no longer be able to log in. Their historical records (sessions, appointments, leaves) are preserved.
             </p>
             <div className="flex gap-3">
-              <Button variant="danger" onClick={() => deleteMemberMut.mutate(deleteTarget.id)} loading={deleteMemberMut.isPending}>
+              <Button variant="danger" onClick={() => { setDeleteError(null); deleteMemberMut.mutate(deleteTarget.id) }} loading={deleteMemberMut.isPending}>
                 <Trash2 size={14} /> Deactivate member
               </Button>
               <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
@@ -839,8 +844,6 @@ export default function MembersPage() {
           </div>
         )}
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   )
 }

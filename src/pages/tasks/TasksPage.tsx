@@ -12,7 +12,6 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
@@ -437,6 +436,7 @@ function TaskDetailModal({
   const { toast } = useToast()
   const { theme } = useTheme()
   const [commentText, setCommentText] = useState('')
+  const [modalError, setModalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // inline edit state
@@ -476,8 +476,9 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
       onUpdate?.(updated)
       toast('Updated', 'success')
+      setModalError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to update task'), 'error'),
+    onError: (err) => setModalError(getApiError(err, 'Failed to update task')),
   })
 
   const commentMut = useMutation({
@@ -486,16 +487,18 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-comments', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
       setCommentText('')
+      setModalError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to post comment'), 'error'),
+    onError: (err) => setModalError(getApiError(err, 'Failed to post comment')),
   })
   const deleteCommentMut = useMutation({
     mutationFn: (commentId: string) => tasksApi.deleteComment(task.id, commentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-comments', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
+      setModalError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete comment'), 'error'),
+    onError: (err) => setModalError(getApiError(err, 'Failed to delete comment')),
   })
   const uploadMut = useMutation({
     mutationFn: (file: File) => tasksApi.uploadAttachment(task.id, file),
@@ -503,8 +506,9 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
       qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
+      setModalError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Upload failed'), 'error'),
+    onError: (err) => setModalError(getApiError(err, 'Upload failed')),
   })
   const deleteAttMut = useMutation({
     mutationFn: (attId: string) => tasksApi.deleteAttachment(task.id, attId),
@@ -512,8 +516,9 @@ function TaskDetailModal({
       qc.invalidateQueries({ queryKey: ['task-attachments', task.id] })
       qc.invalidateQueries({ queryKey: ['task-logs', task.id] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
+      setModalError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete file'), 'error'),
+    onError: (err) => setModalError(getApiError(err, 'Failed to delete file')),
   })
 
   const due = dueDateLabel(task.dueDate, task.status)
@@ -588,7 +593,7 @@ function TaskDetailModal({
 
   return (
     <>
-      <Modal open title={modalTitle} onClose={onClose} size="lg">
+      <Modal open title={modalTitle} onClose={onClose} size="lg" error={modalError}>
         {/* Meta strip */}
         <div className="flex flex-wrap items-start gap-x-5 gap-y-3 mb-5 pb-5" style={{ borderBottom: `1px solid ${border.divider}` }}>
 
@@ -924,6 +929,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
   const [dueDate, setDueDate]         = useState('')
   const [priority, setPriority]       = useState<TaskPriority>('MEDIUM')
   const [errors, setErrors]           = useState<Record<string, string>>({})
+  const [formError, setFormError]     = useState<string | null>(null)
 
   const createMut = useMutation({
     mutationFn: () => tasksApi.create({
@@ -938,7 +944,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
       toast('Task created', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create task'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create task')),
   })
 
   const submit = () => {
@@ -946,12 +952,13 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
     if (!title.trim())      e.title    = 'Title is required'
     if (assignees.length === 0) e.assignees = 'Assign to at least one person'
     setErrors(e)
+    setFormError(null)
     if (Object.keys(e).length === 0) createMut.mutate()
   }
 
   return (
     <>
-      <Modal open title="New Task" onClose={onClose}>
+      <Modal open title="New Task" onClose={onClose} error={formError}>
         <div className="flex flex-col gap-4">
           <Input label="Title" value={title} onChange={e => setTitle(e.target.value)}
             error={errors.title} placeholder="What needs to be done?" />
@@ -983,14 +990,13 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => setShowPicker(true)}
-              className="w-full text-left text-sm px-3 py-2.5 rounded-xl transition-colors"
+              className="form-input w-full text-left"
               style={{
-                border: `1px solid ${errors.assignees ? 'var(--color-danger)' : border.card}`,
+                borderColor: errors.assignees ? 'var(--color-danger)' : undefined,
                 color: assignees.length ? colors.text.primary : colors.text.dim,
-                background: 'transparent',
               }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = colors.accent}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = errors.assignees ? 'var(--color-danger)' : border.card}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = errors.assignees ? 'var(--color-danger)' : ''}
             >
               {assignees.length > 0
                 ? `${assignees.length} member${assignees.length > 1 ? 's' : ''} selected — click to change`
@@ -1031,7 +1037,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
 export default function TasksPage() {
   const { user } = useAuth()
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
 
   const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD' || user?.role === 'OFFICE_ADMIN'
 
@@ -1096,8 +1102,6 @@ export default function TasksPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-2">
           <ListTodo size={20} style={{ color: colors.accent }} />

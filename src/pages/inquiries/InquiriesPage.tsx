@@ -19,7 +19,6 @@ import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
@@ -198,7 +197,8 @@ function ConvertModal({
   onConverted: (patientId: string) => void
 }) {
   const qc = useQueryClient()
-  const { toast, toasts, dismiss } = useToast()
+  const { toast } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
 
   // Patient fields — pre-fill from inquiry name
   const parts = inquiry.name.trim().split(/\s+/)
@@ -249,7 +249,7 @@ function ConvertModal({
       onClose()
       onConverted(convertedId)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to assign plan'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to assign plan')),
   })
 
   const convertMutation = useMutation({
@@ -279,7 +279,7 @@ function ConvertModal({
         setShowSubscription(true)
       }
     },
-    onError: (err) => toast(getApiError(err, 'Conversion failed'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Conversion failed')),
   })
 
   const canSubmit = firstName.trim() && clinicId &&
@@ -297,7 +297,7 @@ function ConvertModal({
   if (showSubscription) {
     return (
       <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={styles.modalBackdrop}>
         <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]"
           style={{ background: surface.card, border: `1px solid ${border.card}` }}>
           <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: border.divider }}>
@@ -356,13 +356,19 @@ function ConvertModal({
             </>)}
           </div>
 
+          {formError && (
+            <div className="mx-5 mb-3 rounded-xl p-3 text-sm" style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}`, color: colors.text.primary }}>
+              {formError}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 p-5 pt-0">
             <Button variant="ghost" onClick={() => { onClose(); onConverted(convertedId) }}>
               Skip for now
             </Button>
             {programs.length > 0 && (
               <Button
-                onClick={() => subscriptionMutation.mutate()}
+                onClick={() => { setFormError(null); subscriptionMutation.mutate() }}
                 loading={subscriptionMutation.isPending}
                 disabled={!selectedProgramId || numSessions < 1}>
                 Assign Plan
@@ -371,7 +377,6 @@ function ConvertModal({
           </div>
         </div>
       </div>
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
       </>
     )
   }
@@ -379,7 +384,7 @@ function ConvertModal({
   // ── Step 1a: Case created, but linking the parent/patient failed ──────────
   if (linkError) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={styles.modalBackdrop}>
         <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4"
           style={{ background: surface.card, border: `1px solid ${border.card}` }}>
           <div className="p-6 flex flex-col items-center text-center gap-4">
@@ -425,7 +430,7 @@ function ConvertModal({
   if (inviteLink) {
     const fullLink = `${window.location.origin}${inviteLink}`
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={styles.modalBackdrop}>
         <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4"
           style={{ background: surface.card, border: `1px solid ${border.card}` }}>
           <div className="p-6 flex flex-col items-center text-center gap-4">
@@ -577,15 +582,20 @@ function ConvertModal({
           </div>
         </div>
 
+        {formError && (
+          <div className="mx-5 mb-3 rounded-xl p-3 text-sm" style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}`, color: colors.text.primary }}>
+            {formError}
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 p-5 pt-0">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => convertMutation.mutate()} loading={convertMutation.isPending} disabled={!canSubmit}>
+          <Button onClick={() => { setFormError(null); convertMutation.mutate() }} loading={convertMutation.isPending} disabled={!canSubmit}>
             <UserCheck size={15} className="mr-1.5" />Convert to Case
           </Button>
         </div>
       </div>
     </div>
-    <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   )
 }
@@ -613,6 +623,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [apptNotes,    setApptNotes]    = useState(inquiry.appointmentNotes ?? '')
   const [showConvert,  setShowConvert]  = useState(false)
+  const [formError,    setFormError]    = useState<string | null>(null)
 
   const { data: logs = [] } = useQuery({
     queryKey: ['inquiry-logs', inquiry.id],
@@ -626,8 +637,9 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
       qc.invalidateQueries({ queryKey: ['inquiries'] })
       qc.invalidateQueries({ queryKey: ['inquiry-logs', inquiry.id] })
       toast('Saved', 'success')
+      setFormError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Save failed'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Save failed')),
   })
 
   const addLogMutation = useMutation({
@@ -636,16 +648,19 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
       qc.invalidateQueries({ queryKey: ['inquiry-logs', inquiry.id] })
       setLogNote('')
       toast('Activity logged', 'success')
+      setFormError(null)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to log activity'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to log activity')),
   })
 
   function handleSave() {
+    setFormError(null)
     updateMutation.mutate({ status, adminNotes: adminNotes || undefined })
   }
 
   function handleScheduleAppointment() {
     if (!selectedDate || !selectedTime) return
+    setFormError(null)
     const dateStr = format(selectedDate, 'yyyy-MM-dd')
     const iso = new Date(`${dateStr}T${selectedTime}:00`).toISOString()
     updateMutation.mutate({ appointmentDate: iso, appointmentNotes: apptNotes || undefined })
@@ -653,6 +668,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
   }
 
   function handleClearAppointment() {
+    setFormError(null)
     updateMutation.mutate({ clearAppointment: true })
     setSelectedDate(null)
     setSelectedTime(null)
@@ -667,7 +683,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
   }
 
   return (
-    <Modal open title={`Inquiry — ${inquiry.name}`} onClose={onClose} size="lg">
+    <Modal open title={`Inquiry — ${inquiry.name}`} onClose={onClose} size="lg" error={formError}>
       <div className="flex flex-col gap-5">
 
         {/* Contact info */}
@@ -861,7 +877,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
               placeholder={`Notes for this ${LOG_META[logType].label.toLowerCase()}…`} />
 
             <div className="flex justify-end mt-2">
-              <Button size="sm" onClick={() => addLogMutation.mutate({ logType, notes: logNote })}
+              <Button size="sm" onClick={() => { setFormError(null); addLogMutation.mutate({ logType, notes: logNote }) }}
                 loading={addLogMutation.isPending} disabled={!logNote.trim()}>
                 Log Activity
               </Button>

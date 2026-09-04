@@ -11,7 +11,6 @@ import { Modal } from '../../components/ui/Modal'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border } from '../../theme'
@@ -30,7 +29,7 @@ const STATUS_VARIANT: Record<AssignmentStatus, 'slate' | 'blue' | 'green' | 'red
 }
 
 export default function ActivitiesTab({ patientId }: { patientId: string }) {
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const [logFor, setLogFor] = useState<ActivityAssignmentResponse | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const qc = useQueryClient()
@@ -117,7 +116,6 @@ export default function ActivitiesTab({ patientId }: { patientId: string }) {
         />
       )}
 
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
@@ -159,7 +157,8 @@ function AttemptHistory({ assignmentId }: { assignmentId: string }) {
 function LogAttemptModal({ assignment, onClose, onLogged }: {
   assignment: ActivityAssignmentResponse; onClose: () => void; onLogged: () => void
 }) {
-  const { toast, toasts, dismiss } = useToast()
+  const { toast } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
   const { data: activity } = useQuery({
     queryKey: ['activity', assignment.activityId],
     queryFn: () => activitiesApi.get(assignment.activityId),
@@ -177,7 +176,7 @@ function LogAttemptModal({ assignment, onClose, onLogged }: {
       return activitiesApi.logAttempt(assignment.id, { attemptDate: date, note: note || undefined, answers: payload })
     },
     onSuccess: () => { toast('Attempt logged', 'success'); onLogged() },
-    onError: (err) => toast(getApiError(err, 'Failed to log attempt'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to log attempt')),
   })
 
   const setSingle = (qid: string, optionId: string) =>
@@ -192,7 +191,7 @@ function LogAttemptModal({ assignment, onClose, onLogged }: {
     setAnswers((prev) => ({ ...prev, [qid]: { selected: [], text } }))
 
   return (
-    <Modal open onClose={onClose} title={`Log Attempt — ${assignment.activityTitle}`} size="lg">
+    <Modal open onClose={onClose} title={`Log Attempt — ${assignment.activityTitle}`} size="lg" error={formError}>
       <div className="space-y-4">
         <div>
           <label className="form-label">Date</label>
@@ -242,10 +241,9 @@ function LogAttemptModal({ assignment, onClose, onLogged }: {
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => logMut.mutate()} loading={logMut.isPending}>Save Attempt</Button>
+          <Button onClick={() => { setFormError(null); logMut.mutate() }} loading={logMut.isPending}>Save Attempt</Button>
         </div>
       </div>
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </Modal>
   )
 }

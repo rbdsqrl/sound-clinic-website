@@ -9,7 +9,6 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { useFaceScan } from '../../hooks/useFaceScan'
 import type { FaceMatchStatus } from '../../hooks/useFaceScan'
@@ -54,7 +53,7 @@ function ReadinessPill({ ok, icon, label }: { ok: boolean; icon: React.ReactNode
 
 export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const { user, refreshUser } = useAuth()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
 
   const videoRef          = useRef<HTMLVideoElement | null>(null)
@@ -681,7 +680,6 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
       )}
 
       <RecentHistory />
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

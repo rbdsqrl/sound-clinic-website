@@ -11,7 +11,6 @@ import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { useAuth } from '../../contexts/AuthContext'
@@ -147,10 +146,11 @@ export default function PatientsPage() {
   const currentRole = activeRole ?? user?.role
   const isOfficeAdmin = currentRole === 'OFFICE_ADMIN'
   const canAddCase = currentRole !== 'THERAPIST'
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const [showModal,     setShowModal]     = useState(false)
+  const [formError,     setFormError]     = useState<string | null>(null)
   const [viewMode,      setViewMode]      = useState<'grid' | 'list'>('grid')
   const [tab,           setTab]           = useState<'all' | 'mine'>('all')
   const [search,        setSearch]        = useState('')
@@ -167,6 +167,8 @@ export default function PatientsPage() {
 
   // Any filter change should land back on page 1.
   useEffect(() => { setPage(0) }, [tab, debouncedSearch, activeFilters])
+
+  useEffect(() => { if (showModal) setFormError(null) }, [showModal])
 
   const statusParam = activeFilters.size === 0 ? '' : Array.from(activeFilters).join(',')
 
@@ -198,7 +200,7 @@ export default function PatientsPage() {
       setShowModal(false)
       reset()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create case'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create case')),
   })
 
   const clinicOptions = (clinics ?? []).map(c => ({ value: c.id, label: c.name }))
@@ -431,8 +433,8 @@ export default function PatientsPage() {
       )}
 
       {/* ── Add patient modal ── */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Add Case">
-        <form onSubmit={handleSubmit(d => createMutation.mutate(d))} className="space-y-4">
+      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Add Case" error={formError}>
+        <form onSubmit={handleSubmit(d => { setFormError(null); createMutation.mutate(d) })} className="space-y-4">
           <Select label="Clinic" placeholder="Select clinic…" options={clinicOptions} error={errors.clinicId?.message}
             {...register('clinicId', { required: 'Clinic is required' })} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -455,8 +457,6 @@ export default function PatientsPage() {
           </div>
         </form>
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

@@ -187,6 +187,7 @@ function NewAssessmentModal({
   const { toast } = useToast()
   const [assessmentDate, setAssessmentDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [answers, setAnswers] = useState<Map<number, AssessmentItemAnswer>>(new Map())
+  const [formError, setFormError] = useState<string | null>(null)
 
   const allItems = definition.categories.flatMap(c => c.items)
   const totalItems = allItems.length
@@ -209,7 +210,7 @@ function NewAssessmentModal({
       toast(`Saved${scoreMsg}`, 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save assessment'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to save assessment')),
   })
 
   return (
@@ -218,15 +219,11 @@ function NewAssessmentModal({
       title={`New ${title} Assessment`}
       onClose={onClose}
       size="lg"
+      error={formError}
       footer={
         <>
-          {saveMut.isError && (
-            <div className="flex-1 text-xs" style={{ color: colors.status.danger }}>
-              {getApiError(saveMut.error, 'Failed to save. Nothing was changed — please try again.')}
-            </div>
-          )}
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saveMut.isPending} disabled={!canSave} onClick={() => saveMut.mutate()}>
+          <Button variant="primary" loading={saveMut.isPending} disabled={!canSave} onClick={() => { setFormError(null); saveMut.mutate() }}>
             Save ({answeredCount}/{totalItems})
           </Button>
         </>
@@ -254,6 +251,7 @@ function NewAssessmentModal({
                   item={item}
                   answer={answers.get(item.number)}
                   onChange={a => setAnswer(item.number, a)}
+                  onUploadError={setFormError}
                 />
               ))}
             </div>
@@ -265,19 +263,20 @@ function NewAssessmentModal({
 }
 
 function ItemInput({
-  patientId, type, item, answer, onChange,
+  patientId, type, item, answer, onChange, onUploadError,
 }: {
   patientId: string
   type: AssessmentType
   item: AssessmentItem
   answer: AssessmentItemAnswer | undefined
   onChange: (answer: AssessmentItemAnswer) => void
+  /** Reports a failed file upload to the enclosing modal's inline error banner. */
+  onUploadError: (message: string) => void
 }) {
-  const { toast } = useToast()
   const uploadMut = useMutation({
     mutationFn: (file: File) => assessmentsApi.uploadFile(patientId, type, file),
-    onSuccess: (url) => onChange({ text: url }),
-    onError: (err) => toast(getApiError(err, 'Failed to upload file'), 'error'),
+    onSuccess: (url) => { onChange({ text: url }); onUploadError('') },
+    onError: (err) => onUploadError(getApiError(err, 'Failed to upload file')),
   })
 
   return (

@@ -140,7 +140,7 @@
   --surface-card:          #171B20;        /* one step lighter than app        */
   --surface-card-raw:      23, 27, 32;
   --surface-sidebar:       #0C0F12;        /* darkest step, sidebar recedes    */
-  --surface-overlay:       rgba(6, 8, 10, 0.92);
+  --surface-overlay:       rgba(6, 8, 10, 0.6);
   --surface-mobile-overlay: rgba(10, 13, 16, 0.95);
   --surface-mobile-header: rgba(12, 15, 18, 0.97);
   --surface-footer:        rgba(63, 193, 204, 0.06);

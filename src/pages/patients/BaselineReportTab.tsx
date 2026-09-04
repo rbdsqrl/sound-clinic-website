@@ -358,6 +358,7 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
   const [cdct, setCdct] = useState('')
   const [values, setValues] = useState<Partial<Record<BaselineDomain, string>>>({})
   const [scores, setScores] = useState<Partial<Record<BaselineDomain, string>>>({})
+  const [formError, setFormError] = useState<string | null>(null)
 
   // Fills in once the patient's DOB (and, for admission, their earliest enrollment) has
   // loaded — never overwrites something the user already typed.
@@ -383,7 +384,7 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
       toast('Baseline report created', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create baseline report'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create baseline report')),
   })
 
   return (
@@ -392,15 +393,11 @@ function CreateReportModal({ patientId, defaultAgeAtAdmission, defaultAgeOnDate,
       title="Create Baseline Report"
       onClose={onClose}
       size="lg"
+      error={formError}
       footer={
         <>
-          {saveMut.isError && (
-            <div className="flex-1 text-xs" style={{ color: colors.status.danger }}>
-              {getApiError(saveMut.error, 'Failed to save. Please try again.')}
-            </div>
-          )}
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>Create</Button>
+          <Button variant="primary" loading={saveMut.isPending} onClick={() => { setFormError(null); saveMut.mutate() }}>Create</Button>
         </>
       }
     >
@@ -453,6 +450,7 @@ function EditHeaderModal({ patientId, report, defaultAgeAtAdmission, defaultAgeO
   const [ageAtAdmission, setAgeAtAdmission] = useState(report.ageAtAdmission || defaultAgeAtAdmission || '')
   const [ageOnDate, setAgeOnDate] = useState(report.ageOnDate || defaultAgeOnDate || '')
   const [cdct, setCdct] = useState(report.cdct ?? '')
+  const [formError, setFormError] = useState<string | null>(null)
 
   const saveMut = useMutation({
     mutationFn: () => baselineReportApi.update(patientId, { ageAtAdmission, ageOnDate, cdct }),
@@ -461,7 +459,7 @@ function EditHeaderModal({ patientId, report, defaultAgeAtAdmission, defaultAgeO
       toast('Baseline report updated', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to save')),
   })
 
   return (
@@ -469,10 +467,11 @@ function EditHeaderModal({ patientId, report, defaultAgeAtAdmission, defaultAgeO
       open
       title="Edit Baseline Report"
       onClose={onClose}
+      error={formError}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>Save</Button>
+          <Button variant="primary" loading={saveMut.isPending} onClick={() => { setFormError(null); saveMut.mutate() }}>Save</Button>
         </>
       }
     >
@@ -497,6 +496,7 @@ function AddProgressModal({ patientId, domain, onClose }: {
   const [entryDate, setEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [value, setValue] = useState('')
   const [score, setScore] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
 
   const saveMut = useMutation({
     mutationFn: () => baselineReportApi.addProgress(patientId, domain, {
@@ -509,7 +509,7 @@ function AddProgressModal({ patientId, domain, onClose }: {
       toast('Current value logged', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to log current value'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to log current value')),
   })
 
   return (
@@ -517,10 +517,11 @@ function AddProgressModal({ patientId, domain, onClose }: {
       open
       title={`Log Current — ${domainLabel(domain)}`}
       onClose={onClose}
+      error={formError}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saveMut.isPending} disabled={!value.trim()} onClick={() => saveMut.mutate()}>Save</Button>
+          <Button variant="primary" loading={saveMut.isPending} disabled={!value.trim()} onClick={() => { setFormError(null); saveMut.mutate() }}>Save</Button>
         </>
       }
     >

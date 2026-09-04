@@ -166,6 +166,7 @@ export function CaseHistoryModal({
   const qc = useQueryClient()
   const { toast } = useToast()
   const [form, setForm] = useState<UpdateCaseHistoryRequest>(() => buildInitialState(caseHistory))
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const set = (patch: Partial<UpdateCaseHistoryRequest>) => setForm(f => ({ ...f, ...patch }))
 
@@ -189,7 +190,7 @@ export function CaseHistoryModal({
       toast('Case history saved', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save case history'), 'error'),
+    onError: (err) => setSaveError(getApiError(err, 'Failed to save case history')),
   })
 
   return (
@@ -198,10 +199,11 @@ export function CaseHistoryModal({
       onClose={onClose}
       title="Case History Report"
       size="full"
+      error={saveError}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => saveMut.mutate()} loading={saveMut.isPending}>Save</Button>
+          <Button onClick={() => { setSaveError(null); saveMut.mutate() }} loading={saveMut.isPending}>Save</Button>
         </>
       }
     >

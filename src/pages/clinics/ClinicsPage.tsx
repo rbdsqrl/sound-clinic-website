@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -11,7 +11,6 @@ import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { TIMEZONES } from '../../lib/timezones'
@@ -30,10 +29,13 @@ const TIMEZONE_GROUPS = Array.from(
 
 export default function ClinicsPage() {
   const [showModal, setShowModal] = useState(false)
-  const { toasts, toast, dismiss } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
+  const { toast } = useToast()
   const queryClient = useQueryClient()
   const { user, activeRole } = useAuth()
   const canCreateClinic = (activeRole ?? user?.role) !== 'THERAPIST'
+
+  useEffect(() => { if (showModal) setFormError(null) }, [showModal])
 
   const { data: clinics, isLoading } = useQuery({
     queryKey: ['clinics'],
@@ -52,7 +54,7 @@ export default function ClinicsPage() {
       setShowModal(false)
       reset()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create clinic'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create clinic')),
   })
 
   if (isLoading) return <PageLoader />
@@ -124,8 +126,8 @@ export default function ClinicsPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Create new clinic">
-        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+      <Modal open={showModal} onClose={() => { setShowModal(false); reset() }} title="Create new clinic" error={formError}>
+        <form onSubmit={handleSubmit((d) => { setFormError(null); createMutation.mutate(d) })} className="space-y-4">
           <Input label="Clinic name" placeholder="Downtown Branch" error={errors.name?.message}
             {...register('name', { required: 'Clinic name is required' })} />
           <Input label="Email" type="email" placeholder="clinic@example.com" {...register('email')} />
@@ -138,8 +140,6 @@ export default function ClinicsPage() {
           </div>
         </form>
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

@@ -10,7 +10,6 @@ import { concernsApi } from '../../api/concerns'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { Modal } from '../../components/ui/Modal'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
@@ -26,6 +25,7 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
   const { toast } = useToast()
   const [enrollmentId, setEnrollmentId] = useState('')
   const [description, setDescription] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { data: enrollments = [], isLoading } = useQuery({
     queryKey: ['enrollments', childId],
@@ -40,11 +40,11 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
       toast('Concern sent to the clinic', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to send concern'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to send concern')),
   })
 
   return (
-    <Modal open onClose={onClose} title={`Raise a concern — ${childName}`}>
+    <Modal open onClose={onClose} title={`Raise a concern — ${childName}`} error={formError}>
       {isLoading ? (
         <p className="text-sm py-4" style={{ color: colors.text.muted }}>Loading programs…</p>
       ) : activeEnrollments.length === 0 ? (
@@ -76,7 +76,7 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
           <div className="flex items-center gap-2 justify-end">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button
-              onClick={() => raiseMut.mutate()}
+              onClick={() => { setFormError(null); raiseMut.mutate() }}
               disabled={!enrollmentId || !description.trim()}
               loading={raiseMut.isPending}
             >
@@ -91,7 +91,7 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
 
 function ChildSessions({ childId }: { childId: string }) {
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const [showAll, setShowAll] = useState(false)
 
   const { data: sessions = [], isLoading } = useQuery({
@@ -202,7 +202,6 @@ function ChildSessions({ childId }: { childId: string }) {
           </div>
         )}
       </div>
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   )
 }

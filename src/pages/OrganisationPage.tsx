@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -24,7 +24,6 @@ import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
-import { ToastContainer } from '../components/ui/Toast'
 import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
 import { useAuth } from '../contexts/AuthContext'
@@ -463,12 +462,14 @@ export default function OrganisationPage() {
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
   const [showClinicModal, setShowClinicModal] = useState(false)
+  const [clinicError, setClinicError] = useState<string | null>(null)
+  useEffect(() => { if (showClinicModal) setClinicError(null) }, [showClinicModal])
   const [aiEditing, setAiEditing]   = useState(false)
   const [aiProvider, setAiProvider] = useState<AiProvider | ''>('')
   const [aiApiKey, setAiApiKey]     = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
   const { user } = useAuth()
   const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD' || user?.role === 'OFFICE_ADMIN'
@@ -711,7 +712,7 @@ export default function OrganisationPage() {
       setShowClinicModal(false)
       resetClinic()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to create clinic'), 'error'),
+    onError: (err) => setClinicError(getApiError(err, 'Failed to create clinic')),
   })
 
   // ── CSV handlers ─────────────────────────────────────────────────────────────
@@ -1037,8 +1038,8 @@ export default function OrganisationPage() {
             </div>
           )}
 
-          <Modal open={showClinicModal} onClose={() => { setShowClinicModal(false); resetClinic() }} title="Create new clinic">
-            <form onSubmit={handleClinicSubmit(d => createClinicMut.mutate(d))} className="space-y-4">
+          <Modal open={showClinicModal} onClose={() => { setShowClinicModal(false); resetClinic() }} title="Create new clinic" error={clinicError}>
+            <form onSubmit={handleClinicSubmit(d => { setClinicError(null); createClinicMut.mutate(d) })} className="space-y-4">
               <Input label="Clinic name" placeholder="Downtown Branch" error={clinicErrors.name?.message}
                 {...registerClinic('name', { required: 'Clinic name is required' })} />
               <Input label="Email" type="email" placeholder="clinic@example.com" {...registerClinic('email')} />
@@ -1204,8 +1205,6 @@ export default function OrganisationPage() {
 
       {/* ── IEP Library tab ──────────────────────────────────────────────── */}
       {tab === 'iep-library' && <IEPLibraryTab />}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

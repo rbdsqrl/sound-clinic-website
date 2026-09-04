@@ -15,7 +15,6 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { ToastContainer } from '../../components/ui/Toast'
 import { roleBadge } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
@@ -69,6 +68,7 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle]   = useState(post?.title ?? '')
   const [error, setError]   = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
   const [images, setImages] = useState<FeedPostImageResponse[]>(post?.images ?? [])
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploading, setUploading]       = useState(false)
@@ -80,13 +80,14 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
 
   const uploadImagesMut = useMutation({
     mutationFn: (files: File[]) => feedApi.uploadImages(post!.id, files),
-    onSuccess: (uploaded) => setImages(prev => [...prev, ...uploaded]),
-    onError: (err) => toast(getApiError(err, 'Failed to upload image'), 'error'),
+    onSuccess: (uploaded) => { setImages(prev => [...prev, ...uploaded]); setFormError(null) },
+    onError: (err) => setFormError(getApiError(err, 'Failed to upload image')),
   })
 
   const deleteImageMut = useMutation({
     mutationFn: (imageId: string) => feedApi.deleteImage(post!.id, imageId),
-    onError: (err) => toast(getApiError(err, 'Failed to remove image'), 'error'),
+    onSuccess: () => setFormError(null),
+    onError: (err) => setFormError(getApiError(err, 'Failed to remove image')),
   })
 
   const mutation = useMutation({
@@ -106,12 +107,13 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
       toast(post ? 'Post updated' : 'Post published', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, `Failed to ${post ? 'update' : 'publish'} post`), 'error'),
+    onError: (err) => setFormError(getApiError(err, `Failed to ${post ? 'update' : 'publish'} post`)),
   })
 
   const submit = () => {
     if (!title.trim()) { setError('Title is required'); return }
     setError('')
+    setFormError(null)
     mutation.mutate()
   }
 
@@ -137,7 +139,7 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
   }
 
   return (
-    <Modal open title={post ? 'Edit Post' : 'New Post'} onClose={onClose}>
+    <Modal open title={post ? 'Edit Post' : 'New Post'} onClose={onClose} error={formError}>
       <div className="flex flex-col gap-4">
         <Input label="Title" value={title} onChange={e => setTitle(e.target.value)}
           error={error} placeholder="What's the update?" />
@@ -396,7 +398,7 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
 export default function FeedPage() {
   const { user, activeRole } = useAuth()
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const canManage = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
   // Office Admin can post but not edit/delete/moderate — that stays canManage-only.
   const canPost = canManage || activeRole === 'OFFICE_ADMIN'
@@ -404,6 +406,7 @@ export default function FeedPage() {
   const [showForm, setShowForm]       = useState(false)
   const [editingPost, setEditingPost] = useState<FeedPostResponse | null>(null)
   const [deleting, setDeleting]       = useState<FeedPostResponse | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['feed'],
@@ -417,15 +420,13 @@ export default function FeedPage() {
       setDeleting(null)
       toast('Post deleted', 'success')
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete post'), 'error'),
+    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete post')),
   })
 
   if (isLoading) return <PageLoader />
 
   return (
     <div className="max-w-7xl mx-auto">
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-2">
           <Newspaper size={20} style={{ color: colors.accent }} />
@@ -473,13 +474,13 @@ export default function FeedPage() {
       )}
 
       {deleting && (
-        <Modal open title="Delete post?" onClose={() => setDeleting(null)}>
+        <Modal open title="Delete post?" onClose={() => setDeleting(null)} error={deleteError}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
             This removes "{deleting.title}" for everyone. This can't be undone.
           </p>
           <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
             <Button variant="ghost" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="danger" loading={deleteMut.isPending} onClick={() => deleteMut.mutate(deleting.id)}>
+            <Button variant="danger" loading={deleteMut.isPending} onClick={() => { setDeleteError(null); deleteMut.mutate(deleting.id) }}>
               Delete
             </Button>
           </div>

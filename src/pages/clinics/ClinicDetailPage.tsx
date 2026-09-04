@@ -8,7 +8,6 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { LocationPickerModal } from '../../components/ui/LocationPickerModal'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
@@ -20,7 +19,7 @@ export default function ClinicDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [editing, setEditing] = useState(false)
   const [showMapPicker, setShowMapPicker] = useState(false)
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const queryClient = useQueryClient()
   const { user, activeRole } = useAuth()
   const canEditClinic = (activeRole ?? user?.role) !== 'THERAPIST'
@@ -146,8 +145,6 @@ export default function ClinicDetailPage() {
           setValue('longitude', lng, { shouldDirty: true })
         }}
       />
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

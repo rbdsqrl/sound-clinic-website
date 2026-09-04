@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, BookOpen, CalendarDays, Clock, CheckCircle2, Circle } from 'lucide-react'
@@ -58,9 +58,14 @@ export default function EnrollmentDetailPage() {
   const [completeParentSatisfaction, setCompleteParentSatisfaction] = useState('')
   const [completeTherapistSignoff, setCompleteTherapistSignoff] = useState(false)
   const [confirmingReactivate, setConfirmingReactivate] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
+  const [reactivateError, setReactivateError] = useState<string | null>(null)
 
   const qc = useQueryClient()
   const { toast } = useToast()
+
+  useEffect(() => { if (confirmingComplete) setCompleteError(null) }, [confirmingComplete])
+  useEffect(() => { if (confirmingReactivate) setReactivateError(null) }, [confirmingReactivate])
 
   const careStatusMut = useMutation({
     mutationFn: (payload: { careStatus: EnrollmentCareStatus; note: string }) =>
@@ -101,7 +106,7 @@ export default function EnrollmentDetailPage() {
       setCompleteParentSatisfaction('')
       setCompleteTherapistSignoff(false)
     },
-    onError: () => toast('Failed to mark program completed', 'error'),
+    onError: () => setCompleteError('Failed to mark program completed'),
   })
 
   const reactivateMut = useMutation({
@@ -113,7 +118,7 @@ export default function EnrollmentDetailPage() {
       toast('Program reactivated', 'success')
       setConfirmingReactivate(false)
     },
-    onError: () => toast('Failed to reactivate program', 'error'),
+    onError: () => setReactivateError('Failed to reactivate program'),
   })
 
   const signoffMut = useMutation({
@@ -399,7 +404,7 @@ export default function EnrollmentDetailPage() {
         />
       )}
 
-      <Modal open={confirmingComplete} onClose={() => setConfirmingComplete(false)} title="Mark Program Completed">
+      <Modal open={confirmingComplete} onClose={() => setConfirmingComplete(false)} title="Mark Program Completed" error={completeError}>
         <div className="space-y-4">
           <p className="text-sm" style={{ color: colors.text.primary }}>
             {enrollment.sessionsCompleted < enrollment.totalSessions
@@ -468,7 +473,7 @@ export default function EnrollmentDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={confirmingReactivate} onClose={() => setConfirmingReactivate(false)} title="Reactivate Program">
+      <Modal open={confirmingReactivate} onClose={() => setConfirmingReactivate(false)} title="Reactivate Program" error={reactivateError}>
         <div className="space-y-4">
           <p className="text-sm" style={{ color: colors.text.primary }}>
             This sets the program back to Active with care status On Track, clears any manually

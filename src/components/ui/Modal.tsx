@@ -1,7 +1,7 @@
 import { ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
-import { colors, styles, border, surface } from '../../theme'
+import { AlertCircle, X } from 'lucide-react'
+import { colors, styles, border, surface, dangerAlpha } from '../../theme'
 
 interface ModalProps {
   open: boolean
@@ -15,9 +15,27 @@ interface ModalProps {
   footer?: ReactNode
   /** Rendered in the header, to the left of the close button (e.g. a Reschedule shortcut). */
   headerActions?: ReactNode
+  /** An operation/API failure tied to this modal (e.g. a failed save or upload) — rendered as an
+   *  inline banner right below the header, above the scrollable content. Errors from an action
+   *  triggered inside an open modal belong here, not in a floating toast, which can render behind
+   *  the modal or simply go unnoticed while the modal has focus. Field-level validation errors
+   *  (e.g. Input's own `error` prop) are a different, unrelated concept — leave those alone. */
+  error?: string | null
 }
 
-export function Modal({ open, onClose, title, children, size = 'md', variant = 'center', footer, headerActions }: ModalProps) {
+function ErrorBanner({ error }: { error: string }) {
+  return (
+    <div
+      className="flex items-start gap-2 mx-5 mt-4 rounded-xl px-3 py-2.5 text-sm flex-shrink-0"
+      style={{ background: dangerAlpha(0.10), border: `1px solid ${dangerAlpha(0.25)}`, color: colors.status.danger }}
+    >
+      <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+      <span>{error}</span>
+    </div>
+  )
+}
+
+export function Modal({ open, onClose, title, children, size = 'md', variant = 'center', footer, headerActions, error }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (open) {
@@ -68,6 +86,9 @@ export function Modal({ open, onClose, title, children, size = 'md', variant = '
               </button>
             </div>
           </div>
+
+          {/* Error */}
+          {error && <ErrorBanner error={error} />}
 
           {/* Content */}
           <div className="overflow-y-auto px-5 py-5 flex-1">
@@ -129,6 +150,9 @@ export function Modal({ open, onClose, title, children, size = 'md', variant = '
             </button>
           </div>
         </div>
+
+        {/* Error */}
+        {error && <ErrorBanner error={error} />}
 
         {/* Content */}
         <div className="overflow-y-auto px-5 py-5 flex-1">

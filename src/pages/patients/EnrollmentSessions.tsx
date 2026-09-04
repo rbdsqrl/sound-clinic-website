@@ -624,19 +624,20 @@ export function SessionNotesModal({
       toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session updated', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save'), 'error'),
   })
+
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => therapySessionsApi.uploadAttachment(session.id, file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
-    onError: (err) => toast(getApiError(err, 'Upload failed'), 'error'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }); setAttachmentError(null) },
+    onError: (err) => setAttachmentError(getApiError(err, 'Upload failed')),
   })
 
   const deleteMut = useMutation({
     mutationFn: (attachmentId: string) => therapySessionsApi.deleteAttachment(session.id, attachmentId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }),
-    onError: (err) => toast(getApiError(err, 'Delete failed'), 'error'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['session-attachments', session.id] }); setAttachmentError(null) },
+    onError: (err) => setAttachmentError(getApiError(err, 'Delete failed')),
   })
 
   const handleFiles = (files: FileList | null) => {
@@ -871,6 +872,8 @@ export function SessionNotesModal({
               </label>
             )}
           </div>
+
+          {attachmentError && <p className="form-error mb-2">{attachmentError}</p>}
 
           {attLoading ? (
             <div className="flex justify-center py-6">
