@@ -28,7 +28,6 @@ import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { Badge, roleLabel } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { TimePicker } from '../../components/ui/TimePicker'
@@ -274,7 +273,6 @@ function CreateSubscriptionModal({
   onClose: () => void
   onCreated: (sub: SubscriptionResponse) => void
 }) {
-  const { toast } = useToast()
   const [programId, setProgramId] = useState('')
   const [numSessions, setNumSessions] = useState('')
   const [notes, setNotes] = useState('')
@@ -282,6 +280,7 @@ function CreateSubscriptionModal({
   // without touching the program's price for anyone else.
   const [perSessionCost, setPerSessionCost] = useState('')
   const [errors, setErrors] = useState<{ programId?: string; numSessions?: string; perSessionCost?: string }>({})
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { data: programs = [], isLoading: loadingPrograms } = useQuery({
     queryKey: ['programs', 'active'],
@@ -292,7 +291,7 @@ function CreateSubscriptionModal({
   const createMut = useMutation({
     mutationFn: (data: CreateSubscriptionRequest) => subscriptionsApi.create(data),
     onSuccess: (sub) => { onCreated(sub) },
-    onError: (err) => toast(getApiError(err, 'Failed to create subscription'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create subscription')),
   })
 
   const selectedProgram = programs.find(p => p.id === programId)
@@ -319,6 +318,7 @@ function CreateSubscriptionModal({
 
   const handleSubmit = (ev: React.FormEvent) => {
     ev.preventDefault()
+    setFormError(null)
     if (!validate()) return
     createMut.mutate({
       patientId, programId, numSessions: parseInt(numSessions), notes: notes || undefined,
@@ -337,6 +337,14 @@ function CreateSubscriptionModal({
             <X size={16} />
           </button>
         </div>
+
+        {formError && (
+          <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-4"
+            style={{ background: dangerAlpha(0.10), border: `1px solid ${dangerAlpha(0.25)}`, color: colors.status.danger }}>
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Program select */}
@@ -441,11 +449,11 @@ function RecordPaymentModal({
    *  closing here is fine, payment can always be recorded later from the Programs list. */
   continuedFromCreate?: boolean
 }) {
-  const { toast } = useToast()
   const [discount, setDiscount] = useState(String(subscription.discountPercent))
   const [amountPaid, setAmountPaid] = useState(String(subscription.amountPaid))
   const [paymentNotes, setPaymentNotes] = useState(subscription.paymentNotes ?? '')
   const [errors, setErrors] = useState<{ discount?: string; amount?: string }>({})
+  const [formError, setFormError] = useState<string | null>(null)
 
   const discountVal = parseFloat(discount) || 0
   const total = subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100)
@@ -453,7 +461,7 @@ function RecordPaymentModal({
   const saveMut = useMutation({
     mutationFn: (data: UpdatePaymentRequest) => subscriptionsApi.recordPayment(subscription.id, data),
     onSuccess: (sub) => { onSaved(sub) },
-    onError: (err) => toast(getApiError(err, 'Failed to record payment'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to record payment')),
   })
 
   const validate = () => {
@@ -468,6 +476,7 @@ function RecordPaymentModal({
 
   const handleSubmit = (ev: React.FormEvent) => {
     ev.preventDefault()
+    setFormError(null)
     if (!validate()) return
     saveMut.mutate({
       discountPercent: parseFloat(discount),
@@ -490,6 +499,14 @@ function RecordPaymentModal({
         <p className="text-sm mb-4" style={{ color: colors.text.muted }}>
           {subscription.programName} · {subscription.numSessions} sessions
         </p>
+
+        {formError && (
+          <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-4"
+            style={{ background: dangerAlpha(0.10), border: `1px solid ${dangerAlpha(0.25)}`, color: colors.status.danger }}>
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
 
         {continuedFromCreate && (
           <div className="rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2"
@@ -842,8 +859,6 @@ function EnrollmentModal({
    *  here is fine, the schedule can always be set up later from the Programs list. */
   continuedFromPayment?: boolean
 }) {
-  const { toast } = useToast()
-
   // Step 1 fields
   const [subscriptionId, setSubscriptionId]     = useState(
     preselectedSub?.id ?? subscriptions.find(s => s.status === 'ACTIVE')?.id ?? ''
@@ -881,6 +896,7 @@ function EnrollmentModal({
   const [selectedTherapistId, setSelectedTherapistId] = useState('')
   const [findingTherapists, setFindingTherapists]     = useState(false)
   const [step1Errors, setStep1Errors]           = useState<Record<string, string>>({})
+  const [formError, setFormError]               = useState<string | null>(null)
 
   const { data: clinicHeads = [] } = useQuery({
     queryKey: ['assignable', 'clinic-head'],
@@ -890,7 +906,7 @@ function EnrollmentModal({
   const createMut = useMutation({
     mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
     onSuccess: (enrollment) => { onCreated(enrollment) },
-    onError: (err) => toast(getApiError(err, 'Failed to create enrollment'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to create enrollment')),
   })
 
   const toggleSessionDay = (day: DayOfWeek) => {
@@ -912,6 +928,7 @@ function EnrollmentModal({
 
   const handleFindTherapists = async () => {
     if (!validateStep1()) return
+    setFormError(null)
     setFindingTherapists(true)
     try {
       const therapists = await enrollmentsApi.getAvailableTherapists({
@@ -922,14 +939,15 @@ function EnrollmentModal({
       setAvailableTherapists(therapists)
       setStep(2)
     } catch {
-      toast('Failed to fetch available therapists', 'error')
+      setFormError('Failed to fetch available therapists')
     } finally {
       setFindingTherapists(false)
     }
   }
 
   const handleConfirm = () => {
-    if (!selectedTherapistId) { toast('Select a therapist', 'error'); return }
+    if (!selectedTherapistId) { setFormError('Select a therapist'); return }
+    setFormError(null)
     createMut.mutate({
       subscriptionId,
       patientId,
@@ -988,6 +1006,14 @@ function EnrollmentModal({
               style={{ background: n <= step ? colors.accent : border.divider }} />
           ))}
         </div>
+
+        {formError && (
+          <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-4"
+            style={{ background: dangerAlpha(0.10), border: `1px solid ${dangerAlpha(0.25)}`, color: colors.status.danger }}>
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
 
         {/* ── Step 1: Slot details ── */}
         {step === 1 && (
@@ -1380,6 +1406,7 @@ function DischargeModal({ patientId, patientName, onClose }: { patientId: string
   const qc = useQueryClient()
   const { toast } = useToast()
   const [notes, setNotes] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { data: preview, isLoading } = useQuery({
     queryKey: ['discharge-preview', patientId],
@@ -1394,11 +1421,11 @@ function DischargeModal({ patientId, patientName, onClose }: { patientId: string
       toast('Case discharged', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to discharge patient'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to discharge patient')),
   })
 
   return (
-    <Modal open onClose={onClose} title={`Discharge ${patientName}`} size="lg">
+    <Modal open onClose={onClose} title={`Discharge ${patientName}`} size="lg" error={formError}>
       {isLoading ? (
         <p className="py-8 text-center text-sm" style={{ color: colors.text.muted }}>Loading…</p>
       ) : !preview || preview.enrollments.length === 0 ? (
@@ -1443,7 +1470,7 @@ function DischargeModal({ patientId, patientName, onClose }: { patientId: string
           </div>
           <div className="flex items-center gap-2 justify-end pt-2 border-t" style={{ borderColor: border.divider }}>
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button variant="danger" onClick={() => dischargeMut.mutate()} loading={dischargeMut.isPending}>
+            <Button variant="danger" onClick={() => { setFormError(null); dischargeMut.mutate() }} loading={dischargeMut.isPending}>
               Confirm Discharge
             </Button>
           </div>
@@ -1506,17 +1533,28 @@ function DischargeHistoryPanel({ patientId }: { patientId: string }) {
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const { user, activeRole } = useAuth()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
   const [editModal,        setEditModal]        = useState(false)
+  const [editError,        setEditError]        = useState<string | null>(null)
   const [deleteConfirm,    setDeleteConfirm]    = useState(false)
+  const [deleteError,      setDeleteError]      = useState<string | null>(null)
   const [conditionModal,       setConditionModal]       = useState(false)
+  const [conditionError,       setConditionError]       = useState<string | null>(null)
   const [selectedConditionIds, setSelectedConditionIds] = useState<string[]>([])
   const [parentModal,      setParentModal]      = useState(false)
+  const [parentError,      setParentError]      = useState<string | null>(null)
   const [therapistModal,   setTherapistModal]   = useState(false)
+  const [therapistError,   setTherapistError]   = useState<string | null>(null)
+
+  useEffect(() => { if (editModal) setEditError(null) }, [editModal])
+  useEffect(() => { if (deleteConfirm) setDeleteError(null) }, [deleteConfirm])
+  useEffect(() => { if (conditionModal) setConditionError(null) }, [conditionModal])
+  useEffect(() => { if (parentModal) setParentError(null) }, [parentModal])
+  useEffect(() => { if (therapistModal) setTherapistError(null) }, [therapistModal])
   const [subModal,         setSubModal]         = useState(false)
   const [paymentTarget,    setPaymentTarget]    = useState<SubscriptionResponse | null>(null)
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
@@ -1578,7 +1616,7 @@ export default function PatientDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       navigate(ROUTES.patients)
     },
-    onError: (err) => toast(getApiError(err, 'Failed to delete patient'), 'error'),
+    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete patient')),
   })
 
   // Stage mutation
@@ -1603,7 +1641,7 @@ export default function PatientDetailPage() {
       setSelectedConditionIds([])
       conditionForm.reset()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to add condition'), 'error'),
+    onError: (err) => setConditionError(getApiError(err, 'Failed to add condition')),
   })
   const removeConditionMutation = useMutation({
     mutationFn: (conditionId: string) => patientsApi.removeCondition(id!, conditionId),
@@ -1615,7 +1653,7 @@ export default function PatientDetailPage() {
   const linkParentMutation = useMutation({
     mutationFn: (d: LinkParentRequest) => patientsApi.linkParent(id!, d),
     onSuccess: () => { refresh(); toast('Parent linked', 'success'); setParentModal(false); setSelectedParent(null) },
-    onError: (e) => toast(getApiError(e, 'Failed to link parent'), 'error'),
+    onError: (e) => setParentError(getApiError(e, 'Failed to link parent')),
   })
   const unlinkParentMutation = useMutation({
     mutationFn: (parentId: string) => patientsApi.unlinkParent(id!, parentId),
@@ -1633,12 +1671,12 @@ export default function PatientDetailPage() {
       if (res.existingUser) { setExistingUserFound(res.existingUser); return }
       setInviteLink(res.inviteLink); toast('Invite sent', 'success')
     },
-    onError: (e) => toast(getApiError(e, 'Failed to send invite'), 'error'),
+    onError: (e) => setParentError(getApiError(e, 'Failed to send invite')),
   })
   const linkExistingUserMutation = useMutation({
     mutationFn: (userId: string) => patientsApi.linkExistingUserAsParent(id!, { parentId: userId }),
     onSuccess: () => { refresh(); toast('Linked as parent', 'success'); closeParentModal() },
-    onError: (e) => toast(getApiError(e, 'Failed to link as parent'), 'error'),
+    onError: (e) => setParentError(getApiError(e, 'Failed to link as parent')),
   })
   const closeParentModal = () => {
     setParentModal(false); setSelectedParent(null)
@@ -1650,7 +1688,7 @@ export default function PatientDetailPage() {
   const assignTherapistMutation = useMutation({
     mutationFn: (d: AssignTherapistRequest) => patientsApi.assignTherapist(id!, d),
     onSuccess: () => { refresh(); toast('Therapist assigned', 'success'); setTherapistModal(false); setSelectedTherapist(null) },
-    onError: (e) => toast(getApiError(e, 'Failed to assign therapist'), 'error'),
+    onError: (e) => setTherapistError(getApiError(e, 'Failed to assign therapist')),
   })
   const unassignTherapistMutation = useMutation({
     mutationFn: (therapistId: string) => patientsApi.unassignTherapist(id!, therapistId),
@@ -1697,7 +1735,7 @@ export default function PatientDetailPage() {
         notes:       data.notes       || undefined,
       }),
     onSuccess: () => { refresh(); toast('Case details updated', 'success'); setEditModal(false) },
-    onError:   (err) => toast(getApiError(err, 'Failed to update patient'), 'error'),
+    onError:   (err) => setEditError(getApiError(err, 'Failed to update patient')),
   })
 
   if (isLoading) return <PageLoader />
@@ -2422,7 +2460,7 @@ export default function PatientDetailPage() {
                             currentUserId={user?.id ?? ''}
                             canSchedule={canCreateEnrollment}
                             canSeeFeedback={canSeeReviewFeedback}
-                            canGiveTherapistFeedback={currentRole === 'THERAPIST'}
+                            canWriteClinicHeadRemarks={canSeeReviewFeedback}
                             isParent={isParent}
                           />
                         </div>
@@ -2453,11 +2491,12 @@ export default function PatientDetailPage() {
       {activeTab === 'Media & Notes' && <SharedMediaTab patientId={id!} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
-      <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition">
+      <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition" error={conditionError}>
         <form
-          onSubmit={conditionForm.handleSubmit((d) =>
+          onSubmit={conditionForm.handleSubmit((d) => {
+            setConditionError(null)
             addConditionMutation.mutate({ conditionIds: selectedConditionIds, diagnosedAt: d.diagnosedAt, notes: d.notes })
-          )}
+          })}
           className="space-y-4"
         >
           <div>
@@ -2505,7 +2544,7 @@ export default function PatientDetailPage() {
         </form>
       </Modal>
 
-      <Modal open={parentModal} onClose={closeParentModal} title="Link a Parent">
+      <Modal open={parentModal} onClose={closeParentModal} title="Link a Parent" error={parentError}>
         <div className="space-y-4">
           {!inviteLink && !existingUserFound && (
             <div className="flex gap-2">
@@ -2548,7 +2587,7 @@ export default function PatientDetailPage() {
                 <Button
                   disabled={!selectedParent}
                   loading={linkParentMutation.isPending}
-                  onClick={() => selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id })}
+                  onClick={() => { setParentError(null); selectedParent && linkParentMutation.mutate({ parentId: selectedParent.id }) }}
                 >
                   Link Parent
                 </Button>
@@ -2581,7 +2620,7 @@ export default function PatientDetailPage() {
                 <Button type="button" variant="secondary" onClick={() => setExistingUserFound(null)}>Cancel</Button>
                 <Button
                   loading={linkExistingUserMutation.isPending}
-                  onClick={() => linkExistingUserMutation.mutate(existingUserFound.id)}
+                  onClick={() => { setParentError(null); linkExistingUserMutation.mutate(existingUserFound.id) }}
                 >
                   Link as Parent
                 </Button>
@@ -2604,7 +2643,7 @@ export default function PatientDetailPage() {
                 <Button
                   disabled={!inviteEmail.trim()}
                   loading={inviteParentMutation.isPending}
-                  onClick={() => inviteParentMutation.mutate(inviteEmail.trim())}
+                  onClick={() => { setParentError(null); inviteParentMutation.mutate(inviteEmail.trim()) }}
                 >
                   <Mail size={14} /> Send Invite
                 </Button>
@@ -2614,7 +2653,7 @@ export default function PatientDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist">
+      <Modal open={therapistModal} onClose={() => { setTherapistModal(false); setSelectedTherapist(null) }} title="Assign a Therapist" error={therapistError}>
         <div className="space-y-4">
           <UserSearchPicker
             role="THERAPIST"
@@ -2634,7 +2673,7 @@ export default function PatientDetailPage() {
             <Button
               disabled={!selectedTherapist}
               loading={assignTherapistMutation.isPending}
-              onClick={() => selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id })}
+              onClick={() => { setTherapistError(null); selectedTherapist && assignTherapistMutation.mutate({ therapistId: selectedTherapist.id }) }}
             >
               Assign Therapist
             </Button>
@@ -2742,9 +2781,9 @@ export default function PatientDetailPage() {
       )}
 
       {/* Edit patient details modal */}
-      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Case Details">
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Case Details" error={editError}>
         <form
-          onSubmit={editForm.handleSubmit((data) => updatePatientMutation.mutate(data))}
+          onSubmit={editForm.handleSubmit((data) => { setEditError(null); updatePatientMutation.mutate(data) })}
           className="space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2790,22 +2829,20 @@ export default function PatientDetailPage() {
       </Modal>
 
       {/* Delete patient confirmation */}
-      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Case">
+      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title="Delete Case" error={deleteError}>
         <div className="space-y-4">
           <p className="text-sm" style={{ color: colors.text.primary }}>
             Are you sure you want to permanently delete <strong>{patient.firstName} {patient.lastName}</strong>?
             This will remove all their conditions, parent links, therapist assignments, and cannot be undone.
           </p>
           <div className="flex gap-3">
-            <Button variant="danger" onClick={() => deletePatientMut.mutate()} loading={deletePatientMut.isPending}>
+            <Button variant="danger" onClick={() => { setDeleteError(null); deletePatientMut.mutate() }} loading={deletePatientMut.isPending}>
               <Trash2 size={14} /> Delete permanently
             </Button>
             <Button variant="secondary" onClick={() => setDeleteConfirm(false)}>Cancel</Button>
           </div>
         </div>
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

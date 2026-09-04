@@ -7,7 +7,7 @@ import type {
   RescheduleReviewRequest,
   UpdateReviewParticipantsRequest,
   ParentFeedbackRequest,
-  TherapistFeedbackRequest,
+  ClinicHeadRemarksRequest,
 } from '../types'
 
 export const reviewMeetingsApi = {
@@ -58,8 +58,8 @@ export const reviewMeetingsApi = {
       .put<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/parent-feedback`, data)
       .then(r => r.data.data),
 
-  submitTherapistFeedback: (id: string, data: TherapistFeedbackRequest) =>
+  updateClinicHeadRemarks: (id: string, data: ClinicHeadRemarksRequest) =>
     client
-      .put<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/therapist-feedback`, data)
+      .put<ApiResponse<ReviewMeetingResponse>>(`/review-meetings/${id}/clinic-head-remarks`, data)
       .then(r => r.data.data),
 }

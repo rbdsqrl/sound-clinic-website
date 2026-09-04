@@ -73,7 +73,7 @@ export function ReviewMeetingsPanel({
   currentUserId,
   canSchedule,
   canSeeFeedback,
-  canGiveTherapistFeedback,
+  canWriteClinicHeadRemarks,
   isParent,
 }: {
   enrollmentId: string
@@ -83,13 +83,21 @@ export function ReviewMeetingsPanel({
   currentUserId: string
   canSchedule: boolean
   /** Separate from canSchedule — a role that can schedule meetings (e.g. Office Admin)
-   *  doesn't necessarily get to see the parent/therapist feedback content. */
+   *  doesn't necessarily get to see the parent feedback / Clinic Head Remarks content. */
   canSeeFeedback: boolean
-  canGiveTherapistFeedback: boolean
+  canWriteClinicHeadRemarks: boolean
   isParent: boolean
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  // A Clinic Head/Business Owner never sees or writes remarks about their own work as the
+  // treating therapist on this plan — even though they otherwise pass the role check above.
+  // The backend already excludes these meetings entirely from the API response for this
+  // case, so `meetings` below naturally comes back empty; these two guards additionally
+  // hide the scheduling/feedback controls so there's nothing that looks like a dead end.
+  const isSelfReview = therapistId === currentUserId
+  const canSeeHere = canSeeFeedback && !isSelfReview
+  const canWriteHere = canWriteClinicHeadRemarks && !isSelfReview
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [feedbackFor, setFeedbackFor] = useState<ReviewMeetingResponse | null>(null)
@@ -136,7 +144,7 @@ export function ReviewMeetingsPanel({
             </span>
           )}
         </div>
-        {canSchedule && (
+        {canSchedule && !isSelfReview && (
           <div className="flex items-center gap-1.5">
             {meetings.length === 0 ? (
               <button
@@ -170,9 +178,9 @@ export function ReviewMeetingsPanel({
               key={m.id}
               meeting={m}
               isParent={isParent}
-              canGiveTherapistFeedback={canGiveTherapistFeedback && therapistId === currentUserId}
-              canManage={canSchedule}
-              canSeeFeedback={canSeeFeedback}
+              canWriteClinicHeadRemarks={canWriteHere}
+              canManage={canSchedule && !isSelfReview}
+              canSeeFeedback={canSeeHere}
               onFeedback={() => setFeedbackFor(m)}
               onComplete={() => completeMut.mutate(m.id)}
               onCancel={() => {
@@ -222,12 +230,12 @@ export function ReviewMeetingsPanel({
 // ── Row ────────────────────────────────────────────────────────────────────────
 
 function MeetingRow({
-  meeting, isParent, canGiveTherapistFeedback, canManage, canSeeFeedback,
+  meeting, isParent, canWriteClinicHeadRemarks, canManage, canSeeFeedback,
   onFeedback, onComplete, onCancel,
 }: {
   meeting: ReviewMeetingResponse
   isParent: boolean
-  canGiveTherapistFeedback: boolean
+  canWriteClinicHeadRemarks: boolean
   canManage: boolean
   canSeeFeedback: boolean
   onFeedback: () => void
@@ -236,11 +244,11 @@ function MeetingRow({
 }) {
   const [open, setOpen] = useState(false)
 
-  const mine = isParent ? meeting.parentFeedbackAt : meeting.therapistFeedbackAt
-  const canWrite = isParent || canGiveTherapistFeedback
+  const mine = isParent ? meeting.parentFeedbackAt : meeting.clinicHeadRemarksAt
+  const canWrite = isParent || canWriteClinicHeadRemarks
 
   const responded = [
-    meeting.therapistFeedbackAt ? 'therapist' : null,
+    meeting.clinicHeadRemarksAt ? 'clinic head' : null,
     meeting.parentFeedbackAt ? 'parent' : null,
   ].filter(Boolean) as string[]
 
@@ -288,23 +296,21 @@ function MeetingRow({
       {open && (
         <div className="px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
 
-          {/* Therapist's side — staff who can see feedback see it always; a therapist sees only their own */}
-          {(canSeeFeedback || canGiveTherapistFeedback) && (
+          {/* Clinic Head Remarks — Admin-only, never shown to a Parent or a Therapist */}
+          {(canSeeFeedback || canWriteClinicHeadRemarks) && (
             <div className="mt-2.5">
               <p className="text-[11.5px] uppercase tracking-wider font-semibold mb-1" style={{ color: colors.text.dim }}>
-                {canSeeFeedback ? 'Therapist feedback' : 'Your feedback'}
+                Clinic Head remarks
               </p>
-              {meeting.therapistSummary ? (
+              {meeting.clinicHeadRemarks ? (
                 <>
-                  <p className="text-sm" style={{ color: colors.text.primary }}>{meeting.therapistSummary}</p>
-                  {meeting.therapistProgressNotes && (
-                    <p className="text-xs mt-1" style={{ color: colors.text.muted }}>
-                      {meeting.therapistProgressNotes}
-                    </p>
+                  <p className="text-sm" style={{ color: colors.text.primary }}>{meeting.clinicHeadRemarks}</p>
+                  {meeting.clinicHeadRemarksByName && (
+                    <p className="text-xs mt-1" style={{ color: colors.text.dim }}>— {meeting.clinicHeadRemarksByName}</p>
                   )}
                 </>
               ) : (
-                <p className="text-xs" style={{ color: colors.text.dim }}>Not yet shared</p>
+                <p className="text-xs" style={{ color: colors.text.dim }}>Not yet written</p>
               )}
             </div>
           )}
@@ -342,8 +348,8 @@ function MeetingRow({
           {!canSeeFeedback && (
             <p className="text-xs mt-3" style={{ color: colors.text.dim }}>
               {isParent
-                ? "The therapist's feedback is only visible to clinic staff."
-                : canGiveTherapistFeedback
+                ? "Clinic Head remarks are only visible to clinic admin staff."
+                : canWriteClinicHeadRemarks
                 ? "The parent's feedback is only visible to clinic staff."
                 : "Feedback notes for this meeting aren't shown to your role."}
             </p>
@@ -403,6 +409,7 @@ export function ScheduleModal({
   const [endDate, setEndDate] = useState(enrollmentEndDate ?? '')
   const [clinicHeadIds, setClinicHeadIds] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { data: clinicHeads = [] } = useQuery({
     queryKey: ['assignable', 'clinic-head'],
@@ -422,7 +429,7 @@ export function ScheduleModal({
       toast(`${created.length} review meeting${created.length !== 1 ? 's' : ''} scheduled — invites sent`, 'success')
       onDone()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to schedule review meetings'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to schedule review meetings')),
   })
 
   const submit = () => {
@@ -434,11 +441,12 @@ export function ScheduleModal({
     else if (firstDate && startTime && isPastDateTime(firstDate, startTime)) e.time = 'Time cannot be in the past'
     if (clinicHeadIds.length === 0) e.participants = 'Pick at least one Clinic Head to invite'
     setErrors(e)
+    setFormError(null)
     if (Object.keys(e).length === 0) mut.mutate()
   }
 
   return (
-    <Modal open title="Schedule review meetings" onClose={onClose}>
+    <Modal open title="Schedule review meetings" onClose={onClose} error={formError}>
       <div className="flex flex-col gap-4">
         <p className="text-xs" style={{ color: colors.text.muted }}>
           Meetings repeat on this rhythm until the end date, skipping public holidays.
@@ -537,7 +545,7 @@ function AddMeetingModal({
       enrollmentId, meetingDate: date, startTime, durationMinutes: duration, participantIds: clinicHeadIds,
     }),
     onSuccess: () => { toast('Meeting scheduled — invites sent', 'success'); onDone() },
-    onError: (err) => toast(getApiError(err, 'Failed to schedule meeting'), 'error'),
+    onError: (err) => setError(getApiError(err, 'Failed to schedule meeting')),
   })
 
   return (
@@ -598,27 +606,26 @@ function FeedbackModal({
   const [communicationRating, setCommunicationRating] = useState(meeting.communicationRating ?? 0)
   const [progressRatingPct, setProgressRatingPct] = useState(meeting.progressRatingPct ?? 50)
   const [comments, setComments] = useState(meeting.parentComments ?? '')
-  const [summary, setSummary] = useState(meeting.therapistSummary ?? '')
-  const [progressNotes, setProgressNotes] = useState(meeting.therapistProgressNotes ?? '')
+  const [remarks, setRemarks] = useState(meeting.clinicHeadRemarks ?? '')
   const [error, setError] = useState('')
 
   const mut = useMutation({
     mutationFn: () => isParent
       ? reviewMeetingsApi.submitParentFeedback(meeting.id, { communicationRating, progressRatingPct, comments })
-      : reviewMeetingsApi.submitTherapistFeedback(meeting.id, { summary, progressNotes }),
-    onSuccess: () => { toast('Feedback saved', 'success'); onDone() },
-    onError: (err) => toast(getApiError(err, 'Failed to save feedback'), 'error'),
+      : reviewMeetingsApi.updateClinicHeadRemarks(meeting.id, { remarks }),
+    onSuccess: () => { toast(isParent ? 'Feedback saved' : 'Remarks saved', 'success'); onDone() },
+    onError: (err) => setError(getApiError(err, isParent ? 'Failed to save feedback' : 'Failed to save remarks')),
   })
 
   const submit = () => {
     if (isParent && communicationRating < 1) { setError('Pick a rating'); return }
-    if (!isParent && !summary.trim()) { setError('A summary is required'); return }
+    if (!isParent && !remarks.trim()) { setError('Remarks are required'); return }
     setError('')
     mut.mutate()
   }
 
   return (
-    <Modal open title={isParent ? 'Your feedback' : 'Share feedback'} onClose={onClose}>
+    <Modal open title={isParent ? 'Your feedback' : 'Clinic Head remarks'} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-xs" style={{ color: colors.text.muted }}>
           Review meeting on {format(parseISO(meeting.meetingDate), 'd MMM yyyy')} with {meeting.therapistName}.
@@ -654,32 +661,23 @@ function FeedbackModal({
             </div>
           </>
         ) : (
-          <>
-            <div>
-              <label className="form-label">Summary</label>
-              <textarea
-                className="form-input w-full resize-none" rows={3}
-                placeholder="How has the patient progressed over this period?"
-                value={summary}
-                onChange={e => setSummary(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="form-label">Progress notes</label>
-              <textarea
-                className="form-input w-full resize-none" rows={3}
-                placeholder="Optional detail — goals met, areas to work on…"
-                value={progressNotes}
-                onChange={e => setProgressNotes(e.target.value)}
-              />
-            </div>
-          </>
+          <div>
+            <label className="form-label">Remarks</label>
+            <textarea
+              className="form-input w-full resize-none" rows={5}
+              placeholder="Confidential notes on the therapist's work over this period…"
+              value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+            />
+          </div>
         )}
 
         {error && <p className="form-error">{error}</p>}
 
         <p className="text-[12.65px]" style={{ color: colors.text.dim }}>
-          This stays between you and clinic staff — {isParent ? 'the therapist' : 'the parent'} won't see it.
+          {isParent
+            ? "This stays between you and clinic staff — the therapist won't see it."
+            : "Admin-only — never visible to the therapist or the parent."}
         </p>
       </div>
 
