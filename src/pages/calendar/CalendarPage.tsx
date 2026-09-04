@@ -1937,7 +1937,6 @@ export default function CalendarPage() {
   useEffect(() => {
     if (useStaffLayout) setView('staff')
   }, [useStaffLayout])
-  const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
   const [upcomingOpen,   setUpcomingOpen]   = useState(false)
@@ -2193,16 +2192,24 @@ export default function CalendarPage() {
       {/* Page header — also carries the Case/Therapist/Program filters and the view picker
           (Day/Week/Month, or staff granularity) so the calendar card below is pure toolbar +
           grid, with no separate filter row eating into the grid's vertical space. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-3">
+        {/* Title + actions — its own row, right-aligned, so it never wraps down below the
+            filters/view-toggle row when those get wide (they wrap independently instead). */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.heading }}>Calendar</h1>
-          <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
-            {canSeeInquiries
-              ? 'Consultation appointments and staff leave.'
-              : canSeeLeaves
-              ? 'Your leave days and upcoming sessions.'
-              : 'Your upcoming sessions.'}
-          </p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* One entry point for both flows — same chooser (Session vs Meeting) a dragged
+                grid slot opens, just seeded with a default time instead of a dragged one, so
+                it works identically from every view (Month, Agenda) not only the hour grids. */}
+            {(canBookSlots || canAddMeeting) && (
+              <button
+                onClick={() => setSlotSelection({ date: todayStr(), start: '09:00', end: '10:00' })}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
+                style={{ color: '#fff', background: colors.accent }}>
+                <Plus size={14} /> Create
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -2251,15 +2258,6 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
-          )}
-
-          {canAddMeeting && (
-            <button
-              onClick={() => setNewMeetingOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
-              style={{ color: '#fff', background: colors.accent }}>
-              <Plus size={14} /> New meeting
-            </button>
           )}
         </div>
       </div>
@@ -2447,17 +2445,6 @@ export default function CalendarPage() {
           onDone={() => {
             setSlotSelection(null); setSlotChoice(null)
             qcMain.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-          }}
-        />
-      )}
-
-      {/* Schedule a meeting */}
-      {newMeetingOpen && (
-        <NewMeetingModal
-          onClose={() => setNewMeetingOpen(false)}
-          onDone={() => {
-            setNewMeetingOpen(false)
-            qcMain.invalidateQueries({ queryKey: ['meetings'] })
           }}
         />
       )}
