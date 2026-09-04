@@ -2041,6 +2041,10 @@ export interface ResourceResponse {
   name: string
   type: ResourceType
   url: string
+  /** True when `url` is a file stored in our own bucket — safe to embed inline (video/image
+   *  player) and offer a direct download. False for a pasted external link (YouTube, Google
+   *  Drive, etc.), which must open in a new tab instead. */
+  hosted: boolean
   createdAt: string
 }
 

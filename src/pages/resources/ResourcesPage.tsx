@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Folder, FolderPlus, Plus, Link2, Video, Image as ImageIcon,
-  ChevronRight, Home, Pencil, Trash2, Paperclip,
+  ChevronRight, Home, Pencil, Trash2, Paperclip, Download, FileText,
 } from 'lucide-react'
 import { resourcesApi } from '../../api/resources'
 import { useAuth } from '../../contexts/AuthContext'
@@ -40,6 +40,7 @@ export default function ResourcesPage() {
   const [resourceModal, setResourceModal] = useState<{ mode: 'create' } | { mode: 'edit'; resource: ResourceResponse } | null>(null)
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<ResourceFolderResponse | null>(null)
   const [deleteResourceTarget, setDeleteResourceTarget] = useState<ResourceResponse | null>(null)
+  const [viewerTarget, setViewerTarget] = useState<ResourceResponse | null>(null)
 
   const qc = useQueryClient()
   const { toasts, toast, dismiss } = useToast()
@@ -141,17 +142,8 @@ export default function ResourcesPage() {
           {resources.map(r => {
             const meta = TYPE_META[r.type]
             const Icon = meta.icon
-            return (
-              <a
-                key={r.id}
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={gridCardStyle}
-                style={styles.card}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
-              >
+            const content = (
+              <>
                 <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={paletteStyle(meta.color, 0.14, 0)}>
                   <Icon size={17} />
                 </div>
@@ -181,6 +173,43 @@ export default function ResourcesPage() {
                     </button>
                   </div>
                 )}
+              </>
+            )
+
+            // Files we host (uploaded via "Upload a file instead") open in an in-app viewer
+            // with a download option — video/image preview inline. A pasted external link
+            // (YouTube, Google Drive, etc.) can't be reliably embedded, so it still opens
+            // in a new tab.
+            if (r.hosted) {
+              return (
+                <div
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setViewerTarget(r)}
+                  onKeyDown={e => { if (e.key === 'Enter') setViewerTarget(r) }}
+                  className={gridCardStyle}
+                  style={styles.card}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+                >
+                  {content}
+                </div>
+              )
+            }
+
+            return (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={gridCardStyle}
+                style={styles.card}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
+              >
+                {content}
               </a>
             )
           })}
@@ -240,6 +269,10 @@ export default function ResourcesPage() {
         />
       )}
 
+      {viewerTarget && (
+        <ResourceViewerModal resource={viewerTarget} onClose={() => setViewerTarget(null)} />
+      )}
+
       {deleteFolderTarget && (
         <Modal open title="Delete folder" onClose={() => setDeleteFolderTarget(null)}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
@@ -273,6 +306,47 @@ export default function ResourcesPage() {
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
+  )
+}
+
+// ── View a hosted resource in-app ────────────────────────────────────────────
+
+function ResourceViewerModal({ resource, onClose }: { resource: ResourceResponse; onClose: () => void }) {
+  return (
+    <Modal open title={resource.name} onClose={onClose} size="md">
+      {resource.type === 'VIDEO' && (
+        <video controls className="w-full rounded-xl mb-3" style={{ maxHeight: 360, background: '#000' }}>
+          <source src={resource.url} />
+        </video>
+      )}
+
+      {resource.type === 'IMAGE' && (
+        <img
+          src={resource.url}
+          alt={resource.name}
+          className="w-full rounded-xl mb-3 object-contain"
+          style={{ maxHeight: 360, background: surface.filterStrip }}
+        />
+      )}
+
+      {resource.type === 'LINK' && (
+        <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-3" style={{ border: `1px solid ${border.divider}` }}>
+          <FileText size={16} className="flex-shrink-0" style={{ color: colors.accent }} />
+          <span className="text-sm font-medium truncate flex-1" style={{ color: colors.text.primary }}>{resource.name}</span>
+        </div>
+      )}
+
+      <a
+        href={resource.url}
+        download
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
+        style={{ color: colors.text.muted, border: `1px solid ${border.card}` }}
+      >
+        <Download size={12} /> Download
+      </a>
+    </Modal>
   )
 }
 
