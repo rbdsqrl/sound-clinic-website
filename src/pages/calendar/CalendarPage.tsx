@@ -44,6 +44,16 @@ import { formatTimeStr } from '../../lib/format'
 
 type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review' | 'meeting'
 
+// Labels match the ones EventDetailDrawer already shows per kind.
+const EVENT_KIND_OPTIONS: { value: EventKind; label: string }[] = [
+  { value: 'session',      label: 'Therapy Session' },
+  { value: 'review',       label: 'Review Meeting' },
+  { value: 'meeting',      label: 'Meeting' },
+  { value: 'leave',        label: 'Leave' },
+  { value: 'holiday',      label: 'Public Holiday' },
+  { value: 'consultation', label: 'Consultation' },
+]
+
 interface CalendarEvent {
   id: string
   date: string        // 'yyyy-MM-dd'
@@ -1942,6 +1952,7 @@ export default function CalendarPage() {
   const [upcomingOpen,   setUpcomingOpen]   = useState(false)
   const [caseFilter,     setCaseFilter]     = useState('')
   const [programFilter,  setProgramFilter]  = useState('')
+  const [kindFilter,     setKindFilter]     = useState<EventKind | ''>('')
   const [staffTherapistId,   setStaffTherapistId]   = useState('')
   const [staffGranularity,   setStaffGranularity]   = useState<'day' | 'week' | 'month'>('day')
   const qcMain = useQueryClient()
@@ -2090,8 +2101,9 @@ export default function CalendarPage() {
   }, [sessions])
 
   const staffEvents = useMemo(() => {
-    if (!caseFilter && !programFilter) return events
+    if (!caseFilter && !programFilter && !kindFilter) return events
     return events.filter(ev => {
+      if (kindFilter && ev.kind !== kindFilter) return false
       if (caseFilter) {
         if (ev.kind === 'session') { if ((ev.raw as TherapySessionResponse).patientId !== caseFilter) return false }
         else if (ev.kind === 'review') { if ((ev.raw as ReviewMeetingResponse).patientId !== caseFilter) return false }
@@ -2103,7 +2115,7 @@ export default function CalendarPage() {
       }
       return true
     })
-  }, [events, caseFilter, programFilter])
+  }, [events, caseFilter, programFilter, kindFilter])
 
   // Further narrows to one therapist's own events — "show only their cases".
   // For a plain Therapist (no admin-tier role), this is never optional: they only
@@ -2233,6 +2245,10 @@ export default function CalendarPage() {
           <div className="w-44">
             <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
               options={programOptions} placeholder="All Programs" />
+          </div>
+          <div className="w-44">
+            <Select value={kindFilter} onChange={e => setKindFilter(e.target.value as EventKind | '')}
+              options={EVENT_KIND_OPTIONS} placeholder="All Events" />
           </div>
 
           {useStaffLayout && (
