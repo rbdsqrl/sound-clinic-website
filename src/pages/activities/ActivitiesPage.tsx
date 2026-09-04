@@ -10,7 +10,6 @@ import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, accentAlpha } from '../../theme'
@@ -50,7 +49,7 @@ export default function ActivitiesPage() {
   const [tab, setTab] = useState<Tab>('mine')
   const [search, setSearch] = useState('')
   const [difficulty, setDifficulty] = useState<ActivityDifficulty | ''>('')
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
 
   const { data: activities, isLoading } = useQuery({
@@ -163,8 +162,6 @@ export default function ActivitiesPage() {
           ))}
         </div>
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

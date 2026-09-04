@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ChevronRight, Pencil, UserPlus, Clock, Users2, Globe, Link2 } from 'lucide-react'
+import { ChevronRight, Pencil, UserPlus, Clock, Users2, Globe, Link2, Video, Image as ImageIcon } from 'lucide-react'
 import { activitiesApi } from '../../api/activities'
 import { patientsApi } from '../../api/patients'
 import { usersApi } from '../../api/users'
@@ -14,16 +14,17 @@ import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border } from '../../theme'
 import { ROUTES } from '../../lib/routes'
-import type { AssignActivityRequest, ActivityDifficulty, AssignmentStatus } from '../../types'
+import type { AssignActivityRequest, ActivityDifficulty, AssignmentStatus, ResourceType } from '../../types'
 
 const DIFFICULTY_VARIANT: Record<ActivityDifficulty, 'green' | 'yellow' | 'red'> = {
   EASY: 'green', MEDIUM: 'yellow', HARD: 'red',
 }
+
+const LINKED_RESOURCE_ICON: Record<ResourceType, typeof Link2> = { LINK: Link2, VIDEO: Video, IMAGE: ImageIcon }
 
 const STATUS_VARIANT: Record<AssignmentStatus, 'slate' | 'blue' | 'green' | 'red'> = {
   ASSIGNED: 'slate', IN_PROGRESS: 'blue', COMPLETED: 'green', DISCONTINUED: 'red',
@@ -32,8 +33,11 @@ const STATUS_VARIANT: Record<AssignmentStatus, 'slate' | 'blue' | 'green' | 'red
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [assignOpen, setAssignOpen] = useState(false)
-  const { toasts, toast, dismiss } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
+  const { toast } = useToast()
   const qc = useQueryClient()
+
+  useEffect(() => { if (assignOpen) setFormError(null) }, [assignOpen])
 
   const { data: activity, isLoading } = useQuery({
     queryKey: ['activity', id],
@@ -55,7 +59,7 @@ export default function ActivityDetailPage() {
       setAssignOpen(false)
       reset()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to assign activity'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to assign activity')),
   })
 
   if (isLoading || !activity) return <PageLoader />
@@ -135,7 +139,7 @@ export default function ActivityDetailPage() {
         </Card>
       )}
 
-      {(activity.tipsAndSuggestions || activity.links.length > 0) && (
+      {(activity.tipsAndSuggestions || activity.links.length > 0 || activity.linkedResources.length > 0) && (
         <Card>
           {activity.tipsAndSuggestions && (
             <>
@@ -152,6 +156,18 @@ export default function ActivityDetailPage() {
               ))}
             </div>
           )}
+          {activity.linkedResources.length > 0 && (
+            <div className="mt-4 space-y-1.5">
+              {activity.linkedResources.map((r) => {
+                const Icon = LINKED_RESOURCE_ICON[r.type]
+                return (
+                  <a key={r.id} href={r.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm hover:underline" style={{ color: colors.accent }}>
+                    <Icon size={13} /> {r.name}
+                  </a>
+                )
+              })}
+            </div>
+          )}
         </Card>
       )}
 
@@ -160,8 +176,8 @@ export default function ActivityDetailPage() {
         <PatientAssignmentsList activityId={activity.id} />
       </Card>
 
-      <Modal open={assignOpen} onClose={() => { setAssignOpen(false); reset() }} title="Assign to Case">
-        <form onSubmit={handleSubmit((d) => assignMut.mutate(d))} className="space-y-4">
+      <Modal open={assignOpen} onClose={() => { setAssignOpen(false); reset() }} title="Assign to Case" error={formError}>
+        <form onSubmit={handleSubmit((d) => { setFormError(null); assignMut.mutate(d) })} className="space-y-4">
           <Select label="Case" placeholder="Select a case…" error={errors.patientId?.message}
             options={patients.map((p) => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))}
             {...register('patientId', { required: 'Choose a case' })} />
@@ -175,8 +191,6 @@ export default function ActivityDetailPage() {
           </div>
         </form>
       </Modal>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Plus, Trash2, Sparkles, Upload, Link2, GripVertical, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Sparkles, Upload, Link2, Video, Image as ImageIcon, GripVertical, ChevronRight, Library } from 'lucide-react'
 import { activitiesApi } from '../../api/activities'
 import { programsApi } from '../../api/programs'
 import { skillsApi, languagesApi, propsApi } from '../../api/activityLookups'
@@ -12,14 +12,16 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { PageLoader } from '../../components/ui/Spinner'
-import { ToastContainer } from '../../components/ui/Toast'
+import { ResourcePickerModal } from '../../components/shared/ResourcePickerModal'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, border, surface } from '../../theme'
+import { colors, border, surface, accentAlpha } from '../../theme'
 import { ROUTES } from '../../lib/routes'
 import type {
-  AgeUnit, ActivityDifficulty, ChecklistQuestionType, ChecklistQuestionInput, CreateActivityRequest,
+  AgeUnit, ActivityDifficulty, ChecklistQuestionType, ChecklistQuestionInput, CreateActivityRequest, ResourceResponse, ResourceType,
 } from '../../types'
+
+const LINKED_RESOURCE_ICON: Record<ResourceType, typeof Link2> = { LINK: Link2, VIDEO: Video, IMAGE: ImageIcon }
 
 interface FormFields {
   title: string
@@ -65,7 +67,7 @@ export default function CreateActivityPage() {
   const { id } = useParams<{ id: string }>()
   const isEdit = !!id
   const navigate = useNavigate()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
 
   const { data: existing, isLoading: loadingExisting } = useQuery({
@@ -93,6 +95,8 @@ export default function CreateActivityPage() {
   const [instructions, setInstructions] = useState<string[]>([])
   const [checklist, setChecklist] = useState<LocalQuestion[]>([])
   const [links, setLinks] = useState<string[]>([])
+  const [linkedResources, setLinkedResources] = useState<ResourceResponse[]>([])
+  const [showResourcePicker, setShowResourcePicker] = useState(false)
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
   const [magicFillLoading, setMagicFillLoading] = useState<'instructions' | 'checklist' | null>(null)
 
@@ -120,6 +124,7 @@ export default function CreateActivityPage() {
       options: q.options.map((o) => o.optionText),
     })))
     setLinks(existing.links)
+    setLinkedResources(existing.linkedResources)
   }, [existing, reset])
 
   const saveMut = useMutation({
@@ -159,6 +164,7 @@ export default function CreateActivityPage() {
       propIds,
       tipsAndSuggestions: d.tipsAndSuggestions || undefined,
       links: links.filter((l) => l.trim()),
+      resourceIds: linkedResources.map((r) => r.id),
       isShared: d.isShared,
     })
   }
@@ -448,7 +454,41 @@ export default function CreateActivityPage() {
               + Click to add the link
             </button>
           </div>
+
+          <div className="mt-4">
+            <label className="form-label">From your Resources library</label>
+            {linkedResources.length > 0 && (
+              <ul className="space-y-1.5 mb-2">
+                {linkedResources.map((r) => {
+                  const Icon = LINKED_RESOURCE_ICON[r.type]
+                  return (
+                    <li key={r.id} className="flex items-center gap-2 rounded-lg px-2.5 py-2"
+                      style={{ background: accentAlpha(0.06) }}>
+                      <Icon size={14} style={{ color: colors.accent }} className="flex-shrink-0" />
+                      <span className="text-sm truncate flex-1" style={{ color: colors.text.primary }}>{r.name}</span>
+                      <button type="button"
+                        onClick={() => setLinkedResources((prev) => prev.filter((x) => x.id !== r.id))}
+                        className="p-2.5 -m-2.5 rounded-lg flex-shrink-0" style={{ color: colors.text.dim }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <Button type="button" variant="secondary" size="sm" onClick={() => setShowResourcePicker(true)}>
+              <Library size={14} /> Add from Resources library
+            </Button>
+          </div>
         </SectionCard>
+
+        {showResourcePicker && (
+          <ResourcePickerModal
+            selected={linkedResources}
+            onConfirm={setLinkedResources}
+            onClose={() => setShowResourcePicker(false)}
+          />
+        )}
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <label className="inline-flex items-center gap-2 text-sm" style={{ color: colors.text.primary }}>
@@ -460,14 +500,12 @@ export default function CreateActivityPage() {
           </Button>
         </div>
       </form>
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
 
 function ResourcesEditor({ activityId, resources }: { activityId: string; resources: { id: string; fileName: string }[] }) {
-  const { toast, toasts, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
   const uploadMut = useMutation({
     mutationFn: (file: File) => activitiesApi.uploadResource(activityId, file),
@@ -504,7 +542,6 @@ function ResourcesEditor({ activityId, resources }: { activityId: string; resour
           ))}
         </ul>
       )}
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
