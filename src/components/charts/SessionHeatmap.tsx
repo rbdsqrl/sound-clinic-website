@@ -62,33 +62,42 @@ export default function SessionHeatmap({ points, year }: { points: TrendPoint[];
   const hoveredCell = cells.find(c => c.date === hover)
 
   return (
-    <div className="overflow-x-auto">
-      <svg width={width} height={height + 4} role="img" aria-label="Sessions per day, across the year">
-        {monthLabels.map((m, i) => (
-          <text key={i} x={m.x} y={11} fontSize={10} fill={colors.text.dim}>{m.label}</text>
-        ))}
-        {cells.map((c, i) => (
-          <rect
-            key={i}
-            x={c.x * (CELL + GAP)}
-            y={MONTH_LABEL_H + c.y * (CELL + GAP)}
-            width={CELL}
-            height={CELL}
-            rx={2}
-            fill={tint(c.count, c.inYear)}
-            stroke={hover === c.date ? colors.accent : 'transparent'}
-            strokeWidth={1.5}
-            onMouseEnter={() => c.inYear && setHover(c.date)}
-            onMouseLeave={() => setHover(null)}
-          />
-        ))}
-      </svg>
-      {hoveredCell && (
-        <p className="mt-1 text-xs" style={{ color: colors.text.muted }}>
-          {new Date(hoveredCell.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
-          {' · '}{hoveredCell.count} session{hoveredCell.count !== 1 ? 's' : ''}
-        </p>
-      )}
+    <div className="flex items-start gap-4 flex-wrap">
+      <div className="overflow-x-auto">
+        <svg width={width} height={height + 4} role="img" aria-label="Sessions per day, across the year">
+          {monthLabels.map((m, i) => (
+            <text key={i} x={m.x} y={11} fontSize={10} fill={colors.text.dim}>{m.label}</text>
+          ))}
+          {cells.map((c, i) => (
+            <rect
+              key={i}
+              x={c.x * (CELL + GAP)}
+              y={MONTH_LABEL_H + c.y * (CELL + GAP)}
+              width={CELL}
+              height={CELL}
+              rx={2}
+              fill={tint(c.count, c.inYear)}
+              stroke={hover === c.date ? colors.accent : 'transparent'}
+              strokeWidth={1.5}
+              onMouseEnter={() => c.inYear && setHover(c.date)}
+              onMouseLeave={() => setHover(null)}
+            />
+          ))}
+        </svg>
+      </div>
+      {/* Fixed-width side panel, always mounted, so hovering cells only swaps its text instead
+          of mounting/unmounting a line below the grid — that used to shift the layout and made
+          the label flicker as the mouse moved across cells. */}
+      <div className="flex-shrink-0 min-w-[150px] text-xs pt-1" style={{ color: colors.text.muted }}>
+        {hoveredCell ? (
+          <>
+            {new Date(hoveredCell.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {' · '}{hoveredCell.count} session{hoveredCell.count !== 1 ? 's' : ''}
+          </>
+        ) : (
+          <span style={{ color: colors.text.dim }}>Hover a day for details</span>
+        )}
+      </div>
     </div>
   )
 }
