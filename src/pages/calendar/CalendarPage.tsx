@@ -2090,7 +2090,7 @@ export default function CalendarPage() {
   }, [sessions])
 
   const staffEvents = useMemo(() => {
-    if (view !== 'staff' || (!caseFilter && !programFilter)) return events
+    if (!caseFilter && !programFilter) return events
     return events.filter(ev => {
       if (caseFilter) {
         if (ev.kind === 'session') { if ((ev.raw as TherapySessionResponse).patientId !== caseFilter) return false }
@@ -2103,7 +2103,7 @@ export default function CalendarPage() {
       }
       return true
     })
-  }, [events, view, caseFilter, programFilter])
+  }, [events, caseFilter, programFilter])
 
   // Further narrows to one therapist's own events — "show only their cases".
   // For a plain Therapist (no admin-tier role), this is never optional: they only
@@ -2120,6 +2120,11 @@ export default function CalendarPage() {
     () => staffTherapistId ? staffColumns.filter(c => c.id === staffTherapistId) : staffColumns,
     [staffColumns, staffTherapistId]
   )
+
+  // What every grid (Month/Week/Day/Agenda, not just the Staff layout) actually renders —
+  // Case/Program filters apply everywhere; the therapist "Me"/owner narrowing only makes
+  // sense for the staff-facing layout (a Parent's own user id isn't a session's owner).
+  const visibleEvents = useStaffLayout ? staffFilteredEvents : staffEvents
 
   // ── Browser notification effect ────────────────────────────────────────────
   // Fires every 60 s; notifies for timed events starting within 15 minutes.
@@ -2213,37 +2218,38 @@ export default function CalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {(view === 'staff' || view === 'agenda') && (
-            <>
-              <div className="w-44">
-                <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
-                  options={caseOptions} placeholder="All Cases" />
-              </div>
-              {canSeeStaffView && (
-                <div className="w-44">
-                  <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
-                    options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
-                </div>
-              )}
-              <div className="w-44">
-                <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
-                  options={programOptions} placeholder="All Programs" />
-              </div>
-              <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
-                {(['day', 'week', 'month'] as const).map(g => (
-                  <button key={g} onClick={() => { setStaffGranularity(g); setView('staff') }}
-                    className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                    style={view === 'staff' && staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
-                    {g}
-                  </button>
-                ))}
-                <button onClick={() => setView('agenda')}
+          {/* Case/Program (and, for admin-tier, Therapist) filters — apply to every view,
+              not just the ones that happen to render this row. */}
+          <div className="w-44">
+            <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
+              options={caseOptions} placeholder="All Cases" />
+          </div>
+          {canSeeStaffView && (
+            <div className="w-44">
+              <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
+                options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
+            </div>
+          )}
+          <div className="w-44">
+            <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
+              options={programOptions} placeholder="All Programs" />
+          </div>
+
+          {useStaffLayout && (
+            <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
+              {(['day', 'week', 'month'] as const).map(g => (
+                <button key={g} onClick={() => { setStaffGranularity(g); setView('staff') }}
                   className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                  style={view === 'agenda' ? styles.segmentActive : styles.segmentInactive}>
-                  Agenda
+                  style={view === 'staff' && staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
+                  {g}
                 </button>
-              </div>
-            </>
+              ))}
+              <button onClick={() => setView('agenda')}
+                className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                style={view === 'agenda' ? styles.segmentActive : styles.segmentInactive}>
+                Agenda
+              </button>
+            </div>
           )}
 
           {/* Day/Week/Month picker for everyone else's single-timeline calendar — hidden below
@@ -2286,7 +2292,7 @@ export default function CalendarPage() {
           <h2 className="text-base font-semibold flex-1" style={{ color: colors.text.primary }}>{title}</h2>
 
           <span className="text-xs" style={{ color: colors.text.muted }}>
-            {events.length} event{events.length !== 1 ? 's' : ''}
+            {visibleEvents.length} event{visibleEvents.length !== 1 ? 's' : ''}
           </span>
 
           {/* Notification permission — previously lived on the Today/Tomorrow strip */}
@@ -2327,14 +2333,14 @@ export default function CalendarPage() {
             <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto flex flex-col">
               <div className={`flex flex-col flex-1 min-h-0 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
                 {view === 'month' ? (
-                  <MonthView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                  <MonthView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
                     onDayClick={day => { setCurrent(day); setView('day') }} />
                 ) : view === 'week' ? (
-                  <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                  <WeekView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 ) : view === 'agenda' ? (
                   <AgendaView
-                    events={useStaffLayout ? staffFilteredEvents : events}
+                    events={visibleEvents}
                     onSelect={setSelected}
                     colorFn={useStaffLayout ? ev => therapistChipStyle(ev, staffColumns, theme === 'dark') : undefined}
                   />
@@ -2353,7 +2359,7 @@ export default function CalendarPage() {
                       onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                   )
                 ) : (
-                  <DayView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
+                  <DayView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 )}
               </div>
@@ -2379,7 +2385,7 @@ export default function CalendarPage() {
                 </button>
                 {upcomingOpen && (
                   <div className="flex flex-col px-4 pb-4 -mt-2 overflow-hidden">
-                    <UpcomingPanel events={events} onSelect={setSelected} />
+                    <UpcomingPanel events={visibleEvents} onSelect={setSelected} />
                   </div>
                 )}
               </div>
