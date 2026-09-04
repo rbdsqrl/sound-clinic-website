@@ -847,14 +847,18 @@ function StatRing({ segments, size = 92, strokeWidth = 10 }: {
 }
 
 /** One ring + legend column, shared by the Cases and Members halves of OrgOverview. */
-function StatRingPanel({ title, ring, stats }: {
+function StatRingPanel({ title, ring, stats, divider }: {
   title: string
   ring: { value: number; color: string }[]
   stats: { label: string; count: number; color: string }[]
+  divider?: boolean
 }) {
   const total = ring.reduce((sum, s) => sum + s.value, 0)
   return (
-    <div className="p-4 sm:p-6 flex flex-col gap-4 flex-1">
+    <div
+      className="p-4 sm:p-6 flex flex-col gap-4 flex-1"
+      style={divider ? { borderTop: `1px solid ${border.divider}` } : undefined}
+    >
       <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{title}</p>
       <div className="flex items-center gap-5">
         <div className="flex flex-col gap-3">
@@ -904,7 +908,7 @@ function OrgOverview({ patients, members, invites }: {
       <div className="px-4 sm:px-6 py-4" style={{ borderBottom: `1px solid ${border.divider}` }}>
         <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Organisation Overview</h2>
       </div>
-      <div className="flex-1 flex flex-col sm:flex-row">
+      <div className="flex-1 flex flex-col">
         <StatRingPanel
           title="Cases"
           ring={[
@@ -918,6 +922,7 @@ function OrgOverview({ patients, members, invites }: {
         />
         <StatRingPanel
           title="Members"
+          divider
           ring={[
             { value: activeMembers,  color: palette.green.text },
             { value: invitedMembers, color: palette.yellow.text },
@@ -1155,7 +1160,6 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
               <EmptyState
                 icon={<Cake size={22} />}
                 title="No birthdays coming up"
-                description="Cases with a birthday in the next 30 days will show up here."
               />
             </div>
           ) : (
@@ -1778,7 +1782,7 @@ export default function DashboardPage() {
         const hasPendingNotes = isTherapistRole && pendingNotes.length > 0
 
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {canReschedule && (loadingReschedule ? <CardSkeleton /> : hasReschedule && (
               <PendingReschedulePanel
                 sessions={pendingReschedule}
