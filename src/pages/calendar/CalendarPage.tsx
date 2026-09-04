@@ -962,6 +962,101 @@ function StaffDayView({
   )
 }
 
+// ── Agenda view ───────────────────────────────────────────────────────────────
+// A flat, scannable list grouped by day (days with nothing on them are skipped entirely)
+// instead of a grid — modelled on the "Agenda" view in Kidaura's own scheduler
+// (care.kidaura.in/app/schedule): Date · Time · Event columns, one merged date cell per day.
+
+function eventEndTime(ev: CalendarEvent): string | undefined {
+  if (ev.kind === 'session') return (ev.raw as TherapySessionResponse).endTime
+  if (ev.kind === 'review')  return (ev.raw as ReviewMeetingResponse).endTime
+  if (ev.kind === 'meeting') return (ev.raw as MeetingResponse).endTime
+  return undefined
+}
+
+function AgendaView({
+  events, onSelect, colorFn,
+}: {
+  events: CalendarEvent[]
+  onSelect: (e: CalendarEvent) => void
+  /** Overrides the default kind-based row color — used by the Staff agenda to color by therapist. */
+  colorFn?: (ev: CalendarEvent) => React.CSSProperties | undefined
+}) {
+  const groups = useMemo(() => {
+    const sorted = [...events].sort((a, b) => {
+      const d = a.date.localeCompare(b.date)
+      if (d !== 0) return d
+      if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1
+      return (a.time ?? '').localeCompare(b.time ?? '')
+    })
+    const out: { dateKey: string; label: string; items: CalendarEvent[] }[] = []
+    for (const ev of sorted) {
+      const last = out[out.length - 1]
+      if (last && last.dateKey === ev.date) last.items.push(ev)
+      else out.push({ dateKey: ev.date, label: upcomingDateLabel(ev.date), items: [ev] })
+    }
+    return out
+  }, [events])
+
+  if (groups.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-sm" style={{ color: colors.text.muted }}>Nothing scheduled this month</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            {['Date', 'Time', 'Event'].map(h => (
+              <th key={h} className="sticky top-0 text-left text-xs font-semibold uppercase tracking-wide px-3 py-2 z-10"
+                style={{ color: colors.text.muted, background: surface.card, borderBottom: `1px solid ${border.divider}` }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {groups.flatMap(group => group.items.map((ev, i) => {
+            const rowStyle = colorFn?.(ev) ?? kindStyle(ev.kind, ev.status)
+            const end = eventEndTime(ev)
+            return (
+              <tr key={ev.id}>
+                {i === 0 && (
+                  <td rowSpan={group.items.length}
+                    className="align-top px-3 py-2.5 text-xs font-semibold whitespace-nowrap"
+                    style={{
+                      color: group.label === 'Today' ? colors.accent : colors.text.primary,
+                      borderBottom: `1px solid ${border.divider}`,
+                      borderLeft: `3px solid ${colors.accent}`,
+                    }}>
+                    {group.label}
+                  </td>
+                )}
+                <td className="align-top px-3 py-2.5 text-xs whitespace-nowrap"
+                  style={{ color: colors.text.muted, borderBottom: `1px solid ${border.divider}` }}>
+                  {ev.isAllDay ? 'All day' : `${formatTimeStr(ev.time)}${end ? ` – ${formatTimeStr(end)}` : ''}`}
+                </td>
+                <td className="px-2 py-1.5" style={{ borderBottom: `1px solid ${border.divider}` }}>
+                  <button onClick={() => onSelect(ev)}
+                    className="w-full text-left rounded-lg px-2.5 py-1.5 truncate transition-opacity hover:opacity-80"
+                    style={rowStyle}>
+                    <span className="text-sm font-semibold">{ev.title}</span>
+                    {ev.subtitle && <span className="text-xs opacity-80"> · {ev.subtitle}</span>}
+                  </button>
+                </td>
+              </tr>
+            )
+          }))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ── Upcoming panel ────────────────────────────────────────────────────────────
 
 function UpcomingPanel({
@@ -1792,7 +1887,7 @@ function ProgramSessionsPlaceholder() {
 
 // ── Main CalendarPage ─────────────────────────────────────────────────────────
 
-type ViewMode = 'month' | 'week' | 'day' | 'staff'
+type ViewMode = 'month' | 'week' | 'day' | 'staff' | 'agenda'
 
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
@@ -2065,20 +2160,20 @@ export default function CalendarPage() {
   // ── Navigation ─────────────────────────────────────────────────────────────
   function prev() {
     setCurrent(v =>
-      (view === 'month' || staffIsMonth) ? subMonths(v, 1) :
+      (view === 'month' || view === 'agenda' || staffIsMonth) ? subMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? subWeeks(v, 1)  :
       subDays(v, 1)
     )
   }
   function next() {
     setCurrent(v =>
-      (view === 'month' || staffIsMonth) ? addMonths(v, 1) :
+      (view === 'month' || view === 'agenda' || staffIsMonth) ? addMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? addWeeks(v, 1)  :
       addDays(v, 1)
     )
   }
 
-  const title = (view === 'month' || staffIsMonth)
+  const title = (view === 'month' || view === 'agenda' || staffIsMonth)
     ? format(current, 'MMMM yyyy')
     : (view === 'day' || staffIsDay)
     ? format(current, 'EEEE, d MMMM yyyy')
@@ -2111,7 +2206,7 @@ export default function CalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {view === 'staff' && (
+          {(view === 'staff' || view === 'agenda') && (
             <>
               <div className="w-44">
                 <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
@@ -2129,12 +2224,17 @@ export default function CalendarPage() {
               </div>
               <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
                 {(['day', 'week', 'month'] as const).map(g => (
-                  <button key={g} onClick={() => setStaffGranularity(g)}
+                  <button key={g} onClick={() => { setStaffGranularity(g); setView('staff') }}
                     className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                    style={staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
+                    style={view === 'staff' && staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
                     {g}
                   </button>
                 ))}
+                <button onClick={() => setView('agenda')}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                  style={view === 'agenda' ? styles.segmentActive : styles.segmentInactive}>
+                  Agenda
+                </button>
               </div>
             </>
           )}
@@ -2143,7 +2243,7 @@ export default function CalendarPage() {
               sm. Admin-tier roles and therapists are locked into the Staff layout above instead. */}
           {!useStaffLayout && (
             <div className="hidden sm:inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
-              {(['day', 'week', 'month'] as ViewMode[]).map(m => (
+              {(['day', 'week', 'month', 'agenda'] as ViewMode[]).map(m => (
                 <button key={m} onClick={() => setView(m)}
                   className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
                   style={view === m ? styles.segmentActive : styles.segmentInactive}>
@@ -2234,6 +2334,12 @@ export default function CalendarPage() {
                 ) : view === 'week' ? (
                   <WeekView current={current} events={events} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
+                ) : view === 'agenda' ? (
+                  <AgendaView
+                    events={useStaffLayout ? staffFilteredEvents : events}
+                    onSelect={setSelected}
+                    colorFn={useStaffLayout ? ev => therapistChipStyle(ev, staffColumns, theme === 'dark') : undefined}
+                  />
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
