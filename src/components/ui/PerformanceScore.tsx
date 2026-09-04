@@ -97,12 +97,6 @@ export function PerformanceScoreSlider({
       <div className="flex justify-between mt-1 text-[11px]" style={{ color: colors.text.dim }}>
         {[0, 25, 50, 75, 100].map(t => <span key={t}>{t}</span>)}
       </div>
-
-      {!active && !disabled && (
-        <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>
-          Drag to score this session, or leave it unscored.
-        </p>
-      )}
     </div>
   )
 }
