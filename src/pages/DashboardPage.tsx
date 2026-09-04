@@ -168,7 +168,7 @@ function TodaySessions({
         <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
           {s.programName}
         </p>
-        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+        <p className="text-[11px] truncate" style={{ color: colors.text.muted }}>
           {s.patientFirstName} {s.patientLastName}
           {showTherapist && (
             <span style={{ color: colors.text.dim }}>
