@@ -1911,7 +1911,9 @@ export default function CalendarPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Scoped server-side: therapists get their own, parents their children's
+  // Scoped server-side: admins get the whole org, parents their linked children's — a
+  // therapist gets none back, since review meetings are Clinic Head + parent only and the
+  // therapist is deliberately never a participant, even for their own caseload.
   const { data: reviewMeetings = [] } = useQuery({
     queryKey: ['review-meetings', 'mine'],
     queryFn:  reviewMeetingsApi.listMine,
@@ -2084,8 +2086,10 @@ export default function CalendarPage() {
   return (
     <div className="flex flex-col gap-5">
 
-      {/* Page header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Page header — also carries the Case/Therapist/Program filters and the view picker
+          (Day/Week/Month, or staff granularity) so the calendar card below is pure toolbar +
+          grid, with no separate filter row eating into the grid's vertical space. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold" style={{ color: colors.text.heading }}>Calendar</h1>
           <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
@@ -2097,14 +2101,58 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        {canAddMeeting && (
-          <button
-            onClick={() => setNewMeetingOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
-            style={{ color: '#fff', background: colors.accent }}>
-            <Plus size={14} /> New meeting
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {view === 'staff' && (
+            <>
+              <div className="w-44">
+                <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
+                  options={caseOptions} placeholder="All Cases" />
+              </div>
+              {canSeeStaffView && (
+                <div className="w-44">
+                  <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
+                    options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
+                </div>
+              )}
+              <div className="w-44">
+                <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
+                  options={programOptions} placeholder="All Programs" />
+              </div>
+              <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
+                {(['day', 'week', 'month'] as const).map(g => (
+                  <button key={g} onClick={() => setStaffGranularity(g)}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                    style={staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Day/Week/Month picker for everyone else's single-timeline calendar — hidden below
+              sm. Admin-tier roles and therapists are locked into the Staff layout above instead. */}
+          {!useStaffLayout && (
+            <div className="hidden sm:inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
+              {(['day', 'week', 'month'] as ViewMode[]).map(m => (
+                <button key={m} onClick={() => setView(m)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
+                  style={view === m ? styles.segmentActive : styles.segmentInactive}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {canAddMeeting && (
+            <button
+              onClick={() => setNewMeetingOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
+              style={{ color: '#fff', background: colors.accent }}>
+              <Plus size={14} /> New meeting
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Calendar card */}
@@ -2161,53 +2209,7 @@ export default function CalendarPage() {
             style={styles.filterTabInactive}>
             Today
           </button>
-
-          {/* View toggle — hidden below sm. Admin-tier roles and therapists are locked into
-              the Staff layout (see the useEffect above), so this Day/Week/Month picker is
-              only for everyone else's single-timeline calendar; Staff's own Day/Week/Month
-              zoom lives in the filter bar below instead. */}
-          {!useStaffLayout && (
-            <div className="hidden sm:inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
-              {(['day', 'week', 'month'] as ViewMode[]).map(m => (
-                <button key={m} onClick={() => setView(m)}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                  style={view === m ? styles.segmentActive : styles.segmentInactive}>
-                  {m}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
-
-        {/* Staff view filters — Case / Therapist / Program + Day/Week toggle */}
-        {view === 'staff' && (
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b flex-shrink-0"
-            style={{ borderColor: border.divider }}>
-            <div className="w-44">
-              <Select value={caseFilter} onChange={e => setCaseFilter(e.target.value)}
-                options={caseOptions} placeholder="All Cases" />
-            </div>
-            {canSeeStaffView && (
-              <div className="w-44">
-                <Select value={staffTherapistId} onChange={e => setStaffTherapistId(e.target.value)}
-                  options={staffColumns.map(c => ({ value: c.id, label: c.label }))} placeholder="All Therapists" />
-              </div>
-            )}
-            <div className="w-44">
-              <Select value={programFilter} onChange={e => setProgramFilter(e.target.value)}
-                options={programOptions} placeholder="All Programs" />
-            </div>
-            <div className="inline-flex rounded-full p-0.5 gap-0.5 ml-auto" style={styles.segmentTrack}>
-              {(['day', 'week', 'month'] as const).map(g => (
-                <button key={g} onClick={() => setStaffGranularity(g)}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                  style={staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Content */}
         {!hasAnyEvents ? (

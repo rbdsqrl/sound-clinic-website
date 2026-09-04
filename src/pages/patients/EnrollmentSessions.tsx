@@ -617,6 +617,10 @@ export function SessionNotesModal({
       qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
       qc.invalidateQueries({ queryKey: ['enrollments'] })
       qc.invalidateQueries({ queryKey: ['session-feedback', session.id] })
+      // This modal is also opened from the Calendar page (SessionEventModal), which fetches
+      // its own event list under a different key — without this, a save here leaves the
+      // calendar showing the pre-save status/notes until something else happens to invalidate it.
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
       toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session updated', 'success')
       onClose()
     },
@@ -744,7 +748,7 @@ export function SessionNotesModal({
 
         {missingRequired && (
           <p className="text-xs" style={{ color: colors.status.danger }}>
-            Performance Score and Rating are required before this session can be saved.
+            Performance Score and Rating are required.
           </p>
         )}
 
@@ -920,25 +924,27 @@ export function SessionNotesModal({
                 ...(canDirectlyCancel
                   ? [{ value: 'CANCELLED' as TherapySessionStatus, label: 'Cancelled', color: colors.status.danger, alpha: dangerAlpha }]
                   : [{ value: 'REQUEST_CANCEL' as const, label: 'Request Cancel', color: colors.status.danger, alpha: dangerAlpha }]),
-              ]).map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setPendingAction(prev => prev === opt.value ? null : opt.value)}
-                  className="flex-1 text-xs font-semibold py-2 rounded-xl border transition-all"
-                  style={pendingAction === opt.value
-                    ? { background: opt.color, color: '#fff', border: `1px solid ${opt.color}` }
-                    : { background: opt.alpha(0.12), color: opt.color, border: `1px solid ${opt.alpha(0.35)}` }}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              ]).map(opt => {
+                const disabled = opt.value === 'COMPLETED' && (score === null || rating === 0)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setPendingAction(opt.value)}
+                    className="flex-1 text-xs font-semibold py-2 rounded-xl border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: opt.alpha(0.12), color: opt.color, border: `1px solid ${opt.alpha(0.35)}` }}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
             </div>
-            {pendingAction && (
+            {score === null || rating === 0 ? (
               <p className="text-xs mt-2" style={{ color: colors.text.dim }}>
-                Will be {pendingAction === 'REQUEST_CANCEL' ? 'requested for cancellation' : `marked ${pendingAction.replace('_', ' ').toLowerCase()}`} when you save.
+                Performance Score and Rating are required before marking Completed.
               </p>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -963,7 +969,9 @@ export function SessionNotesModal({
           </div>
         )}
 
-        {notesTab === 'notes' && saveMut.isError && (
+        {/* Once a status confirmation is pending, its own dialog below owns this error banner —
+            showing it here too would duplicate it. */}
+        {notesTab === 'notes' && saveMut.isError && !pendingAction && (
           <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mb-3"
             style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
             <AlertTriangle size={14} style={{ color: colors.status.danger, flexShrink: 0, marginTop: 1 }} />
@@ -973,15 +981,45 @@ export function SessionNotesModal({
           </div>
         )}
 
-        <div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-          {notesTab === 'notes' && canEdit && (
-            <Button variant="primary" loading={saveMut.isPending} disabled={missingRequired} onClick={() => saveMut.mutate()}>
-              Save
-            </Button>
-          )}
-        </div>
+        {/* Scheduled sessions are finished entirely through "Mark session as" + its confirmation
+            below — no separate Close/Save. Everything else (History tab, a non-editable session,
+            or one already Completed/No Show/Cancelled) keeps the plain Close/Save footer. */}
+        {!(notesTab === 'notes' && canEdit && session.status === 'SCHEDULED') && (
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+            {notesTab === 'notes' && canEdit && (
+              <Button variant="primary" loading={saveMut.isPending} disabled={missingRequired} onClick={() => saveMut.mutate()}>
+                Save
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+
+      {pendingAction && (
+        <Modal open title="Confirm" onClose={() => setPendingAction(null)} size="sm">
+          <p className="text-sm" style={{ color: colors.text.primary }}>
+            {pendingAction === 'REQUEST_CANCEL'
+              ? 'Send a cancellation request for this session?'
+              : `Mark this session as ${pendingAction.replace('_', ' ').toLowerCase()}?`}
+          </p>
+          {saveMut.isError && (
+            <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mt-3"
+              style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
+              <AlertTriangle size={14} style={{ color: colors.status.danger, flexShrink: 0, marginTop: 1 }} />
+              <span style={{ color: colors.text.primary }}>
+                {getApiError(saveMut.error, 'Failed to save. Nothing was changed — please try again.')}
+              </span>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="ghost" onClick={() => setPendingAction(null)}>Cancel</Button>
+            <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+              Confirm
+            </Button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   )
 }

@@ -71,6 +71,11 @@ export const patientsApi = {
   unlinkParent: (id: string, parentId: string) =>
     client.delete(`/patients/${id}/parents/${parentId}`),
 
+  /** Grants an existing org member (e.g. a Therapist) Parent access to this patient —
+   *  confirms the `existingUser` an inviteParent call returned instead of an invite link. */
+  linkExistingUserAsParent: (id: string, data: LinkParentRequest) =>
+    client.post<ApiResponse<PatientResponse>>(`/patients/${id}/parents/link-existing-user`, data).then((r) => r.data.data),
+
   /** Invites someone who doesn't have an account yet; auto-linked as this patient's parent on accept. */
   inviteParent: (id: string, data: InviteParentRequest) =>
     client.post<ApiResponse<InviteParentResponse>>(`/patients/${id}/parents/invite`, data).then((r) => r.data.data),

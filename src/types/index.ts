@@ -409,7 +409,8 @@ export interface InviteParentRequest {
 }
 
 export interface InviteParentResponse {
-  inviteLink: string
+  inviteLink: string | null
+  existingUser: { id: string; firstName: string; lastName: string; role: Role } | null
 }
 
 export interface AssignTherapistRequest {

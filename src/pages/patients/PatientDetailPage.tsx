@@ -26,10 +26,11 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
-import { Badge } from '../../components/ui/Badge'
+import { Badge, roleLabel } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
 import { ToastContainer } from '../../components/ui/Toast'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
+import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
@@ -44,6 +45,7 @@ import { format } from 'date-fns'
 import type {
   AssignTherapistRequest,
   LinkParentRequest,
+  InviteParentResponse,
   UserResponse,
   PatientStage,
   PatientResponse,
@@ -874,10 +876,16 @@ function EnrollmentModal({
   const [reviewIntervalWeeks, setReviewIntervalWeeks] = useState(DEFAULT_REVIEW_INTERVAL_WEEKS)
   const [reviewTime, setReviewTime]             = useState('16:00')
   const [reviewDuration, setReviewDuration]     = useState(30)
+  const [clinicHeadIds, setClinicHeadIds]       = useState<string[]>([])
   const [availableTherapists, setAvailableTherapists] = useState<AvailableTherapistResponse[]>([])
   const [selectedTherapistId, setSelectedTherapistId] = useState('')
   const [findingTherapists, setFindingTherapists]     = useState(false)
   const [step1Errors, setStep1Errors]           = useState<Record<string, string>>({})
+
+  const { data: clinicHeads = [] } = useQuery({
+    queryKey: ['assignable', 'clinic-head'],
+    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
+  })
 
   const createMut = useMutation({
     mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
@@ -897,6 +905,7 @@ function EnrollmentModal({
     if (sessionDays.length === 0) e.days = 'Select at least one day'
     if (startDate && startDate < todayStr()) e.date = 'Start date cannot be in the past'
     else if (startDate && startTime && isPastDateTime(startDate, startTime)) e.time = 'Start time cannot be in the past'
+    if (wantsReviews && clinicHeadIds.length === 0) e.reviewParticipants = 'Pick at least one Clinic Head to invite'
     setStep1Errors(e)
     return Object.keys(e).length === 0
   }
@@ -936,6 +945,7 @@ function EnrollmentModal({
             startTime: reviewTime,
             durationMinutes: reviewDuration,
             intervalWeeks: reviewIntervalWeeks,
+            participantIds: clinicHeadIds,
           }
         : undefined,
     })
@@ -1112,7 +1122,7 @@ function EnrollmentModal({
                     Schedule review meetings
                   </span>
                   <span className="block text-[12.65px] mt-0.5" style={{ color: colors.text.muted }}>
-                    Recurring feedback meetings for the therapist and parents, with calendar invites
+                    Recurring feedback meetings for the Clinic Head and parents, with calendar invites — not the therapist
                   </span>
                 </span>
               </label>
@@ -1149,6 +1159,16 @@ function EnrollmentModal({
                   <p className="text-[12.65px] mt-3" style={{ color: colors.text.dim }}>
                     Meetings run until the plan's last session.
                   </p>
+                  <div className="mt-3">
+                    <MultiSelectChips
+                      label="Clinic Head(s) to invite"
+                      options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+                      selected={clinicHeadIds}
+                      onChange={setClinicHeadIds}
+                      emptyMessage="No Clinic Head is set up in this organisation yet."
+                    />
+                    {step1Errors.reviewParticipants && <p className="form-error mt-1">{step1Errors.reviewParticipants}</p>}
+                  </div>
                 </div>
               )}
             </div>
@@ -1606,14 +1626,23 @@ export default function PatientDetailPage() {
   const [parentMode,   setParentMode]   = useState<'existing' | 'invite'>('existing')
   const [inviteEmail,  setInviteEmail]  = useState('')
   const [inviteLink,   setInviteLink]   = useState<string | null>(null)
+  const [existingUserFound, setExistingUserFound] = useState<InviteParentResponse['existingUser']>(null)
   const inviteParentMutation = useMutation({
     mutationFn: (email: string) => patientsApi.inviteParent(id!, { email }),
-    onSuccess: (res) => { setInviteLink(res.inviteLink); toast('Invite sent', 'success') },
+    onSuccess: (res) => {
+      if (res.existingUser) { setExistingUserFound(res.existingUser); return }
+      setInviteLink(res.inviteLink); toast('Invite sent', 'success')
+    },
     onError: (e) => toast(getApiError(e, 'Failed to send invite'), 'error'),
+  })
+  const linkExistingUserMutation = useMutation({
+    mutationFn: (userId: string) => patientsApi.linkExistingUserAsParent(id!, { parentId: userId }),
+    onSuccess: () => { refresh(); toast('Linked as parent', 'success'); closeParentModal() },
+    onError: (e) => toast(getApiError(e, 'Failed to link as parent'), 'error'),
   })
   const closeParentModal = () => {
     setParentModal(false); setSelectedParent(null)
-    setParentMode('existing'); setInviteEmail(''); setInviteLink(null)
+    setParentMode('existing'); setInviteEmail(''); setInviteLink(null); setExistingUserFound(null)
   }
 
   // Therapist mutations
@@ -2478,7 +2507,7 @@ export default function PatientDetailPage() {
 
       <Modal open={parentModal} onClose={closeParentModal} title="Link a Parent">
         <div className="space-y-4">
-          {!inviteLink && (
+          {!inviteLink && !existingUserFound && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -2534,6 +2563,28 @@ export default function PatientDetailPage() {
               />
               <div className="flex justify-end">
                 <Button type="button" onClick={closeParentModal}>Done</Button>
+              </div>
+            </>
+          ) : existingUserFound ? (
+            <>
+              <div className="rounded-xl p-4" style={{ background: surface.filterStrip }}>
+                <p className="text-sm" style={{ color: colors.text.primary }}>
+                  <strong>{existingUserFound.firstName} {existingUserFound.lastName}</strong> already has an
+                  account in your organisation ({roleLabel(existingUserFound.role)}).
+                </p>
+                <p className="text-xs mt-1.5" style={{ color: colors.text.muted }}>
+                  Link them as a parent of this case too? Their {roleLabel(existingUserFound.role)} access is
+                  unaffected — they'll just also be able to see this case as a parent.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => setExistingUserFound(null)}>Cancel</Button>
+                <Button
+                  loading={linkExistingUserMutation.isPending}
+                  onClick={() => linkExistingUserMutation.mutate(existingUserFound.id)}
+                >
+                  Link as Parent
+                </Button>
               </div>
             </>
           ) : (
