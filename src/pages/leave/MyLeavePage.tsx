@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, Plus, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -11,9 +11,16 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
-import { LeaveStatusBadge, LEAVE_STATUS_META, LEAVE_TYPE_LABEL } from '../../components/shared/LeaveStatusBadge'
+import { colors, styles, border, surface, palette } from '../../theme'
+import { LeaveStatusBadge, LEAVE_STATUS_META } from '../../components/shared/LeaveStatusBadge'
 import type { CreateLeaveRequest, LeaveResponse, LeaveStatus } from '../../types'
+
+/** "Sep 5" for a single day, "Sep 5 - Sep 12" for a range. */
+function leaveDateLabel(leave: { leaveDate: string; endDate: string }) {
+  const start = format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')
+  if (leave.endDate === leave.leaveDate) return start
+  return `${start} – ${format(new Date(leave.endDate), 'EEE, dd MMM yyyy')}`
+}
 
 // ── Leave card ─────────────────────────────────────────────────────────────────
 
@@ -27,11 +34,8 @@ function LeaveCard({ leave, onCancel, cancelling }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
-            {format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')}
+            {leaveDateLabel(leave)}
           </p>
-          <span className="text-xs px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08)}>
-            {LEAVE_TYPE_LABEL[leave.leaveType]}
-          </span>
           <LeaveStatusBadge status={leave.status} />
         </div>
 
@@ -71,33 +75,42 @@ function LeaveCard({ leave, onCancel, cancelling }: {
 
 function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast()
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateLeaveRequest>()
+  const [formError, setFormError] = useState<string | null>(null)
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<CreateLeaveRequest>()
+
+  const startDate = watch('leaveDate')
 
   const mut = useMutation({
-    mutationFn: (data: CreateLeaveRequest) => leavesApi.apply(data),
+    mutationFn: (data: CreateLeaveRequest) => leavesApi.apply({ ...data, endDate: data.endDate || data.leaveDate }),
     onSuccess: () => { toast('Leave request submitted', 'success'); reset(); onCreated() },
-    onError:   (err) => toast(getApiError(err, 'Failed to submit leave request'), 'error'),
+    onError:   (err) => setFormError(getApiError(err, 'Failed to submit leave request')),
   })
 
-  return (
-    <Modal open={open} onClose={onClose} title="Apply for Leave">
-      <form onSubmit={handleSubmit(d => mut.mutateAsync(d))} className="space-y-4">
-        <Input
-          label="Leave Date"
-          type="date"
-          error={errors.leaveDate?.message}
-          {...register('leaveDate', { required: 'Date is required' })}
-        />
+  useEffect(() => { if (open) setFormError(null) }, [open])
 
-        <div className="space-y-1">
-          <label className="form-label">Leave Type</label>
-          <select className="form-input w-full" {...register('leaveType', { required: 'Required' })}>
-            <option value="">Select type…</option>
-            <option value="FULL_DAY">Full Day</option>
-            <option value="HALF_DAY">Half Day</option>
-          </select>
-          {errors.leaveType && <p className="form-error">{errors.leaveType.message}</p>}
+  return (
+    <Modal open={open} onClose={onClose} title="Apply for Leave" error={formError}>
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Start Date"
+            type="date"
+            error={errors.leaveDate?.message}
+            {...register('leaveDate', { required: 'Date is required' })}
+          />
+          <Input
+            label="End Date"
+            type="date"
+            min={startDate || undefined}
+            error={errors.endDate?.message}
+            {...register('endDate', {
+              validate: v => !v || !startDate || v >= startDate || 'End date can\'t be before the start date',
+            })}
+          />
         </div>
+        <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
+          Leave the end date blank for a single day off.
+        </p>
 
         <div className="space-y-1">
           <label className="form-label">Reason <span style={{ color: colors.text.dim }}>(optional)</span></label>

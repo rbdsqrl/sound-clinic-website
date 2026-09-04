@@ -139,17 +139,23 @@ function toConsultationEvent(i: InquiryResponse): CalendarEvent | null {
   }
 }
 
-function toLeaveEvent(l: LeaveResponse): CalendarEvent {
-  return {
-    id: `leave-${l.id}`,
-    date: l.leaveDate,
-    kind: 'leave',
-    title: `OOO - ${l.therapistFirstName} ${l.therapistLastName}`,
-    subtitle: l.leaveType === 'HALF_DAY' ? 'Half Day' : 'Full Day',
-    status: l.status,
-    isAllDay: true,
-    raw: l,
-  }
+/** One event per day in the leave's range (inclusive) — a multi-day leave otherwise only ever
+ *  showed "OOO" on its start date, leaving the rest of the range looking free on the calendar. */
+function toLeaveEvents(l: LeaveResponse): CalendarEvent[] {
+  const days = eachDayOfInterval({ start: parseISO(l.leaveDate), end: parseISO(l.endDate) })
+  return days.map(day => {
+    const dateStr = format(day, 'yyyy-MM-dd')
+    return {
+      id: `leave-${l.id}-${dateStr}`,
+      date: dateStr,
+      kind: 'leave',
+      title: `OOO - ${l.therapistFirstName} ${l.therapistLastName}`,
+      subtitle: l.endDate === l.leaveDate ? 'Full Day' : `${format(parseISO(l.leaveDate), 'MMM d')} – ${format(parseISO(l.endDate), 'MMM d')}`,
+      status: l.status,
+      isAllDay: true,
+      raw: l,
+    }
+  })
 }
 
 function toSessionEvent(s: TherapySessionResponse): CalendarEvent {
@@ -1501,10 +1507,10 @@ function EventDetailDrawer({
                   style={{ color: colors.text.muted }}>Feedback</p>
                 <p className="text-sm rounded-xl px-3 py-2.5"
                   style={{ color: colors.text.primary, background: surface.rowHover }}>
-                  {rawReview.therapistFeedbackAt && rawReview.parentFeedbackAt
-                    ? 'Both sides have shared their feedback.'
-                    : rawReview.therapistFeedbackAt
-                      ? 'The therapist has shared feedback.'
+                  {rawReview.clinicHeadRemarksAt && rawReview.parentFeedbackAt
+                    ? 'Clinic Head remarks and parent feedback are both in.'
+                    : rawReview.clinicHeadRemarksAt
+                      ? 'Clinic Head remarks have been written.'
                       : rawReview.parentFeedbackAt
                         ? 'The parent has shared feedback.'
                         : 'No feedback shared yet.'}
@@ -1904,9 +1910,12 @@ export default function CalendarPage() {
     staleTime: 60 * 60 * 1000, // holidays rarely change; cache for 1 hour
   })
 
+  // All staff (Therapists, Clinic Heads, Business Owners, Office Admins) — not just
+  // Therapists — so an admin can view any staff member's schedule side by side, not only
+  // clinicians'. The viewer's own id is filtered out below (they already get a "Me" column).
   const { data: staffTherapists = [] } = useQuery({
-    queryKey: ['therapists'],
-    queryFn:  () => usersApi.listTherapists(),
+    queryKey: ['staff-assignable'],
+    queryFn:  () => usersApi.listAssignable(),
     enabled:  canSeeStaffView,
     staleTime: 5 * 60 * 1000,
   })
@@ -1946,7 +1955,7 @@ export default function CalendarPage() {
     const leavesToShow = canSeeInquiries
       ? leaves.filter(l => l.status === 'APPROVED')
       : leaves
-    for (const l of leavesToShow) out.push(toLeaveEvent(l))
+    for (const l of leavesToShow) out.push(...toLeaveEvents(l))
     for (const s of sessions) out.push(toSessionEvent(s))
     for (const h of publicHolidays) out.push(toHolidayEvent(h))
     for (const m of reviewMeetings) {
@@ -1963,11 +1972,11 @@ export default function CalendarPage() {
     const me: StaffColumn = {
       id: user?.id ?? '', firstName: user?.firstName ?? '', lastName: user?.lastName ?? '', label: 'Me',
     }
-    // Therapists only ever see their own column here — seeing every therapist side by
+    // Therapists only ever see their own column here — seeing every staff member side by
     // side is the org-management view canSeeStaffView gates (staffTherapists is empty
-    // for them anyway, since the API that populates it excludes therapists).
+    // for them anyway, since the API that populates it is only enabled for that view).
     if (!canSeeStaffView) return [me]
-    return [me, ...staffTherapists.map(t => ({
+    return [me, ...staffTherapists.filter(t => t.id !== user?.id).map(t => ({
       id: t.id, firstName: t.firstName, lastName: t.lastName, label: `${t.firstName} ${t.lastName}`,
     }))]
   }, [user, staffTherapists, canSeeStaffView])

@@ -515,7 +515,7 @@ export interface UpdateAppointmentStatusRequest {
 }
 
 // ── Leave ──────────────────────────────────────────────────────────────────────
-export type LeaveType   = 'FULL_DAY' | 'HALF_DAY'
+export type LeaveType   = 'FULL_DAY'
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface LeaveResponse {
@@ -523,7 +523,8 @@ export interface LeaveResponse {
   therapistId: string
   therapistFirstName: string
   therapistLastName: string
-  leaveDate: string        // "YYYY-MM-DD"
+  leaveDate: string        // "YYYY-MM-DD" — start of the range
+  endDate: string          // "YYYY-MM-DD" — inclusive end; equal to leaveDate for a single day
   leaveType: LeaveType
   reason: string | null
   status: LeaveStatus
@@ -535,8 +536,9 @@ export interface LeaveResponse {
 }
 
 export interface CreateLeaveRequest {
-  leaveDate: string        // "YYYY-MM-DD"
-  leaveType: LeaveType
+  leaveDate: string        // "YYYY-MM-DD" — start date
+  /** Inclusive end of the range — omit (or set equal to leaveDate) for a single-day leave. */
+  endDate?: string
   reason?: string
 }
 
@@ -645,12 +647,14 @@ export interface ReviewMeetingResponse {
   parentComments: string | null
   parentFeedbackAt: string | null
 
-  therapistSummary: string | null
-  therapistProgressNotes: string | null
-  therapistFeedbackAt: string | null
+  /** Admin-only (Clinic Head, also editable by Business Owner) — never sent to the Therapist
+   *  or Parent, including an Admin viewer who is themselves the treating therapist here. */
+  clinicHeadRemarks: string | null
+  clinicHeadRemarksAt: string | null
+  clinicHeadRemarksByName: string | null
 
   cancelledReason: string | null
-  /** Therapist plus every parent linked to the patient. */
+  /** Every parent linked to the patient plus the Clinic Head(s) invited. */
   participants: MeetingParticipant[]
   createdAt: string
 }
@@ -680,9 +684,8 @@ export interface ParentFeedbackRequest {
   comments?: string
 }
 
-export interface TherapistFeedbackRequest {
-  summary: string
-  progressNotes?: string
+export interface ClinicHeadRemarksRequest {
+  remarks: string
 }
 
 // ── Therapist Reassignments ─────────────────────────────────────────────────
@@ -762,6 +765,10 @@ export interface TherapySessionResponse {
   performanceScore: number | null  // 1–5
   completedAt: string | null
   rescheduleReason: RescheduleReason | null
+  /** Set alongside rescheduleReason === 'THERAPIST_LEAVE' — the approved leave's date range
+   *  that caused this session to need rescheduling. Null for every other reason. */
+  rescheduleLeaveStartDate: string | null
+  rescheduleLeaveEndDate: string | null
   /** True once a parent has asked for this session to be moved. Never resets. */
   parentRescheduleRequested: boolean
   /** Sessions of this plan the parent may still ask to move. */
@@ -1612,6 +1619,9 @@ export interface ActivityResponse {
   tipsAndSuggestions: string | null
   resources: ActivityResourceResponse[]
   links: string[]
+  /** Items picked from the org-wide Resources library, as opposed to `resources` (files
+   *  uploaded directly to this activity) or `links` (freeform pasted URLs). */
+  linkedResources: ResourceResponse[]
   isShared: boolean
   sourceActivityId: string | null
   isActive: boolean
@@ -1636,6 +1646,7 @@ export interface CreateActivityRequest {
   propIds?: string[]
   tipsAndSuggestions?: string
   links?: string[]
+  resourceIds?: string[]
   isShared?: boolean
 }
 

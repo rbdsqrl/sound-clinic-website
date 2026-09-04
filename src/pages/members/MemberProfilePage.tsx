@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck, Repeat } from 'lucide-react'
@@ -21,7 +21,6 @@ import { Select } from '../../components/ui/Select'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../hooks/useToast'
-import { ToastContainer } from '../../components/ui/Toast'
 import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
@@ -33,6 +32,17 @@ import type { Role, ReassignmentType } from '../../types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
+/** Passed via navigate(..., { state: { prefillReassignment } }) — e.g. from the Dashboard's
+ *  "Needs Rescheduling" card, to jump straight into reassigning a therapist's caseload for
+ *  the duration of their leave instead of rescheduling each affected session by hand. */
+interface ReassignPrefill {
+  patientIds: string[]
+  type: ReassignmentType
+  startDate?: string
+  endDate?: string
+  reason?: string
+}
+
 function defaultRange() {
   const to = new Date()
   const from = new Date()
@@ -42,6 +52,9 @@ function defaultRange() {
 
 export default function MemberProfilePage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const prefill = (location.state as { prefillReassignment?: ReassignPrefill } | null)?.prefillReassignment ?? null
+  const prefillApplied = useRef(false)
   const { user, activeRole } = useAuth()
   const canEdit = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
   // Role changes are Business-Owner-only, and never on one's own account.
@@ -49,12 +62,16 @@ export default function MemberProfilePage() {
   // Admin Roles — separate from canEdit, which is narrower (missing OFFICE_ADMIN).
   const canReassign = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
 
   const [range, setRange] = useState(defaultRange)
   const [editOpen, setEditOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
   const [reassignOpen, setReassignOpen] = useState(false)
+  const [reassignError, setReassignError] = useState<string | null>(null)
+
+  useEffect(() => { if (assignOpen) setAssignError(null) }, [assignOpen])
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
 
   const { data: profile, isLoading } = useQuery({
@@ -70,6 +87,14 @@ export default function MemberProfilePage() {
   })
   const cases = patients.filter(p => p.therapists.some(t => t.id === id))
   const unassigned = patients.filter(p => !p.therapists.some(t => t.id === id))
+
+  useEffect(() => {
+    if (!prefill || prefillApplied.current || cases.length === 0) return
+    prefillApplied.current = true
+    const validIds = new Set(cases.map(c => c.id))
+    setSelectedCaseIds(prefill.patientIds.filter(pid => validIds.has(pid)))
+    setReassignOpen(true)
+  }, [cases, prefill])
 
   // Insights — assembled from three existing analytics endpoints rather than a new one.
   const { data: members = [] } = useQuery({
@@ -106,7 +131,7 @@ export default function MemberProfilePage() {
       toast('Case assigned', 'success')
       setAssignOpen(false)
     },
-    onError: (err: unknown) => toast(getApiError(err, 'Could not assign case'), 'error'),
+    onError: (err: unknown) => setAssignError(getApiError(err, 'Could not assign case')),
   })
   const unassignMut = useMutation({
     mutationFn: (patientId: string) => patientsApi.unassignTherapist(patientId, id!),
@@ -147,7 +172,7 @@ export default function MemberProfilePage() {
       setSelectedCaseIds([])
       setReassignOpen(false)
     },
-    onError: (err: unknown) => toast(getApiError(err, 'Could not reassign cases'), 'error'),
+    onError: (err: unknown) => setReassignError(getApiError(err, 'Could not reassign cases')),
   })
   const cancelReassignMut = useMutation({
     mutationFn: (reassignmentId: string) => reassignmentsApi.cancelEarly(reassignmentId),
@@ -473,8 +498,10 @@ export default function MemberProfilePage() {
           therapistId={id!}
           caseCount={selectedCaseIds.length}
           pending={reassignMut.isPending}
+          apiError={reassignError}
+          initial={prefill ?? undefined}
           onClose={() => setReassignOpen(false)}
-          onSubmit={data => reassignMut.mutate(data)}
+          onSubmit={data => { setReassignError(null); reassignMut.mutate(data) }}
         />
       )}
 
@@ -483,8 +510,9 @@ export default function MemberProfilePage() {
         open={assignOpen}
         patients={unassigned}
         pending={assignMut.isPending}
+        apiError={assignError}
         onClose={() => setAssignOpen(false)}
-        onAssign={patientId => assignMut.mutate(patientId)}
+        onAssign={patientId => { setAssignError(null); assignMut.mutate(patientId) }}
       />
 
       {/* Edit profile */}
@@ -501,8 +529,6 @@ export default function MemberProfilePage() {
           }}
         />
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
@@ -510,19 +536,23 @@ export default function MemberProfilePage() {
 // ── Reassign selected cases ───────────────────────────────────────────────────
 
 function ReassignCasesModal({
-  therapistId, caseCount, pending, onClose, onSubmit,
+  therapistId, caseCount, pending, apiError, initial, onClose, onSubmit,
 }: {
   therapistId: string
   caseCount: number
   pending: boolean
+  apiError?: string | null
+  /** Pre-fills the form — e.g. arriving from the Dashboard's "reassign for this leave" shortcut.
+   *  The new therapist is still always a manual pick. */
+  initial?: { type: ReassignmentType; startDate?: string; endDate?: string; reason?: string }
   onClose: () => void
   onSubmit: (data: { toTherapistId: string; type: ReassignmentType; startDate?: string; endDate?: string; reason?: string }) => void
 }) {
   const [toTherapistId, setToTherapistId] = useState('')
-  const [type, setType] = useState<ReassignmentType>('PERMANENT')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [reason, setReason] = useState('')
+  const [type, setType] = useState<ReassignmentType>(initial?.type ?? 'PERMANENT')
+  const [startDate, setStartDate] = useState(initial?.startDate ?? '')
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '')
+  const [reason, setReason] = useState(initial?.reason ?? '')
   const [error, setError] = useState('')
 
   const { data: therapists = [] } = useQuery({
@@ -601,7 +631,7 @@ function ReassignCasesModal({
         <Input label="Reason (optional)" value={reason} onChange={e => setReason(e.target.value)}
           placeholder="e.g. Covering for planned leave" />
 
-        {error && <p className="form-error">{error}</p>}
+        {(error || apiError) && <p className="form-error">{error || apiError}</p>}
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -618,18 +648,19 @@ function todayForInput() {
 // ── Assign a case ────────────────────────────────────────────────────────────
 
 function AssignCaseModal({
-  open, patients, pending, onClose, onAssign,
+  open, patients, pending, apiError, onClose, onAssign,
 }: {
   open: boolean
   patients: { id: string; firstName: string; lastName: string }[]
   pending: boolean
+  apiError?: string | null
   onClose: () => void
   onAssign: (patientId: string) => void
 }) {
   const [patientId, setPatientId] = useState('')
 
   return (
-    <Modal open={open} onClose={onClose} title="Assign a case">
+    <Modal open={open} onClose={onClose} title="Assign a case" error={apiError}>
       <div className="flex flex-col gap-4">
         <Select
           label="Case"

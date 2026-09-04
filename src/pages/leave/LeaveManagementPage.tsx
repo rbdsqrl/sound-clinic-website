@@ -10,8 +10,15 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
 import { Avatar } from '../../components/shared/Avatar'
-import { LeaveStatusBadge, LEAVE_STATUS_META, LEAVE_TYPE_LABEL } from '../../components/shared/LeaveStatusBadge'
+import { LeaveStatusBadge, LEAVE_STATUS_META } from '../../components/shared/LeaveStatusBadge'
 import type { LeaveResponse, LeaveStatus } from '../../types'
+
+/** "Sep 5" for a single day, "Sep 5 - Sep 12" for a range. */
+function leaveDateLabel(leave: { leaveDate: string; endDate: string }) {
+  const start = format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')
+  if (leave.endDate === leave.leaveDate) return start
+  return `${start} – ${format(new Date(leave.endDate), 'EEE, dd MMM yyyy')}`
+}
 
 // ── Leave row ──────────────────────────────────────────────────────────────────
 
@@ -38,14 +45,11 @@ function LeaveRow({ leave, onReview, reviewing }: {
             {leave.therapistFirstName} {leave.therapistLastName}
           </p>
           <LeaveStatusBadge status={leave.status} />
-          <span className="text-xs px-2 py-0.5 rounded-full" style={paletteStyle('purple', 0.08)}>
-            {LEAVE_TYPE_LABEL[leave.leaveType]}
-          </span>
         </div>
 
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <p className="text-xs font-medium" style={{ color: colors.text.muted }}>
-            {format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')}
+            {leaveDateLabel(leave)}
           </p>
           {leave.reason && (
             <p className="text-xs" style={{ color: colors.text.dim }}>· {leave.reason}</p>

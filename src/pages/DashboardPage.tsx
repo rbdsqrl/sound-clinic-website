@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { format, parseISO, subDays, differenceInCalendarDays } from 'date-fns'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus, Repeat } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
 import { clinicsApi } from '../api/clinics'
 import { slotsApi } from '../api/appointments'
@@ -25,9 +25,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../contexts/AuthContext'
 import { roleBadge, sessionStatusLabel } from '../components/ui/Badge'
 import { colors, styles, border, palette, rgba, surface, accentAlpha, successAlpha, dangerAlpha, warningAlpha } from '../theme'
-import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
-import { ToastContainer } from '../components/ui/Toast'
+import { useToast } from '../hooks/useToast'
 import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr } from '../lib/format'
@@ -301,7 +300,7 @@ function RescheduleModal({
 }) {
   const [newDate, setNewDate] = useState('')
   const [substituteId, setSubstituteId] = useState('')
-  const { toast } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { data: therapists = [] } = useQuery({
     queryKey: ['therapists'],
@@ -328,13 +327,13 @@ function RescheduleModal({
       substituteTherapistId: substituteId || undefined,
     }),
     onSuccess: () => { onDone() },
-    onError: (err) => toast(getApiError(err, 'Failed to reschedule session'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to reschedule session')),
   })
 
   const canSubmit = newDate || substituteId
 
   return (
-    <Modal open onClose={onClose} title="Reschedule session">
+    <Modal open onClose={onClose} title="Reschedule session" error={formError}>
       <div className="space-y-4">
         <div className="rounded-xl p-3 text-sm" style={{ background: accentAlpha(0.07), color: colors.text.muted }}>
           <p className="font-medium" style={{ color: colors.text.primary }}>
@@ -382,7 +381,7 @@ function RescheduleModal({
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button
-            onClick={() => mutation.mutate()}
+            onClick={() => { setFormError(null); mutation.mutate() }}
             loading={mutation.isPending}
             disabled={!canSubmit}
           >
@@ -394,19 +393,25 @@ function RescheduleModal({
   )
 }
 
-function rescheduleReasonBadge(reason: RescheduleReason | null | undefined) {
-  if (reason === 'PUBLIC_HOLIDAY') return (
-    <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: `rgba(${palette.blue.raw}, 0.09)`, color: palette.blue.text }}>Holiday</span>
-  )
-  if (reason === 'PARENT_REQUEST') return (
-    <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: `rgba(${palette.purple.raw}, 0.09)`, color: palette.purple.text }}>Parent request</span>
-  )
-  return (
-    <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ background: warningAlpha(0.09), color: colors.status.warning }}>Therapist leave</span>
-  )
+function rescheduleReasonColor(reason: RescheduleReason | null | undefined) {
+  if (reason === 'PUBLIC_HOLIDAY') return palette.blue.text
+  if (reason === 'PARENT_REQUEST') return palette.purple.text
+  return colors.status.warning
+}
+
+/** "Therapist leave · Sep 5 – Sep 12" when the leave spans a range, else the plain reason. */
+function rescheduleReasonLabel(s: TherapySessionResponse) {
+  if (s.rescheduleReason === 'PUBLIC_HOLIDAY') return 'Public holiday'
+  if (s.rescheduleReason === 'PARENT_REQUEST') return 'Parent request'
+  if (s.rescheduleReason === 'THERAPIST_LEAVE') {
+    if (s.rescheduleLeaveStartDate && s.rescheduleLeaveEndDate) {
+      const start = format(new Date(s.rescheduleLeaveStartDate), 'MMM d')
+      if (s.rescheduleLeaveStartDate === s.rescheduleLeaveEndDate) return `Therapist leave · ${start}`
+      return `Therapist leave · ${start} – ${format(new Date(s.rescheduleLeaveEndDate), 'MMM d')}`
+    }
+    return 'Therapist leave'
+  }
+  return 'Needs rescheduling'
 }
 
 function PendingReschedulePanel({ sessions, onRescheduled }: {
@@ -415,17 +420,98 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
 }) {
   const [selected, setSelected] = useState<TherapySessionResponse | null>(null)
   const [showAll, setShowAll] = useState(false)
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const qc = useQueryClient()
+  const navigate = useNavigate()
+
+  // Sessions bumped by the same therapist's leave, over the same range, are usually better
+  // handled as one bulk case reassignment (hand the whole caseload to a substitute for the
+  // leave window) than by rescheduling each session's time slot one at a time — the therapist
+  // themselves is still unavailable either way. Group them so we can offer that shortcut.
+  //
+  // Only sessions still ahead of us qualify — a substitute reassignment is forward-looking, so
+  // it can't help a session whose date has already gone by unaddressed. That one just needs a
+  // new date picked by hand, same as a Public Holiday / Parent Request session.
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const isFutureLeaveSession = (s: TherapySessionResponse) =>
+    s.rescheduleReason === 'THERAPIST_LEAVE' && !!s.rescheduleLeaveStartDate && !!s.rescheduleLeaveEndDate
+      && s.sessionDate >= today
+
+  const leaveGroups = useMemo(() => {
+    const byKey = new Map<string, { therapistId: string; therapistName: string; start: string; end: string; sessions: TherapySessionResponse[] }>()
+    for (const s of sessions) {
+      if (!isFutureLeaveSession(s)) continue
+      const key = `${s.therapistId}|${s.rescheduleLeaveStartDate}|${s.rescheduleLeaveEndDate}`
+      const existing = byKey.get(key)
+      if (existing) {
+        existing.sessions.push(s)
+      } else {
+        byKey.set(key, {
+          therapistId: s.therapistId,
+          therapistName: `${s.therapistFirstName} ${s.therapistLastName}`,
+          start: s.rescheduleLeaveStartDate!,
+          end: s.rescheduleLeaveEndDate!,
+          sessions: [s],
+        })
+      }
+    }
+    return [...byKey.values()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, today])
+
+  // Leave-caused sessions are fully represented by the reassign banners above — listing them
+  // again below as individual "Reschedule" rows would just be the same sessions shown twice. A
+  // past-dated leave session doesn't fall back here either: nobody actioned it in time, a bulk
+  // reassignment can't retroactively help it, and a nightly sweep (MissedRescheduleCancelJob)
+  // auto-cancels it rather than leaving it to clutter this card indefinitely — recovering one is
+  // a deliberate new booking from the patient's case, not something surfaced here.
+  const otherSessions = useMemo(
+    () => sessions.filter(s => s.rescheduleReason !== 'THERAPIST_LEAVE'),
+    [sessions]
+  )
+
+  const goReassign = (group: (typeof leaveGroups)[number]) => {
+    const patientIds = [...new Set(group.sessions.map(s => s.patientId))]
+    const rangeLabel = group.start === group.end
+      ? format(new Date(group.start), 'MMM d')
+      : `${format(new Date(group.start), 'MMM d')} – ${format(new Date(group.end), 'MMM d')}`
+
+    // The reassignment window must be forward-looking (its endDate has to be after today) even
+    // when the leave itself already started, or already finished, before the admin gets around
+    // to actioning the flagged sessions — clamp forward rather than sending the leave's raw
+    // dates and hitting "End date must be in the future". The reason text still cites the
+    // leave's real dates for context.
+    //
+    // ReassignmentRevertJob hands the batch back at 00:10 on endDate itself (endDate <= today),
+    // not the day after — so a substitute only actually covers through endDate-1. To have them
+    // cover the leave's real last day, endDate here needs to be one day past it.
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+    const dayAfterLeaveEnds = format(addDays(parseISO(group.end), 1), 'yyyy-MM-dd')
+    const startDate = group.start < today ? today : group.start
+    const endDate = dayAfterLeaveEnds <= today ? tomorrow : dayAfterLeaveEnds
+
+    navigate(ROUTES.member(group.therapistId), {
+      state: {
+        prefillReassignment: {
+          patientIds,
+          type: 'TEMPORARY' as const,
+          startDate,
+          endDate,
+          reason: `Covering ${group.therapistName}'s leave (${rangeLabel})`,
+        },
+      },
+    })
+  }
 
   const rescheduleRow = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
     <div
       key={s.id}
-      className="flex items-center gap-4 px-4 sm:px-6 py-3.5"
+      className="flex items-center gap-3 px-4 sm:px-6 py-3.5"
       style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
     >
       {/* Date */}
-      <div className="flex-shrink-0 w-24 sm:w-28">
+      <div className="flex-shrink-0 w-14 sm:w-16">
         <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
           {format(new Date(s.sessionDate), 'MMM d')}
         </p>
@@ -434,7 +520,10 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
         </p>
       </div>
 
-      {/* Patient + program */}
+      {/* Patient + program + reason — three lines, matching Today's Sessions' compact style.
+          A plain colored line rather than a badge, since a badge's chrome doesn't fit this
+          card's column width (a sm: breakpoint doesn't help there — it tracks viewport width,
+          not this column's, which can be much narrower on a multi-column dashboard grid). */}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
           {s.patientFirstName} {s.patientLastName}
@@ -445,23 +534,20 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
             {' · '}{s.therapistFirstName} {s.therapistLastName}
           </span>
         </p>
-      </div>
-
-      {/* Reason badge + session count */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs hidden sm:block" style={{ color: colors.text.dim }}>
-          {s.sessionNumber}/{s.totalSessions}
-        </span>
-        {rescheduleReasonBadge(s.rescheduleReason)}
+        <p className="text-[11px] font-medium truncate mt-0.5" style={{ color: rescheduleReasonColor(s.rescheduleReason) }}>
+          {rescheduleReasonLabel(s)}
+        </p>
       </div>
 
       {/* Action */}
       <button
         onClick={() => setSelected(s)}
-        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+        aria-label="Reschedule"
+        title="Reschedule"
+        className="flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-lg transition-colors"
         style={{ background: warningAlpha(0.09), color: colors.status.warning }}
       >
-        <RefreshCw size={12} /> Reschedule
+        <RefreshCw size={13} />
       </button>
     </div>
   )
@@ -484,42 +570,62 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
               {sessions.length}
             </span>
           </div>
-          <p className="text-xs" style={{ color: colors.text.muted }}>Leave · Holiday · Parent request</p>
         </div>
 
+        {leaveGroups.length > 0 && (
+          <div className="px-4 sm:px-6 py-2.5 flex flex-col gap-1.5" style={{ borderBottom: `1px solid ${border.divider}` }}>
+            {leaveGroups.map(g => (
+              <button
+                key={`${g.therapistId}-${g.start}-${g.end}`}
+                onClick={() => goReassign(g)}
+                className="flex items-center gap-2 text-left text-xs rounded-lg px-2.5 py-2 transition-colors"
+                style={{ background: accentAlpha(0.07), color: colors.text.primary }}
+              >
+                <Repeat size={13} className="flex-shrink-0" style={{ color: colors.accent }} />
+                <span className="flex-1 min-w-0">
+                  {g.sessions.length} session{g.sessions.length > 1 ? 's' : ''} affected by {g.therapistName}'s leave — reassign these cases instead
+                </span>
+                <ChevronRight size={13} className="flex-shrink-0" style={{ color: colors.accent }} />
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex-1">
-          {sessions.length === 0 ? (
-            <div className="h-full flex flex-col justify-center">
-              <EmptyState
-                icon={<AlertTriangle size={22} />}
-                title="Nothing to reschedule"
-                description="Sessions affected by leave, holidays, or parent requests will show up here."
-              />
-            </div>
+          {otherSessions.length === 0 ? (
+            leaveGroups.length === 0 && (
+              <div className="h-full flex flex-col justify-center">
+                <EmptyState
+                  icon={<AlertTriangle size={22} />}
+                  title="Nothing to reschedule"
+                  description="Sessions affected by leave, holidays, or parent requests will show up here."
+                />
+              </div>
+            )
           ) : (
             <div>
-              {sessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, sessions.slice(0, PREVIEW)))}
+              {otherSessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, otherSessions.slice(0, PREVIEW)))}
             </div>
           )}
         </div>
 
-        {sessions.length > PREVIEW && (
+        {otherSessions.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button
               onClick={() => setShowAll(true)}
               className="text-xs font-medium"
               style={{ color: colors.status.warning }}
             >
-              View all {sessions.length} sessions
+              View all {otherSessions.length} sessions
             </button>
           </div>
         )}
       </div>
 
       {showAll && (
-        <Modal open title={`Needs Rescheduling (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+        <Modal open title={`Needs Rescheduling (${otherSessions.length})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
-            {sessions.map((s, i) => rescheduleRow(s, i, sessions))}
+            {otherSessions.map((s, i) => rescheduleRow(s, i, otherSessions))}
           </div>
         </Modal>
       )}
@@ -537,8 +643,6 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           }}
         />
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   )
 }
@@ -596,14 +700,13 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} style={{ color: colors.status.warning }} />
             <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
-              Pending Session Notes
+              Action Needed
             </h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
               style={{ background: warningAlpha(0.09), color: colors.status.warning }}>
               {sessions.length}
             </span>
           </div>
-          <p className="text-xs" style={{ color: colors.text.muted }}>Sessions past their time, still unmarked</p>
         </div>
 
         <div className="flex-1">
@@ -626,7 +729,7 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
       </div>
 
       {showAll && (
-        <Modal open title={`Pending Session Notes (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+        <Modal open title={`Action Needed (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
             {sessions.map((s, i) => row(s, i, sessions))}
           </div>
@@ -641,7 +744,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
   onDone: () => void
 }) {
   const qc = useQueryClient()
-  const { toasts, toast, dismiss } = useToast()
+  const { toast } = useToast()
   const [showAll, setShowAll] = useState(false)
   const PREVIEW = 3
 
@@ -755,8 +858,6 @@ function CancellationRequestsPanel({ sessions, onDone }: {
           </div>
         </Modal>
       )}
-
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   )
 }
@@ -1180,6 +1281,7 @@ function SessionUpdateModal({
   const [rating, setRating]             = useState(Number.isNaN(parsedRating) ? 0 : parsedRating)
   const [score, setScore]               = useState<number | null>(session.performanceScore ?? null)
   const [pendingAction, setPendingAction] = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -1198,13 +1300,13 @@ function SessionUpdateModal({
       toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session saved', 'success')
       onClose()
     },
-    onError: (err) => toast(getApiError(err, 'Failed to save'), 'error'),
+    onError: (err) => setFormError(getApiError(err, 'Failed to save')),
   })
 
   const isScheduled = session.status === 'SCHEDULED'
 
   return (
-    <Modal open title={`Session #${session.sessionNumber}`} onClose={onClose} size="lg">
+    <Modal open title={`Session #${session.sessionNumber}`} onClose={onClose} size="lg" error={formError}>
       {/* Info strip */}
       <div className="flex items-center justify-between gap-3 mb-5 p-3 rounded-xl"
         style={{ background: accentAlpha(0.05) }}>
@@ -1276,7 +1378,7 @@ function SessionUpdateModal({
 
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Close</Button>
-          <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+          <Button variant="primary" loading={saveMut.isPending} onClick={() => { setFormError(null); saveMut.mutate() }}>
             Save
           </Button>
         </div>

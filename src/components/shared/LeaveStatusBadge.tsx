@@ -10,7 +10,6 @@ export const LEAVE_STATUS_META: Record<LeaveStatus, { label: string; icon: React
 
 export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   FULL_DAY: 'Full Day',
-  HALF_DAY: 'Half Day',
 }
 
 export function LeaveStatusBadge({ status }: { status: LeaveStatus }) {

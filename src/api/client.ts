@@ -29,10 +29,30 @@ export const tokenStorage = {
   },
 }
 
-// ── Request: attach Bearer token ──────────────────────────────────────────────
+/** The active role a dual-role user has switched to in the UI (e.g. viewing "as Parent" vs
+ *  "as Therapist") — persisted per-user by AuthContext as `activeRole_<userId>`. Sent on every
+ *  request so the backend can scope genuinely role-dependent views (a Therapist-who-is-also-a-
+ *  Parent's calendar, their session list) to whichever "hat" is currently selected, rather than
+ *  everything the account is capable of. Read straight from localStorage (not React context)
+ *  since this module lives outside the component tree, same as tokenStorage below. */
+function activeRoleHeader(): string | null {
+  try {
+    const raw = localStorage.getItem('user')
+    if (!raw) return null
+    const userId = (JSON.parse(raw) as { id?: string }).id
+    if (!userId) return null
+    return localStorage.getItem(`activeRole_${userId}`)
+  } catch {
+    return null
+  }
+}
+
+// ── Request: attach Bearer token + active role ─────────────────────────────────
 client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStorage.getAccess()
   if (token) config.headers.Authorization = `Bearer ${token}`
+  const activeRole = activeRoleHeader()
+  if (activeRole) config.headers['X-Active-Role'] = activeRole
   return config
 })
 
