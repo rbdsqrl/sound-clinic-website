@@ -165,10 +165,10 @@ function TodaySessions({
       </span>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-[12px] truncate" style={{ color: colors.text.primary }}>
+        <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
           {s.programName}
         </p>
-        <p className="text-[10px] truncate" style={{ color: colors.text.muted }}>
+        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
           {s.patientFirstName} {s.patientLastName}
           {showTherapist && (
             <span style={{ color: colors.text.dim }}>
@@ -191,7 +191,7 @@ function TodaySessions({
     </>
   )
 
-  const rowClass = 'flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left'
+  const rowClass = 'flex items-start gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left'
 
   return (
     <>
