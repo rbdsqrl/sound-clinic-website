@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Clock, CheckCircle2, Circle, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, parseISO, subDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -128,14 +128,6 @@ function AvailabilityHint({ slots, date }: { slots: SlotResponse[]; date: string
   )
 }
 
-function sessionStatusIcon(status: string) {
-  if (status === 'COMPLETED') return <CheckCircle2 size={14} style={{ color: colors.status.success }} />
-  if (status === 'CANCELLED' || status === 'NO_SHOW') return <XCircle size={14} style={{ color: colors.status.danger }} />
-  if (status === 'PENDING_RESCHEDULE') return <AlertTriangle size={14} style={{ color: colors.status.warning }} />
-  if (status === 'CANCELLATION_REQUESTED') return <XCircle size={14} style={{ color: colors.status.danger }} />
-  return <Circle size={14} style={{ color: colors.text.dim }} />
-}
-
 function statusColor(status: string): string {
   if (status === 'COMPLETED') return colors.status.success
   if (status === 'CANCELLED' || status === 'NO_SHOW') return colors.status.danger
@@ -168,27 +160,16 @@ function TodaySessions({
 
   const rowContent = (s: TherapySessionResponse) => (
     <>
-      <div className="flex-shrink-0">
-        {isOverdue(s)
-          ? <AlertTriangle size={14} style={{ color: colors.status.warning }} />
-          : isOngoing(s)
-            ? <Clock size={14} style={{ color: colors.accent }} />
-            : sessionStatusIcon(s.status)}
-      </div>
-
-      <div className="flex items-center gap-1 flex-shrink-0 w-32">
-        <Clock size={11} style={{ color: colors.text.dim }} />
-        <span className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
-          {formatTimeStr(s.startTime)} – {formatTimeStr(s.endTime)}
-        </span>
-      </div>
+      <span className="text-[11px] font-medium tabular-nums flex-shrink-0 w-12" style={{ color: colors.text.muted }}>
+        {formatTimeStr(s.startTime)}
+      </span>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
-          {s.patientFirstName} {s.patientLastName}
-        </p>
-        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+        <p className="font-medium text-[12px] truncate" style={{ color: colors.text.primary }}>
           {s.programName}
+        </p>
+        <p className="text-[10px] truncate" style={{ color: colors.text.muted }}>
+          {s.patientFirstName} {s.patientLastName}
           {showTherapist && (
             <span style={{ color: colors.text.dim }}>
               {' · '}{s.therapistFirstName} {s.therapistLastName}
@@ -197,22 +178,16 @@ function TodaySessions({
         </p>
       </div>
 
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs hidden sm:block w-12 text-right tabular-nums flex-shrink-0" style={{ color: colors.text.dim }}>
-          {s.sessionNumber}/{s.totalSessions}
-        </span>
-        <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full text-center flex-shrink-0"
-          style={{
-            minWidth: 108,
-            ...(isOverdue(s)
-              ? { background: warningAlpha(0.14), color: colors.status.warning }
-              : isOngoing(s)
-                ? { background: accentAlpha(0.14), color: colors.accent }
-                : { background: statusColor(s.status) + '18', color: statusColor(s.status) }),
-          }}>
-          {isOverdue(s) ? 'Notes overdue' : isOngoing(s) ? 'Ongoing' : sessionStatusLabel(s.status)}
-        </span>
-      </div>
+      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-center flex-shrink-0 whitespace-nowrap"
+        style={
+          isOverdue(s)
+            ? { background: warningAlpha(0.14), color: colors.status.warning }
+            : isOngoing(s)
+              ? { background: accentAlpha(0.14), color: colors.accent }
+              : { background: statusColor(s.status) + '18', color: statusColor(s.status) }
+        }>
+        {isOverdue(s) ? 'Notes overdue' : isOngoing(s) ? 'Ongoing' : sessionStatusLabel(s.status)}
+      </span>
     </>
   )
 
