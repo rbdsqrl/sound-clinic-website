@@ -1,23 +1,23 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, CheckCircle2, XCircle } from 'lucide-react'
-import { format } from 'date-fns'
 import { leavesApi } from '../../api/leaves'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, styles, border, surface, palette, paletteStyle } from '../../theme'
 import { Avatar } from '../../components/shared/Avatar'
 import { LeaveStatusBadge, LEAVE_STATUS_META } from '../../components/shared/LeaveStatusBadge'
 import type { LeaveResponse, LeaveStatus } from '../../types'
 
-/** "Sep 5" for a single day, "Sep 5 - Sep 12" for a range. */
+/** "07 Sep, 2026" for a single day, "07 Sep, 2026 – 12 Sep, 2026" for a range. */
 function leaveDateLabel(leave: { leaveDate: string; endDate: string }) {
-  const start = format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')
+  const start = formatDateStr(leave.leaveDate)
   if (leave.endDate === leave.leaveDate) return start
-  return `${start} – ${format(new Date(leave.endDate), 'EEE, dd MMM yyyy')}`
+  return `${start} – ${formatDateStr(leave.endDate)}`
 }
 
 // ── Leave row ──────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
         {leave.status !== 'PENDING' && leave.reviewedByFirstName && (
           <p className="text-[12.65px] mt-0.5" style={{ color: colors.text.dim }}>
             {leave.status === 'APPROVED' ? 'Approved' : 'Rejected'} by {leave.reviewedByFirstName} {leave.reviewedByLastName}
-            {leave.reviewedAt ? ` · ${format(new Date(leave.reviewedAt), 'dd MMM yyyy')}` : ''}
+            {leave.reviewedAt ? ` · ${formatDateStr(leave.reviewedAt)}` : ''}
           </p>
         )}
       </div>

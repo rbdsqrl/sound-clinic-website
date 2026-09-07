@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, border, accentAlpha, type PaletteKey } from '../../theme'
 import ScoreChart, { type ScorePoint } from '../../components/charts/ScoreChart'
 import type { AssessmentDefinitionResponse, AssessmentItem, AssessmentItemAnswer, AssessmentType, PatientAssessmentResponse } from '../../types'
@@ -115,7 +116,7 @@ export default function AssessmentTab({
                   {[...history].reverse().map(h => (
                     <tr key={h.id} style={{ borderBottom: `1px solid ${border.divider}` }}>
                       <td className="px-3 py-2" style={{ color: colors.text.primary }}>
-                        {format(new Date(h.assessmentDate + 'T00:00:00'), 'd MMM yyyy')}
+                        {formatDateStr(h.assessmentDate)}
                       </td>
                       {scored && (
                         <td className="px-3 py-2 font-semibold" style={{ color: colors.text.primary }}>

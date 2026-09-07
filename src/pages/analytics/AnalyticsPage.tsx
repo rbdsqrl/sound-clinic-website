@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
@@ -9,6 +9,7 @@ import { programsApi } from '../../api/programs'
 import { baselineReportApi } from '../../api/baselineReport'
 import { useAuth } from '../../contexts/AuthContext'
 import MasteryTrendChart from '../../components/charts/MasteryTrendChart'
+import CasesTrendChart from '../../components/charts/CasesTrendChart'
 import ScoreChart from '../../components/charts/ScoreChart'
 import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
@@ -17,7 +18,7 @@ import { Select } from '../../components/ui/Select'
 import { Users, UserCog, Mail, Clock, Search, Download, ArrowLeft } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
-import type { Granularity, IEPGoalDomain, EnrollmentCareStatus } from '../../types'
+import type { Granularity, IEPGoalDomain, EnrollmentCareStatus, AnalyticsBucket } from '../../types'
 import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { domainLabel as baselineDomainLabel, ScorePill } from '../patients/BaselineReportTab'
@@ -25,7 +26,7 @@ import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { ROUTES } from '../../lib/routes'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr } from '../../lib/format'
 
 type TabKey = 'overview' | 'cases' | 'members' | 'schedule'
 
@@ -43,6 +44,29 @@ const DOMAINS: IEPGoalDomain[] = [
 /** Sparklines share this band so domains can be compared against each other, not just themselves. */
 const SPARK_MIN = 0
 const SPARK_MAX = 100
+
+/** Cycled per case, in order, on the Cases-tab trend chart — enough distinct hues that a
+ *  typical caseload doesn't repeat a colour before you've scrolled past the legend. */
+const CASE_LINE_COLORS = [
+  palette.teal.text, palette.blue.text, palette.purple.text, palette.pink.text,
+  palette.amber.text, palette.green.text, palette.red.text, palette.yellow.text, palette.slate.text,
+]
+
+type CasesMetric = 'mastery' | 'attendance' | 'sessions'
+
+const CASES_METRIC_OPTIONS: { value: CasesMetric; label: string; suffix: string }[] = [
+  { value: 'mastery',    label: 'Goal mastery %',    suffix: '%' },
+  { value: 'attendance', label: 'Attendance %',      suffix: '%' },
+  { value: 'sessions',   label: 'Sessions completed', suffix: '' },
+]
+
+/** Pulls the one number a case's trend line plots for a given period, per the metric picker. */
+function casesMetricValue(bucket: AnalyticsBucket, metric: CasesMetric): number | null {
+  if (metric === 'mastery') return bucket.masteryPct
+  if (metric === 'sessions') return bucket.sessionsCompleted
+  const total = bucket.sessionsCompleted + bucket.sessionsNoShow + bucket.sessionsCancelled
+  return total > 0 ? Math.round((bucket.sessionsCompleted / total) * 100) : null
+}
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -186,6 +210,39 @@ export default function AnalyticsPage() {
   const filteredCases = (casesQuery.data ?? []).filter(c =>
     c.patientName.toLowerCase().includes(caseSearch.trim().toLowerCase())
   )
+
+  // One trend query per active case, keyed exactly like the single-case drill-in's own query
+  // below — so opening one case's detail from here reuses what's already fetched rather than
+  // firing it again. useQueries resolves each independently, so the chart fills in line by
+  // line as cases finish instead of blocking on the slowest one.
+  const [casesMetric, setCasesMetric] = useState<CasesMetric>('mastery')
+  const caseTrendQueries = useQueries({
+    queries: (casesQuery.data ?? []).map(c => ({
+      queryKey: ['analytics', 'patient', c.patientId, params],
+      queryFn: () => analyticsApi.patientProgress(c.patientId, params),
+      enabled: tab === 'cases' && !isParentUser && !patientId,
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
+  // Colour is assigned from the full (unfiltered) active-case list so a case keeps its line
+  // colour as the search box narrows which lines are actually drawn.
+  const caseSeriesAll = (casesQuery.data ?? []).map((c, i) => ({
+    caseId: c.patientId,
+    name: c.patientName,
+    color: CASE_LINE_COLORS[i % CASE_LINE_COLORS.length],
+    query: caseTrendQueries[i],
+  }))
+  const caseTrendPeriods = caseSeriesAll.find(cs => cs.query.data)?.query.data?.buckets.map(b => ({ label: b.label })) ?? []
+  const caseTrendSeries = caseSeriesAll
+    .filter(cs => cs.query.data && filteredCases.some(fc => fc.patientId === cs.caseId))
+    .map(cs => ({
+      id: cs.caseId,
+      name: cs.name,
+      color: cs.color,
+      values: cs.query.data!.buckets.map(b => casesMetricValue(b, casesMetric)),
+    }))
+  const caseTrendPendingCount = caseSeriesAll.filter(cs => cs.query.isLoading).length
+  const caseTrendMetricMeta = CASES_METRIC_OPTIONS.find(o => o.value === casesMetric)!
 
   // The Members list. Selecting a row drills into that therapist's caseload below.
   const [memberSearch, setMemberSearch] = useState('')
@@ -452,6 +509,42 @@ export default function AnalyticsPage() {
           title="Cases"
           subtitle="Every active case — sessions, assignments and payment status for the selected window"
         >
+          {/* One coloured line per active case — the table below carries the same-window
+              per-case totals; this is the same data over time. */}
+          <div className="mb-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-[180px]">
+                <Select
+                  label="Chart metric"
+                  value={casesMetric}
+                  onChange={e => setCasesMetric(e.target.value as CasesMetric)}
+                  options={CASES_METRIC_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                />
+              </div>
+              {caseTrendPendingCount > 0 && (
+                <span className="text-xs" style={{ color: colors.text.dim }}>
+                  Loading {caseTrendPendingCount} of {caseSeriesAll.length} cases…
+                </span>
+              )}
+            </div>
+            <CasesTrendChart
+              periods={caseTrendPeriods}
+              series={caseTrendSeries}
+              yMax={caseTrendMetricMeta.suffix === '%' ? 100 : undefined}
+              valueSuffix={caseTrendMetricMeta.suffix}
+            />
+            {caseTrendSeries.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {caseTrendSeries.map(s => (
+                  <span key={s.id} className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
+                    <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: s.color }} />
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <div className="relative min-w-[220px] flex-1 max-w-sm">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
@@ -1146,7 +1239,7 @@ export default function AnalyticsPage() {
                                   {latest.value}
                                   {latest.scorePercent !== null && <ScorePill percent={latest.scorePercent} />}
                                   <span className="text-xs" style={{ color: colors.text.dim }}>
-                                    ({format(parseISO(latest.entryDate + 'T00:00:00'), 'd MMM yyyy')})
+                                    ({formatDateStr(latest.entryDate)})
                                   </span>
                                 </div>
                               ) : (

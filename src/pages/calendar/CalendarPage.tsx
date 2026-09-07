@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus,
+  Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus, Download,
 } from 'lucide-react'
+import html2canvas from 'html2canvas'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -38,7 +39,7 @@ import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHoli
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr } from '../../lib/format'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
@@ -854,6 +855,13 @@ function StaffDayView({
 
   const dayEvents = eventsOnDay(events, current)
   const gridCols  = `64px repeat(${columns.length}, minmax(200px, 1fr))`
+  // Each row below is its own independent grid (so a sticky header can float above scrolling
+  // hour rows). Without an explicit shared width, a `minmax(200px, 1fr)` grid inside a
+  // scrolling ancestor can settle on a slightly different width per row once there are enough
+  // columns to force horizontal scroll — rows then drift out of alignment and the borders,
+  // computed per row, stop lining up (or stop covering the tail end of shorter rows). Pinning
+  // every row to the same explicit pixel minimum keeps them identical however far this scrolls.
+  const gridMinWidth = 64 + columns.length * 200
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
   // Same reasoning as DayView: land on the day's earliest event, not always midnight.
   const firstEventHour = useMemo(() => {
@@ -879,7 +887,7 @@ function StaffDayView({
     <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       {/* Column headers */}
       <div className="grid sticky top-0 z-10 border-b"
-        style={{ gridTemplateColumns: gridCols, borderColor: border.divider, background: surface.card }}>
+        style={{ gridTemplateColumns: gridCols, minWidth: gridMinWidth, borderColor: border.divider, background: surface.card }}>
         <div />
         {columns.map(col => (
           <div key={col.id} className="py-2 px-1 text-center border-l flex flex-col items-center gap-1 min-w-0"
@@ -897,7 +905,7 @@ function StaffDayView({
 
       {/* All-day row (leave) */}
       <div className="grid border-b sticky z-10"
-        style={{ gridTemplateColumns: gridCols, borderColor: border.divider, background: surface.card, top: 73 }}>
+        style={{ gridTemplateColumns: gridCols, minWidth: gridMinWidth, borderColor: border.divider, background: surface.card, top: 73 }}>
         <div className="px-1 pt-1 text-right">
           <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
         </div>
@@ -919,7 +927,7 @@ function StaffDayView({
       <div className="flex-1">
         {HOURS.map(hour => (
           <div key={hour} ref={hour === firstEventHour ? firstEventRef : undefined} className="grid border-b"
-            style={{ gridTemplateColumns: gridCols, borderColor: border.divider, minHeight: 56,
+            style={{ gridTemplateColumns: gridCols, minWidth: gridMinWidth, borderColor: border.divider, minHeight: 56,
                      background: isHoliday ? '#FFFBEB30' : undefined }}>
             <div className="px-2 pt-1 text-right">
               <span className="text-xs whitespace-nowrap tabular-nums" style={{ color: colors.text.muted }}>
@@ -973,9 +981,10 @@ function StaffDayView({
 }
 
 // ── Agenda view ───────────────────────────────────────────────────────────────
-// A flat, scannable list grouped by day (days with nothing on them are skipped entirely)
-// instead of a grid — modelled on the "Agenda" view in Kidaura's own scheduler
-// (care.kidaura.in/app/schedule): Date · Time · Event columns, one merged date cell per day.
+// A flat, scannable Date · Time · Event list for the single day CalendarPage has scoped
+// visibleEvents to (via visStart/visEnd) — not the whole month. Switching to Day/Week/Month
+// picks a different grid over that same current date; the < > toolbar nav here just moves
+// one day at a time, same as Day view.
 
 function eventEndTime(ev: CalendarEvent): string | undefined {
   if (ev.kind === 'session') return (ev.raw as TherapySessionResponse).endTime
@@ -1011,7 +1020,7 @@ function AgendaView({
   if (groups.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm" style={{ color: colors.text.muted }}>Nothing scheduled this month</p>
+        <p className="text-sm" style={{ color: colors.text.muted }}>Nothing scheduled for this day</p>
       </div>
     )
   }
@@ -1559,7 +1568,7 @@ function EventDetailDrawer({
           {/* Date + time */}
           <div className="flex flex-col gap-1">
             <Row icon={<CalendarDays size={14} />}
-              label={format(parseISO(event.date + 'T00:00:00'), 'EEEE, d MMMM yyyy')} />
+              label={formatDateStr(event.date)} />
             {event.time && !isSession && (
               <Row icon={<Clock size={14} />} label={formatTimeStr(event.time)} />
             )}
@@ -1950,6 +1959,9 @@ export default function CalendarPage() {
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
   const [upcomingOpen,   setUpcomingOpen]   = useState(false)
+  // Agenda image export — captures the exact rendered table (title + rows) as a PNG.
+  const agendaExportRef = useRef<HTMLDivElement>(null)
+  const [exportingAgenda, setExportingAgenda] = useState(false)
   const [caseFilter,     setCaseFilter]     = useState('')
   const [programFilter,  setProgramFilter]  = useState('')
   const [kindFilter,     setKindFilter]     = useState<EventKind | ''>('')
@@ -1975,12 +1987,12 @@ export default function CalendarPage() {
   const staffIsMonth = view === 'staff' && staffGranularity === 'month'
   const staffIsDay   = view === 'staff' && staffGranularity === 'day'
   const visStart = useMemo(() => {
-    if (view === 'day' || staffIsDay) return format(current, 'yyyy-MM-dd')
+    if (view === 'day' || view === 'agenda' || staffIsDay) return format(current, 'yyyy-MM-dd')
     if (view === 'week' || staffIsWeek)  return format(getWeekStart(current, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return format(startOfWeek(startOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   }, [current, view, staffIsDay, staffIsWeek])
   const visEnd = useMemo(() => {
-    if (view === 'day' || staffIsDay) return format(current, 'yyyy-MM-dd')
+    if (view === 'day' || view === 'agenda' || staffIsDay) return format(current, 'yyyy-MM-dd')
     if (view === 'week' || staffIsWeek)  return format(addDays(getWeekStart(current, { weekStartsOn: 1 }), 6), 'yyyy-MM-dd')
     return format(endOfWeek(endOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   }, [current, view, staffIsDay, staffIsWeek])
@@ -2176,22 +2188,22 @@ export default function CalendarPage() {
   // ── Navigation ─────────────────────────────────────────────────────────────
   function prev() {
     setCurrent(v =>
-      (view === 'month' || view === 'agenda' || staffIsMonth) ? subMonths(v, 1) :
+      (view === 'month' || staffIsMonth) ? subMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? subWeeks(v, 1)  :
       subDays(v, 1)
     )
   }
   function next() {
     setCurrent(v =>
-      (view === 'month' || view === 'agenda' || staffIsMonth) ? addMonths(v, 1) :
+      (view === 'month' || staffIsMonth) ? addMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? addWeeks(v, 1)  :
       addDays(v, 1)
     )
   }
 
-  const title = (view === 'month' || view === 'agenda' || staffIsMonth)
+  const title = (view === 'month' || staffIsMonth)
     ? format(current, 'MMMM yyyy')
-    : (view === 'day' || staffIsDay)
+    : (view === 'day' || view === 'agenda' || staffIsDay)
     ? format(current, 'EEEE, d MMMM yyyy')
     : (() => {
         const ws = getWeekStart(current, { weekStartsOn: 1 })
@@ -2200,6 +2212,25 @@ export default function CalendarPage() {
           ? `${format(ws, 'd')} – ${format(we, 'd MMM yyyy')}`
           : `${format(ws, 'd MMM')} – ${format(we, 'd MMM yyyy')}`
       })()
+
+  // Renders the on-screen agenda table straight to a PNG — what you see is what downloads,
+  // so no separate print layout to keep in sync with the real one.
+  async function downloadAgendaImage() {
+    if (!agendaExportRef.current) return
+    setExportingAgenda(true)
+    try {
+      const canvas = await html2canvas(agendaExportRef.current, {
+        backgroundColor: null, // the wrapper already paints an explicit theme background
+        scale: 2,              // sharper than 1x on a normal display
+      })
+      const link = document.createElement('a')
+      link.download = `agenda_${format(current, 'yyyy-MM-dd')}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } finally {
+      setExportingAgenda(false)
+    }
+  }
 
   if (isLoading) return <PageLoader />
 
@@ -2338,6 +2369,15 @@ export default function CalendarPage() {
             style={styles.filterTabInactive}>
             Today
           </button>
+
+          {/* Download — agenda only; the grid views don't fit a single static image as well. */}
+          {view === 'agenda' && (
+            <button onClick={downloadAgendaImage} disabled={exportingAgenda}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
+              style={styles.filterTabInactive}>
+              <Download size={12} /> {exportingAgenda ? 'Exporting…' : 'Download'}
+            </button>
+          )}
         </div>
 
         {/* Content */}
@@ -2355,11 +2395,21 @@ export default function CalendarPage() {
                   <WeekView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
                     onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 ) : view === 'agenda' ? (
-                  <AgendaView
-                    events={visibleEvents}
-                    onSelect={setSelected}
-                    colorFn={useStaffLayout ? ev => therapistChipStyle(ev, staffColumns, theme === 'dark') : undefined}
-                  />
+                  // Exported verbatim by the Download button above — the title/count header
+                  // here is what makes a standalone image self-explanatory out of context.
+                  <div ref={agendaExportRef} className="flex flex-col flex-1 min-h-0" style={{ background: surface.card }}>
+                    <div className="px-4 pt-4 pb-1 flex-shrink-0">
+                      <h3 className="text-sm font-semibold" style={{ color: colors.text.primary }}>{title}</h3>
+                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                        {visibleEvents.length} event{visibleEvents.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <AgendaView
+                      events={visibleEvents}
+                      onSelect={setSelected}
+                      colorFn={useStaffLayout ? ev => therapistChipStyle(ev, staffColumns, theme === 'dark') : undefined}
+                    />
+                  </div>
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}

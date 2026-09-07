@@ -14,6 +14,7 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { getAvatarColorStyles } from '../../lib/avatarColor'
@@ -700,7 +701,7 @@ function TaskDetailModal({
             <div className="flex flex-col gap-1 min-w-0">
               <span className="text-[11.5px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Completed</span>
               <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-                <CheckCircle2 size={11} /> {format(new Date(task.completedAt), 'MMM d, yyyy')}
+                <CheckCircle2 size={11} /> {formatDateStr(task.completedAt)}
               </span>
             </div>
           )}

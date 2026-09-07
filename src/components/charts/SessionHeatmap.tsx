@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { colors, border, accentAlpha } from '../../theme'
+import { formatDateStr } from '../../lib/format'
 import type { TrendPoint } from '../../types'
 
 const CELL = 11
@@ -91,7 +92,7 @@ export default function SessionHeatmap({ points, year }: { points: TrendPoint[];
       <div className="flex-shrink-0 min-w-[150px] text-xs pt-1" style={{ color: colors.text.muted }}>
         {hoveredCell ? (
           <>
-            {new Date(hoveredCell.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {formatDateStr(hoveredCell.date)}
             {' · '}{hoveredCell.count} session{hoveredCell.count !== 1 ? 's' : ''}
           </>
         ) : (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { formatDateStr } from '../../lib/format'
 import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck, Repeat } from 'lucide-react'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
@@ -210,7 +210,7 @@ export default function MemberProfilePage() {
               </p>
               <p className="text-sm truncate" style={{ color: colors.text.muted }}>{profile.email}</p>
               <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
-                Joined {format(new Date(profile.createdAt), 'MMM d, yyyy')}
+                Joined {formatDateStr(profile.createdAt)}
               </p>
             </div>
           </div>

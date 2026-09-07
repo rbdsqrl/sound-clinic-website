@@ -8,7 +8,6 @@ import {
   Clock, PauseCircle, ShieldCheck, CalendarDays, Pencil,
   ArrowLeft, Layers,
 } from 'lucide-react'
-import { format } from 'date-fns'
 import { iepApi } from '../../api/iep'
 import { iepTemplatesApi } from '../../api/iep-templates'
 import { useAuth } from '../../contexts/AuthContext'
@@ -20,6 +19,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
   IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse, TherapistSummary,
@@ -332,7 +332,7 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
               <p><span className="font-medium" style={{ color: colors.text.muted }}>Target:</span> {goal.targetCriteria}</p>
             )}
             {goal.targetDate && (
-              <p><span className="font-medium" style={{ color: colors.text.muted }}>Due:</span> {format(new Date(goal.targetDate), 'dd MMM yyyy')}</p>
+              <p><span className="font-medium" style={{ color: colors.text.muted }}>Due:</span> {formatDateStr(goal.targetDate)}</p>
             )}
             {goal.therapistName && (
               <p><span className="font-medium" style={{ color: colors.text.muted }}>Assigned:</span> {goal.therapistName}</p>
@@ -574,7 +574,7 @@ function PlanDateRange({ startDate, endDate, canEdit, onSave }: {
   return (
     <span className="inline-flex items-center gap-1">
       {startDate && endDate
-        ? <span>{format(new Date(startDate), 'dd MMM yyyy')} – {format(new Date(endDate), 'dd MMM yyyy')}</span>
+        ? <span>{formatDateStr(startDate)} – {formatDateStr(endDate)}</span>
         : (canEdit && <span style={{ color: colors.text.dim }}>No dates set</span>)}
       {canEdit && (
         <button
@@ -1276,7 +1276,7 @@ function ProgressHistoryModal({ open, onClose, goal }: {
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: colors.text.primary }}>
                   <CalendarDays size={13} style={{ color: colors.text.dim }} />
-                  {format(new Date(p.sessionDate), 'dd MMM yyyy')}
+                  {formatDateStr(p.sessionDate)}
                 </span>
                 {p.masteryPct !== null && (
                   <span

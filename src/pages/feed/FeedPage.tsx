@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { roleBadge } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha } from '../../theme'
 import type { FeedPostResponse, FeedPostImageResponse, FeedCommentResponse } from '../../types'
@@ -349,7 +350,7 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
             </span>
             {roleBadge(post.authorRole)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
-              · {format(parseISO(post.createdAt), 'MMM d, yyyy · h:mm a')}
+              · {formatDateTimeStr(post.createdAt)}
             </span>
           </div>
         </div>

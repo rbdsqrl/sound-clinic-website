@@ -15,6 +15,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, border, surface, accentAlpha } from '../../theme'
 import type { BaselineDomain, BaselineDomainResponse, BaselineReportResponse } from '../../types'
 
@@ -313,7 +314,7 @@ function DomainRow({ domain, patientId, isEditor, onAddProgress, onViewHistory }
                   {latest.scorePercent !== null && <ScorePill percent={latest.scorePercent} />}
                 </div>
                 <p className="text-[11px] mt-0.5" style={{ color: colors.text.dim }}>
-                  {format(new Date(latest.entryDate + 'T00:00:00'), 'd MMM yyyy')}
+                  {formatDateStr(latest.entryDate)}
                 </p>
               </div>
               {domain.currentEntries.length > 0 && (
@@ -560,7 +561,7 @@ function HistoryModal({ domain, onClose }: { domain: BaselineDomainResponse; onC
             <div key={entry.id} className="p-3 rounded-lg" style={{ border: border.card, background: surface.card }}>
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                  {format(new Date(entry.entryDate + 'T00:00:00'), 'd MMM yyyy')}
+                  {formatDateStr(entry.entryDate)}
                 </p>
                 {entry.scorePercent !== null && <ScorePill percent={entry.scorePercent} />}
               </div>

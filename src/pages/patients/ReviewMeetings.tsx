@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   MessageSquare, Plus, Star, CalendarClock, CheckCircle2, XCircle, Repeat, ChevronDown,
 } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
@@ -14,7 +13,7 @@ import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr } from '../../lib/format'
 import {
   colors, border, surface, accentAlpha, dangerAlpha, paletteStyle, palette,
 } from '../../theme'
@@ -266,7 +265,7 @@ function MeetingRow({
         {/* Date and meeting number sit together so the row reads as one unit
             instead of stranding a lone badge on the far side of the card. */}
         <span className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
-          {format(parseISO(meeting.meetingDate), 'EEE, d MMM yyyy')}
+          {formatDateStr(meeting.meetingDate)}
         </span>
         <span className="text-xs flex-shrink-0" style={{ color: colors.text.muted }}>
           {formatTimeStr(meeting.startTime)}
@@ -628,7 +627,7 @@ function FeedbackModal({
     <Modal open title={isParent ? 'Your feedback' : 'Clinic Head remarks'} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-xs" style={{ color: colors.text.muted }}>
-          Review meeting on {format(parseISO(meeting.meetingDate), 'd MMM yyyy')} with {meeting.therapistName}.
+          Review meeting on {formatDateStr(meeting.meetingDate)} with {meeting.therapistName}.
         </p>
 
         {isParent ? (

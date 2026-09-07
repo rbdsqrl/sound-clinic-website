@@ -22,6 +22,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { statusBadge, roleBadge, roleLabel } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { ROUTES } from '../../lib/routes'
 import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
@@ -586,7 +587,7 @@ export default function MembersPage() {
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
                     <p className="flex items-center gap-1 text-xs" style={{ color: colors.text.muted }}>
-                      <CalendarDays size={11} /> Expires {format(new Date(inv.expiresAt), 'MMM d, yyyy')}
+                      <CalendarDays size={11} /> Expires {formatDateStr(inv.expiresAt)}
                     </p>
                     <div className="flex items-center gap-2">
                       {inv.acceptLink && (
@@ -639,7 +640,7 @@ export default function MembersPage() {
                       <td className="px-4 py-3 text-sm" style={{ color: colors.text.muted }}>{inv.clinicName ?? '—'}</td>
                       <td className="px-4 py-3">{statusBadge(inv.status)}</td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.text.muted }}>
-                        {format(new Date(inv.expiresAt), 'MMM d, yyyy')}
+                        {formatDateStr(inv.expiresAt)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -792,7 +793,7 @@ export default function MembersPage() {
           <div className="space-y-4">
             <p className="text-sm" style={{ color: colors.text.muted }}>
               Share this link with <strong>{linkModal.email}</strong> so they can set up their account.
-              Expires <strong>{format(new Date(linkModal.expiresAt), "MMM d, yyyy 'at' h:mm a")}</strong>.
+              Expires <strong>{formatDateTimeStr(linkModal.expiresAt)}</strong>.
             </p>
             <CopyLinkBox link={linkModal.acceptLink ?? ''} />
             <div className="flex justify-end">

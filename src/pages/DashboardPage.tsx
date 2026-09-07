@@ -29,7 +29,7 @@ import { getApiError } from '../lib/apiError'
 import { useToast } from '../hooks/useToast'
 import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
-import { formatTimeStr } from '../lib/format'
+import { formatTimeStr, formatDateStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
 import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse } from '../types'
 
@@ -341,7 +341,7 @@ function RescheduleModal({
           </p>
           <p>{session.programName} · Session #{session.sessionNumber}</p>
           <p>
-            Original: {format(new Date(session.sessionDate), 'MMM d, yyyy')} at {formatTimeStr(session.startTime)}
+            Original: {formatDateStr(session.sessionDate)} at {formatTimeStr(session.startTime)}
             {' · '}Therapist {session.therapistFirstName} {session.therapistLastName}
           </p>
         </div>
@@ -1768,7 +1768,7 @@ export default function DashboardPage() {
             </span>
             {activeRole && roleBadge(activeRole)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
-              {format(new Date(), 'EEE, d MMM yyyy')}
+              {formatDateStr(new Date())}
             </span>
           </div>
         </div>
@@ -1811,7 +1811,7 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium" style={{ color: colors.text.primary }}>{child.firstName} {child.lastName}</p>
                     <p className="text-xs" style={{ color: colors.text.dim }}>
-                      {child.dateOfBirth ? format(new Date(child.dateOfBirth), 'MMM d, yyyy') : 'No DOB'}
+                      {child.dateOfBirth ? formatDateStr(child.dateOfBirth) : 'No DOB'}
                       {child.conditions.length > 0 && ` · ${child.conditions.length} condition${child.conditions.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
@@ -1843,7 +1843,7 @@ export default function DashboardPage() {
             </span>
             {activeRole && roleBadge(activeRole)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
-              {format(new Date(), 'EEE, d MMM yyyy')}
+              {formatDateStr(new Date())}
             </span>
           </div>
         </div>

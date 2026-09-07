@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, border } from '../../theme'
 import { ROUTES } from '../../lib/routes'
 import type { ActivityAssignmentResponse, AssignmentStatus, AttemptAnswerInput } from '../../types'
@@ -72,7 +73,7 @@ export default function ActivitiesTab({ patientId }: { patientId: string }) {
                       {a.activityTitle}
                     </Link>
                     <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
-                      {a.startDate && `Started ${format(new Date(a.startDate), 'd MMM yyyy')} · `}
+                      {a.startDate && `Started ${formatDateStr(a.startDate)} · `}
                       {a.attemptCount} attempt{a.attemptCount !== 1 ? 's' : ''} logged
                       {a.assignedTherapistName && ` · ${a.assignedTherapistName}`}
                     </p>
@@ -136,7 +137,7 @@ function AttemptHistory({ assignmentId }: { assignmentId: string }) {
       {attempts.map((att) => (
         <div key={att.id} className="pl-3">
           <p className="text-xs font-medium" style={{ color: colors.text.primary }}>
-            {format(new Date(att.attemptDate), 'd MMM yyyy')} — {att.loggedByName ?? 'Staff'}
+            {formatDateStr(att.attemptDate)} — {att.loggedByName ?? 'Staff'}
           </p>
           {att.note && <p className="text-xs" style={{ color: colors.text.muted }}>{att.note}</p>}
           {att.answers.length > 0 && (

@@ -15,7 +15,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr } from '../../lib/format'
 import { colors, border, accentAlpha, palette, paletteStyle } from '../../theme'
 import { useTheme } from '../../contexts/ThemeContext'
 import { getAvatarColorStyles } from '../../lib/avatarColor'
@@ -274,7 +274,7 @@ export default function MyChildrenPage() {
                   {/* DOB + therapists inline */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs" style={{ color: colors.text.muted }}>
                     {child.dateOfBirth && (
-                      <span>Born {format(new Date(child.dateOfBirth), 'MMM d, yyyy')}</span>
+                      <span>Born {formatDateStr(child.dateOfBirth)}</span>
                     )}
                     {child.therapists.length > 0 && (
                       <span className="flex items-center gap-1">

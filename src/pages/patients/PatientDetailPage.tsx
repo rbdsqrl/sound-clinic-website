@@ -37,7 +37,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
@@ -1358,7 +1358,7 @@ function ConcernsBanner({ patientId, canAct }: { patientId: string; canAct: bool
                 <p className="text-xs font-semibold" style={{ color: colors.text.heading }}>{c.programName}</p>
                 <p className="text-sm mt-0.5" style={{ color: colors.text.primary }}>{c.description}</p>
                 <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
-                  Raised {format(new Date(c.raisedAt), 'MMM d, yyyy')} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
+                  Raised {formatDateStr(c.raisedAt)} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
                 </p>
               </div>
               {canAct && (
@@ -1505,7 +1505,7 @@ function DischargeHistoryPanel({ patientId }: { patientId: string }) {
           <div key={r.id} className="rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: surface.rowHover }}>
             <div className="min-w-0">
               <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-                {format(new Date(r.dischargeDate), 'd MMM yyyy')}
+                {formatDateStr(r.dischargeDate)}
                 <span className="ml-2 text-xs font-normal" style={{ color: r.overallSuccessful ? palette.green.text : colors.text.muted }}>
                   {r.overallSuccessful ? 'Successful Completion' : 'Discharged'}
                 </span>
@@ -1924,7 +1924,7 @@ export default function PatientDetailPage() {
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
                   {[
-                    ['Date of Birth', patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'MMM d, yyyy') : null],
+                    ['Date of Birth', patient.dateOfBirth ? formatDateStr(patient.dateOfBirth) : null],
                     ['Gender', patient.gender?.toLowerCase()],
                     ['Clinic', clinicName],
                     ['Status', patient.stage === 'DISCHARGED' ? 'Inactive' : 'Active'],
@@ -2022,7 +2022,7 @@ export default function PatientDetailPage() {
                           <div>
                             <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{t.firstName} {t.lastName}</p>
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                              Assigned {format(new Date(t.assignedAt), 'MMM d, yyyy')}
+                              Assigned {formatDateStr(t.assignedAt)}
                             </p>
                           </div>
                         </div>

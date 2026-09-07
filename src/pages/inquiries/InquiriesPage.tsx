@@ -21,6 +21,7 @@ import { Select } from '../../components/ui/Select'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, styles, border, surface, accentAlpha, warningAlpha, paletteStyle, borderAlpha } from '../../theme'
 import type {
@@ -137,7 +138,7 @@ function ActivityTimeline({ logs }: { logs: InquiryLogResponse[] }) {
 
   const grouped: { date: string; items: InquiryLogResponse[] }[] = []
   for (const log of logs) {
-    const dateKey = format(parseISO(log.createdAt), 'd MMM yyyy')
+    const dateKey = formatDateStr(log.createdAt)
     const existing = grouped.find(g => g.date === dateKey)
     if (existing) existing.items.push(log)
     else grouped.push({ date: dateKey, items: [log] })
@@ -715,7 +716,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
           <div>
             <span style={fieldLabel}>Received</span>
             <p className="text-sm" style={{ color: colors.text.primary }}>
-              {format(parseISO(inquiry.createdAt), 'd MMM yyyy, h:mm a')}
+              {formatDateTimeStr(inquiry.createdAt)}
             </p>
           </div>
         </div>
@@ -1272,7 +1273,7 @@ export default function InquiriesPage() {
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <p className="text-xs" style={{ color: colors.text.muted }}>
-                              {inq.phone} · {format(parseISO(inq.createdAt), 'd MMM yyyy')}
+                              {inq.phone} · {formatDateStr(inq.createdAt)}
                             </p>
                             <SourceBadge source={inq.source} />
                           </div>

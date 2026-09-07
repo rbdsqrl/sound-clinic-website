@@ -1,7 +1,35 @@
+import { format, parseISO } from 'date-fns'
+
 /** Formats an ISO timestamp as a local "h:mm AM/PM" string, or an em dash when absent. */
 export function formatTime(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * Formats a date as "dd MMM, yyyy" (e.g. "07 Sep, 2026") — the app-wide default for any
+ * standalone date shown to a user (a row's date column, a detail view, a due date). Accepts
+ * an ISO timestamp, a bare "yyyy-MM-dd" key, or a Date. Not for calendar UI chrome that
+ * intentionally shows only part of a date (a month title, a weekday header) — those keep
+ * their own format.
+ */
+export function formatDateStr(date: string | Date | null | undefined): string {
+  if (!date) return '—'
+  // A bare "yyyy-MM-dd" key needs an explicit local midnight, or parseISO reads it as UTC
+  // and the displayed day can shift by one west of Greenwich.
+  const d = typeof date === 'string'
+    ? parseISO(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00` : date)
+    : date
+  if (Number.isNaN(d.getTime())) return '—'
+  return format(d, 'dd MMM, yyyy')
+}
+
+/** Formats a full timestamp as "dd MMM, yyyy, h:mm a" (e.g. "07 Sep, 2026, 3:45 PM"). */
+export function formatDateTimeStr(date: string | Date | null | undefined): string {
+  if (!date) return '—'
+  const d = typeof date === 'string' ? parseISO(date) : date
+  if (Number.isNaN(d.getTime())) return '—'
+  return `${format(d, 'dd MMM, yyyy')}, ${format(d, 'h:mm a')}`
 }
 
 /**

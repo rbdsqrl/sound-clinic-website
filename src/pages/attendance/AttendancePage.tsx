@@ -13,7 +13,7 @@ import { useToast } from '../../hooks/useToast'
 import { useFaceScan } from '../../hooks/useFaceScan'
 import type { FaceMatchStatus } from '../../hooks/useFaceScan'
 import { getApiError } from '../../lib/apiError'
-import { formatTime } from '../../lib/format'
+import { formatTime, formatDateStr } from '../../lib/format'
 import { colors, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
 import { CameraView } from './CameraView'
 import type { AttendanceResponse } from '../../types'
@@ -345,7 +345,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
             Attendance
           </h1>
           <p className="text-sm mt-1" style={{ color: colors.text.muted }}>
-            {new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {formatDateStr(new Date())}
           </p>
         </div>
       )}

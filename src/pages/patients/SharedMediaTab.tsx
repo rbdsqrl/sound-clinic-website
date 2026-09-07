@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Paperclip, Upload, X, Trash2, FileVideo, Image as ImageIcon, FileText, Download, Pin, Play } from 'lucide-react'
-import { format } from 'date-fns'
 import { sharedMediaApi } from '../../api/sharedMedia'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -11,6 +10,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, styles } from '../../theme'
 import type { SharedMediaResponse } from '../../types'
@@ -225,7 +225,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
                 )}
 
                 <p className="text-[11px] mt-2.5" style={{ color: colors.text.dim }}>
-                  {format(new Date(item.createdAt), 'd MMM yyyy, h:mm a')}
+                  {formatDateTimeStr(item.createdAt)}
                 </p>
               </div>
             )
@@ -242,7 +242,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
               {directionBadge(selected.direction)}
             </div>
             <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
-              {format(new Date(selected.createdAt), 'd MMM yyyy, h:mm a')}
+              {formatDateTimeStr(selected.createdAt)}
             </span>
           </div>
 

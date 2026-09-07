@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { calcAge } from '../../lib/age'
@@ -20,7 +21,6 @@ import { colors, border, styles, surface, accentAlpha, paletteStyle } from '../.
 import { useAvatarColor } from '../../hooks/useAvatarColor'
 import { getAvatarColorStyles } from '../../lib/avatarColor'
 import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
-import { format } from 'date-fns'
 
 // ── Case status — active until discharged ───────────────────────────────────────
 
@@ -130,7 +130,7 @@ function PatientCard({ patient, clinicName }: {
             {patient.therapists.length} specialist{patient.therapists.length !== 1 ? 's' : ''}
           </span>
           <span className="text-[12.65px]" style={{ color: colors.text.dim }}>
-            {format(new Date(patient.createdAt), 'dd MMM yyyy')}
+            {formatDateStr(patient.createdAt)}
           </span>
         </div>
       </div>
@@ -395,7 +395,7 @@ export default function PatientsPage() {
                       <td className="px-4 py-3">
                         <span className="rounded-full px-2.5 py-0.5 text-[12.65px] font-medium" style={STATUS_STYLE[status]}>{STATUS_LABEL[status]}</span>
                       </td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{format(new Date(p.createdAt), 'dd MMM yyyy')}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>{formatDateStr(p.createdAt)}</td>
                     </tr>
                   )
                 })}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
-  Building2, CalendarOff, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
+  Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
   Target, Languages as LanguagesIcon, Box, ClipboardList,
 } from 'lucide-react'
@@ -26,6 +26,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
+import { formatDateStr } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
@@ -89,6 +90,80 @@ function ItemRow({ name, onDelete, canDelete = true }: { name: string; onDelete?
         >
           <Trash2 size={14} />
         </button>
+      )}
+    </div>
+  )
+}
+
+// ── Paginated item list (5 per page, with prev/next arrows) ────────────────────
+// Shared by every plain name+delete lookup list on this page (Conditions, Taxes, and the
+// Activity Library's Skills/Languages/Props) — any of them can grow long enough that
+// showing every row at once pushes the "add" input far down the card.
+function PaginatedItemList<T extends { id: string }>({
+  items, name, onDelete, canDelete = true, emptyMessage, pageSize = 5,
+}: {
+  items: T[]
+  /** Row label — usually `item.name`, or a derived string for something like "GST — 18%". */
+  name: (item: T) => string
+  onDelete?: (item: T) => void
+  /** Per-item override (e.g. seeded conditions without an orgId can't be deleted). */
+  canDelete?: boolean | ((item: T) => boolean)
+  emptyMessage: string
+  pageSize?: number
+}) {
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
+  // Clamp back onto a valid page after a delete empties out the last one.
+  useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1) }, [page, pageCount])
+
+  if (items.length === 0) {
+    return <p className="text-sm py-2" style={{ color: colors.text.dim }}>{emptyMessage}</p>
+  }
+
+  const start = page * pageSize
+  const visible = items.slice(start, start + pageSize)
+  // A short last page (e.g. "6-7 of 7") would otherwise render fewer rows and shrink the
+  // card — pad it back out to a full page of blank rows so height stays constant while paging.
+  const fillerCount = pageCount > 1 ? pageSize - visible.length : 0
+
+  return (
+    <div>
+      {visible.map(item => (
+        <ItemRow
+          key={item.id}
+          name={name(item)}
+          onDelete={onDelete ? () => onDelete(item) : undefined}
+          canDelete={typeof canDelete === 'function' ? canDelete(item) : canDelete}
+        />
+      ))}
+      {Array.from({ length: fillerCount }).map((_, i) => (
+        <div key={`filler-${i}`} className="py-3 px-1 border-b last:border-b-0"
+          style={{ borderColor: border.divider }} aria-hidden="true">
+          &nbsp;
+        </div>
+      ))}
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between pt-3">
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
+            style={{ color: colors.text.dim }}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-xs" style={{ color: colors.text.dim }}>
+            {start + 1}–{Math.min(items.length, start + pageSize)} of {items.length}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+            disabled={page === pageCount - 1}
+            className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
+            style={{ color: colors.text.dim }}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       )}
     </div>
   )
@@ -457,6 +532,7 @@ export default function OrganisationPage() {
   const [tab, setTab]               = useState<Tab>('information')
   const [editing, setEditing]       = useState(false)
   const [addingHoliday, setAddingHoliday] = useState(false)
+  const [holidaysOpen, setHolidaysOpen] = useState(false)
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
@@ -750,7 +826,7 @@ export default function OrganisationPage() {
     { key: 'information', label: 'Information' },
     { key: 'clinics',     label: 'Clinics' },
     { key: 'manage',           label: 'Manage' },
-    { key: 'activity-library', label: 'Activity Library' },
+    { key: 'activity-library', label: 'Activity Settings' },
     { key: 'iep-library',      label: 'IEP Library' },
   ]
 
@@ -816,133 +892,96 @@ export default function OrganisationPage() {
             )}
           </Card>
 
-          {(user?.role === 'BUSINESS_OWNER' || user?.role === 'OFFICE_ADMIN') && (
-            <Card>
-              <CardHeader
-                title="AI Assistant (Magic Fill)"
-                subtitle="Lets staff auto-draft Activity instructions and checklists. Off until a provider and key are set here."
-                action={!aiEditing ? (
-                  <Button variant="secondary" size="sm" onClick={startAiEdit}><Pencil size={14} /> {org?.aiKeyConfigured ? 'Change' : 'Set up'}</Button>
-                ) : undefined}
-              />
-              {!aiEditing ? (
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} style={{ color: org?.aiKeyConfigured ? colors.text.primary : colors.text.dim }} />
-                  {org?.aiKeyConfigured ? (
-                    <p className="text-sm" style={{ color: colors.text.primary }}>
-                      Enabled — using <span className="font-medium">{org?.aiProvider}</span>. The API key is hidden once saved.
-                    </p>
-                  ) : (
-                    <p className="text-sm" style={{ color: colors.text.dim }}>Not configured — Magic Fill is hidden in Activities.</p>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Select
-                      label="Provider"
-                      placeholder="Select a provider…"
-                      value={aiProvider}
-                      onChange={(e) => setAiProvider(e.target.value as AiProvider)}
-                      options={[
-                        { value: 'ANTHROPIC', label: 'Anthropic (Claude)' },
-                        { value: 'OPENAI', label: 'OpenAI (ChatGPT)' },
-                        { value: 'GEMINI', label: 'Google (Gemini)' },
-                      ]}
-                    />
-                    <Input
-                      label="API Key"
-                      type="password"
-                      autoComplete="off"
-                      placeholder={org?.aiKeyConfigured ? 'Leave blank to keep the current key' : 'Paste the provider API key'}
-                      value={aiApiKey}
-                      onChange={(e) => setAiApiKey(e.target.value)}
-                    />
-                  </div>
-                  <p className="text-xs" style={{ color: colors.text.dim }}>
-                    The key is stored server-side only — it is never shown again after saving.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <Button onClick={saveAi} loading={aiMut.isPending}>Save</Button>
-                    <Button variant="secondary" onClick={() => setAiEditing(false)}>Cancel</Button>
-                    {org?.aiKeyConfigured && (
-                      <Button variant="danger" onClick={clearAi} loading={aiMut.isPending}>Turn off</Button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {/* Public Holidays */}
+          {/* Public Holidays — collapsed by default; the list can run long and there's rarely
+              a reason to look at it beyond adding/importing a new one. */}
           <Card>
             <CardHeader
               title="Public Holidays"
-              subtitle="Sessions scheduled on these dates are flagged for rescheduling"
-              action={canManage ? (
+              subtitle={holidaysOpen
+                ? 'Sessions scheduled on these dates are flagged for rescheduling'
+                : `${holidays.length} holiday${holidays.length !== 1 ? 's' : ''} configured`}
+              action={
                 <div className="flex items-center gap-2">
-                  <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
-                  <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-                    <FileUp size={14} /><span className="hidden sm:inline"> Upload CSV</span>
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setAddingHoliday(v => !v)}>
-                    <Plus size={14} /><span className="hidden sm:inline"> Add</span>
-                  </Button>
+                  {canManage && (
+                    <>
+                      <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
+                      <Button variant="secondary" size="sm" onClick={() => { fileInputRef.current?.click(); setHolidaysOpen(true) }}>
+                        <FileUp size={14} /><span className="hidden sm:inline"> Upload CSV</span>
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => { setAddingHoliday(v => !v); setHolidaysOpen(true) }}>
+                        <Plus size={14} /><span className="hidden sm:inline"> Add</span>
+                      </Button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setHolidaysOpen(v => !v)}
+                    aria-expanded={holidaysOpen}
+                    aria-label={holidaysOpen ? 'Collapse public holidays' : 'Expand public holidays'}
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: colors.text.dim }}
+                  >
+                    <ChevronDown size={16} className="transition-transform" style={{ transform: holidaysOpen ? 'rotate(180deg)' : 'none' }} />
+                  </button>
                 </div>
-              ) : undefined}
+              }
             />
-            {canManage && <p className="text-xs mb-4" style={{ color: colors.text.dim }}>CSV format: <code className="font-mono">date,name</code> — date as <code className="font-mono">YYYY-MM-DD</code>.</p>}
-            {csvRows && (
-              <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${border.divider}` }}>
-                <div className="flex items-center justify-between px-4 py-2.5" style={{ background: accentAlpha(0.06), borderBottom: `1px solid ${border.divider}` }}>
-                  <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''} ready to import</p>
-                  <button onClick={() => setCsvRows(null)} style={{ color: colors.text.dim }}><X size={16} /></button>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {csvRows.map((row, i) => (
-                    <div key={i} className="flex items-center gap-4 px-4 py-2.5 text-sm" style={{ borderBottom: i < csvRows.length - 1 ? `1px solid ${border.divider}` : undefined }}>
-                      <span className="font-mono text-xs w-28 flex-shrink-0" style={{ color: colors.text.muted }}>{format(parseISO(row.holidayDate), 'd MMM yyyy')}</span>
-                      <span style={{ color: colors.text.primary }}>{row.name}</span>
+            {holidaysOpen && (
+              <>
+                {canManage && <p className="text-xs mb-4" style={{ color: colors.text.dim }}>CSV format: <code className="font-mono">date,name</code> — date as <code className="font-mono">YYYY-MM-DD</code>.</p>}
+                {csvRows && (
+                  <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${border.divider}` }}>
+                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: accentAlpha(0.06), borderBottom: `1px solid ${border.divider}` }}>
+                      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''} ready to import</p>
+                      <button onClick={() => setCsvRows(null)} style={{ color: colors.text.dim }}><X size={16} /></button>
                     </div>
-                  ))}
-                </div>
-                <div className="flex justify-end gap-2 px-4 py-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-                  <Button variant="secondary" size="sm" onClick={() => setCsvRows(null)}>Cancel</Button>
-                  <Button size="sm" loading={csvUploading} onClick={handleCsvImport}>Import {csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''}</Button>
-                </div>
-              </div>
-            )}
-            {addingHoliday && (
-              <div className="mb-4 p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-end" style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
-                <Input label="Date" type="date" value={holidayDate} onChange={e => setHolidayDate(e.target.value)} />
-                <div className="flex-1"><Input label="Holiday name" placeholder="e.g. Republic Day" value={holidayName} onChange={e => setHolidayName(e.target.value)} /></div>
-                <div className="flex gap-2">
-                  <Button size="sm" disabled={!holidayDate || !holidayName.trim()} loading={createHolidayMut.isPending} onClick={() => createHolidayMut.mutate({ holidayDate, name: holidayName.trim() })}>Add</Button>
-                  <Button size="sm" variant="secondary" onClick={() => { setAddingHoliday(false); setHolidayDate(''); setHolidayName('') }}>Cancel</Button>
-                </div>
-              </div>
-            )}
-            {holidays.length === 0 ? (
-              <div className="flex items-center gap-3 py-6 justify-center">
-                <CalendarOff size={20} style={{ color: colors.text.dim }} />
-                <p className="text-sm" style={{ color: colors.text.muted }}>No public holidays defined yet</p>
-              </div>
-            ) : (
-              <div className="divide-subtle">
-                {holidays.map(h => (
-                  <div key={h.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.name}</p>
-                      <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{format(parseISO(h.holidayDate), 'EEEE, d MMMM yyyy')}</p>
+                    <div className="max-h-60 overflow-y-auto">
+                      {csvRows.map((row, i) => (
+                        <div key={i} className="flex items-center gap-4 px-4 py-2.5 text-sm" style={{ borderBottom: i < csvRows.length - 1 ? `1px solid ${border.divider}` : undefined }}>
+                          <span className="font-mono text-xs w-28 flex-shrink-0" style={{ color: colors.text.muted }}>{formatDateStr(row.holidayDate)}</span>
+                          <span style={{ color: colors.text.primary }}>{row.name}</span>
+                        </div>
+                      ))}
                     </div>
-                    {canManage && (
-                      <button onClick={() => deleteHolidayMut.mutate(h.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                    <div className="flex justify-end gap-2 px-4 py-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+                      <Button variant="secondary" size="sm" onClick={() => setCsvRows(null)}>Cancel</Button>
+                      <Button size="sm" loading={csvUploading} onClick={handleCsvImport}>Import {csvRows.length} holiday{csvRows.length !== 1 ? 's' : ''}</Button>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+                {addingHoliday && (
+                  <div className="mb-4 p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-end" style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
+                    <Input label="Date" type="date" value={holidayDate} onChange={e => setHolidayDate(e.target.value)} />
+                    <div className="flex-1"><Input label="Holiday name" placeholder="e.g. Republic Day" value={holidayName} onChange={e => setHolidayName(e.target.value)} /></div>
+                    <div className="flex gap-2">
+                      <Button size="sm" disabled={!holidayDate || !holidayName.trim()} loading={createHolidayMut.isPending} onClick={() => createHolidayMut.mutate({ holidayDate, name: holidayName.trim() })}>Add</Button>
+                      <Button size="sm" variant="secondary" onClick={() => { setAddingHoliday(false); setHolidayDate(''); setHolidayName('') }}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+                {holidays.length === 0 ? (
+                  <div className="flex items-center gap-3 py-6 justify-center">
+                    <CalendarOff size={20} style={{ color: colors.text.dim }} />
+                    <p className="text-sm" style={{ color: colors.text.muted }}>No public holidays defined yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-subtle">
+                    {holidays.map(h => (
+                      <div key={h.id} className="flex items-center justify-between py-3">
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.name}</p>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{formatDateStr(h.holidayDate)}</p>
+                        </div>
+                        {canManage && (
+                          <button onClick={() => deleteHolidayMut.mutate(h.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </Card>
 
@@ -1100,17 +1139,13 @@ export default function OrganisationPage() {
 
           {/* Conditions */}
           <SectionCard title="Conditions" icon={<HeartPulse size={18} />}>
-            {conditions.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No conditions yet.</p>
-            )}
-            {conditions.map(c => (
-              <ItemRow
-                key={c.id}
-                name={c.name}
-                onDelete={() => deleteConditionMut.mutate(c.id)}
-                canDelete={canManage && !!(c as any).orgId}
-              />
-            ))}
+            <PaginatedItemList
+              items={conditions}
+              name={c => c.name}
+              onDelete={c => deleteConditionMut.mutate(c.id)}
+              canDelete={c => canManage && !!(c as any).orgId}
+              emptyMessage="No conditions yet."
+            />
             {canManage && (
               <AddRow
                 placeholder="e.g. Autism, ADHD…"
@@ -1122,17 +1157,13 @@ export default function OrganisationPage() {
 
           {/* Taxes */}
           <SectionCard title="Taxes" icon={<Receipt size={18} />}>
-            {taxes.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No tax rates defined.</p>
-            )}
-            {taxes.map(t => (
-              <ItemRow
-                key={t.id}
-                name={`${t.name} — ${t.rate}%`}
-                onDelete={() => deleteTaxMut.mutate(t.id)}
-                canDelete={canManage}
-              />
-            ))}
+            <PaginatedItemList
+              items={taxes}
+              name={t => `${t.name} — ${t.rate}%`}
+              onDelete={t => deleteTaxMut.mutate(t.id)}
+              canDelete={canManage}
+              emptyMessage="No tax rates defined."
+            />
             {canManage && (
               <AddRow
                 placeholder="e.g. GST"
@@ -1146,18 +1177,78 @@ export default function OrganisationPage() {
         </div>
       )}
 
-      {/* ── Activity Library tab ────────────────────────────────────────────── */}
+      {/* ── Activity Settings tab ───────────────────────────────────────────── */}
       {tab === 'activity-library' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="space-y-5">
+          {(user?.role === 'BUSINESS_OWNER' || user?.role === 'OFFICE_ADMIN') && (
+            <Card>
+              <CardHeader
+                title="AI Assistant (Magic Fill)"
+                subtitle="Lets staff auto-draft Activity instructions and checklists. Off until a provider and key are set here."
+                action={!aiEditing ? (
+                  <Button variant="secondary" size="sm" onClick={startAiEdit}><Pencil size={14} /> {org?.aiKeyConfigured ? 'Change' : 'Set up'}</Button>
+                ) : undefined}
+              />
+              {!aiEditing ? (
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} style={{ color: org?.aiKeyConfigured ? colors.text.primary : colors.text.dim }} />
+                  {org?.aiKeyConfigured ? (
+                    <p className="text-sm" style={{ color: colors.text.primary }}>
+                      Enabled — using <span className="font-medium">{org?.aiProvider}</span>. The API key is hidden once saved.
+                    </p>
+                  ) : (
+                    <p className="text-sm" style={{ color: colors.text.dim }}>Not configured — Magic Fill is hidden in Activities.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Select
+                      label="Provider"
+                      placeholder="Select a provider…"
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value as AiProvider)}
+                      options={[
+                        { value: 'ANTHROPIC', label: 'Anthropic (Claude)' },
+                        { value: 'OPENAI', label: 'OpenAI (ChatGPT)' },
+                        { value: 'GEMINI', label: 'Google (Gemini)' },
+                      ]}
+                    />
+                    <Input
+                      label="API Key"
+                      type="password"
+                      autoComplete="off"
+                      placeholder={org?.aiKeyConfigured ? 'Leave blank to keep the current key' : 'Paste the provider API key'}
+                      value={aiApiKey}
+                      onChange={(e) => setAiApiKey(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs" style={{ color: colors.text.dim }}>
+                    The key is stored server-side only — it is never shown again after saving.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={saveAi} loading={aiMut.isPending}>Save</Button>
+                    <Button variant="secondary" onClick={() => setAiEditing(false)}>Cancel</Button>
+                    {org?.aiKeyConfigured && (
+                      <Button variant="danger" onClick={clearAi} loading={aiMut.isPending}>Turn off</Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
           {/* Activity Skills */}
           <SectionCard title="Activity Skills" icon={<Target size={18} />}>
-            {skills.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No skills yet.</p>
-            )}
-            {skills.map(s => (
-              <ItemRow key={s.id} name={s.name} onDelete={() => deleteSkillMut.mutate(s.id)} canDelete={canManage} />
-            ))}
+            <PaginatedItemList
+              items={skills}
+              name={s => s.name}
+              onDelete={s => deleteSkillMut.mutate(s.id)}
+              canDelete={canManage}
+              emptyMessage="No skills yet."
+            />
             {canManage && (
               <AddRow
                 placeholder="e.g. Fine Motor, Attention…"
@@ -1169,12 +1260,13 @@ export default function OrganisationPage() {
 
           {/* Activity Languages */}
           <SectionCard title="Activity Languages" icon={<LanguagesIcon size={18} />}>
-            {languages.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No languages yet.</p>
-            )}
-            {languages.map(l => (
-              <ItemRow key={l.id} name={l.name} onDelete={() => deleteLanguageMut.mutate(l.id)} canDelete={canManage} />
-            ))}
+            <PaginatedItemList
+              items={languages}
+              name={l => l.name}
+              onDelete={l => deleteLanguageMut.mutate(l.id)}
+              canDelete={canManage}
+              emptyMessage="No languages yet."
+            />
             {canManage && (
               <AddRow
                 placeholder="e.g. English, Hindi…"
@@ -1186,12 +1278,13 @@ export default function OrganisationPage() {
 
           {/* Activity Props */}
           <SectionCard title="Activity Props Required" icon={<Box size={18} />}>
-            {propsList.length === 0 && (
-              <p className="text-sm py-2" style={{ color: colors.text.dim }}>No props yet.</p>
-            )}
-            {propsList.map(p => (
-              <ItemRow key={p.id} name={p.name} onDelete={() => deletePropMut.mutate(p.id)} canDelete={canManage} />
-            ))}
+            <PaginatedItemList
+              items={propsList}
+              name={p => p.name}
+              onDelete={p => deletePropMut.mutate(p.id)}
+              canDelete={canManage}
+              emptyMessage="No props yet."
+            />
             {canManage && (
               <AddRow
                 placeholder="e.g. Building Blocks, Flashcards…"
@@ -1200,6 +1293,7 @@ export default function OrganisationPage() {
               />
             )}
           </SectionCard>
+          </div>
         </div>
       )}
 

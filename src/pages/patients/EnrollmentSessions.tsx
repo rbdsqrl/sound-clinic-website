@@ -15,7 +15,7 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { isPastDateTime, todayStr } from '../../lib/schedule'
-import { formatTimeStr } from '../../lib/format'
+import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
 import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse, SessionNotesHistoryResponse } from '../../types'
 
@@ -394,7 +394,7 @@ export function RescheduleSessionModal({
           style={{ background: surface.rowHover, color: colors.text.muted }}>
           Currently{' '}
           <span style={{ color: colors.text.primary, fontWeight: 600 }}>
-            {format(parseISO(session.sessionDate + 'T00:00:00'), 'EEE, d MMM yyyy')}
+            {formatDateStr(session.sessionDate)}
             {' at '}{formatTimeStr(session.startTime)}
           </span>
         </div>
@@ -503,7 +503,7 @@ function SessionNotesHistoryPanel({ sessionId }: { sessionId: string }) {
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.changedByName}</p>
               <p className="text-xs" style={{ color: colors.text.dim }}>
-                {format(parseISO(h.changedAt), 'd MMM yyyy, h:mm a')}
+                {formatDateTimeStr(h.changedAt)}
               </p>
             </div>
             {fields.length === 0 ? (

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, Plus, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { format } from 'date-fns'
 import { leavesApi } from '../../api/leaves'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -11,15 +10,16 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { formatDateStr } from '../../lib/format'
 import { colors, styles, border, surface, palette } from '../../theme'
 import { LeaveStatusBadge, LEAVE_STATUS_META } from '../../components/shared/LeaveStatusBadge'
 import type { CreateLeaveRequest, LeaveResponse, LeaveStatus } from '../../types'
 
-/** "Sep 5" for a single day, "Sep 5 - Sep 12" for a range. */
+/** "07 Sep, 2026" for a single day, "07 Sep, 2026 – 12 Sep, 2026" for a range. */
 function leaveDateLabel(leave: { leaveDate: string; endDate: string }) {
-  const start = format(new Date(leave.leaveDate), 'EEE, dd MMM yyyy')
+  const start = formatDateStr(leave.leaveDate)
   if (leave.endDate === leave.leaveDate) return start
-  return `${start} – ${format(new Date(leave.endDate), 'EEE, dd MMM yyyy')}`
+  return `${start} – ${formatDateStr(leave.endDate)}`
 }
 
 // ── Leave card ─────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ function LeaveCard({ leave, onCancel, cancelling }: {
         {leave.status !== 'PENDING' && leave.reviewedByFirstName && (
           <p className="mt-1 text-xs" style={{ color: colors.text.dim }}>
             {leave.status === 'APPROVED' ? 'Approved' : 'Rejected'} by {leave.reviewedByFirstName} {leave.reviewedByLastName}
-            {leave.reviewedAt ? ` · ${format(new Date(leave.reviewedAt), 'dd MMM yyyy')}` : ''}
+            {leave.reviewedAt ? ` · ${formatDateStr(leave.reviewedAt)}` : ''}
           </p>
         )}
       </div>
