@@ -15,6 +15,7 @@ import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
 import SessionHeatmap from '../../components/charts/SessionHeatmap'
 import { Select } from '../../components/ui/Select'
+import { DateInput } from '../../components/ui/DateInput'
 import { Users, UserCog, Mail, Clock, Search, Download, ArrowLeft } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
@@ -436,21 +437,14 @@ export default function AnalyticsPage() {
 
           {!(tab === 'cases' && isParentUser) && (
             <>
-              <div className="space-y-1">
-                <label className="form-label" htmlFor="from">From</label>
-                <input
-                  id="from" type="date" className="form-input" value={range.from}
-                  onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="form-label" htmlFor="to">To</label>
-                <input
-                  id="to" type="date" className="form-input" value={range.to}
-                  onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
-                />
-              </div>
+              <DateInput
+                id="from" label="From" value={range.from}
+                onChange={v => setRange(r => ({ ...r, from: v }))}
+              />
+              <DateInput
+                id="to" label="To" value={range.to}
+                onChange={v => setRange(r => ({ ...r, to: v }))}
+              />
             </>
           )}
         </div>
@@ -486,20 +480,14 @@ export default function AnalyticsPage() {
               options={(scheduleProgramsQuery.data ?? []).map(p => ({ value: p.id, label: p.name }))}
             />
           </div>
-          <div className="space-y-1">
-            <label className="form-label" htmlFor="schedule-from">From</label>
-            <input
-              id="schedule-from" type="date" className="form-input" value={range.from}
-              onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="form-label" htmlFor="schedule-to">To</label>
-            <input
-              id="schedule-to" type="date" className="form-input" value={range.to}
-              onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
-            />
-          </div>
+          <DateInput
+            id="schedule-from" label="From" value={range.from}
+            onChange={v => setRange(r => ({ ...r, from: v }))}
+          />
+          <DateInput
+            id="schedule-to" label="To" value={range.to}
+            onChange={v => setRange(r => ({ ...r, to: v }))}
+          />
         </div>
       )}
 
