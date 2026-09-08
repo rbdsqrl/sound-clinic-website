@@ -71,6 +71,13 @@ const STATS = [
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
+/** Android WebView has a known rendering bug where a `position: fixed` element using
+ *  `backdrop-filter` fails to repaint cleanly on scroll, leaving stale pixels from lower on
+ *  the page ("ghosting") smeared over the fixed header. Native builds drop the blur (solid
+ *  background instead) and force their own compositing layer to work around it; web is
+ *  unaffected and keeps the frosted-glass look. */
+const isNative = Capacitor.isNativePlatform()
+
 function Navbar() {
   const { isAuthenticated } = useAuth()
 
@@ -78,9 +85,11 @@ function Navbar() {
     <header
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 px-4 py-3 sm:px-10"
       style={{
-        background: 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(16px)',
+        background: isNative ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.92)',
+        ...(isNative ? {} : { backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }),
         borderBottom: `1px solid rgba(26,115,232,0.10)`,
+        transform: 'translateZ(0)',
+        willChange: 'transform',
       }}
     >
       {/* Logo + name */}
@@ -111,8 +120,6 @@ function Navbar() {
     </header>
   )
 }
-
-const isNative = Capacitor.isNativePlatform()
 
 function Hero() {
   return (
