@@ -299,6 +299,16 @@
   }
   .form-input:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  /* iOS auto-zooms the page on focus for any text input under 16px, and in the native app's
+     WKWebView it doesn't reliably zoom back out afterwards. Bumping to 16px only on iOS native
+     avoids the zoom entirely without changing the input size anywhere else. */
+  .platform-ios .form-input,
+  .platform-ios input,
+  .platform-ios textarea,
+  .platform-ios select {
+    font-size: 16px;
+  }
+
   .form-error {
     @apply mt-1 text-xs;
     color: var(--form-error);
