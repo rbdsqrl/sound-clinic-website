@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../../contexts/AuthContext'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -100,14 +101,17 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm" style={{ color: colors.text.dim }}>
-            <Link to="/" className="transition-colors" style={{ color: colors.text.dim }}
-              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = colors.accent}
-              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-            >
-              ← Back to website
-            </Link>
-          </p>
+          {/* Native has no marketing site to link back to (and "/" always redirects here). */}
+          {!Capacitor.isNativePlatform() && (
+            <p className="mt-6 text-center text-sm" style={{ color: colors.text.dim }}>
+              <Link to="/" className="transition-colors" style={{ color: colors.text.dim }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+              >
+                ← Back to website
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>
