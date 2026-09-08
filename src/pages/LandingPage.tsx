@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
+import { clsx } from '../lib/clsx'
 import { useAuth } from '../contexts/AuthContext'
 import {
   Phone, Mail, MapPin, Clock, ChevronRight,
@@ -74,7 +76,7 @@ function Navbar() {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 sm:px-10"
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 px-4 py-3 sm:px-10"
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(16px)',
@@ -82,13 +84,13 @@ function Navbar() {
       }}
     >
       {/* Logo + name */}
-      <div className="flex items-center gap-4">
-        <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-14 w-auto" />
-        <div>
-          <span className="brand-name text-sm sm:text-lg" style={{ color: colors.text.heading }}>
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <img src={LOGO_SRC} alt="Simple Hearing And Speech Care" className="h-11 w-auto flex-shrink-0 sm:h-14" />
+        <div className="min-w-0">
+          <span className="brand-name block truncate text-sm sm:text-lg" style={{ color: colors.text.heading }}>
             Simple Hearing And Speech Care
           </span>
-          <div className="text-[11.5px] tracking-widest uppercase mt-0.5" style={{ color: colors.brandFixed }}>
+          <div className="hidden text-[11.5px] tracking-widest uppercase mt-0.5 sm:block" style={{ color: colors.brandFixed }}>
             Pune's Specialist Audiology Clinic
           </div>
         </div>
@@ -97,7 +99,7 @@ function Navbar() {
       {/* Auth button */}
       <Link
         to={isAuthenticated ? ROUTES.dashboard : ROUTES.login}
-        className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all"
+        className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all sm:px-5"
         style={{
           background: gradient.buttonCta,
           color: '#fff',
@@ -109,6 +111,8 @@ function Navbar() {
     </header>
   )
 }
+
+const isNative = Capacitor.isNativePlatform()
 
 function Hero() {
   return (
@@ -148,22 +152,34 @@ function Hero() {
         </span>
 
         <h1
-          className="mt-4 text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl"
+          className={clsx(
+            'mt-4 font-bold leading-tight sm:text-5xl lg:text-6xl',
+            isNative ? 'text-3xl' : 'text-4xl',
+          )}
           style={{ color: colors.text.heading }}
         >
-          A Seamless Journey to{' '}
-          <span style={{ color: colors.accent }}>Better Hearing!</span>
+          {isNative ? (
+            <>
+              A Seamless Journey to<br />
+              <span style={{ color: colors.accent }}>Better Hearing!</span>
+            </>
+          ) : (
+            <>
+              A Seamless Journey to{' '}
+              <span style={{ color: colors.accent }}>Better Hearing!</span>
+            </>
+          )}
         </h1>
 
         <p
-          className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed"
+          className="mx-auto mt-4 max-w-2xl text-base leading-relaxed sm:mt-6 sm:text-lg"
           style={{ color: colors.text.muted }}
         >
           Expert audiology and speech therapy services led by Dr. Suravi Dash — Senior Audiologist,
           AVT Specialist and Cochlear Implant Expert with over 13 years of experience.
         </p>
 
-        <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+        <div className="mt-6 flex flex-col items-center gap-4 sm:mt-10 sm:flex-row sm:justify-center">
           <a
             href="tel:+917666773596"
             className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition-all"
@@ -189,11 +205,11 @@ function Hero() {
         </div>
 
         {/* Stats */}
-        <div className="mt-16 grid grid-cols-3 gap-4 sm:gap-8">
+        <div className="mt-10 grid grid-cols-3 gap-3 sm:mt-16 sm:gap-8">
           {STATS.map(({ value, label }) => (
             <div
               key={label}
-              className="rounded-2xl p-4 sm:p-6"
+              className="rounded-2xl p-3 sm:p-6"
               style={{
                 background: 'rgba(255,255,255,0.80)',
                 border: `1px solid rgba(79,182,178,0.15)`,
@@ -202,7 +218,7 @@ function Hero() {
               }}
             >
               <p className="text-2xl font-bold sm:text-3xl" style={{ color: colors.accent }}>{value}</p>
-              <p className="mt-1 text-xs sm:text-sm" style={{ color: colors.text.muted }}>{label}</p>
+              <p className="mt-1 text-xs leading-tight sm:text-sm" style={{ color: colors.text.muted }}>{label}</p>
             </div>
           ))}
         </div>
@@ -278,7 +294,7 @@ function About() {
           {/* Avatar */}
           <div className="flex-shrink-0">
             <div
-              className="flex h-44 w-44 items-center justify-center rounded-3xl text-6xl font-bold shadow-lg"
+              className="flex h-28 w-28 items-center justify-center rounded-3xl text-4xl font-bold shadow-lg sm:h-44 sm:w-44 sm:text-6xl"
               style={{
                 background: 'linear-gradient(135deg, #F4EDFF 0%, #EBF4FF 100%)',
                 border: '2px solid rgba(152,100,220,0.20)',
@@ -304,7 +320,7 @@ function About() {
             <h2 className="mt-4 text-3xl font-bold sm:text-4xl" style={{ color: '#2A2040' }}>
               Dr. Suravi Dash
             </h2>
-            <p className="mt-1.5 font-medium" style={{ color: '#7A4DB8' }}>
+            <p className="mt-1.5 text-sm font-medium sm:text-base" style={{ color: '#7A4DB8' }}>
               Sr. Audiologist &amp; Speech Therapist · AVT Specialist · Cochlear Implant Expert
             </p>
             <p className="mt-4 text-base leading-relaxed" style={{ color: '#5A4E6A' }}>
@@ -395,7 +411,7 @@ function Contact() {
             {
               icon: Mail,
               label: 'Email',
-              value: 'info@simplehearing\nandspeechcare.com',
+              value: 'info@simplehearingandspeechcare.com',
               href: 'mailto:info@simplehearingandspeechcare.com',
               colorRaw: '90,159,212',
               color: '#5A9FD4',
@@ -403,7 +419,7 @@ function Contact() {
             {
               icon: MapPin,
               label: 'Location',
-              value: 'Westwood Estates,\nWakad, Pune',
+              value: 'Westwood Estates, Wakad, Pune',
               href: 'https://maps.google.com/?q=Westwood+Estates+Wakad+Pune',
               colorRaw: '242,140,140',
               color: '#F28C8C',
@@ -560,7 +576,7 @@ function InquiryForm() {
 
         {submitted ? (
           <div
-            className="flex flex-col items-center gap-4 rounded-2xl p-10 text-center"
+            className="flex flex-col items-center gap-4 rounded-2xl p-6 text-center sm:p-10"
             style={{ background: 'rgba(26,115,232,0.06)', border: '1px solid rgba(26,115,232,0.15)' }}
           >
             <CheckCircle2 size={40} style={{ color: colors.accent }} />
@@ -572,7 +588,7 @@ function InquiryForm() {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="rounded-2xl p-8 space-y-5"
+            className="rounded-2xl p-5 space-y-5 sm:p-8"
             style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}
           >
             {error && (
