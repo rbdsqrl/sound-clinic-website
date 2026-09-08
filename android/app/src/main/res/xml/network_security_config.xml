@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Allows plain HTTP (cleartext) only to this dev machine's LAN IP — matches
-  NATIVE_DEV_API_BASE_URL in src/api/client.ts. Android blocks cleartext traffic by default
-  since API 28, and the real backend has no HTTPS cert for local development. Everything else
-  keeps the platform default (HTTPS-only). Update the IP here if the dev machine's changes,
-  or drop this file once the app points at a real deployed (HTTPS) backend.
+  Allows plain HTTP (cleartext) only to known local-dev backend addresses — matches
+  nativeDevApiBaseUrl() in src/api/client.ts. Android blocks cleartext traffic by default since
+  API 28, and the local dev backend has no HTTPS cert.
+    - 10.0.2.2 is the Android emulator's fixed alias for the host machine — stable regardless
+      of the host's actual network, so this entry never needs updating.
+    - A LAN IP is only needed for a physical device on the same Wi-Fi as the host, and changes
+      whenever that network does — update it here (and in client.ts) if physical-device testing
+      stops connecting.
+  Drop this file once the app targets a real deployed (HTTPS) backend.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">192.168.1.7</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">172.0.1.84</domain>
     </domain-config>
 </network-security-config>

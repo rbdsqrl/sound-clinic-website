@@ -3,15 +3,24 @@ import { Capacitor } from '@capacitor/core'
 
 // The web build's relative '/api/v1' only resolves because it's served from the same origin
 // as the API (via the dev proxy, or a reverse proxy in production). A Capacitor app has no
-// such origin — its pages load from a capacitor:// / file:// URL — so it needs an absolute
-// backend URL instead. This points the native apps at this dev machine's LAN IP (reachable
-// from the Android emulator, iOS Simulator, and a real device on the same Wi-Fi) so `npm run
-// android:open`/`ios:open` talk to the same backend as the web dev server without extra setup.
-// Update this once there's a real deployed backend URL — VITE_API_BASE_URL still overrides it.
-const NATIVE_DEV_API_BASE_URL = 'http://192.168.1.7:8080/api/v1'
+// such origin — its pages load from a capacitor://|https://localhost URL — so it needs an
+// absolute backend URL instead. These two are stable, network-independent aliases (unlike this
+// dev machine's LAN IP, which changes with the Wi-Fi network) for reaching the *same host
+// machine's* backend from each platform's emulator/simulator:
+//   - Android emulator: 10.0.2.2 is a fixed alias the AVD maps back to the host's localhost.
+//   - iOS Simulator: shares the host's network namespace, so plain 'localhost' just works.
+// Neither of these reaches a real device on Wi-Fi — for that, override with VITE_API_BASE_URL
+// set to the host's current LAN IP. Once there's a real deployed backend, set VITE_API_BASE_URL
+// to that at build time instead; it always takes priority over the values below.
+function nativeDevApiBaseUrl(): string {
+  const platform = Capacitor.getPlatform()
+  if (platform === 'android') return 'http://10.0.2.2:8080/api/v1'
+  if (platform === 'ios') return 'http://localhost:8080/api/v1'
+  return '/api/v1'
+}
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
-  ?? (Capacitor.isNativePlatform() ? NATIVE_DEV_API_BASE_URL : '/api/v1')
+  ?? (Capacitor.isNativePlatform() ? nativeDevApiBaseUrl() : '/api/v1')
 
 export const client = axios.create({
   baseURL: BASE_URL,

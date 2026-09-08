@@ -24,15 +24,18 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- Allows plain HTTP only to this dev machine's LAN IP (matches NATIVE_DEV_API_BASE_URL in
-	     src/api/client.ts) — ATS blocks cleartext by default and the local dev backend has no
-	     HTTPS cert. Update the IP if the dev machine's changes, or remove this once the app
-	     points at a real deployed (HTTPS) backend. -->
+	<!-- iOS Simulator shares the host Mac's network namespace, so nativeDevApiBaseUrl() in
+	     src/api/client.ts just uses plain 'localhost' for it — and Apple exempts loopback
+	     addresses from ATS automatically, so no exception is needed for that default path.
+	     This exception is only for a physical device on the same Wi-Fi as the dev machine
+	     (VITE_API_BASE_URL overridden to its LAN IP), which has no such exemption and changes
+	     whenever that network does — update the IP here if physical-device testing stops
+	     connecting, or remove this once the app targets a real deployed (HTTPS) backend. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>192.168.1.7</key>
+			<key>172.0.1.84</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
