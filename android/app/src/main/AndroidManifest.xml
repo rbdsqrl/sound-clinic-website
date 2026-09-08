@@ -39,4 +39,14 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Attendance module: face-scan check-in (getUserMedia) and geo-fence check-in
+         (navigator.geolocation). Capacitor's BridgeWebChromeClient already forwards these
+         WebView permission requests into a runtime permission prompt — without the
+         corresponding manifest declaration below, that prompt never appears and the
+         request is denied outright. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

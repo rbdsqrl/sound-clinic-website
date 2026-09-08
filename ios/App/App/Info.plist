@@ -24,6 +24,13 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Required for the Attendance module's face-scan (getUserMedia) and geo-fence
+	     (navigator.geolocation) check-in — WKWebView denies these outright, with no
+	     prompt at all, if the usage description is missing. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is used to verify your face for attendance check-in.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is used to confirm you're on-site for attendance check-in.</string>
 	<!-- iOS Simulator shares the host Mac's network namespace, so nativeDevApiBaseUrl() in
 	     src/api/client.ts just uses plain 'localhost' for it — and Apple exempts loopback
 	     addresses from ATS automatically, so no exception is needed for that default path.
