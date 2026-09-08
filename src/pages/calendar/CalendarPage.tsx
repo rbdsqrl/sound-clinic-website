@@ -6,7 +6,8 @@ import {
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
   Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus, Download,
 } from 'lucide-react'
-import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import {
   format, parseISO, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -54,6 +55,18 @@ const EVENT_KIND_OPTIONS: { value: EventKind; label: string }[] = [
   { value: 'holiday',      label: 'Public Holiday' },
   { value: 'consultation', label: 'Consultation' },
 ]
+
+// Fixed hex values for the Agenda PDF export — the on-screen kindDot()/kindStyle() colors lean
+// on CSS custom properties (theme accent, palette vars) that don't resolve outside a live page,
+// so the PDF gets its own literal palette instead of trying to reuse those.
+const PDF_KIND_COLOR: Record<EventKind, string> = {
+  session:      '#7C5CBF',
+  review:       '#0F8A8A',
+  meeting:      '#C2578B',
+  leave:        '#E05C5C',
+  holiday:      '#B45309',
+  consultation: '#1A73E8',
+}
 
 interface CalendarEvent {
   id: string
@@ -1996,8 +2009,7 @@ export default function CalendarPage() {
   const [slotSelection,  setSlotSelection]  = useState<SlotSelection | null>(null)
   const [slotChoice,     setSlotChoice]     = useState<'meeting' | 'session' | null>(null)
   const [upcomingOpen,   setUpcomingOpen]   = useState(false)
-  // Agenda image export — captures the exact rendered table (title + rows) as a PNG.
-  const agendaExportRef = useRef<HTMLDivElement>(null)
+  // Agenda PDF export — built straight from the event data, not a screenshot of the table.
   const [exportingAgenda, setExportingAgenda] = useState(false)
   const [caseFilter,     setCaseFilter]     = useState('')
   const [programFilter,  setProgramFilter]  = useState('')
@@ -2305,20 +2317,83 @@ export default function CalendarPage() {
     setView(g)
   }
 
-  // Renders the on-screen agenda table straight to a PNG — what you see is what downloads,
-  // so no separate print layout to keep in sync with the real one.
-  async function downloadAgendaImage() {
-    if (!agendaExportRef.current) return
+  // Built straight from the event data as real, selectable PDF text — not a screenshot of the
+  // table — so it stays crisp regardless of screen density and reads properly if printed.
+  function downloadAgendaPdf() {
     setExportingAgenda(true)
     try {
-      const canvas = await html2canvas(agendaExportRef.current, {
-        backgroundColor: null, // the wrapper already paints an explicit theme background
-        scale: 2,              // sharper than 1x on a normal display
+      // Same sort/group-by-date as AgendaView, so the PDF matches what's on screen.
+      const sorted = [...agendaEvents].sort((a, b) => {
+        const d = a.date.localeCompare(b.date)
+        if (d !== 0) return d
+        if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1
+        return (a.time ?? '').localeCompare(b.time ?? '')
       })
-      const link = document.createElement('a')
-      link.download = `agenda_${format(current, 'yyyy-MM-dd')}.png`
-      link.href = canvas.toDataURL('image/png')
-      link.click()
+      const groups: { label: string; items: CalendarEvent[] }[] = []
+      for (const ev of sorted) {
+        const label = upcomingDateLabel(ev.date)
+        const last = groups[groups.length - 1]
+        if (last && last.label === label) last.items.push(ev)
+        else groups.push({ label, items: [ev] })
+      }
+
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+      const marginX = 40
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(18)
+      doc.setTextColor(26, 42, 58)
+      doc.text('Agenda', marginX, 46)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(12)
+      doc.setTextColor(74, 95, 122)
+      doc.text(title, marginX, 66)
+
+      doc.setFontSize(10)
+      doc.setTextColor(122, 143, 160)
+      doc.text(`${agendaEvents.length} event${agendaEvents.length !== 1 ? 's' : ''}`, marginX, 82)
+
+      // A group-header row (full-width, shaded) stands in for the on-screen table's merged
+      // Date column — clearer on a printed page than repeating the date on every row.
+      const body: (string | { content: string; colSpan?: number; styles?: Record<string, unknown> })[][] = []
+      const rowColors: (string | null)[] = []
+      for (const group of groups) {
+        body.push([{
+          content: group.label, colSpan: 2,
+          styles: { fillColor: '#EEF1F6', textColor: '#1A2A3A', fontStyle: 'bold' },
+        }])
+        rowColors.push(null)
+        for (const ev of group.items) {
+          const end = eventEndTime(ev)
+          const time = ev.isAllDay ? 'All day' : `${formatTimeStr(ev.time)}${end ? ` – ${formatTimeStr(end)}` : ''}`
+          const detail = ev.subtitle ? `${ev.title}\n${ev.subtitle}` : ev.title
+          body.push([time, detail])
+          rowColors.push(PDF_KIND_COLOR[ev.kind])
+        }
+      }
+
+      autoTable(doc, {
+        startY: 96,
+        margin: { left: marginX, right: marginX },
+        head: [['Time', 'Event']],
+        body,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 7, lineColor: [225, 229, 235], lineWidth: 0.5 },
+        headStyles: { fillColor: '#1A2A3A', textColor: '#ffffff', fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: 110 } },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 1) {
+            const color = rowColors[data.row.index]
+            if (color) {
+              data.cell.styles.textColor = color
+              data.cell.styles.fontStyle = 'bold'
+            }
+          }
+        },
+      })
+
+      doc.save(`agenda_${format(current, 'yyyy-MM-dd')}.pdf`)
     } finally {
       setExportingAgenda(false)
     }
@@ -2462,9 +2537,9 @@ export default function CalendarPage() {
               Today
             </button>
 
-            {/* Download — agenda only; the grid views don't fit a single static image as well. */}
+            {/* Download — agenda only; the grid views don't fit a single static document as well. */}
             {mode === 'agenda' && (
-              <button onClick={downloadAgendaImage} disabled={exportingAgenda}
+              <button onClick={downloadAgendaPdf} disabled={exportingAgenda}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
                 style={styles.filterTabInactive}>
                 <Download size={12} /> {exportingAgenda ? 'Exporting…' : 'Download'}
@@ -2482,9 +2557,7 @@ export default function CalendarPage() {
             <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto flex flex-col">
               <div className={`flex flex-col flex-1 min-h-0 ${mode === 'calendar' && view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
                 {mode === 'agenda' ? (
-                  // Exported verbatim by the Download button above — the title/count header
-                  // here is what makes a standalone image self-explanatory out of context.
-                  <div ref={agendaExportRef} className="flex flex-col flex-1 min-h-0" style={{ background: surface.card }}>
+                  <div className="flex flex-col flex-1 min-h-0" style={{ background: surface.card }}>
                     <div className="px-4 pt-4 pb-1 flex-shrink-0">
                       <h3 className="text-sm font-semibold" style={{ color: colors.text.primary }}>{title}</h3>
                       <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
