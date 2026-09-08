@@ -48,7 +48,7 @@ export const INVITABLE_ROLES: { value: Role; label: string }[] = [
   { value: 'BUSINESS_OWNER', label: 'Business Owner' },
 ]
 
-type Tab = 'members' | 'invites' | 'archived'
+type Tab = 'members' | 'parents' | 'invites' | 'archived'
 type ViewMode = 'grid' | 'list'
 type InviteStatusFilter = 'ALL' | 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED'
 
@@ -317,6 +317,10 @@ export default function MembersPage() {
     queryKey: ['members', 'count', 'archived'],
     queryFn: () => usersApi.searchMembers({ active: false, page: 0, size: 1 }),
   })
+  const { data: parentsCountPage } = useQuery({
+    queryKey: ['members', 'count', 'parents'],
+    queryFn: () => usersApi.searchMembers({ role: 'PARENT', active: true, page: 0, size: 1 }),
+  })
 
   const { data: membersPage, isLoading: membersLoading, isFetching: membersFetching } = useQuery({
     queryKey: ['members', 'search', { page, tab, debouncedSearch, roleFilter, clinicFilter }],
@@ -324,7 +328,9 @@ export default function MembersPage() {
       page,
       size: PAGE_SIZE,
       search: debouncedSearch || undefined,
-      role: (roleFilter || undefined) as Role | undefined,
+      // The Parents tab reuses this same list, just forced to the PARENT role — there's only
+      // the one role there, so the Role filter dropdown doesn't apply and stays hidden for it.
+      role: tab === 'parents' ? 'PARENT' : ((roleFilter || undefined) as Role | undefined),
       clinicId: clinicFilter || undefined,
       active: tab !== 'archived',
     }),
@@ -426,8 +432,10 @@ export default function MembersPage() {
   const pendingCount = invites.filter(i => i.status === 'PENDING').length
   const isLoading    = tab === 'invites' ? invitesLoading : membersLoading
 
+  const parentsCount = parentsCountPage?.totalElements ?? 0
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'members',  label: 'Members',  count: activeMembersCount },
+    { key: 'parents',  label: 'Parents',  count: parentsCount },
     { key: 'invites',  label: 'Invites',  count: pendingCount || undefined },
     { key: 'archived', label: 'Archived', count: archivedMembersCount || undefined },
   ]
@@ -510,13 +518,15 @@ export default function MembersPage() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                   style={{ color: colors.text.muted }} />
                 <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Search members…" className="form-input pl-8 w-full" />
+                  placeholder={tab === 'parents' ? 'Search parents…' : 'Search members…'} className="form-input pl-8 w-full" />
               </div>
-              <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-                className="form-input min-w-[140px]">
-                <option value="">All Roles</option>
-                {STAFF_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
+              {tab !== 'parents' && (
+                <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                  className="form-input min-w-[140px]">
+                  <option value="">All Roles</option>
+                  {STAFF_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              )}
               <div className="flex rounded-xl overflow-hidden flex-shrink-0" style={{ border: border.card }}>
                 <button onClick={() => setViewMode('grid')} className="px-3 py-2 transition-colors"
                   style={viewMode === 'grid'
@@ -681,14 +691,17 @@ export default function MembersPage() {
           </>)
 
         ) : shownMembers.length === 0 ? (
-          <EmptyState icon={<Users size={40} />} title={search ? 'No members match your search' : 'No members found'} />
+          <EmptyState icon={<Users size={40} />} title={
+            search ? `No ${tab === 'parents' ? 'parents' : 'members'} match your search`
+              : tab === 'parents' ? 'No parents found' : 'No members found'
+          } />
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {shownMembers.map((m) => (
               <MemberCard key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
                 onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                 onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
-                onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}
+                onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
                 onSelect={() => navigate(ROUTES.member(m.id))} />
             ))}
           </div>
@@ -708,7 +721,7 @@ export default function MembersPage() {
                   <MemberRow key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
                     onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                     onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
-                    onReinvite={isOwner && !m.isActive ? () => openReinvite(m) : undefined}
+                    onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
                     onSelect={() => navigate(ROUTES.member(m.id))} />
                 ))}
               </tbody>

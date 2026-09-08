@@ -152,6 +152,30 @@ export default function MemberProfilePage() {
     onError: (err: unknown) => toast(getApiError(err, 'Failed to activate member'), 'error'),
   })
 
+  // Additional roles — additive, alongside whatever the member's primary role already is (e.g. a
+  // Parent gaining an admin role while staying a Parent), as opposed to Edit's role field which
+  // replaces the primary role outright.
+  const [addRoleOpen, setAddRoleOpen] = useState(false)
+  const addRoleMut = useMutation({
+    mutationFn: (role: Role) => usersApi.addMemberRole(id!, role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['member-profile', id] })
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Role added', 'success')
+      setAddRoleOpen(false)
+    },
+    onError: (err: unknown) => toast(getApiError(err, 'Could not add that role'), 'error'),
+  })
+  const removeRoleMut = useMutation({
+    mutationFn: (role: Role) => usersApi.removeMemberRole(id!, role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['member-profile', id] })
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Role removed', 'success')
+    },
+    onError: (err: unknown) => toast(getApiError(err, 'Could not remove that role'), 'error'),
+  })
+
   // Bulk case reassignment — Admin Roles only.
   const { data: reassignments = [] } = useQuery({
     queryKey: ['reassignments', id],
@@ -217,6 +241,34 @@ export default function MemberProfilePage() {
           <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end sm:flex-shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
               {roleBadge(profile.role)}
+              {profile.additionalRoles.map(r => (
+                <span key={r} className="inline-flex items-center gap-1">
+                  {roleBadge(r)}
+                  {canChangeRole && (
+                    <button
+                      onClick={() => removeRoleMut.mutate(r)}
+                      disabled={removeRoleMut.isPending}
+                      title={`Remove ${r} role`}
+                      className="p-0.5 rounded-full transition-colors disabled:opacity-50"
+                      style={{ color: colors.text.dim }}
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </span>
+              ))}
+              {canChangeRole && (
+                <button
+                  onClick={() => setAddRoleOpen(true)}
+                  title="Add an additional role"
+                  className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full transition-colors"
+                  style={{ color: colors.text.muted, border: `1px dashed ${border.divider}` }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.accent; (e.currentTarget as HTMLElement).style.borderColor = colors.accent }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                >
+                  <Plus size={11} /> Role
+                </button>
+              )}
               {statusBadge(profile.isActive ? 'ACTIVE' : 'INACTIVE')}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -339,6 +391,7 @@ export default function MemberProfilePage() {
         </div>
       </Panel>
 
+      {profile.role !== 'PARENT' && (
       <Panel
         title={`Cases (${cases.length})`}
         action={
@@ -445,6 +498,7 @@ export default function MemberProfilePage() {
           </div>
         )}
       </Panel>
+      )}
 
       {canReassign && reassignments.length > 0 && (
         <Panel title="Reassignment History">
@@ -529,7 +583,62 @@ export default function MemberProfilePage() {
           }}
         />
       )}
+
+      {/* Add an additional role — additive, keeps the existing primary role and any other
+          additional roles intact. */}
+      {addRoleOpen && (
+        <AddRoleModal
+          heldRoles={[profile.role, ...profile.additionalRoles]}
+          pending={addRoleMut.isPending}
+          onClose={() => setAddRoleOpen(false)}
+          onAdd={role => addRoleMut.mutate(role)}
+        />
+      )}
     </div>
+  )
+}
+
+// ── Add an additional role ───────────────────────────────────────────────────
+
+const ADMIN_GRANTABLE_ADDITIONAL_ROLES: { value: Role; label: string }[] = [
+  { value: 'CLINIC_HEAD',    label: 'Clinic Head' },
+  { value: 'BUSINESS_OWNER', label: 'Business Owner' },
+  { value: 'OFFICE_ADMIN',   label: 'Office Admin' },
+  { value: 'THERAPIST',      label: 'Therapist' },
+  { value: 'PARENT',         label: 'Parent' },
+]
+
+function AddRoleModal({
+  heldRoles, pending, onClose, onAdd,
+}: {
+  heldRoles: Role[]
+  pending: boolean
+  onClose: () => void
+  onAdd: (role: Role) => void
+}) {
+  const options = ADMIN_GRANTABLE_ADDITIONAL_ROLES.filter(o => !heldRoles.includes(o.value))
+  const [role, setRole] = useState<Role | ''>('')
+
+  return (
+    <Modal open title="Add a role" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm" style={{ color: colors.text.muted }}>
+          This adds the role alongside what this member already has — they keep every role they
+          hold today, and gain this one in addition.
+        </p>
+        <Select
+          label="Role"
+          placeholder="Select a role…"
+          value={role}
+          onChange={e => setRole(e.target.value as Role)}
+          options={options}
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button disabled={!role} loading={pending} onClick={() => role && onAdd(role)}>Add role</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

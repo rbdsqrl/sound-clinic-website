@@ -71,4 +71,13 @@ export const usersApi = {
 
   removeRole: (role: string) =>
     client.delete<ApiResponse<UserResponse>>(`/users/me/roles/${role}`).then((r) => r.data.data),
+
+  /** BUSINESS_OWNER only — grants a member an additional role alongside their existing primary
+   *  role (e.g. a Parent gaining an admin role while remaining a Parent). Contrast with
+   *  updateProfile's `role` field, which replaces the primary role outright. */
+  addMemberRole: (id: string, role: Role) =>
+    client.post<ApiResponse<MemberProfileResponse>>(`/users/${id}/roles`, { role }).then((r) => r.data.data),
+
+  removeMemberRole: (id: string, role: Role) =>
+    client.delete<ApiResponse<MemberProfileResponse>>(`/users/${id}/roles/${role}`).then((r) => r.data.data),
 }

@@ -263,6 +263,38 @@ function eventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
   return events.filter(e => e.date === key)
 }
 
+/** Range counterpart to eventsOnDay — every event whose date key falls within [from, to]. */
+function eventsInRange(events: CalendarEvent[], from: string, to: string): CalendarEvent[] {
+  return events.filter(e => e.date >= from && e.date <= to)
+}
+
+type AgendaGranularity = 'day' | 'week' | 'month'
+
+/** The Agenda's own Day/Week/Month window around `current` — unclipped, i.e. before the
+ *  "never before today" rule is applied. Used both to size the window and to decide whether
+ *  "previous" should still be reachable. */
+function agendaPeriodBounds(current: Date, granularity: AgendaGranularity): { start: string; end: string } {
+  if (granularity === 'week') {
+    const start = getWeekStart(current, { weekStartsOn: 1 })
+    return { start: format(start, 'yyyy-MM-dd'), end: format(addDays(start, 6), 'yyyy-MM-dd') }
+  }
+  if (granularity === 'month') {
+    return { start: format(startOfMonth(current), 'yyyy-MM-dd'), end: format(endOfMonth(current), 'yyyy-MM-dd') }
+  }
+  const day = format(current, 'yyyy-MM-dd')
+  return { start: day, end: day }
+}
+
+/** "17–23 Aug" within a month, "28 Aug – 3 Sep" across a month boundary — shared by the
+ *  Calendar grid's Week view and Agenda's own Week granularity. */
+function weekRangeTitle(current: Date): string {
+  const ws = getWeekStart(current, { weekStartsOn: 1 })
+  const we = addDays(ws, 6)
+  return isSameMonth(ws, we)
+    ? `${format(ws, 'd')} – ${format(we, 'd MMM yyyy')}`
+    : `${format(ws, 'd MMM')} – ${format(we, 'd MMM yyyy')}`
+}
+
 function timedEventsAtHour(events: CalendarEvent[], day: Date, hour: number): CalendarEvent[] {
   const key = format(day, 'yyyy-MM-dd')
   return events.filter(e =>
@@ -981,10 +1013,10 @@ function StaffDayView({
 }
 
 // ── Agenda view ───────────────────────────────────────────────────────────────
-// A flat, scannable Date · Time · Event list for the single day CalendarPage has scoped
-// visibleEvents to (via visStart/visEnd) — not the whole month. Switching to Day/Week/Month
-// picks a different grid over that same current date; the < > toolbar nav here just moves
-// one day at a time, same as Day view.
+// A flat, scannable Date · Time · Event list — a Calendar/Agenda mode of its own, not a peer
+// of the Day/Week/Month grids. Its own Day/Week/Month picker (in CalendarPage) controls how
+// wide a window it lists, but that window can never start before today — a past agenda isn't
+// a useful thing to browse to. The Calendar grids have no such restriction.
 
 function eventEndTime(ev: CalendarEvent): string | undefined {
   if (ev.kind === 'session') return (ev.raw as TherapySessionResponse).endTime
@@ -994,12 +1026,13 @@ function eventEndTime(ev: CalendarEvent): string | undefined {
 }
 
 function AgendaView({
-  events, onSelect, colorFn,
+  events, onSelect, colorFn, emptyMessage = 'Nothing scheduled for this day',
 }: {
   events: CalendarEvent[]
   onSelect: (e: CalendarEvent) => void
   /** Overrides the default kind-based row color — used by the Staff agenda to color by therapist. */
   colorFn?: (ev: CalendarEvent) => React.CSSProperties | undefined
+  emptyMessage?: string
 }) {
   const groups = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
@@ -1020,7 +1053,7 @@ function AgendaView({
   if (groups.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm" style={{ color: colors.text.muted }}>Nothing scheduled for this day</p>
+        <p className="text-sm" style={{ color: colors.text.muted }}>{emptyMessage}</p>
       </div>
     )
   }
@@ -1906,13 +1939,17 @@ function ProgramSessionsPlaceholder() {
 
 // ── Main CalendarPage ─────────────────────────────────────────────────────────
 
-type ViewMode = 'month' | 'week' | 'day' | 'staff' | 'agenda'
+type ViewMode = 'month' | 'week' | 'day' | 'staff'
 
 export default function CalendarPage() {
   const { user, activeRole }  = useAuth()
   const { theme } = useTheme()
   const navigate = useNavigate()
   const [view,         setView]         = useState<ViewMode>('day')
+  // Calendar vs. Agenda is its own top-level toggle, orthogonal to the Day/Week/Month grid
+  // picker above — Agenda has its own Day/Week/Month granularity (see agendaGranularity).
+  const [mode,         setMode]         = useState<'calendar' | 'agenda'>('calendar')
+  const [agendaGranularity, setAgendaGranularity] = useState<AgendaGranularity>('day')
   const [current,      setCurrent]      = useState(new Date())
   const [selected,     setSelected]     = useState<CalendarEvent | null>(null)
   const [actionTarget, setActionTarget] = useState<InquiryResponse | null>(null)
@@ -1986,16 +2023,27 @@ export default function CalendarPage() {
   const staffIsWeek  = view === 'staff' && staffGranularity === 'week'
   const staffIsMonth = view === 'staff' && staffGranularity === 'month'
   const staffIsDay   = view === 'staff' && staffGranularity === 'day'
+
+  const todayKey = format(new Date(), 'yyyy-MM-dd')
+  // Agenda's own window — unclipped bounds (for deciding how far "previous" may go) and the
+  // clipped ones actually fetched/shown (never starting before today).
+  const agendaPeriod = agendaPeriodBounds(current, agendaGranularity)
+  const agendaFrom = agendaPeriod.start < todayKey ? todayKey : agendaPeriod.start
+  const agendaTo   = agendaPeriod.end
+  const agendaAtEarliest = mode === 'agenda' && agendaPeriod.start <= todayKey
+
   const visStart = useMemo(() => {
-    if (view === 'day' || view === 'agenda' || staffIsDay) return format(current, 'yyyy-MM-dd')
+    if (mode === 'agenda') return agendaFrom
+    if (view === 'day' || staffIsDay) return format(current, 'yyyy-MM-dd')
     if (view === 'week' || staffIsWeek)  return format(getWeekStart(current, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return format(startOfWeek(startOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
-  }, [current, view, staffIsDay, staffIsWeek])
+  }, [current, view, staffIsDay, staffIsWeek, mode, agendaFrom])
   const visEnd = useMemo(() => {
-    if (view === 'day' || view === 'agenda' || staffIsDay) return format(current, 'yyyy-MM-dd')
+    if (mode === 'agenda') return agendaTo
+    if (view === 'day' || staffIsDay) return format(current, 'yyyy-MM-dd')
     if (view === 'week' || staffIsWeek)  return format(addDays(getWeekStart(current, { weekStartsOn: 1 }), 6), 'yyyy-MM-dd')
     return format(endOfWeek(endOfMonth(current), { weekStartsOn: 1 }), 'yyyy-MM-dd')
-  }, [current, view, staffIsDay, staffIsWeek])
+  }, [current, view, staffIsDay, staffIsWeek, mode, agendaTo])
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: inquiries = [], isLoading: inquiriesLoading } = useQuery({
@@ -2186,7 +2234,21 @@ export default function CalendarPage() {
   const hasAnyEvents = canSeeInquiries || canSeeLeaves || canSeeSessions
 
   // ── Navigation ─────────────────────────────────────────────────────────────
+  // A past agenda isn't a useful thing to browse to (there's nothing to plan or act on), so
+  // Agenda's "previous" stops at today instead of wandering back through history — the
+  // Calendar grids have no such restriction (agendaAtEarliest is computed above, alongside
+  // the rest of Agenda's own date-window logic).
+
   function prev() {
+    if (agendaAtEarliest) return
+    if (mode === 'agenda') {
+      setCurrent(v =>
+        agendaGranularity === 'month' ? subMonths(v, 1) :
+        agendaGranularity === 'week'  ? subWeeks(v, 1)  :
+        subDays(v, 1)
+      )
+      return
+    }
     setCurrent(v =>
       (view === 'month' || staffIsMonth) ? subMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? subWeeks(v, 1)  :
@@ -2194,6 +2256,14 @@ export default function CalendarPage() {
     )
   }
   function next() {
+    if (mode === 'agenda') {
+      setCurrent(v =>
+        agendaGranularity === 'month' ? addMonths(v, 1) :
+        agendaGranularity === 'week'  ? addWeeks(v, 1)  :
+        addDays(v, 1)
+      )
+      return
+    }
     setCurrent(v =>
       (view === 'month' || staffIsMonth) ? addMonths(v, 1) :
       (view === 'week' || staffIsWeek) ? addWeeks(v, 1)  :
@@ -2201,17 +2271,39 @@ export default function CalendarPage() {
     )
   }
 
-  const title = (view === 'month' || staffIsMonth)
+  const title = mode === 'agenda'
+    ? (agendaGranularity === 'month' ? format(current, 'MMMM yyyy')
+      : agendaGranularity === 'week' ? weekRangeTitle(current)
+      : format(current, 'EEEE, d MMMM yyyy'))
+    : (view === 'month' || staffIsMonth)
     ? format(current, 'MMMM yyyy')
-    : (view === 'day' || view === 'agenda' || staffIsDay)
+    : (view === 'day' || staffIsDay)
     ? format(current, 'EEEE, d MMMM yyyy')
-    : (() => {
-        const ws = getWeekStart(current, { weekStartsOn: 1 })
-        const we = addDays(ws, 6)
-        return isSameMonth(ws, we)
-          ? `${format(ws, 'd')} – ${format(we, 'd MMM yyyy')}`
-          : `${format(ws, 'd MMM')} – ${format(we, 'd MMM yyyy')}`
-      })()
+    : weekRangeTitle(current)
+
+  // Leaves, review meetings, and inquiries are fetched unscoped by date (unlike sessions,
+  // which are already windowed to visStart/visEnd) — the grid views get away with this because
+  // they only ever render one day at a time via eventsOnDay, but Agenda rendered its events
+  // array directly, so a leave/review/inquiry from any date used to leak into the list.
+  const agendaEvents = mode === 'agenda' ? eventsInRange(visibleEvents, agendaFrom, agendaTo) : visibleEvents
+  const agendaEmptyMessage =
+    agendaGranularity === 'month' ? 'Nothing scheduled this month' :
+    agendaGranularity === 'week'  ? 'Nothing scheduled this week'  :
+    'Nothing scheduled for this day'
+
+  // One Day/Week/Month picker, shared by both modes — it drives agendaGranularity in Agenda
+  // mode, and either staffGranularity or the plain view state in Calendar mode, same as before.
+  const granularityOptions: { key: AgendaGranularity; label: string }[] =
+    [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }]
+  const activeGranularity: AgendaGranularity =
+    mode === 'agenda' ? agendaGranularity :
+    useStaffLayout ? staffGranularity :
+    view === 'month' ? 'month' : view === 'week' ? 'week' : 'day'
+  function pickGranularity(g: AgendaGranularity) {
+    if (mode === 'agenda') { setAgendaGranularity(g); return }
+    if (useStaffLayout) { setStaffGranularity(g); setView('staff'); return }
+    setView(g)
+  }
 
   // Renders the on-screen agenda table straight to a PNG — what you see is what downloads,
   // so no separate print layout to keep in sync with the real one.
@@ -2282,36 +2374,20 @@ export default function CalendarPage() {
               options={EVENT_KIND_OPTIONS} placeholder="All Events" />
           </div>
 
-          {useStaffLayout && (
-            <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
-              {(['day', 'week', 'month'] as const).map(g => (
-                <button key={g} onClick={() => { setStaffGranularity(g); setView('staff') }}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                  style={view === 'staff' && staffGranularity === g ? styles.segmentActive : styles.segmentInactive}>
-                  {g}
-                </button>
-              ))}
-              <button onClick={() => setView('agenda')}
-                className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                style={view === 'agenda' ? styles.segmentActive : styles.segmentInactive}>
-                Agenda
-              </button>
-            </div>
-          )}
-
-          {/* Day/Week/Month picker for everyone else's single-timeline calendar — hidden below
-              sm. Admin-tier roles and therapists are locked into the Staff layout above instead. */}
-          {!useStaffLayout && (
-            <div className="hidden sm:inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
-              {(['day', 'week', 'month', 'agenda'] as ViewMode[]).map(m => (
-                <button key={m} onClick={() => setView(m)}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all"
-                  style={view === m ? styles.segmentActive : styles.segmentInactive}>
-                  {m}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Calendar vs. Agenda — the Day/Week/Month grid/list granularity picker lives lower,
+              in the card's own toolbar, since each mode has its own version of it. */}
+          <div className="inline-flex rounded-full p-0.5 gap-0.5" style={styles.segmentTrack}>
+            <button onClick={() => setMode('calendar')}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={mode === 'calendar' ? styles.segmentActive : styles.segmentInactive}>
+              Calendar
+            </button>
+            <button onClick={() => { setMode('agenda'); setCurrent(new Date()) }}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={mode === 'agenda' ? styles.segmentActive : styles.segmentInactive}>
+              Agenda
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2323,9 +2399,10 @@ export default function CalendarPage() {
           style={{ borderColor: border.divider }}>
 
           {/* Navigation */}
-          <button onClick={prev} className="p-1.5 rounded-lg transition-colors"
+          <button onClick={prev} disabled={agendaAtEarliest}
+            className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             style={{ color: colors.text.muted }}
-            onMouseEnter={e => (e.currentTarget.style.background = accentAlpha(0.1))}
+            onMouseEnter={e => { if (!agendaAtEarliest) e.currentTarget.style.background = accentAlpha(0.1) }}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             <ChevronLeft size={16} />
           </button>
@@ -2336,48 +2413,64 @@ export default function CalendarPage() {
             <ChevronRight size={16} />
           </button>
 
-          <h2 className="text-base font-semibold flex-1" style={{ color: colors.text.primary }}>{title}</h2>
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
 
-          <span className="text-xs" style={{ color: colors.text.muted }}>
-            {visibleEvents.length} event{visibleEvents.length !== 1 ? 's' : ''}
-          </span>
+          {/* Day/Week/Month — moved down here from the page header, since both Calendar and
+              Agenda now have their own version of it (hidden below sm for the grid case, same
+              as before; Agenda's is compact enough to keep on every width). */}
+          <div className={`${mode === 'agenda' ? 'inline-flex' : 'hidden sm:inline-flex'} rounded-full p-0.5 gap-0.5`}
+            style={styles.segmentTrack}>
+            {granularityOptions.map(o => (
+              <button key={o.key} onClick={() => pickGranularity(o.key)}
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                style={activeGranularity === o.key ? styles.segmentActive : styles.segmentInactive}>
+                {o.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Notification permission — previously lived on the Today/Tomorrow strip */}
-          {notifPermission === 'default' ? (
-            <button
-              onClick={requestNotifPermission}
-              title="Get a browser notification 15 minutes before an event"
-              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
-              style={styles.filterTabInactive}>
-              <Bell size={12} />Notifications
-            </button>
-          ) : notifPermission === 'granted' ? (
-            <span className="hidden sm:flex items-center gap-1.5 text-xs"
-              style={{ color: colors.text.dim }} title="Notifications on">
-              <Bell size={12} />
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs" style={{ color: colors.text.muted }}>
+              {agendaEvents.length} event{agendaEvents.length !== 1 ? 's' : ''}
             </span>
-          ) : notifPermission === 'denied' ? (
-            <span className="hidden sm:flex items-center gap-1.5 text-xs"
-              style={{ color: colors.text.dim }} title="Notifications blocked in your browser">
-              <BellOff size={12} />
-            </span>
-          ) : null}
 
-          {/* Today */}
-          <button onClick={() => setCurrent(new Date())}
-            className="text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
-            style={styles.filterTabInactive}>
-            Today
-          </button>
+            {/* Notification permission — previously lived on the Today/Tomorrow strip */}
+            {notifPermission === 'default' ? (
+              <button
+                onClick={requestNotifPermission}
+                title="Get a browser notification 15 minutes before an event"
+                className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
+                style={styles.filterTabInactive}>
+                <Bell size={12} />Notifications
+              </button>
+            ) : notifPermission === 'granted' ? (
+              <span className="hidden sm:flex items-center gap-1.5 text-xs"
+                style={{ color: colors.text.dim }} title="Notifications on">
+                <Bell size={12} />
+              </span>
+            ) : notifPermission === 'denied' ? (
+              <span className="hidden sm:flex items-center gap-1.5 text-xs"
+                style={{ color: colors.text.dim }} title="Notifications blocked in your browser">
+                <BellOff size={12} />
+              </span>
+            ) : null}
 
-          {/* Download — agenda only; the grid views don't fit a single static image as well. */}
-          {view === 'agenda' && (
-            <button onClick={downloadAgendaImage} disabled={exportingAgenda}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
+            {/* Today */}
+            <button onClick={() => setCurrent(new Date())}
+              className="text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
               style={styles.filterTabInactive}>
-              <Download size={12} /> {exportingAgenda ? 'Exporting…' : 'Download'}
+              Today
             </button>
-          )}
+
+            {/* Download — agenda only; the grid views don't fit a single static image as well. */}
+            {mode === 'agenda' && (
+              <button onClick={downloadAgendaImage} disabled={exportingAgenda}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
+                style={styles.filterTabInactive}>
+                <Download size={12} /> {exportingAgenda ? 'Exporting…' : 'Download'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Content */}
@@ -2387,29 +2480,30 @@ export default function CalendarPage() {
           <div className="flex flex-1 min-h-0 overflow-hidden gap-4 p-0">
             {/* Calendar grid */}
             <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto flex flex-col">
-              <div className={`flex flex-col flex-1 min-h-0 ${view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
-                {view === 'month' ? (
-                  <MonthView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
-                    onDayClick={day => { setCurrent(day); setView('day') }} />
-                ) : view === 'week' ? (
-                  <WeekView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
-                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
-                ) : view === 'agenda' ? (
+              <div className={`flex flex-col flex-1 min-h-0 ${mode === 'calendar' && view !== 'day' ? 'min-w-[420px]' : 'min-w-[280px]'}`}>
+                {mode === 'agenda' ? (
                   // Exported verbatim by the Download button above — the title/count header
                   // here is what makes a standalone image self-explanatory out of context.
                   <div ref={agendaExportRef} className="flex flex-col flex-1 min-h-0" style={{ background: surface.card }}>
                     <div className="px-4 pt-4 pb-1 flex-shrink-0">
                       <h3 className="text-sm font-semibold" style={{ color: colors.text.primary }}>{title}</h3>
                       <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                        {visibleEvents.length} event{visibleEvents.length !== 1 ? 's' : ''}
+                        {agendaEvents.length} event{agendaEvents.length !== 1 ? 's' : ''}
                       </p>
                     </div>
                     <AgendaView
-                      events={visibleEvents}
+                      events={agendaEvents}
                       onSelect={setSelected}
                       colorFn={useStaffLayout ? ev => therapistChipStyle(ev, staffColumns, theme === 'dark') : undefined}
+                      emptyMessage={agendaEmptyMessage}
                     />
                   </div>
+                ) : view === 'month' ? (
+                  <MonthView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
+                    onDayClick={day => { setCurrent(day); setView('day') }} />
+                ) : view === 'week' ? (
+                  <WeekView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
+                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
@@ -2432,7 +2526,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Upcoming — collapsed by default so the grid stays the focus */}
-            {(view === 'month' || view === 'day') && (
+            {mode === 'calendar' && (view === 'month' || view === 'day') && (
               <div className="hidden lg:flex flex-col border-l overflow-hidden transition-all"
                 style={{ borderColor: border.divider, width: upcomingOpen ? 280 : 44, flexShrink: 0 }}>
                 <button
