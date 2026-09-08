@@ -1,6 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { Capacitor } from '@capacitor/core'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+// The web build's relative '/api/v1' only resolves because it's served from the same origin
+// as the API (via the dev proxy, or a reverse proxy in production). A Capacitor app has no
+// such origin — its pages load from a capacitor:// / file:// URL — so it needs an absolute
+// backend URL instead. This points the native apps at this dev machine's LAN IP (reachable
+// from the Android emulator, iOS Simulator, and a real device on the same Wi-Fi) so `npm run
+// android:open`/`ios:open` talk to the same backend as the web dev server without extra setup.
+// Update this once there's a real deployed backend URL — VITE_API_BASE_URL still overrides it.
+const NATIVE_DEV_API_BASE_URL = 'http://192.168.1.7:8080/api/v1'
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL
+  ?? (Capacitor.isNativePlatform() ? NATIVE_DEV_API_BASE_URL : '/api/v1')
 
 export const client = axios.create({
   baseURL: BASE_URL,

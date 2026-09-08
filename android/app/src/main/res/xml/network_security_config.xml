@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allows plain HTTP (cleartext) only to this dev machine's LAN IP — matches
+  NATIVE_DEV_API_BASE_URL in src/api/client.ts. Android blocks cleartext traffic by default
+  since API 28, and the real backend has no HTTPS cert for local development. Everything else
+  keeps the platform default (HTTPS-only). Update the IP here if the dev machine's changes,
+  or drop this file once the app points at a real deployed (HTTPS) backend.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.7</domain>
+    </domain-config>
+</network-security-config>

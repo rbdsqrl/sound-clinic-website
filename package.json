@@ -6,9 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "npm run build && npx cap sync",
+    "android:open": "npm run cap:sync && npx cap open android",
+    "ios:open": "npm run cap:sync && npx cap open ios",
+    "cap:sync:local": "VITE_API_BASE_URL=http://192.168.1.7:8080/api/v1 npm run build && npx cap sync",
+    "android:open:local": "npm run cap:sync:local && npx cap open android",
+    "ios:open:local": "npm run cap:sync:local && npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "@hookform/resolvers": "^3.6.0",
     "@tanstack/react-query": "^5.40.0",
     "@tiptap/extension-placeholder": "^3.30.3",
