@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -36,6 +37,11 @@ import ActivityDetailPage from './pages/activities/ActivityDetailPage'
 // Set to true to skip authentication entirely during development.
 const BYPASS_AUTH = false
 
+// The native app has no public marketing site to show — it always opens on the login
+// screen, even if a session was already restored from a previous launch. A real login
+// still lands on the dashboard (LoginPage navigates there itself on success).
+const isNative = Capacitor.isNativePlatform()
+
 function PrivateRoute({ children }: { children: JSX.Element }) {
   if (BYPASS_AUTH) return children
   const { isAuthenticated, isLoading } = useAuth()
@@ -47,6 +53,7 @@ function PublicRoute({ children }: { children: JSX.Element }) {
   if (BYPASS_AUTH) return children
   const { isAuthenticated, isLoading } = useAuth()
   if (isLoading) return null
+  if (isNative) return children
   return isAuthenticated ? <Navigate to={ROUTES.dashboard} replace /> : children
 }
 
@@ -59,8 +66,8 @@ function Spinner() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Landing — always public, no auth redirect */}
-      <Route path={ROUTES.home} element={<LandingPage />} />
+      {/* Landing — always public, no auth redirect. Native has no marketing site — open on login. */}
+      <Route path={ROUTES.home} element={isNative ? <Navigate to={ROUTES.login} replace /> : <LandingPage />} />
 
       {/* Auth */}
       <Route path={ROUTES.login}        element={<PublicRoute><LoginPage /></PublicRoute>} />
