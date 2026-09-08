@@ -80,12 +80,13 @@ function formatWeekRange(weekStartIso: string): string {
     : `${format(start, 'd MMM')} – ${format(end, 'd MMM')}`
 }
 
-function defaultWindow(granularity: Granularity) {
+/** Every Analytics section's default window — the last 8 days, today inclusive — regardless
+ *  of tab or granularity. A short, consistent starting point rather than one that used to vary
+ *  by granularity (30 days for Daily, 12 weeks for Weekly, 12 months for Monthly). */
+function defaultWindow() {
   const to = new Date()
   const from = new Date()
-  if (granularity === 'DAILY') from.setDate(from.getDate() - 29)
-  else if (granularity === 'WEEKLY') from.setDate(from.getDate() - 83)
-  else from.setMonth(from.getMonth() - 11)
+  from.setDate(from.getDate() - 7)
   return { from: iso(from), to: iso(to) }
 }
 
@@ -98,7 +99,7 @@ export default function AnalyticsPage() {
   const [domain, setDomain] = useState<IEPGoalDomain | ''>('')
   const [patientId, setPatientId] = useState('')
   const [therapistId, setTherapistId] = useState('')
-  const [range, setRange] = useState(() => defaultWindow('DAILY'))
+  const [range, setRange] = useState(defaultWindow)
 
   // Parents only ever see their own children's progress — caseload and clinic-wide rollups
   // are staff views and the backend rejects them for this role.
@@ -118,7 +119,7 @@ export default function AnalyticsPage() {
   const changeGranularity = (g: Granularity) => {
     setGranularity(g)
     if (tab === 'cases' && patientId && anchoredPatientRef.current === patientId) return
-    setRange(defaultWindow(g))
+    setRange(defaultWindow())
   }
 
   const params = {
@@ -147,7 +148,7 @@ export default function AnalyticsPage() {
 
     anchoredPatientRef.current = patientId
     const starts = enrollmentsQuery.data.map(e => e.startDate).filter(Boolean).sort()
-    setRange({ from: starts[0] ?? defaultWindow(granularity).from, to: iso(new Date()) })
+    setRange({ from: starts[0] ?? defaultWindow().from, to: iso(new Date()) })
   }, [tab, patientId, enrollmentsQuery.data, granularity])
 
   // If the role is switched while this page is open, fall back to the one tab parents may view.
