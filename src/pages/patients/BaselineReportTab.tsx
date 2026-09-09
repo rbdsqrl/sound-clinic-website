@@ -63,9 +63,9 @@ function formatAge(dobIso: string, asOfIso: string): string {
   return `${years}y ${months}m`
 }
 
-export default function BaselineReportTab({ patientId }: { patientId: string }) {
+export default function BaselineReportTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
   const { activeRole } = useAuth()
-  const isEditor = activeRole !== 'PARENT'
+  const isEditor = activeRole !== 'PARENT' && !readOnly
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editHeaderOpen, setEditHeaderOpen] = useState(false)

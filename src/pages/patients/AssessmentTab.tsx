@@ -34,16 +34,17 @@ const CLASSIFICATION_COLOR: Record<string, PaletteKey> = {
 const CAN_FILL_ROLES = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST']
 
 export default function AssessmentTab({
-  patientId, type, title, description,
+  patientId, type, title, description, readOnly = false,
 }: {
   patientId: string
   type: AssessmentType
   title: string
   description: string
+  readOnly?: boolean
 }) {
   const { user, activeRole } = useAuth()
   const currentRole = activeRole ?? user?.role
-  const canFill = CAN_FILL_ROLES.includes(currentRole ?? '')
+  const canFill = CAN_FILL_ROLES.includes(currentRole ?? '') && !readOnly
   const { toast } = useToast()
 
   const [formOpen, setFormOpen] = useState(false)

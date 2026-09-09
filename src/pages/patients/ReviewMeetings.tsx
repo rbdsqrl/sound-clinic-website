@@ -74,6 +74,7 @@ export function ReviewMeetingsPanel({
   canSeeFeedback,
   canWriteClinicHeadRemarks,
   isParent,
+  readOnly = false,
 }: {
   enrollmentId: string
   enrollmentStartDate: string
@@ -86,6 +87,9 @@ export function ReviewMeetingsPanel({
   canSeeFeedback: boolean
   canWriteClinicHeadRemarks: boolean
   isParent: boolean
+  /** A discharged case's history stays browsable, but nothing here is actionable —
+   *  scheduling, remarks and parent feedback all lock, viewing does not. */
+  readOnly?: boolean
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -143,7 +147,7 @@ export function ReviewMeetingsPanel({
             </span>
           )}
         </div>
-        {canSchedule && !isSelfReview && (
+        {canSchedule && !isSelfReview && !readOnly && (
           <div className="flex items-center gap-1.5">
             {meetings.length === 0 ? (
               <button
@@ -178,8 +182,9 @@ export function ReviewMeetingsPanel({
               meeting={m}
               isParent={isParent}
               canWriteClinicHeadRemarks={canWriteHere}
-              canManage={canSchedule && !isSelfReview}
+              canManage={canSchedule && !isSelfReview && !readOnly}
               canSeeFeedback={canSeeHere}
+              readOnly={readOnly}
               onFeedback={() => setFeedbackFor(m)}
               onComplete={() => completeMut.mutate(m.id)}
               onCancel={() => {
@@ -229,7 +234,7 @@ export function ReviewMeetingsPanel({
 // ── Row ────────────────────────────────────────────────────────────────────────
 
 function MeetingRow({
-  meeting, isParent, canWriteClinicHeadRemarks, canManage, canSeeFeedback,
+  meeting, isParent, canWriteClinicHeadRemarks, canManage, canSeeFeedback, readOnly = false,
   onFeedback, onComplete, onCancel,
 }: {
   meeting: ReviewMeetingResponse
@@ -237,6 +242,7 @@ function MeetingRow({
   canWriteClinicHeadRemarks: boolean
   canManage: boolean
   canSeeFeedback: boolean
+  readOnly?: boolean
   onFeedback: () => void
   onComplete: () => void
   onCancel: () => void
@@ -244,7 +250,7 @@ function MeetingRow({
   const [open, setOpen] = useState(false)
 
   const mine = isParent ? meeting.parentFeedbackAt : meeting.clinicHeadRemarksAt
-  const canWrite = isParent || canWriteClinicHeadRemarks
+  const canWrite = (isParent || canWriteClinicHeadRemarks) && !readOnly
 
   const responded = [
     meeting.clinicHeadRemarksAt ? 'clinic head' : null,

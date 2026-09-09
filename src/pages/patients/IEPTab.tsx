@@ -1305,12 +1305,14 @@ function ProgressHistoryModal({ open, onClose, goal }: {
 
 // ── Main IEP Tab ──────────────────────────────────────────────────────────────
 
-export default function IEPTab({ patientId, therapists = [] }: { patientId: string; therapists?: TherapistSummary[] }) {
+export default function IEPTab({ patientId, therapists = [], readOnly = false }: { patientId: string; therapists?: TherapistSummary[]; readOnly?: boolean }) {
   const { toast } = useToast()
   const qc = useQueryClient()
   const { user, activeRole } = useAuth()
-  const isEditor = activeRole !== 'PARENT'
-  const isAdmin = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
+  // A discharged case's IEP stays fully browsable — every goal/plan edit affordance
+  // below keys off isEditor/isAdmin, so folding readOnly in here locks all of them at once.
+  const isEditor = activeRole !== 'PARENT' && !readOnly
+  const isAdmin = (activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD') && !readOnly
 
   const [showPlanModal,  setShowPlanModal]  = useState(false)
   const [showCsvModal,   setShowCsvModal]   = useState(false)

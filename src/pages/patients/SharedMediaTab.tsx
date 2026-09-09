@@ -61,7 +61,7 @@ function tiltFor(id: string): number {
   return ((Math.abs(hash) % 7) - 3) * 0.9 // ~ -2.7deg .. 2.7deg
 }
 
-export default function SharedMediaTab({ patientId }: { patientId: string }) {
+export default function SharedMediaTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
   const { toast } = useToast()
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -102,12 +102,13 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
   if (isLoading) return <PageLoader />
 
   const canSubmit = !!file || note.trim().length > 0
-  const canDelete = (item: SharedMediaResponse) => !!user && (
+  const canDelete = (item: SharedMediaResponse) => !readOnly && !!user && (
     user.id === item.uploadedById || user.role === 'BUSINESS_OWNER' || user.role === 'CLINIC_HEAD'
   )
 
   return (
     <div className="space-y-6">
+      {!readOnly && (
       <Card>
         <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>Share a file and/or a note</p>
         <p className="text-xs mb-3" style={{ color: colors.text.muted }}>Videos, documents and images are all supported.</p>
@@ -161,6 +162,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
           </Button>
         </div>
       </Card>
+      )}
 
       {!items || items.length === 0 ? (
         <EmptyState

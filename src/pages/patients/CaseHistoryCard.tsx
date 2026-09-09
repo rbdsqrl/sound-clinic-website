@@ -67,7 +67,7 @@ export function CaseHistoryCard({ patientId, canEdit }: { patientId: string; can
           <p className="text-sm" style={{ color: colors.text.dim }}>No case history recorded.</p>
         </Card>
         {modalOpen && (
-          <CaseHistoryModal patientId={patientId} caseHistory={null} onClose={() => setModalOpen(false)} />
+          <CaseHistoryModal patientId={patientId} caseHistory={null} onClose={() => setModalOpen(false)} canEdit={canEdit} />
         )}
       </>
     )
@@ -124,7 +124,7 @@ export function CaseHistoryCard({ patientId, canEdit }: { patientId: string; can
         </div>
       </Card>
       {modalOpen && (
-        <CaseHistoryModal patientId={patientId} caseHistory={caseHistory} onClose={() => setModalOpen(false)} />
+        <CaseHistoryModal patientId={patientId} caseHistory={caseHistory} onClose={() => setModalOpen(false)} canEdit={canEdit} />
       )}
     </>
   )

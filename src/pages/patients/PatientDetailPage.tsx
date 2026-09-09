@@ -185,9 +185,11 @@ function JourneyCard({
     done: {
       icon: <CheckCircle2 size={20} style={{ color: colors.text.dim }} />,
       title: 'Case discharged',
-      description: 'This patient\'s therapy journey is complete.',
-      cta: null,
-      action: null,
+      description: 'This patient\'s therapy journey is complete. The profile stays read-only — enrolling again starts a new program.',
+      // The one action a discharged profile still allows, and only for the roles that
+      // can manage subscriptions — everyone else sees no CTA here, same as before.
+      cta: 'Enroll Again',
+      action: onAddSubscription,
       accent: colors.text.dim,
     },
   }[step]
@@ -1291,7 +1293,7 @@ const ASSESSMENT_TABS: { type: AssessmentType; label: string; title: string; des
     description: 'Intake questionnaire completed ahead of a child’s first assessment' },
 ]
 
-function AssessmentsTab({ patientId }: { patientId: string }) {
+function AssessmentsTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
   const [sub, setSub] = useState<AssessmentType>('ISAA')
   const active = ASSESSMENT_TABS.find(t => t.type === sub)!
 
@@ -1310,7 +1312,7 @@ function AssessmentsTab({ patientId }: { patientId: string }) {
         ))}
       </div>
 
-      <AssessmentTab patientId={patientId} type={active.type} title={active.title} description={active.description} />
+      <AssessmentTab patientId={patientId} type={active.type} title={active.title} description={active.description} readOnly={readOnly} />
     </div>
   )
 }
@@ -1747,15 +1749,21 @@ export default function PatientDetailPage() {
   // not billing — so this gates the payment status badge, amounts, and payment prompts below.
   const isTherapist         = currentRole === 'THERAPIST'
   const isOfficeAdmin       = currentRole === 'OFFICE_ADMIN'
+  // A discharged case is read-only throughout — the one exception is re-enrolling (starting a
+  // new program), which admin roles can still do via canManageSubs below (deliberately NOT
+  // ANDed with !isDischarged, since that's what "Enroll Again" runs on).
+  const isDischarged        = patient.stage === 'DISCHARGED'
   const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
-  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
-  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
-  const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
-  const canDelete           = currentRole === 'BUSINESS_OWNER'
+  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
+  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
+  const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
+  const canDelete           = currentRole === 'BUSINESS_OWNER' && !isDischarged
   // Review-meeting feedback content stays clinic-staff-only even though Office Admin
   // can schedule the meetings themselves — see ReviewMeetingsPanel's canSeeFeedback.
+  // Viewing stays open on a discharged case (read-only browsing); writing does not.
   const canSeeReviewFeedback = ['CLINIC_HEAD', 'BUSINESS_OWNER'].includes(currentRole ?? '')
+  const canWriteReviewFeedback = canSeeReviewFeedback && !isDischarged
   const hasActiveSubscription = subscriptions.some(s => s.status === 'ACTIVE')
 
   // Shared remove-button style (hover via event handlers)
@@ -1841,7 +1849,7 @@ export default function PatientDetailPage() {
       {/* ── Overview tab ─────────────────────────────────────────────────── */}
       {activeTab === 'Overview' && (
           <div className="space-y-4">
-            <ConcernsBanner patientId={id!} canAct={!isParentRole && !isOfficeAdmin} />
+            <ConcernsBanner patientId={id!} canAct={!isParentRole && !isOfficeAdmin && !isDischarged} />
 
             <DischargeHistoryPanel patientId={id!} />
 
@@ -1989,7 +1997,7 @@ export default function PatientDetailPage() {
                             <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{p.email}</p>
                           </div>
                         </div>
-                        {removeBtn(() => unlinkParentMutation.mutate(p.id))}
+                        {canEditDetails && removeBtn(() => unlinkParentMutation.mutate(p.id))}
                       </div>
                     ))}
                   </div>
@@ -2021,7 +2029,7 @@ export default function PatientDetailPage() {
                             </p>
                           </div>
                         </div>
-                        {removeBtn(() => unassignTherapistMutation.mutate(t.id))}
+                        {canEditDetails && removeBtn(() => unassignTherapistMutation.mutate(t.id))}
                       </div>
                     ))}
                   </div>
@@ -2120,7 +2128,7 @@ export default function PatientDetailPage() {
               action={
                 canManageSubs ? (
                   <Button size="sm" onClick={() => setSubModal(true)}>
-                    <Plus size={14} /> Add
+                    <Plus size={14} /> {isDischarged ? 'Enroll Again' : 'Add'}
                   </Button>
                 ) : undefined
               }
@@ -2384,7 +2392,7 @@ export default function PatientDetailPage() {
                                   <IndianRupee size={12} /> Record Payment
                                 </button>
                               )}
-                              {isParent && !isPaid && (
+                              {isParent && !isPaid && !isDischarged && (
                                 <button
                                   onClick={() => setMockPayTarget(sub)}
                                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
@@ -2396,7 +2404,7 @@ export default function PatientDetailPage() {
                                 </button>
                               )}
                             </div>
-                            {canManageSubs && (
+                            {canManageSubs && !isDischarged && (
                               <div className="flex items-center gap-1 flex-wrap">
                                 {isEnrolled && enrollment && (
                                   <button
@@ -2439,8 +2447,9 @@ export default function PatientDetailPage() {
                             currentUserId={user?.id ?? ''}
                             canSchedule={canCreateEnrollment}
                             canSeeFeedback={canSeeReviewFeedback}
-                            canWriteClinicHeadRemarks={canSeeReviewFeedback}
+                            canWriteClinicHeadRemarks={canWriteReviewFeedback}
                             isParent={isParent}
+                            readOnly={isDischarged}
                           />
                         </div>
                       )}
@@ -2455,19 +2464,19 @@ export default function PatientDetailPage() {
       )}
 
       {/* ── IEP tab ──────────────────────────────────────────────────────── */}
-      {activeTab === 'IEP' && <IEPTab patientId={id!} therapists={patient?.therapists ?? []} />}
+      {activeTab === 'IEP' && <IEPTab patientId={id!} therapists={patient?.therapists ?? []} readOnly={isDischarged} />}
 
-      {activeTab === 'Activities' && <ActivitiesTab patientId={id!} />}
+      {activeTab === 'Activities' && <ActivitiesTab patientId={id!} readOnly={isDischarged} />}
 
       {activeTab === 'Assessments' && (
-        <AssessmentsTab patientId={id!} />
+        <AssessmentsTab patientId={id!} readOnly={isDischarged} />
       )}
 
       {activeTab === 'Baseline Report' && (
-        <BaselineReportTab patientId={id!} />
+        <BaselineReportTab patientId={id!} readOnly={isDischarged} />
       )}
 
-      {activeTab === 'Media & Notes' && <SharedMediaTab patientId={id!} />}
+      {activeTab === 'Media & Notes' && <SharedMediaTab patientId={id!} readOnly={isDischarged} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition" error={conditionError}>

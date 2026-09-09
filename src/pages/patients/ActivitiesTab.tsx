@@ -29,7 +29,7 @@ const STATUS_VARIANT: Record<AssignmentStatus, 'slate' | 'blue' | 'green' | 'red
   ASSIGNED: 'slate', IN_PROGRESS: 'blue', COMPLETED: 'green', DISCONTINUED: 'red',
 }
 
-export default function ActivitiesTab({ patientId }: { patientId: string }) {
+export default function ActivitiesTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
   const { toast } = useToast()
   const [logFor, setLogFor] = useState<ActivityAssignmentResponse | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -58,7 +58,7 @@ export default function ActivitiesTab({ patientId }: { patientId: string }) {
         <CardHeader
           title="Assigned Activities"
           subtitle="Assign activities from the Activities module, then log progress here"
-          action={<Link to={ROUTES.activities}><Button size="sm" variant="secondary"><Plus size={14} /> Assign from Activities</Button></Link>}
+          action={!readOnly ? <Link to={ROUTES.activities}><Button size="sm" variant="secondary"><Plus size={14} /> Assign from Activities</Button></Link> : undefined}
         />
         {!assignments || assignments.length === 0 ? (
           <EmptyState icon={<ClipboardList size={24} />} title="No activities assigned yet"
@@ -86,11 +86,12 @@ export default function ActivitiesTab({ patientId }: { patientId: string }) {
                   <div className="w-40">
                     <Select
                       value={a.status}
+                      disabled={readOnly}
                       onChange={(e) => statusMut.mutate({ assignmentId: a.id, status: e.target.value as AssignmentStatus })}
                       options={STATUS_OPTIONS}
                     />
                   </div>
-                  <Button size="sm" onClick={() => setLogFor(a)}>Log Attempt</Button>
+                  {!readOnly && <Button size="sm" onClick={() => setLogFor(a)}>Log Attempt</Button>}
                   <button
                     className="inline-flex items-center gap-1 text-xs font-medium py-2.5 px-1 -m-1"
                     style={{ color: colors.accent }}

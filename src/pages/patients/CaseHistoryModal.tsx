@@ -157,11 +157,12 @@ function TextArea({ label, value, onChange, placeholder, rows = 2 }: {
 }
 
 export function CaseHistoryModal({
-  patientId, caseHistory, onClose,
+  patientId, caseHistory, onClose, canEdit = true,
 }: {
   patientId: string
   caseHistory: CaseHistoryResponse | null
   onClose: () => void
+  canEdit?: boolean
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -197,17 +198,21 @@ export function CaseHistoryModal({
     <Modal
       open
       onClose={onClose}
-      title="Case History Report"
+      title={canEdit ? 'Case History Report' : 'Case History Report (read-only)'}
       size="full"
       error={saveError}
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => { setSaveError(null); saveMut.mutate() }} loading={saveMut.isPending}>Save</Button>
-        </>
+        canEdit ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button onClick={() => { setSaveError(null); saveMut.mutate() }} loading={saveMut.isPending}>Save</Button>
+          </>
+        ) : (
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        )
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4" style={canEdit ? undefined : { pointerEvents: 'none', opacity: 0.65 }}>
         <SectionCard title="Basic Concerns">
           <TextArea label="Present Complaints" value={form.presentComplaints ?? ''} onChange={v => set({ presentComplaints: v })}
             placeholder="Describe the presenting concern" />
