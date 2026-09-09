@@ -1074,7 +1074,12 @@ function AgendaView({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <table className="w-full text-sm border-collapse">
+      <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: 110 }} />
+          <col style={{ width: 170 }} />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             {['Date', 'Time', 'Event'].map(h => (
