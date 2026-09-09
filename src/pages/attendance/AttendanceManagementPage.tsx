@@ -4,10 +4,12 @@ import {
   CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
   CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft,
 } from 'lucide-react'
-import { eachDayOfInterval, differenceInCalendarDays, format as formatDate, parseISO } from 'date-fns'
+import { eachDayOfInterval, format as formatDate, parseISO } from 'date-fns'
 import { attendanceApi } from '../../api/attendance'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
+import { organisationApi } from '../../api/organisation'
+import { publicHolidaysApi } from '../../api/publicHolidays'
 import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -20,7 +22,9 @@ import { getApiError } from '../../lib/apiError'
 import { formatTime } from '../../lib/format'
 import { roleLabel } from '../../components/ui/Badge'
 import { colors, styles, warningAlpha, successAlpha, dangerAlpha, palette } from '../../theme'
-import type { AttendanceResponse, StaffMemberResponse } from '../../types'
+import type { AttendanceResponse, DayOfWeek, StaffMemberResponse } from '../../types'
+
+const JS_TO_DOW: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
 
 function VerifyIcon({ ok }: { ok: boolean }) {
   return ok
@@ -266,6 +270,17 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   const { data: clinics = [] } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
   const clinicMap = useMemo(() => Object.fromEntries(clinics.map(c => [c.id, c.name])), [clinics])
 
+  const { data: weeklyOffDays = [] } = useQuery({
+    queryKey: ['organisation', 'weekly-off-days'],
+    queryFn: organisationApi.getWeeklyOffDays,
+  })
+  const { data: holidays = [] } = useQuery({
+    queryKey: ['public-holidays'],
+    queryFn: publicHolidaysApi.list,
+  })
+  const holidayDates = useMemo(() => new Set(holidays.map(h => h.holidayDate)), [holidays])
+  const weeklyOffSet = useMemo(() => new Set(weeklyOffDays), [weeklyOffDays])
+
   const reviewMut = useMutation({
     mutationFn: ({ id, approved }: { id: string; approved: boolean }) =>
       attendanceApi.reviewOverride(id, approved),
@@ -278,7 +293,16 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
     onError: (err) => toast(getApiError(err, 'Review failed'), 'error'),
   })
 
-  const daysInRange = Math.max(1, differenceInCalendarDays(parseISO(to), parseISO(from)) + 1)
+  // Working days in the selected range — excludes the org's weekly-off days (e.g. Sundays)
+  // and public holidays, so those don't inflate everyone's "Absent" count.
+  const workingDaysInRange = useMemo(() => {
+    const days = eachDayOfInterval({ start: parseISO(from), end: parseISO(to) })
+    const working = days.filter(d => {
+      const key = formatDate(d, 'yyyy-MM-dd')
+      return !weeklyOffSet.has(JS_TO_DOW[d.getDay()]) && !holidayDates.has(key)
+    })
+    return Math.max(1, working.length)
+  }, [from, to, weeklyOffSet, holidayDates])
 
   const employeeStats = useMemo<EmployeeStats[]>(() => {
     const byUser = new Map<string, AttendanceResponse[]>()
@@ -296,13 +320,13 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
         const hours = recs.map(hoursWorked).filter((h): h is number => h !== null)
         return {
           member, records: recs, present,
-          absent: Math.max(0, daysInRange - present),
+          absent: Math.max(0, workingDaysInRange - present),
           verified,
           avgHours: hours.length ? hours.reduce((a, b) => a + b, 0) / hours.length : null,
         }
       })
       .sort((a, b) => `${a.member.firstName} ${a.member.lastName}`.localeCompare(`${b.member.firstName} ${b.member.lastName}`))
-  }, [records, members, daysInRange])
+  }, [records, members, workingDaysInRange])
 
   const selectedStats = employeeStats.find(e => e.member.id === selectedId) ?? null
 

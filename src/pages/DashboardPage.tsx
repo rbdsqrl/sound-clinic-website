@@ -990,11 +990,8 @@ function OrgOverview({ patients, members, invites }: {
 
   return (
     <div style={sectionCard}>
-      <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${border.divider}` }}>
+      <div className="px-4 sm:px-6 py-4" style={{ borderBottom: `1px solid ${border.divider}` }}>
         <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Organisation Overview</h2>
-        <Link to="/organisation" className="text-xs transition-colors" style={{ color: colors.accent }}>
-          Open organisation →
-        </Link>
       </div>
       <div className="flex-1 flex flex-col">
         <StatRingPanel
