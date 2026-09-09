@@ -37,7 +37,6 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { ROUTES } from '../../lib/routes'
-import { todayStr, isPastDateTime } from '../../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
@@ -916,8 +915,6 @@ function EnrollmentModal({
     if (!startDate) e.date = 'Select a start date'
     if (!startTime) e.time = 'Select a time'
     if (sessionDays.length === 0) e.days = 'Select at least one day'
-    if (startDate && startDate < todayStr()) e.date = 'Start date cannot be in the past'
-    else if (startDate && startTime && isPastDateTime(startDate, startTime)) e.time = 'Start time cannot be in the past'
     if (wantsReviews && clinicHeadIds.length === 0) e.reviewParticipants = 'Pick at least one Clinic Head to invite'
     setStep1Errors(e)
     return Object.keys(e).length === 0
@@ -1099,7 +1096,7 @@ function EnrollmentModal({
               {/* Start date — the plan's end is derived from this plus the session count */}
               <div>
                 <label className="form-label">Start Date</label>
-                <input type="date" value={startDate} min={todayStr()} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
                 {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
               </div>
             </div>
