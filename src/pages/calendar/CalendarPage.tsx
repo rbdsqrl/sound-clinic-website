@@ -2491,20 +2491,6 @@ export default function CalendarPage() {
 
           <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
 
-          {/* Day/Week/Month — moved down here from the page header, since both Calendar and
-              Agenda now have their own version of it (hidden below sm for the grid case, same
-              as before; Agenda's is compact enough to keep on every width). */}
-          <div className={`${mode === 'agenda' ? 'inline-flex' : 'hidden sm:inline-flex'} rounded-full p-0.5 gap-0.5`}
-            style={styles.segmentTrack}>
-            {granularityOptions.map(o => (
-              <button key={o.key} onClick={() => pickGranularity(o.key)}
-                className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
-                style={activeGranularity === o.key ? styles.segmentActive : styles.segmentInactive}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs" style={{ color: colors.text.muted }}>
               {agendaEvents.length} event{agendaEvents.length !== 1 ? 's' : ''}
@@ -2530,6 +2516,19 @@ export default function CalendarPage() {
                 <BellOff size={12} />
               </span>
             ) : null}
+
+            {/* Day/Week/Month — both Calendar and Agenda have their own version of it (hidden
+                below sm for the grid case; Agenda's is compact enough to keep on every width). */}
+            <div className={`${mode === 'agenda' ? 'inline-flex' : 'hidden sm:inline-flex'} rounded-full p-0.5 gap-0.5`}
+              style={styles.segmentTrack}>
+              {granularityOptions.map(o => (
+                <button key={o.key} onClick={() => pickGranularity(o.key)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                  style={activeGranularity === o.key ? styles.segmentActive : styles.segmentInactive}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
 
             {/* Today */}
             <button onClick={() => setCurrent(new Date())}
