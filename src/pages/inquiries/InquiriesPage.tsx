@@ -1192,7 +1192,7 @@ export default function InquiriesPage() {
               {displayed.map((inq, idx) => (
                 <div key={inq.id}
                   className="w-full transition-colors"
-                  style={{ borderBottom: idx < displayed.length - 1 ? `1px solid ${border.divider}` : 'none' }}
+                  style={{ borderBottom: idx < displayed.length - 1 ? `1px solid ${border.divider}` : 'none', transform: 'translateZ(0)' }}
                   onMouseEnter={e => (e.currentTarget.style.background = surface.rowHover)}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
 

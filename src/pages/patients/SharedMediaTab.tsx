@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { viewFile } from '../../lib/fileActions'
 import { formatDateTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, styles } from '../../theme'
@@ -181,7 +182,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
                 className="relative rounded-2xl p-4 pt-6 cursor-pointer transition-all hover:-translate-y-1"
                 style={{
                   ...styles.card,
-                  transform: `rotate(${tiltFor(item.id)}deg)`,
+                  transform: `rotate(${tiltFor(item.id)}deg) translateZ(0)`,
                   boxShadow: '0 8px 20px -8px rgba(0,0,0,0.35)',
                 }}
               >
@@ -262,11 +263,10 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
           )}
 
           {selected.fileUrl && fileKind(selected.contentType) === 'document' && (
-            <a
-              href={selected.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-3 transition-colors"
+            <button
+              type="button"
+              onClick={() => selected.fileUrl && viewFile(selected.fileUrl)}
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-3 transition-colors w-full text-left"
               style={{ border: `1px solid ${border.divider}` }}
             >
               <FileText size={16} className="flex-shrink-0" style={{ color: colors.accent }} />
@@ -277,7 +277,7 @@ export default function SharedMediaTab({ patientId }: { patientId: string }) {
                 {formatSize(selected.fileSizeBytes)}
               </span>
               <Download size={13} className="flex-shrink-0" style={{ color: colors.text.muted }} />
-            </a>
+            </button>
           )}
 
           {selected.note && (

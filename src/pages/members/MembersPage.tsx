@@ -76,7 +76,7 @@ function MemberCard({
     <div
       onClick={onSelect}
       className="rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-colors"
-      style={{ background: surface.card, border: border.card, boxShadow: shadow.card }}
+      style={{ background: surface.card, border: border.card, boxShadow: shadow.card, transform: 'translateZ(0)' }}
     >
       <div className="flex items-start gap-3">
         <Avatar initials={initials} name={`${member.firstName} ${member.lastName}`} size="xl" shape="square" bold />

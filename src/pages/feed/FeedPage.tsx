@@ -19,6 +19,7 @@ import { roleBadge } from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatDateTimeStr } from '../../lib/format'
+import { useMediaSrc } from '../../lib/mediaUrl'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha } from '../../theme'
 import type { FeedPostResponse, FeedPostImageResponse, FeedCommentResponse } from '../../types'
@@ -158,7 +159,7 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
           <div className="flex flex-wrap gap-2">
             {images.map(img => (
               <div key={img.id} className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0" style={{ border: border.card }}>
-                <img src={img.fileUrl} alt={img.fileName} className="h-full w-full object-cover" />
+                <FeedImage src={img.fileUrl} alt={img.fileName} className="h-full w-full object-cover" />
                 <button type="button" onClick={() => removeExistingImage(img.id)}
                   className="absolute top-0.5 right-0.5 rounded-full p-0.5"
                   style={{ background: 'rgba(0,0,0,0.55)', color: '#fff' }} aria-label="Remove image">
@@ -197,6 +198,14 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
 
 // ── Image gallery + lightbox ────────────────────────────────────────────────
 
+/** Resolves fileUrl through useMediaSrc before rendering — see that hook for why this can't
+ *  just be an <img src={...}> inline (needs to fetch a blob on Android's local-dev backend). */
+function FeedImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const resolvedSrc = useMediaSrc(src)
+  if (!resolvedSrc) return <div className={className} style={{ background: surface.rowHover }} />
+  return <img src={resolvedSrc} alt={alt} className={className} />
+}
+
 function ImageGallery({ images }: { images: FeedPostImageResponse[] }) {
   const [lightbox, setLightbox] = useState<FeedPostImageResponse | null>(null)
   if (images.length === 0) return null
@@ -207,14 +216,14 @@ function ImageGallery({ images }: { images: FeedPostImageResponse[] }) {
         {images.map(img => (
           <button key={img.id} onClick={() => setLightbox(img)}
             className="aspect-square rounded-lg overflow-hidden" style={{ border: border.card }}>
-            <img src={img.fileUrl} alt={img.fileName} className="h-full w-full object-cover" />
+            <FeedImage src={img.fileUrl} alt={img.fileName} className="h-full w-full object-cover" />
           </button>
         ))}
       </div>
 
       {lightbox && (
         <Modal open title={lightbox.fileName} onClose={() => setLightbox(null)} size="lg">
-          <img src={lightbox.fileUrl} alt={lightbox.fileName} className="w-full h-auto rounded-lg" />
+          <FeedImage src={lightbox.fileUrl} alt={lightbox.fileName} className="w-full h-auto rounded-lg" />
         </Modal>
       )}
     </>
@@ -340,7 +349,7 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
   const sanitizedBody = post.body ? DOMPurify.sanitize(post.body) : ''
 
   return (
-    <div className="rounded-2xl p-4 md:p-5" style={{ background: surface.card, border: border.card }}>
+    <div className="rounded-2xl p-4 md:p-5" style={{ background: surface.card, border: border.card, transform: 'translateZ(0)' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold" style={{ color: colors.text.primary }}>{post.title}</h3>

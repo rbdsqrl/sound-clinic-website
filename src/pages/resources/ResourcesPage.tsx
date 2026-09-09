@@ -16,6 +16,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { viewFile } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, styles, paletteStyle, type PaletteKey } from '../../theme'
 import type { ResourceResponse, ResourceType, ResourceFolderResponse } from '../../types'
 
@@ -200,18 +201,19 @@ export default function ResourcesPage() {
             }
 
             return (
-              <a
+              <div
                 key={r.id}
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                role="button"
+                tabIndex={0}
+                onClick={() => viewFile(r.url)}
+                onKeyDown={e => { if (e.key === 'Enter') viewFile(r.url) }}
                 className={gridCardStyle}
                 style={styles.card}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
               >
                 {content}
-              </a>
+              </div>
             )
           })}
 
@@ -335,16 +337,14 @@ function ResourceViewerModal({ resource, onClose }: { resource: ResourceResponse
         </div>
       )}
 
-      <a
-        href={resource.url}
-        download
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => viewFile(resource.url)}
         className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
         style={{ color: colors.text.muted, border: `1px solid ${border.card}` }}
       >
         <Download size={12} /> Download
-      </a>
+      </button>
     </Modal>
   )
 }

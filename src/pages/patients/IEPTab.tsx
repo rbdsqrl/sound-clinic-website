@@ -20,6 +20,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatDateStr } from '../../lib/format'
+import { saveBlob } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../../theme'
 import type {
   IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse, TherapistSummary,
@@ -620,11 +621,7 @@ function CsvGuideModal({ open, onClose, onFileSelect }: {
       CSV_COLUMNS.map(c => c.col).join(','),
       ...SAMPLE_ROWS.map(r => r.join(',')),
     ].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'iep-import-sample.csv'; a.click()
-    URL.revokeObjectURL(url)
+    saveBlob('iep-import-sample.csv', new Blob([csvContent], { type: 'text/csv' }))
   }
 
   const close = () => { setSelectedFile(null); setPreviewRows([]); onClose() }

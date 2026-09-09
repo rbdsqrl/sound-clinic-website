@@ -203,6 +203,11 @@ export const styles = {
     borderRadius:   radius.lg,
     backdropFilter: 'var(--card-backdrop)',
     boxShadow:      shadow.card,
+    // Forces its own GPU compositing layer — works around an Android WebView bug where a
+    // repeated card in a scrollable list can be left showing a stale paint of a previous
+    // reflow (seen on Feed/Inquiries: ghost content from another list item at a scroll
+    // position the live DOM had already moved past). Inert everywhere else.
+    transform:      'translateZ(0)',
   } as React.CSSProperties,
 
   /** Modal panel */

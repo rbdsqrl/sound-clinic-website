@@ -33,7 +33,7 @@ function LeaveRow({ leave, onReview, reviewing }: {
   return (
     <div
       className="flex items-center gap-4 px-5 py-4 flex-wrap"
-      style={{ borderBottom: `1px solid ${border.divider}` }}
+      style={{ borderBottom: `1px solid ${border.divider}`, transform: 'translateZ(0)' }}
     >
       {/* Avatar */}
       <Avatar initials={initials} name={therapistName} size="lg" />

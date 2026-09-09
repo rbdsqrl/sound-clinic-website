@@ -35,6 +35,7 @@ import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { viewFile } from '../../lib/fileActions'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
@@ -251,12 +252,6 @@ function JourneyCard({
 }
 
 // ── Subscription helpers ───────────────────────────────────────────────────────
-
-function paymentStatusStyle(s: SubscriptionPaymentStatus): React.CSSProperties {
-  if (s === 'PAID')    return paletteStyle('teal',   0.12, 0)
-  if (s === 'PARTIAL') return paletteStyle('blue',   0.12, 0)
-  return                      paletteStyle('yellow', 0.14, 0)
-}
 
 function formatINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -1489,7 +1484,7 @@ function DischargeHistoryPanel({ patientId }: { patientId: string }) {
 
   const downloadMut = useMutation({
     mutationFn: (dischargeId: string) => dischargeApi.pdfUrl(patientId, dischargeId),
-    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onSuccess: (url) => viewFile(url),
     onError: (err) => toast(getApiError(err, 'Failed to prepare PDF'), 'error'),
   })
 
@@ -2142,6 +2137,7 @@ export default function PatientDetailPage() {
                   const isCancelled   = sub.status === 'CANCELLED'
                   const enrollment    = enrollments.find(e => e.subscriptionId === sub.id && e.status === 'ACTIVE')
                   const isEnrolled    = !!enrollment
+                  const isCompleted   = !isEnrolled && enrollments.some(e => e.subscriptionId === sub.id && e.status === 'COMPLETED')
                   const isPaid        = sub.paymentStatus === 'PAID'
                   const alreadyEnrolled = isEnrolled
                   const canEnroll     = canCreateEnrollment && isPaid && !alreadyEnrolled && !isCancelled
@@ -2215,30 +2211,13 @@ export default function PatientDetailPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2.5 flex-shrink-0">
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {!isTherapist && (
-                                <span
-                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                  style={paymentStatusStyle(sub.paymentStatus)}
-                                >
-                                  {sub.paymentStatus === 'PAID' ? 'Paid' : sub.paymentStatus === 'PARTIAL' ? 'Partial' : 'Unpaid'}
-                                </span>
-                              )}
-                              {isEnrolled && (
-                                <span
-                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                  style={paletteStyle('teal', 0.12, 0)}
-                                >
-                                  Active
-                                </span>
-                              )}
-                              {!isEnrolled && isPaid && !isCancelled && (
-                                <span
-                                  className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                                  style={paletteStyle('yellow', 0.14, 0)}
-                                >
-                                  Not enrolled
-                                </span>
+                            <div className="flex-shrink-0" title={isEnrolled ? 'Active' : isCompleted ? 'Completed' : 'Action required'}>
+                              {isEnrolled ? (
+                                <span className="block h-2.5 w-2.5 rounded-full" style={{ background: palette.green.text }} />
+                              ) : isCompleted ? (
+                                <CheckCircle2 size={15} style={{ color: colors.text.dim }} />
+                              ) : (
+                                <AlertTriangle size={15} style={{ color: colors.status.warning }} />
                               )}
                             </div>
                             {!isExpanded && (
@@ -2344,9 +2323,9 @@ export default function PatientDetailPage() {
                           )}
                         </div>
 
-                        {/* Actions: primary left, destructive right */}
+                        {/* Actions: primary left, destructive right (stacked on mobile) */}
                         {!isCancelled && (
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2">
                               {canEnroll && (
                                 <button
@@ -2418,12 +2397,12 @@ export default function PatientDetailPage() {
                               )}
                             </div>
                             {canManageSubs && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 {isEnrolled && enrollment && (
                                   <button
                                     onClick={() => cancelEnrollmentMutation.mutate(enrollment.id)}
                                     disabled={cancelEnrollmentMutation.isPending}
-                                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
                                     style={{ color: colors.status.error }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
@@ -2434,7 +2413,7 @@ export default function PatientDetailPage() {
                                 <button
                                   onClick={() => cancelSubMutation.mutate(sub.id)}
                                   disabled={cancelSubMutation.isPending}
-                                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
                                   style={{ color: colors.status.error }}
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'dangerAlpha(0.08)'}
                                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}

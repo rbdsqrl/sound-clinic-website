@@ -303,7 +303,11 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
       </nav>
 
       {/* ── User footer ── */}
-      <div className="p-3 relative" ref={profileMenuRef} style={{ borderTop: `1px solid ${border.sidebar}` }}>
+      <div
+        className="p-3 relative"
+        ref={profileMenuRef}
+        style={{ borderTop: `1px solid ${border.sidebar}`, paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+      >
         {profileMenuOpen && (
           <div
             className={clsx(

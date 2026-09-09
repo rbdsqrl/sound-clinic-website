@@ -196,7 +196,7 @@ export default function EnrollmentDetailPage() {
       </Link>
 
       <Card>
-        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
               <BookOpen size={15} style={{ color: colors.accent }} />
@@ -208,7 +208,7 @@ export default function EnrollmentDetailPage() {
               </p>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="flex items-center sm:flex-col sm:items-end gap-1.5 flex-wrap flex-shrink-0">
             <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide" style={status.style}>
               {status.label}
             </span>

@@ -14,6 +14,7 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { viewFile } from '../../lib/fileActions'
 import { formatDateStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -756,18 +757,18 @@ function TaskDetailModal({
             <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: colors.text.dim }}>Attachments</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {attachments.map((att: TaskAttachmentResponse) => (
-                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card }}>
+                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card, transform: 'translateZ(0)' }}>
                   {att.contentType?.startsWith('image/') ? (
-                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                    <button type="button" onClick={() => viewFile(att.fileUrl)} className="block w-full">
                       <img src={att.fileUrl} alt={att.fileName} className="w-full h-20 object-cover" />
-                    </a>
+                    </button>
                   ) : (
-                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer"
+                    <button type="button" onClick={() => viewFile(att.fileUrl)}
                       className="w-full h-20 flex flex-col items-center justify-center gap-1"
                       style={{ background: accentAlpha(0.04) }}>
                       <FileText size={18} style={{ color: colors.accent }} />
                       <p className="text-[10.35px] truncate px-1 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
-                    </a>
+                    </button>
                   )}
                   {(canManage || att.uploadedBy === currentUserId) && (
                     <button onClick={() => deleteAttMut.mutate(att.id)}
@@ -1163,7 +1164,7 @@ export default function TasksPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {mobileVisible.map(task => (
-              <div key={task.id} className="rounded-2xl p-4" style={{ background: surface.card, border: border.card }}>
+              <div key={task.id} className="rounded-2xl p-4" style={{ background: surface.card, border: border.card, transform: 'translateZ(0)' }}>
                 <div className="flex items-start gap-2">
                   <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0"
                     style={{ background: priorityStyle(task.priority).dot }} />

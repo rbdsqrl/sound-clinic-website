@@ -29,6 +29,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
+import { saveBlob } from '../../lib/fileActions'
 import { colors, styles, border, surface, accentAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
@@ -2393,7 +2394,7 @@ export default function CalendarPage() {
         },
       })
 
-      doc.save(`agenda_${format(current, 'yyyy-MM-dd')}.pdf`)
+      saveBlob(`agenda_${format(current, 'yyyy-MM-dd')}.pdf`, doc.output('blob'))
     } finally {
       setExportingAgenda(false)
     }

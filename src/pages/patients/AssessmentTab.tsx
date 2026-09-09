@@ -14,6 +14,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatDateStr } from '../../lib/format'
+import { viewFile } from '../../lib/fileActions'
 import { colors, border, accentAlpha, type PaletteKey } from '../../theme'
 import ScoreChart, { type ScorePoint } from '../../components/charts/ScoreChart'
 import type { AssessmentDefinitionResponse, AssessmentItem, AssessmentItemAnswer, AssessmentType, PatientAssessmentResponse } from '../../types'
@@ -49,7 +50,7 @@ export default function AssessmentTab({
 
   const downloadMut = useMutation({
     mutationFn: (assessmentId: string) => assessmentsApi.pdfUrl(patientId, type, assessmentId),
-    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onSuccess: (url) => viewFile(url),
     onError: (err) => toast(getApiError(err, 'Failed to prepare PDF'), 'error'),
   })
 

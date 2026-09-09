@@ -508,7 +508,10 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
     <div
       key={s.id}
       className="flex items-center gap-3 px-4 sm:px-6 py-3.5"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}
     >
       {/* Date */}
       <div className="flex-shrink-0 w-14 sm:w-16">
@@ -655,7 +658,10 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
       key={s.id}
       to={ROUTES.enrollment(s.patientId, s.enrollmentId)}
       className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}
       onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
     >
@@ -772,7 +778,10 @@ function CancellationRequestsPanel({ sessions, onDone }: {
 
   const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
     <div key={s.id} className="px-4 sm:px-6 py-3"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}>
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
@@ -1059,7 +1068,10 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
       key={p.id}
       to={`/patients/${p.id}`}
       className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}
       onMouseEnter={ROW_HOVER_IN}
       onMouseLeave={ROW_HOVER_OUT}
     >
@@ -1107,25 +1119,22 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
         </div>
 
         <div
-          className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-2"
+          className="px-4 sm:px-6 py-3 grid grid-cols-2 gap-2"
           style={{ borderBottom: `1px solid ${border.divider}` }}
         >
-          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-[136px]" />
-          <span className="text-xs" style={{ color: colors.text.dim }}>to</span>
-          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-[136px]" />
+          <Input type="date" label="From" value={from} onChange={e => setFrom(e.target.value)} />
+          <Input type="date" label="To" value={to} onChange={e => setTo(e.target.value)} />
           <Select
             value={therapistId}
             onChange={e => setTherapistId(e.target.value)}
             options={therapistOptions}
             placeholder="All Therapists"
-            className="w-[152px]"
           />
           <Select
             value={therapyName}
             onChange={e => setTherapyName(e.target.value)}
             options={therapyOptions}
             placeholder="All Programs"
-            className="w-[152px]"
           />
         </div>
 
@@ -1180,7 +1189,10 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
       key={b.id}
       to={`/patients/${b.id}`}
       className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
-      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}
       onMouseEnter={ROW_HOVER_IN}
       onMouseLeave={ROW_HOVER_OUT}
     >
@@ -1442,7 +1454,10 @@ function MyTasks({ userId }: { userId: string }) {
         key={task.id}
         to="/tasks"
         className="flex items-center gap-3 px-4 sm:px-6 py-3 transition-colors"
-        style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+        style={{
+          ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+          transform: 'translateZ(0)',
+        }}
         onMouseEnter={ROW_HOVER_IN}
         onMouseLeave={ROW_HOVER_OUT}
       >
@@ -1602,7 +1617,10 @@ function FeedPanel() {
         key={post.id}
         to={ROUTES.feed}
         className="block px-4 sm:px-6 py-3 transition-colors"
-        style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+        style={{
+          ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+          transform: 'translateZ(0)',
+        }}
         onMouseEnter={ROW_HOVER_IN}
         onMouseLeave={ROW_HOVER_OUT}
       >
@@ -1799,7 +1817,10 @@ export default function DashboardPage() {
                   key={child.id}
                   to={`/patients/${child.id}`}
                   className="flex items-center gap-4 px-6 py-3 transition-colors"
-                  style={i < myChildren.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+                  style={{
+                    ...(i < myChildren.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+                    transform: 'translateZ(0)',
+                  }}
                   onMouseEnter={ROW_HOVER_IN}
                   onMouseLeave={ROW_HOVER_OUT}
                 >

@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { viewFile } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { isPastDateTime, todayStr } from '../../lib/schedule'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
@@ -884,18 +885,18 @@ export function SessionNotesModal({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {attachments.map((att: SessionAttachmentResponse) => (
-                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card }}>
+                <div key={att.id} className="relative rounded-xl overflow-hidden" style={{ border: border.card, transform: 'translateZ(0)' }}>
                   {att.contentType?.startsWith('image/') ? (
-                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                    <button type="button" onClick={() => viewFile(att.fileUrl)} className="block w-full">
                       <img src={att.fileUrl} alt={att.fileName} className="w-full h-24 object-cover" />
-                    </a>
+                    </button>
                   ) : (
-                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer"
+                    <button type="button" onClick={() => viewFile(att.fileUrl)}
                       className="w-full h-24 flex flex-col items-center justify-center gap-1.5 transition-colors"
                       style={{ background: accentAlpha(0.04) }}>
                       <FileText size={20} style={{ color: colors.accent }} />
                       <p className="text-[11.5px] truncate px-2 w-full text-center" style={{ color: colors.text.muted }}>{att.fileName}</p>
-                    </a>
+                    </button>
                   )}
                   {canEdit && (
                     <button
