@@ -385,9 +385,9 @@ export default function MemberProfilePage() {
           <Tile label="Notes" value={caseload?.series.totals.sessionsLogged ?? 0} />
         </div>
         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Tile label="Daily Avg. Duration" value={avgSessionDurationMinutes !== null ? `${avgSessionDurationMinutes}m` : '—'} />
-          <Tile label="Weekly Avg. Duration" value={completedSessions.length ? `${weeklyAvgMinutes}m` : '—'} />
-          <Tile label="Total Duration" value={completedSessions.length ? `${Math.round(totalDurationMinutes / 60)}h` : '—'} />
+          <Tile label="Avg. Session Duration" value={avgSessionDurationMinutes !== null ? `${avgSessionDurationMinutes}m` : '—'} hint="Completed sessions only" />
+          <Tile label="Weekly Avg. Duration" value={completedSessions.length ? `${weeklyAvgMinutes}m` : '—'} hint="Completed sessions only" />
+          <Tile label="Total Duration" value={completedSessions.length ? `${Math.round(totalDurationMinutes / 60)}h` : '—'} hint="Completed sessions only" />
         </div>
       </Panel>
 
