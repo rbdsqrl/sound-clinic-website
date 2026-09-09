@@ -26,6 +26,8 @@ export const ROUTES = {
   activities:         '/activities',
   activity:           (id: string) => `/activities/${id}`,
   resources:          '/resources',
+  /** Parent-facing view — only resources assigned to their own child(ren), not the full library. */
+  myResources:        '/my-resources',
   createActivity:     '/activities/new',
   editActivity:       (id: string) => `/activities/${id}/edit`,
 } as const

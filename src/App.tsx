@@ -30,6 +30,7 @@ import MemberProfilePage from './pages/members/MemberProfilePage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import ActivitiesPage from './pages/activities/ActivitiesPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
+import AssignedResourcesPage from './pages/resources/AssignedResourcesPage'
 import CreateActivityPage from './pages/activities/CreateActivityPage'
 import ActivityDetailPage from './pages/activities/ActivityDetailPage'
 
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path={ROUTES.analytics}    element={<AnalyticsPage />} />
         <Route path={ROUTES.activities}     element={<ActivitiesPage />} />
         <Route path={ROUTES.resources}      element={<ResourcesPage />} />
+        <Route path={ROUTES.myResources}    element={<AssignedResourcesPage />} />
         <Route path={ROUTES.createActivity} element={<CreateActivityPage />} />
         <Route path="/activities/:id/edit"  element={<CreateActivityPage />} />
         <Route path="/activities/:id"       element={<ActivityDetailPage />} />

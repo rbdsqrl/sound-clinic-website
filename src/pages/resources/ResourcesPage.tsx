@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useImperativeHandle, useState, forwardRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Folder, FolderPlus, Plus, Link2, Video, Image as ImageIcon,
-  ChevronRight, Home, Pencil, Trash2, Paperclip, Download, FileText,
+  ChevronRight, Home, Pencil, Trash2, Paperclip, Download, FileText, Search, X, UserPlus,
 } from 'lucide-react'
 import { resourcesApi } from '../../api/resources'
+import { patientsApi } from '../../api/patients'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -14,13 +15,14 @@ import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
+import { Avatar } from '../../components/shared/Avatar'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, styles, paletteStyle, type PaletteKey } from '../../theme'
-import type { ResourceResponse, ResourceType, ResourceFolderResponse } from '../../types'
+import type { ResourceResponse, ResourceType, ResourceFolderResponse, PatientResponse } from '../../types'
 
-const TYPE_META: Record<ResourceType, { icon: typeof Link2; label: string; color: PaletteKey }> = {
+export const TYPE_META: Record<ResourceType, { icon: typeof Link2; label: string; color: PaletteKey }> = {
   LINK:  { icon: Link2,     label: 'Link',  color: 'pink' },
   VIDEO: { icon: Video,     label: 'Video', color: 'amber' },
   IMAGE: { icon: ImageIcon, label: 'Image', color: 'blue' },
@@ -28,28 +30,68 @@ const TYPE_META: Record<ResourceType, { icon: typeof Link2; label: string; color
 
 const gridCardStyle = 'rounded-2xl p-4 flex items-center gap-3 cursor-pointer transition-colors'
 
-export default function ResourcesPage() {
+export interface ResourcesPageHandle {
+  /** Opens the "Add Resource" modal — lets a parent page (e.g. Activities, which folds this in
+   *  as its "Resources" section under one unified Add button) trigger creation without owning
+   *  the modal's state itself. */
+  openCreateResource: () => void
+}
+
+interface ResourcesPageProps {
+  /** Rendered as the "Resources" section inside the Activities page — hides the page-level
+   *  title/subtitle, which would be redundant with the section heading above it there. */
+  embedded?: boolean
+  /** Drives the search box from a parent's own unified search field instead of this page's own
+   *  (hidden in that case) — used when Activities and Resources share one search input. */
+  externalSearch?: string
+  /** Suppresses just the "Add Resource" button — folder creation stays, since a unified Add
+   *  button elsewhere covers "new resource" but has no equivalent for "new folder". */
+  hideAddResourceButton?: boolean
+}
+
+/** See {@link ResourcesPageProps} for what each prop customizes when this is folded into
+ *  another page (Activities) rather than rendered as its own standalone route. */
+const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(function ResourcesPage(
+  { embedded = false, externalSearch, hideAddResourceButton = false }, ref) {
   const { activeRole, user } = useAuth()
   const currentRole = activeRole ?? user?.role
   const canManage = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  // Who can hand a library item to a specific patient — Admin Roles plus the treating Therapist.
+  const canAssign = canManage || currentRole === 'THERAPIST'
 
   const [searchParams, setSearchParams] = useSearchParams()
   const folderId = searchParams.get('folder') ?? undefined
+
+  const isExternallySearched = externalSearch !== undefined
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedOwnSearch, setDebouncedOwnSearch] = useState('')
+  useEffect(() => {
+    if (isExternallySearched) return
+    const t = setTimeout(() => setDebouncedOwnSearch(searchInput.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchInput, isExternallySearched])
+  const search = isExternallySearched ? externalSearch.trim() : debouncedOwnSearch
+  const isSearching = search.length > 0
 
   const [folderModalOpen, setFolderModalOpen] = useState(false)
   const [resourceModal, setResourceModal] = useState<{ mode: 'create' } | { mode: 'edit'; resource: ResourceResponse } | null>(null)
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<ResourceFolderResponse | null>(null)
   const [deleteResourceTarget, setDeleteResourceTarget] = useState<ResourceResponse | null>(null)
   const [viewerTarget, setViewerTarget] = useState<ResourceResponse | null>(null)
+  const [assignTarget, setAssignTarget] = useState<ResourceResponse | null>(null)
   const [deleteFolderError, setDeleteFolderError] = useState<string | null>(null)
   const [deleteResourceError, setDeleteResourceError] = useState<string | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    openCreateResource: () => setResourceModal({ mode: 'create' }),
+  }))
 
   const qc = useQueryClient()
   const { toast } = useToast()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['resources', folderId ?? 'root'],
-    queryFn: () => resourcesApi.browse(folderId),
+    queryKey: ['resources', isSearching ? { search } : { folderId: folderId ?? 'root' }],
+    queryFn: () => resourcesApi.browse(isSearching ? { search } : { folderId }),
   })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['resources'] })
@@ -77,28 +119,60 @@ export default function ResourcesPage() {
   const isEmpty = subfolders.length === 0 && resources.length === 0
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className={embedded ? 'space-y-5' : 'max-w-6xl mx-auto space-y-5'}>
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Resources</h1>
-          <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
-            Activities, printables and worksheets for take-home practice
-          </p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Resources</h1>
+            <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
+              Activities, printables and worksheets for take-home practice
+            </p>
+          </div>
+        ) : <div />}
         {canManage && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <Button variant="secondary" size="sm" onClick={() => setFolderModalOpen(true)}>
               <FolderPlus size={14} /> New Folder
             </Button>
-            <Button size="sm" onClick={() => setResourceModal({ mode: 'create' })}>
-              <Plus size={14} /> Add Resource
-            </Button>
+            {!hideAddResourceButton && (
+              <Button size="sm" onClick={() => setResourceModal({ mode: 'create' })}>
+                <Plus size={14} /> Add Resource
+              </Button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Breadcrumb */}
+      {/* Search — replaced by a parent's own unified search field when externalSearch is set */}
+      {!isExternallySearched && (
+      <div className="relative max-w-sm">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          placeholder="Search resources by name…"
+          className="form-input pl-8 pr-8 w-full"
+        />
+        {searchInput && (
+          <button
+            onClick={() => setSearchInput('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded"
+            style={{ color: colors.text.dim }}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      )}
+
+      {/* Breadcrumb — replaced by a search-results indicator while a search is active */}
+      {isSearching ? (
+        <p className="text-sm" style={{ color: colors.text.muted }}>
+          {resources.length} result{resources.length !== 1 ? 's' : ''} for “{search}”
+        </p>
+      ) : (
       <div className="flex items-center gap-1.5 flex-wrap text-sm">
         <button
           onClick={() => openFolder(undefined)}
@@ -126,16 +200,19 @@ export default function ResourcesPage() {
           </span>
         )}
       </div>
+      )}
 
       {isEmpty ? (
         <Card>
           <EmptyState
             icon={<Folder size={22} />}
-            title="Nothing here yet"
-            description={canManage
-              ? 'Add a folder to organize resources, or add a link, video, or image directly.'
-              : 'No resources have been added here yet.'}
-            action={canManage ? { label: 'Add Resource', onClick: () => setResourceModal({ mode: 'create' }) } : undefined}
+            title={isSearching ? 'No matches' : 'Nothing here yet'}
+            description={isSearching
+              ? `No resource names match “${search}”.`
+              : canManage
+                ? 'Add a folder to organize resources, or add a link, video, or image directly.'
+                : 'No resources have been added here yet.'}
+            action={!isSearching && canManage ? { label: 'Add Resource', onClick: () => setResourceModal({ mode: 'create' }) } : undefined}
           />
         </Card>
       ) : (
@@ -144,75 +221,72 @@ export default function ResourcesPage() {
           {resources.map(r => {
             const meta = TYPE_META[r.type]
             const Icon = meta.icon
-            const content = (
-              <>
-                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={paletteStyle(meta.color, 0.14, 0)}>
-                  <Icon size={17} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{r.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{meta.label}</p>
-                </div>
-                {canManage && (
-                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.preventDefault()}>
-                    <button
-                      onClick={() => setResourceModal({ mode: 'edit', resource: r })}
-                      className="p-2 rounded-lg transition-colors"
-                      style={{ color: colors.text.dim }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => { setDeleteResourceError(null); setDeleteResourceTarget(r) }}
-                      className="p-2 rounded-lg transition-colors"
-                      style={{ color: colors.text.dim }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                )}
-              </>
-            )
-
             // Files we host (uploaded via "Upload a file instead") open in an in-app viewer
             // with a download option — video/image preview inline. A pasted external link
             // (YouTube, Google Drive, etc.) can't be reliably embedded, so it still opens
             // in a new tab.
-            if (r.hosted) {
-              return (
-                <div
-                  key={r.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setViewerTarget(r)}
-                  onKeyDown={e => { if (e.key === 'Enter') setViewerTarget(r) }}
-                  className={gridCardStyle}
-                  style={styles.card}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
-                >
-                  {content}
-                </div>
-              )
-            }
+            const open = () => r.hosted ? setViewerTarget(r) : viewFile(r.url)
 
             return (
-              <div
-                key={r.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => viewFile(r.url)}
-                onKeyDown={e => { if (e.key === 'Enter') viewFile(r.url) }}
-                className={gridCardStyle}
-                style={styles.card}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
-              >
-                {content}
+              <div key={r.id} className="rounded-2xl overflow-hidden" style={styles.card}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={open}
+                  onKeyDown={e => { if (e.key === 'Enter') open() }}
+                  className="p-4 flex items-center gap-3 cursor-pointer transition-colors"
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                >
+                  <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={paletteStyle(meta.color, 0.14, 0)}>
+                    <Icon size={17} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{r.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{meta.label}</p>
+                  </div>
+                </div>
+
+                {/* Actions live in their own row, entirely outside the open-resource click
+                    target above — nesting buttons inside a clickable card is exactly what
+                    let a stray click on Edit/Assign fall through and open the resource too. */}
+                {(canAssign || canManage) && (
+                  <div className="flex items-center gap-2 px-4 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
+                    {canAssign && (
+                      <button
+                        onClick={() => setAssignTarget(r)}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors"
+                        style={paletteStyle('teal', 0.12, 0)}
+                      >
+                        <UserPlus size={13} /> Assign to Patient
+                      </button>
+                    )}
+                    {canManage && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => setResourceModal({ mode: 'edit', resource: r })}
+                          className="p-2 rounded-lg transition-colors"
+                          style={{ color: colors.text.dim }}
+                          title="Edit"
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => { setDeleteResourceError(null); setDeleteResourceTarget(r) }}
+                          className="p-2 rounded-lg transition-colors"
+                          style={{ color: colors.text.dim }}
+                          title="Delete"
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -276,6 +350,10 @@ export default function ResourcesPage() {
         <ResourceViewerModal resource={viewerTarget} onClose={() => setViewerTarget(null)} />
       )}
 
+      {assignTarget && (
+        <AssignResourceModal resource={assignTarget} onClose={() => setAssignTarget(null)} />
+      )}
+
       {deleteFolderTarget && (
         <Modal open title="Delete folder" onClose={() => setDeleteFolderTarget(null)} error={deleteFolderError}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
@@ -308,11 +386,13 @@ export default function ResourcesPage() {
       )}
     </div>
   )
-}
+})
+
+export default ResourcesPage
 
 // ── View a hosted resource in-app ────────────────────────────────────────────
 
-function ResourceViewerModal({ resource, onClose }: { resource: ResourceResponse; onClose: () => void }) {
+export function ResourceViewerModal({ resource, onClose }: { resource: ResourceResponse; onClose: () => void }) {
   return (
     <Modal open title={resource.name} onClose={onClose} size="md">
       {resource.type === 'VIDEO' && (
@@ -345,6 +425,79 @@ function ResourceViewerModal({ resource, onClose }: { resource: ResourceResponse
       >
         <Download size={12} /> Download
       </button>
+    </Modal>
+  )
+}
+
+// ── Assign a resource to a patient ──────────────────────────────────────────────
+
+function AssignResourceModal({ resource, onClose }: { resource: ResourceResponse; onClose: () => void }) {
+  const { toast } = useToast()
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const { data: results, isFetching } = useQuery({
+    queryKey: ['patients-search', debouncedQuery],
+    queryFn: () => patientsApi.search({ search: debouncedQuery, compact: true, size: 8 }),
+    enabled: debouncedQuery.length >= 2,
+  })
+
+  const assignMut = useMutation({
+    mutationFn: (patientId: string) => resourcesApi.assign(resource.id, { patientId }),
+    onSuccess: (_, patientId) => {
+      const name = results?.content.find(p => p.id === patientId)
+      toast(name ? `Assigned to ${name.firstName} ${name.lastName}` : 'Assigned', 'success')
+      onClose()
+    },
+    onError: (err) => setError(getApiError(err, 'Failed to assign')),
+  })
+
+  const patients = results?.content ?? []
+
+  return (
+    <Modal open title={`Assign “${resource.name}” to a patient`} onClose={onClose} error={error}>
+      <div className="relative">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+        <input
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setError(null) }}
+          placeholder="Search cases by name…"
+          className="form-input pl-8 w-full"
+          autoFocus
+        />
+      </div>
+
+      <div className="mt-3 max-h-64 overflow-y-auto flex flex-col gap-1">
+        {debouncedQuery.length < 2 ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>Type at least 2 characters to search</p>
+        ) : isFetching ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>Searching…</p>
+        ) : patients.length === 0 ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>No matching cases found</p>
+        ) : (
+          patients.map((p: PatientResponse) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={assignMut.isPending}
+              onClick={() => { setError(null); assignMut.mutate(p.id) }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors disabled:opacity-50"
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            >
+              <Avatar initials={`${p.firstName[0]}${p.lastName[0] ?? ''}`} name={`${p.firstName} ${p.lastName}`} size="sm" />
+              <span className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</span>
+            </button>
+          ))
+        )}
+      </div>
     </Modal>
   )
 }

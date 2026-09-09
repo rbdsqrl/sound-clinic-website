@@ -27,7 +27,7 @@ export function ResourcePickerModal({ selected, onConfirm, onClose }: {
 
   const { data, isLoading } = useQuery({
     queryKey: ['resources', folderId ?? 'root'],
-    queryFn: () => resourcesApi.browse(folderId),
+    queryFn: () => resourcesApi.browse({ folderId }),
   })
 
   const folder = data?.folder ?? null

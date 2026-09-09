@@ -4,16 +4,31 @@ import type {
   ResourceFolderContentsResponse,
   ResourceResponse,
   ResourceFolderResponse,
+  ResourceAssignmentResponse,
   CreateResourceFolderRequest,
   CreateResourceRequest,
   UpdateResourceRequest,
+  AssignResourceRequest,
 } from '../types'
 
 export const resourcesApi = {
-  /** Browse a folder — its breadcrumb, subfolders, and resources. Omit folderId for the root. */
-  browse: (folderId?: string) =>
+  /** Browse a folder — its breadcrumb, subfolders, and resources. Omit folderId for the root.
+   *  Pass search instead for a flat, folder-less list of name matches across the whole org. */
+  browse: (params: { folderId?: string; search?: string } = {}) =>
     client
-      .get<ApiResponse<ResourceFolderContentsResponse>>('/resources', { params: folderId ? { folderId } : {} })
+      .get<ApiResponse<ResourceFolderContentsResponse>>('/resources', { params })
+      .then(r => r.data.data),
+
+  /** Assigns a resource to a patient — the only thing that makes a resource visible in the Parent app. */
+  assign: (resourceId: string, data: AssignResourceRequest) =>
+    client.post<ApiResponse<ResourceAssignmentResponse>>(`/resources/${resourceId}/assign`, data).then(r => r.data.data),
+
+  unassign: (assignmentId: string) =>
+    client.delete(`/resources/assignments/${assignmentId}`),
+
+  /** Resources assigned to one patient — staff can pass any patient in their org, a Parent only their own child. */
+  listAssignments: (patientId: string) =>
+    client.get<ApiResponse<ResourceAssignmentResponse[]>>('/resources/assignments', { params: { patientId } })
       .then(r => r.data.data),
 
   createFolder: (data: CreateResourceFolderRequest) =>

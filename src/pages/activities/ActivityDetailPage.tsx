@@ -1,24 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Pencil, UserPlus, Clock, Users2, Globe, Link2, Video, Image as ImageIcon } from 'lucide-react'
 import { activitiesApi } from '../../api/activities'
 import { patientsApi } from '../../api/patients'
-import { usersApi } from '../../api/users'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Select } from '../../components/ui/Select'
-import { Input } from '../../components/ui/Input'
 import { Badge } from '../../components/ui/Badge'
-import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
-import { useToast } from '../../hooks/useToast'
-import { getApiError } from '../../lib/apiError'
+import { AssignActivityModal } from '../../components/shared/AssignActivityModal'
 import { colors, border } from '../../theme'
 import { ROUTES } from '../../lib/routes'
-import type { AssignActivityRequest, ActivityDifficulty, AssignmentStatus, ResourceType } from '../../types'
+import type { ActivityDifficulty, AssignmentStatus, ResourceType } from '../../types'
 
 const DIFFICULTY_VARIANT: Record<ActivityDifficulty, 'green' | 'yellow' | 'red'> = {
   EASY: 'green', MEDIUM: 'yellow', HARD: 'red',
@@ -33,33 +27,11 @@ const STATUS_VARIANT: Record<AssignmentStatus, 'slate' | 'blue' | 'green' | 'red
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [assignOpen, setAssignOpen] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const { toast } = useToast()
-  const qc = useQueryClient()
-
-  useEffect(() => { if (assignOpen) setFormError(null) }, [assignOpen])
 
   const { data: activity, isLoading } = useQuery({
     queryKey: ['activity', id],
     queryFn: () => activitiesApi.get(id!),
     enabled: !!id,
-  })
-
-  const { data: patients = [] } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
-  const { data: staff = [] } = useQuery({ queryKey: ['assignable'], queryFn: () => usersApi.listAssignable() })
-  const therapists = staff.filter((u) => u.role === 'THERAPIST')
-
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<AssignActivityRequest>()
-
-  const assignMut = useMutation({
-    mutationFn: (data: AssignActivityRequest) => activitiesApi.assign(id!, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['activity-assignments-scan'] })
-      toast('Activity assigned', 'success')
-      setAssignOpen(false)
-      reset()
-    },
-    onError: (err) => setFormError(getApiError(err, 'Failed to assign activity')),
   })
 
   if (isLoading || !activity) return <PageLoader />
@@ -176,21 +148,9 @@ export default function ActivityDetailPage() {
         <PatientAssignmentsList activityId={activity.id} />
       </Card>
 
-      <Modal open={assignOpen} onClose={() => { setAssignOpen(false); reset() }} title="Assign to Case" error={formError}>
-        <form onSubmit={handleSubmit((d) => { setFormError(null); assignMut.mutate(d) })} className="space-y-4">
-          <Select label="Case" placeholder="Select a case…" error={errors.patientId?.message}
-            options={patients.map((p) => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))}
-            {...register('patientId', { required: 'Choose a case' })} />
-          <Select label="Assign to therapist (optional)" placeholder="No specific therapist"
-            options={therapists.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
-            {...register('assignedTherapistId')} />
-          <Input label="Start date" type="date" {...register('startDate')} />
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => { setAssignOpen(false); reset() }}>Cancel</Button>
-            <Button type="submit" loading={isSubmitting || assignMut.isPending}>Assign</Button>
-          </div>
-        </form>
-      </Modal>
+      {assignOpen && (
+        <AssignActivityModal activityId={activity.id} activityTitle={activity.title} onClose={() => setAssignOpen(false)} />
+      )}
     </div>
   )
 }

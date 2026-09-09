@@ -2088,3 +2088,22 @@ export interface UpdateResourceRequest {
   type: ResourceType
   url: string
 }
+
+/** A Resources-library item assigned to one patient — what shows up in the Parent app, which
+ *  never browses the library itself, only what's been assigned to their own child. */
+export interface ResourceAssignmentResponse {
+  id: string
+  resourceId: string
+  resourceName: string
+  resourceType: ResourceType
+  resourceUrl: string
+  hosted: boolean
+  patientId: string
+  assignedBy: string
+  assignedByName: string
+  createdAt: string
+}
+
+export interface AssignResourceRequest {
+  patientId: string
+}
