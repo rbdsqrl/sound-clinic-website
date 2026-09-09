@@ -790,7 +790,7 @@ export default function AnalyticsPage() {
                     {engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'}
                   </span>
                 }
-                hint="Across all sessions in this window"
+                hint="Completed sessions only"
               />
             </div>
           )}
@@ -854,18 +854,36 @@ export default function AnalyticsPage() {
             {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} from={heatmapFrom} to={heatmapTo} />}
           </Panel>
 
-          <Panel title="Sessions" subtitle="Session count per day, by status — hover a bar for the breakdown">
+          <Panel title="Sessions" subtitle="Scheduled vs. actually completed, by day — hover a bar for the full breakdown">
             {engagementQuery.isLoading ? (
               <Loading />
-            ) : engagementQuery.data && (
-              <>
-                <SessionStatusChart points={engagementQuery.data.sessionsTrend} />
-                <div className="mt-3 flex gap-8">
-                  <Tile label="Total Sessions" value={engagementQuery.data.totalSessions} />
-                  <Tile label="Avg. Duration" value={engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'} />
-                </div>
-              </>
-            )}
+            ) : engagementQuery.data && (() => {
+              const completed = engagementQuery.data.sessionsTrend.reduce(
+                (sum, p) => sum + (p.byStatus.COMPLETED ?? 0), 0
+              )
+              const scheduled = engagementQuery.data.totalSessions
+              const completionRate = scheduled > 0 ? Math.round((completed / scheduled) * 100) : null
+              return (
+                <>
+                  <SessionStatusChart points={engagementQuery.data.sessionsTrend} />
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Tile label="Scheduled" value={scheduled} hint="Booked in this window" />
+                    <Tile label="Completed" value={completed} hint="Actually attended" />
+                    <Tile
+                      label="Completion Rate"
+                      value={<Metric value={completionRate} suffix="%" empty="—" />}
+                      hint="Completed ÷ Scheduled"
+                      tone={completionRate === null ? 'neutral' : completionRate >= 80 ? 'good' : completionRate < 50 ? 'warn' : 'neutral'}
+                    />
+                    <Tile
+                      label="Avg. Duration"
+                      value={engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'}
+                      hint="Completed sessions only"
+                    />
+                  </div>
+                </>
+              )
+            })()}
           </Panel>
 
           <Panel title="Checklist Filled" subtitle="Sessions where a therapist filled the Detailed Feedback Options checklist, per day">
@@ -922,8 +940,8 @@ export default function AnalyticsPage() {
               <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} />
               <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} />
               <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} />
-              <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} />
-              <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} />
+              <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} hint="Completed sessions only" />
+              <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} hint="Completed sessions only" />
             </div>
           )}
 
