@@ -937,9 +937,9 @@ export default function AnalyticsPage() {
           ) : (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
               <Tile label="Total Sessions" value={scheduleQuery.data?.totalSessions ?? 0} />
-              <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} />
-              <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} />
-              <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} />
+              <Tile label="Cancelled" value={<Metric value={scheduleQuery.data?.cancelledPct ?? null} suffix="%" empty="—" />} hint="Of finalised sessions" />
+              <Tile label="Rescheduled" value={<Metric value={scheduleQuery.data?.rescheduledPct ?? null} suffix="%" empty="—" />} hint="Of all sessions" />
+              <Tile label="Attendance" value={<Metric value={scheduleQuery.data?.attendancePct ?? null} suffix="%" empty="—" />} hint="Of finalised sessions" />
               <Tile label="Total Duration" value={`${scheduleQuery.data?.totalDurationMinutes ?? 0}m`} hint="Completed sessions only" />
               <Tile label="Avg. Duration" value={scheduleQuery.data?.avgDurationMinutes != null ? `${scheduleQuery.data.avgDurationMinutes}m` : '—'} hint="Completed sessions only" />
             </div>
@@ -1111,9 +1111,15 @@ export default function AnalyticsPage() {
                   <span style={{ color: colors.text.dim, fontSize: '1.1rem' }}>/{totals.sessionsScheduled}</span>
                 </>
               }
-              hint={totals.sessionsScheduled > 0
-                ? `${Math.round((totals.sessionsNoShow / totals.sessionsScheduled) * 100)}% no-show · ${Math.round((totals.sessionsCancelled / totals.sessionsScheduled) * 100)}% cancelled`
-                : 'No sessions in this window'}
+              // Same base as the Attendance % bar below (completed + no-show + cancelled) — a
+              // session still ahead of us, or awaiting a reschedule decision, isn't a finished
+              // outcome yet, so it shouldn't dilute a rate that's supposed to describe outcomes.
+              hint={(() => {
+                const finalised = totals.sessionsCompleted + totals.sessionsNoShow + totals.sessionsCancelled
+                return finalised > 0
+                  ? `${Math.round((totals.sessionsNoShow / finalised) * 100)}% no-show · ${Math.round((totals.sessionsCancelled / finalised) * 100)}% cancelled`
+                  : 'No finalised sessions in this window'
+              })()}
             />
             <Tile
               label="Goals Achieved"
