@@ -14,9 +14,10 @@ import ScoreChart from '../../components/charts/ScoreChart'
 import OutcomeRibbon from '../../components/charts/OutcomeRibbon'
 import Sparkline from '../../components/charts/Sparkline'
 import SessionHeatmap from '../../components/charts/SessionHeatmap'
+import SessionStatusChart from '../../components/charts/SessionStatusChart'
 import { Select } from '../../components/ui/Select'
 import { DateInput } from '../../components/ui/DateInput'
-import { Users, UserCog, Mail, Clock, Search, Download, ArrowLeft } from 'lucide-react'
+import { Users, UserCog, Mail, Clock, Search, Download, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { colors, border, styles, surface, radius, accentAlpha, palette } from '../../theme'
 import type { Granularity, IEPGoalDomain, EnrollmentCareStatus, AnalyticsBucket } from '../../types'
@@ -24,7 +25,7 @@ import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { domainLabel as baselineDomainLabel, ScorePill } from '../patients/BaselineReportTab'
 import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
-import { format, parseISO, addDays } from 'date-fns'
+import { format, parseISO, addDays, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { ROUTES } from '../../lib/routes'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
@@ -218,6 +219,9 @@ export default function AnalyticsPage() {
   // firing it again. useQueries resolves each independently, so the chart fills in line by
   // line as cases finish instead of blocking on the slowest one.
   const [casesMetric, setCasesMetric] = useState<CasesMetric>('mastery')
+  // Clicking a name under the chart isolates that one case's line — click it again (or search
+  // it out of the list) to go back to showing every case.
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const caseTrendQueries = useQueries({
     queries: (casesQuery.data ?? []).map(c => ({
       queryKey: ['analytics', 'patient', c.patientId, params],
@@ -235,8 +239,17 @@ export default function AnalyticsPage() {
     query: caseTrendQueries[i],
   }))
   const caseTrendPeriods = caseSeriesAll.find(cs => cs.query.data)?.query.data?.buckets.map(b => ({ label: b.label })) ?? []
-  const caseTrendSeries = caseSeriesAll
-    .filter(cs => cs.query.data && filteredCases.some(fc => fc.patientId === cs.caseId))
+  // Falls back to "show every case" if the isolated one drops out of the search results,
+  // instead of silently leaving the chart empty.
+  const effectiveSelectedCaseId = selectedCaseId && filteredCases.some(fc => fc.patientId === selectedCaseId)
+    ? selectedCaseId
+    : null
+  // Every case that could be charted (search-filtered, but not yet narrowed to the single
+  // selected one) — the legend always renders from this so every name stays clickable, including
+  // to switch away from whichever case is currently isolated.
+  const caseLegendItems = caseSeriesAll.filter(cs => cs.query.data && filteredCases.some(fc => fc.patientId === cs.caseId))
+  const caseTrendSeries = caseLegendItems
+    .filter(cs => !effectiveSelectedCaseId || cs.caseId === effectiveSelectedCaseId)
     .map(cs => ({
       id: cs.caseId,
       name: cs.name,
@@ -293,6 +306,14 @@ export default function AnalyticsPage() {
     || s.therapistName.toLowerCase().includes(scheduleSearchTerm)
     || s.programName.toLowerCase().includes(scheduleSearchTerm)
   )
+  const SCHEDULE_PAGE_SIZE = 10
+  const [schedulePage, setSchedulePage] = useState(0)
+  useEffect(() => { setSchedulePage(0) }, [scheduleSearch, schedulePatientId, scheduleTherapistId, scheduleProgramId, range.from, range.to])
+  const scheduleTotalPages = Math.max(1, Math.ceil(filteredScheduleSessions.length / SCHEDULE_PAGE_SIZE))
+  const pagedScheduleSessions = filteredScheduleSessions.slice(
+    schedulePage * SCHEDULE_PAGE_SIZE,
+    (schedulePage + 1) * SCHEDULE_PAGE_SIZE,
+  )
 
   // Therapies breakdown for the Overview tab — reuses the org snapshot's program mix.
   // Not windowed, so it's independent of the date-range control above.
@@ -310,12 +331,13 @@ export default function AnalyticsPage() {
     enabled: tab === 'overview',
   })
 
-  // The heatmap always shows the full calendar year, independent of the trend window above —
-  // matching the reference product's own behaviour.
-  const heatmapYear = new Date().getFullYear()
+  // One month of padding on either side of the selected window's own months — e.g. a window
+  // entirely within September shows Aug–Oct; Sep 2 to Nov 15 shows Aug–Dec.
+  const heatmapFrom = format(startOfMonth(subMonths(parseISO(range.from), 1)), 'yyyy-MM-dd')
+  const heatmapTo   = format(endOfMonth(addMonths(parseISO(range.to), 1)), 'yyyy-MM-dd')
   const heatmapQuery = useQuery({
-    queryKey: ['analytics', 'heatmap', heatmapYear],
-    queryFn: () => analyticsApi.sessionHeatmap(`${heatmapYear}-01-01`, `${heatmapYear}-12-31`),
+    queryKey: ['analytics', 'heatmap', heatmapFrom, heatmapTo],
+    queryFn: () => analyticsApi.sessionHeatmap(heatmapFrom, heatmapTo),
     enabled: tab === 'overview' || tab === 'schedule',
   })
 
@@ -522,14 +544,25 @@ export default function AnalyticsPage() {
               yMax={caseTrendMetricMeta.suffix === '%' ? 100 : undefined}
               valueSuffix={caseTrendMetricMeta.suffix}
             />
-            {caseTrendSeries.length > 0 && (
+            {caseLegendItems.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-                {caseTrendSeries.map(s => (
-                  <span key={s.id} className="flex items-center gap-1.5 text-xs" style={{ color: colors.text.muted }}>
-                    <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: s.color }} />
-                    {s.name}
-                  </span>
-                ))}
+                {caseLegendItems.map(s => {
+                  const isSelected = effectiveSelectedCaseId === s.caseId
+                  const isDimmed = effectiveSelectedCaseId !== null && !isSelected
+                  return (
+                    <button
+                      key={s.caseId}
+                      type="button"
+                      onClick={() => setSelectedCaseId(isSelected ? null : s.caseId)}
+                      className="flex items-center gap-1.5 rounded text-xs transition-opacity"
+                      style={{ color: isDimmed ? colors.text.dim : colors.text.muted, opacity: isDimmed ? 0.5 : 1 }}
+                      title={isSelected ? `Showing only ${s.name} — click to show every case` : `Show only ${s.name}`}
+                    >
+                      <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: s.color }} />
+                      <span style={{ textDecoration: isSelected ? 'underline' : 'none' }}>{s.name}</span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -817,23 +850,16 @@ export default function AnalyticsPage() {
             </Panel>
           </div>
 
-          <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
-            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+          <Panel title="Sessions Heatmap" subtitle={`Daily session volume, ${format(parseISO(heatmapFrom), 'MMM yyyy')} – ${format(parseISO(heatmapTo), 'MMM yyyy')}`}>
+            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} from={heatmapFrom} to={heatmapTo} />}
           </Panel>
 
-          <Panel title="Sessions" subtitle="Session count per day in the selected window">
+          <Panel title="Sessions" subtitle="Session count per day, by status — hover a bar for the breakdown">
             {engagementQuery.isLoading ? (
               <Loading />
             ) : engagementQuery.data && (
               <>
-                <ScoreChart
-                  variant="bars"
-                  points={engagementQuery.data.sessionsTrend.map(t => ({
-                    label: format(parseISO(t.date + 'T00:00:00'), 'd MMM'),
-                    value: Math.min(100, t.count * 10),
-                    meta: `${t.count} session${t.count !== 1 ? 's' : ''}`,
-                  }))}
-                />
+                <SessionStatusChart points={engagementQuery.data.sessionsTrend} />
                 <div className="mt-3 flex gap-8">
                   <Tile label="Total Sessions" value={engagementQuery.data.totalSessions} />
                   <Tile label="Avg. Duration" value={engagementQuery.data.avgSessionDurationMinutes !== null ? `${engagementQuery.data.avgSessionDurationMinutes}m` : '—'} />
@@ -901,8 +927,8 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          <Panel title="Sessions Heatmap" subtitle={`Daily session volume across ${heatmapYear}`}>
-            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} year={heatmapYear} />}
+          <Panel title="Sessions Heatmap" subtitle={`Daily session volume, ${format(parseISO(heatmapFrom), 'MMM yyyy')} – ${format(parseISO(heatmapTo), 'MMM yyyy')}`}>
+            {heatmapQuery.isLoading ? <Loading /> : heatmapQuery.data && <SessionHeatmap points={heatmapQuery.data} from={heatmapFrom} to={heatmapTo} />}
           </Panel>
 
           <Panel title="Session Log" subtitle="Every session in the selected window and filters">
@@ -959,7 +985,7 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredScheduleSessions.map(s => (
+                    {pagedScheduleSessions.map(s => (
                       <tr key={s.sessionId} style={{ borderTop: `1px solid ${border.divider}` }}>
                         <td className="py-2.5 pr-4" style={{ color: colors.text.primary }}>{s.sessionDate}</td>
                         <td className="py-2.5 pr-4" style={{ color: colors.text.muted }}>{formatTimeStr(s.startTime)}</td>
@@ -989,6 +1015,32 @@ export default function AnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {scheduleTotalPages > 1 && (
+              <div className="mt-3 flex items-center justify-between pt-1">
+                <p className="text-xs" style={{ color: colors.text.dim }}>
+                  Page {schedulePage + 1} of {scheduleTotalPages} · {filteredScheduleSessions.length} session{filteredScheduleSessions.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSchedulePage(p => Math.max(0, p - 1))}
+                    disabled={schedulePage === 0}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                    style={{ border: border.card, color: colors.text.primary }}
+                  >
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  <button
+                    onClick={() => setSchedulePage(p => Math.min(scheduleTotalPages - 1, p + 1))}
+                    disabled={schedulePage + 1 >= scheduleTotalPages}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                    style={{ border: border.card, color: colors.text.primary }}
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </Panel>

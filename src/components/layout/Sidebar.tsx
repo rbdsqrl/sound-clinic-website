@@ -135,10 +135,13 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
       style={styles.sidebar}
     >
       {/* ── Logo + collapse toggle ── */}
-      <div className={clsx(
-        'relative flex flex-col items-center py-5 transition-all duration-300',
-        collapsed ? 'px-2' : 'px-5',
-      )}>
+      <div
+        className={clsx(
+          'relative flex flex-col items-center py-5 transition-all duration-300',
+          collapsed ? 'px-2' : 'px-5',
+        )}
+        style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top))' }}
+      >
         {/* Desktop collapse toggle + mobile close button */}
         {!collapsed && (onToggleCollapse || onClose) && (
           <div className="absolute top-4 right-4 flex items-center">

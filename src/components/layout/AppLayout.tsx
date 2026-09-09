@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react'
 import { colors, styles, surface, LOGO_SRC } from '../../theme'
 import { useInquiryBadge } from '../../hooks/useInquiryBadge'
 import { useCalendarBadge } from '../../hooks/useCalendarBadge'
+import { PullToRefresh } from '../shared/PullToRefresh'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen]   = useState(false)
@@ -46,7 +47,7 @@ export default function AppLayout() {
         {/* Mobile top bar */}
         <header
           className="flex items-center gap-3 px-4 py-3 lg:hidden flex-shrink-0"
-          style={styles.mobileHeader}
+          style={{ ...styles.mobileHeader, paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
         >
           {/* Hamburger — shows notification dot when badges are pending */}
           <button
@@ -76,11 +77,11 @@ export default function AppLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <PullToRefresh>
           <div className="px-4 py-6 sm:px-6 sm:py-8">
             <Outlet />
           </div>
-        </main>
+        </PullToRefresh>
       </div>
     </div>
   )

@@ -990,8 +990,11 @@ function OrgOverview({ patients, members, invites }: {
 
   return (
     <div style={sectionCard}>
-      <div className="px-4 sm:px-6 py-4" style={{ borderBottom: `1px solid ${border.divider}` }}>
+      <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${border.divider}` }}>
         <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Organisation Overview</h2>
+        <Link to="/organisation" className="text-xs transition-colors" style={{ color: colors.accent }}>
+          Open organisation →
+        </Link>
       </div>
       <div className="flex-1 flex flex-col">
         <StatRingPanel
@@ -1103,19 +1106,26 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
     <>
       <div style={sectionCard}>
         <div
-          className="px-4 sm:px-6 py-4 flex items-center gap-2"
+          className="px-4 sm:px-6 py-4 flex items-center justify-between gap-2"
           style={{ borderBottom: `1px solid ${border.divider}` }}
         >
-          <UserPlus size={16} style={{ color: colors.accent }} />
-          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
-            Recently Joined
-          </h2>
-          <span
-            className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-            style={{ background: accentAlpha(0.12), color: colors.accent }}
-          >
-            {recentlyJoined.length}
-          </span>
+          <div className="flex items-center gap-2">
+            <UserPlus size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Recently Joined
+            </h2>
+            <span
+              className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}
+            >
+              {recentlyJoined.length}
+            </span>
+          </div>
+          {recentlyJoined.length > PREVIEW && (
+            <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
+              View all →
+            </button>
+          )}
         </div>
 
         <div
@@ -1239,7 +1249,14 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
               {birthdays.length}
             </span>
           </div>
-          <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
+            {birthdays.length > PREVIEW && (
+              <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
+                View all →
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1">
@@ -1516,8 +1533,8 @@ function MyTasks({ userId }: { userId: string }) {
               {total}
             </span>
           </div>
-          <Link to="/tasks" className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
-            View all <ChevronRight size={12} />
+          <Link to="/tasks" className="text-xs transition-colors" style={{ color: colors.accent }}>
+            View all →
           </Link>
         </div>
 
@@ -1655,8 +1672,8 @@ function FeedPanel() {
               {total}
             </span>
           </div>
-          <Link to={ROUTES.feed} className="flex items-center gap-0.5 text-xs transition-colors" style={{ color: colors.accent }}>
-            View all <ChevronRight size={12} />
+          <Link to={ROUTES.feed} className="text-xs transition-colors" style={{ color: colors.accent }}>
+            View all →
           </Link>
         </div>
 

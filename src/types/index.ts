@@ -1829,13 +1829,18 @@ export interface TrendPoint {
   count: number
 }
 
+export interface SessionsTrendPoint {
+  date: string   // "YYYY-MM-DD"
+  byStatus: Record<string, number>   // TherapySessionStatus name -> count that day; absent = 0
+}
+
 export interface EngagementOverviewResponse {
   activeUsers: UserCounts
   invitedUsers: UserCounts
   avgSessionDurationMinutes: number | null
   skillsBreakdown: NameCount[]
   ageGroups: NameCount[]
-  sessionsTrend: TrendPoint[]
+  sessionsTrend: SessionsTrendPoint[]
   totalSessions: number
   checklistFilledTrend: TrendPoint[]
   mostAssignedActivities: NameCount[]
