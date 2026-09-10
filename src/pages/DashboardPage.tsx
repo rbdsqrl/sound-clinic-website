@@ -14,6 +14,7 @@ import { concernsApi } from '../api/concerns'
 import { usersApi } from '../api/users'
 import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
+import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
 import { PageLoader } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
@@ -871,21 +872,27 @@ function CancellationRequestsPanel({ sessions, onDone }: {
   )
 }
 
-function ConcernsPanel({ concerns, onDone }: {
+function ConcernsPanel({ concerns, canAct, onDone }: {
   concerns: ConcernResponse[]
+  canAct: boolean
   onDone: () => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [showAll, setShowAll] = useState(false)
+  const [resolving, setResolving] = useState<ConcernResponse | null>(null)
   const PREVIEW = 3
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['enrollment-concerns-open'] })
+    qc.invalidateQueries({ queryKey: ['enrollment-concerns'] })
+  }
 
   const ackMut = useMutation({
     mutationFn: (id: string) => concernsApi.acknowledge(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['enrollment-concerns-open'] })
-      qc.invalidateQueries({ queryKey: ['enrollment-concerns'] })
+      invalidate()
       toast('Concern acknowledged', 'success')
       onDone()
     },
@@ -913,16 +920,28 @@ function ConcernsPanel({ concerns, onDone }: {
             {c.description}
           </p>
           <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
-            Raised {formatDateStr(c.raisedAt)}
+            Raised {formatDateStr(c.raisedAt)} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
           </p>
         </button>
-        <button
-          disabled={ackMut.isPending}
-          onClick={() => ackMut.mutate(c.id)}
-          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50 flex-shrink-0"
-          style={{ background: accentAlpha(0.10), color: colors.accent }}>
-          Acknowledge
-        </button>
+        {canAct && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {c.status === 'OPEN' && (
+              <button
+                disabled={ackMut.isPending}
+                onClick={() => ackMut.mutate(c.id)}
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                style={{ background: accentAlpha(0.10), color: colors.accent }}>
+                Acknowledge
+              </button>
+            )}
+            <button
+              onClick={() => setResolving(c)}
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+              style={{ background: successAlpha(0.10), color: colors.status.success }}>
+              Resolve
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -978,6 +997,19 @@ function ConcernsPanel({ concerns, onDone }: {
             {concerns.map((c, i) => row(c, i, concerns))}
           </div>
         </Modal>
+      )}
+
+      {resolving && (
+        <ResolveConcernModal
+          concern={resolving}
+          onClose={() => setResolving(null)}
+          onResolved={() => {
+            setResolving(null)
+            invalidate()
+            toast('Concern resolved', 'success')
+            onDone()
+          }}
+        />
       )}
     </>
   )
@@ -1949,6 +1981,10 @@ export default function DashboardPage() {
   const canReschedule      = isOwnerOrAdmin
   const isStaff            = isOwnerOrAdmin || isTherapistRole
   const canUpdateSession   = isTherapistRole
+  // Office Admin can see concerns (Admin-tier visibility) but the backend reserves
+  // acknowledge/resolve for Business Owner/Clinic Head/Therapist — matches the Case
+  // details page's ConcernsBanner canAct gating.
+  const canActOnConcerns   = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
 
   const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
 
@@ -2138,6 +2174,7 @@ export default function DashboardPage() {
             {isOwnerOrAdmin && (loadingConcerns ? <CardSkeleton /> : hasConcerns && (
               <ConcernsPanel
                 concerns={openConcerns}
+                canAct={canActOnConcerns}
                 onDone={() => refetchConcerns()}
               />
             ))}

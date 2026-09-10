@@ -595,8 +595,14 @@ export interface ConcernResponse {
   raisedAt: string
   description: string
   status: ConcernStatus
+  acknowledgedBy: string | null
+  acknowledgedByFirstName: string | null
+  acknowledgedByLastName: string | null
   acknowledgedAt: string | null
   resolutionNotes: string | null
+  resolvedBy: string | null
+  resolvedByFirstName: string | null
+  resolvedByLastName: string | null
   resolvedAt: string | null
 }
 

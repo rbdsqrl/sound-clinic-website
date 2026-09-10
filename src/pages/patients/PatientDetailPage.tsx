@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Mail } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Mail } from 'lucide-react'
 import IEPTab from './IEPTab'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
@@ -33,6 +33,7 @@ import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
+import { ResolveConcernModal } from '../../components/shared/ResolveConcernModal'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
@@ -58,6 +59,7 @@ import type {
   DayOfWeek,
   TherapySessionStatus,
   AssessmentType,
+  ConcernResponse,
 } from '../../types'
 
 // ── Stage config ───────────────────────────────────────────────────────────────
@@ -1319,66 +1321,113 @@ function AssessmentsTab({ patientId, readOnly = false }: { patientId: string; re
 function ConcernsBanner({ patientId, canAct }: { patientId: string; canAct: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  const [resolving, setResolving] = useState<ConcernResponse | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   const { data: concerns = [] } = useQuery({
     queryKey: ['enrollment-concerns', patientId],
     queryFn: () => concernsApi.list({ patientId }),
   })
   const open = concerns.filter(c => c.status !== 'RESOLVED')
+  const resolved = concerns.filter(c => c.status === 'RESOLVED')
 
   const ackMut = useMutation({
     mutationFn: (id: string) => concernsApi.acknowledge(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['enrollment-concerns', patientId] }); toast('Concern acknowledged', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to acknowledge'), 'error'),
   })
-  const resolveMut = useMutation({
-    mutationFn: (id: string) => concernsApi.resolve(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['enrollment-concerns', patientId] }); toast('Concern resolved', 'success') },
-    onError: (err) => toast(getApiError(err, 'Failed to resolve'), 'error'),
-  })
 
-  if (open.length === 0) return null
+  if (open.length === 0 && resolved.length === 0) return null
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}` }}>
-      <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: colors.status.warning }}>
-        <AlertTriangle size={13} /> {open.length} open concern{open.length === 1 ? '' : 's'}
-      </p>
-      <div className="space-y-2">
-        {open.map(c => (
-          <div key={c.id} className="rounded-lg p-3" style={{ background: surface.card }}>
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold" style={{ color: colors.text.heading }}>{c.programName}</p>
-                <p className="text-sm mt-0.5" style={{ color: colors.text.primary }}>{c.description}</p>
-                <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
-                  Raised {formatDateStr(c.raisedAt)} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
-                </p>
-              </div>
-              {canAct && (
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {c.status === 'OPEN' && (
-                    <button
-                      onClick={() => ackMut.mutate(c.id)}
-                      className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
-                      style={{ color: colors.accent, background: accentAlpha(0.10) }}
-                    >
-                      Acknowledge
-                    </button>
+    <div className="space-y-3">
+      {open.length > 0 && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: warningAlpha(0.08), border: `1px solid ${warningAlpha(0.25)}` }}>
+          <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: colors.status.warning }}>
+            <AlertTriangle size={13} /> {open.length} open concern{open.length === 1 ? '' : 's'}
+          </p>
+          <div className="space-y-2">
+            {open.map(c => (
+              <div key={c.id} className="rounded-lg p-3" style={{ background: surface.card }}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold" style={{ color: colors.text.heading }}>{c.programName}</p>
+                    <p className="text-sm mt-0.5" style={{ color: colors.text.primary }}>{c.description}</p>
+                    <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
+                      Raised {formatDateStr(c.raisedAt)} · {c.status === 'ACKNOWLEDGED' ? 'Acknowledged' : 'Open'}
+                    </p>
+                  </div>
+                  {canAct && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {c.status === 'OPEN' && (
+                        <button
+                          onClick={() => ackMut.mutate(c.id)}
+                          className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
+                          style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                        >
+                          Acknowledge
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setResolving(c)}
+                        className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
+                        style={{ color: colors.status.success, background: successAlpha(0.10) }}
+                      >
+                        Resolve
+                      </button>
+                    </div>
                   )}
-                  <button
-                    onClick={() => resolveMut.mutate(c.id)}
-                    className="text-[11.5px] font-semibold px-2 py-1 rounded-lg"
-                    style={{ color: colors.status.success, background: successAlpha(0.10) }}
-                  >
-                    Resolve
-                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {resolved.length > 0 && (
+        <div className="rounded-xl" style={{ background: surface.card, border: `1px solid ${border.divider}` }}>
+          <button
+            onClick={() => setShowHistory(s => !s)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium"
+            style={{ color: colors.text.muted }}
+          >
+            <span>Past concerns ({resolved.length})</span>
+            <ChevronDown size={14} style={{ transform: showHistory ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+          </button>
+          {showHistory && (
+            <div className="space-y-2 px-4 pb-4">
+              {resolved.map(c => (
+                <div key={c.id} className="rounded-lg p-3" style={{ background: accentAlpha(0.04) }}>
+                  <p className="text-xs font-semibold" style={{ color: colors.text.heading }}>{c.programName}</p>
+                  <p className="text-sm mt-0.5" style={{ color: colors.text.primary }}>{c.description}</p>
+                  {c.resolutionNotes && (
+                    <p className="text-sm mt-1.5 rounded-lg px-2.5 py-1.5" style={{ background: successAlpha(0.08), color: colors.text.primary }}>
+                      {c.resolutionNotes}
+                    </p>
+                  )}
+                  <p className="text-[11px] mt-1.5" style={{ color: colors.text.dim }}>
+                    Raised {formatDateStr(c.raisedAt)}
+                    {c.resolvedAt && ` · Resolved ${formatDateStr(c.resolvedAt)}`}
+                    {c.resolvedByFirstName && ` by ${c.resolvedByFirstName} ${c.resolvedByLastName ?? ''}`.trimEnd()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {resolving && (
+        <ResolveConcernModal
+          concern={resolving}
+          onClose={() => setResolving(null)}
+          onResolved={() => {
+            setResolving(null)
+            qc.invalidateQueries({ queryKey: ['enrollment-concerns', patientId] })
+            toast('Concern resolved', 'success')
+          }}
+        />
+      )}
     </div>
   )
 }
