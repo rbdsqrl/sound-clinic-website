@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus, Repeat } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus, Repeat, ClipboardList } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -1710,6 +1710,122 @@ function FeedPanel() {
   )
 }
 
+/** Staff-only Minutes of Meeting panel — mirrors FeedPanel's structure exactly, but pulls from
+ *  the separate MoM listing endpoint so it never mixes with the regular Feed section. */
+function MomPanel() {
+  const { user } = useAuth()
+  const [showAll, setShowAll] = useState(false)
+
+  const { data: previewPage, isLoading } = useQuery({
+    queryKey: ['feed-mom', 'dashboard-preview'],
+    queryFn: () => feedApi.listMom({ size: PREVIEW }),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const { data: allPage, isLoading: loadingAll } = useQuery({
+    queryKey: ['feed-mom', 'dashboard-all'],
+    queryFn: () => feedApi.listMom({ size: 100 }),
+    enabled: !!user && showAll,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  if (isLoading) return <CardSkeleton />
+
+  const shown = previewPage?.content ?? []
+  const total = previewPage?.totalElements ?? 0
+  const all = allPage?.content ?? []
+  const sectionCard: React.CSSProperties = {
+    ...styles.card, overflow: 'hidden', padding: 0,
+    minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+  }
+
+  const momRow = (post: FeedPostResponse, i: number, arr: FeedPostResponse[]) => {
+    const snippet = post.body ? htmlToText(post.body) : ''
+    return (
+      <Link
+        key={post.id}
+        to={`${ROUTES.feed}?tab=mom`}
+        className="block px-4 sm:px-6 py-3 transition-colors"
+        style={{
+          ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+          transform: 'translateZ(0)',
+        }}
+        onMouseEnter={ROW_HOVER_IN}
+        onMouseLeave={ROW_HOVER_OUT}
+      >
+        <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{post.title}</p>
+        {snippet && (
+          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.muted }}>{snippet}</p>
+        )}
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          <p className="text-xs" style={{ color: colors.text.dim }}>
+            {post.authorFirstName} {post.authorLastName} · {format(parseISO(post.createdAt), 'MMM d')}
+          </p>
+          {post.attendees.length > 0 && (
+            <span className="text-[11.5px]" style={{ color: colors.text.dim }}>
+              {post.attendees.length} attendee{post.attendees.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </Link>
+    )
+  }
+
+  return (
+    <>
+      <div style={sectionCard}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <ClipboardList size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Minutes of Meeting</h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {total}
+            </span>
+          </div>
+          <Link to={`${ROUTES.feed}?tab=mom`} className="text-xs transition-colors" style={{ color: colors.accent }}>
+            View all →
+          </Link>
+        </div>
+
+        <div className="flex-1">
+          {total === 0 ? (
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<ClipboardList size={22} />}
+                title="No meeting minutes yet"
+                description="Minutes recorded by staff will show up here."
+              />
+            </div>
+          ) : (
+            <div>
+              {shown.map((post, i) => momRow(post, i, shown))}
+            </div>
+          )}
+        </div>
+
+        {total > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {total} entries
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Minutes of Meeting (${total})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {loadingAll ? <div className="py-8"><PageLoader /></div> : all.map((post, i) => momRow(post, i, all))}
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
   const isParentView       = activeRole === 'PARENT'
@@ -1922,6 +2038,7 @@ export default function DashboardPage() {
             )}
 
             <FeedPanel />
+            {isStaff && <MomPanel />}
 
             {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
             {isOwnerOrAdmin && (loadingPatients ? <CardSkeleton /> : <RecentlyJoinedChildren patients={patients ?? []} />)}

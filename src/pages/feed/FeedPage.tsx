@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import DOMPurify from 'dompurify'
 import {
-  Newspaper, Plus, Pencil, Trash2, Bold, Italic, List, ListOrdered,
-  ImagePlus, X, Heart, MessageCircle, Eye, Send,
+  Newspaper, ClipboardList, Plus, Pencil, Trash2, Bold, Italic, List, ListOrdered,
+  ImagePlus, X, Heart, MessageCircle, Eye, Send, Users, Globe,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { feedApi } from '../../api/feed'
@@ -16,13 +17,16 @@ import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { roleBadge } from '../../components/ui/Badge'
+import { RecipientPicker } from '../../components/shared/RecipientPicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatDateTimeStr } from '../../lib/format'
 import { useMediaSrc } from '../../lib/mediaUrl'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha } from '../../theme'
-import type { FeedPostResponse, FeedPostImageResponse, FeedCommentResponse } from '../../types'
+import type { FeedPostResponse, FeedPostImageResponse, FeedCommentResponse, FeedPostRecipient, FeedPostType, Role } from '../../types'
+
+const STAFF_ROLES: Role[] = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN', 'THERAPIST']
 
 // ── Rich text toolbar ────────────────────────────────────────────────────────
 
@@ -64,19 +68,31 @@ function RichTextToolbar({ editor }: { editor: Editor | null }) {
 
 // ── Post form modal (create + edit) ─────────────────────────────────────────────
 
-function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClose: () => void }) {
+function PostFormModal({ post, type, onClose }: {
+  post: FeedPostResponse | null
+  /** Only used on create — an edit keeps whatever type the post already is. */
+  type: FeedPostType
+  onClose: () => void
+}) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const effectiveType = post?.type ?? type
+  const isMom = effectiveType === 'MOM'
   const [title, setTitle]   = useState(post?.title ?? '')
   const [error, setError]   = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [images, setImages] = useState<FeedPostImageResponse[]>(post?.images ?? [])
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploading, setUploading]       = useState(false)
+  // A POST with no recipients is "everyone" — the checkbox is just an explicit, honest way to
+  // say that, rather than making "leave the picker empty" the only way to mean it.
+  const [shareWithEveryone, setShareWithEveryone] = useState(post ? post.recipients.length === 0 : true)
+  const [recipients, setRecipients] = useState<FeedPostRecipient[]>(post?.recipients ?? [])
+  const [attendees, setAttendees]   = useState<FeedPostRecipient[]>(post?.attendees ?? [])
 
   const editor = useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder: "What's the update?" })],
+    extensions: [StarterKit, Placeholder.configure({ placeholder: isMom ? 'What was discussed?' : "What's the update?" })],
     content: post?.body ?? '',
   })
 
@@ -96,9 +112,17 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
     mutationFn: async () => {
       const body = editor && !editor.isEmpty ? editor.getHTML() : undefined
       if (post) {
-        return feedApi.update(post.id, { title: title.trim(), body })
+        return feedApi.update(post.id, {
+          title: title.trim(), body,
+          recipientIds: isMom ? undefined : (shareWithEveryone ? [] : recipients.map(r => r.id)),
+          attendeeIds: isMom ? attendees.map(a => a.id) : undefined,
+        })
       }
-      const created = await feedApi.create({ title: title.trim(), body })
+      const created = await feedApi.create({
+        title: title.trim(), body, type: effectiveType,
+        recipientIds: isMom ? undefined : (shareWithEveryone ? [] : recipients.map(r => r.id)),
+        attendeeIds: isMom ? attendees.map(a => a.id) : undefined,
+      })
       if (pendingFiles.length > 0) {
         await feedApi.uploadImages(created.id, pendingFiles)
       }
@@ -106,10 +130,12 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['feed'] })
-      toast(post ? 'Post updated' : 'Post published', 'success')
+      qc.invalidateQueries({ queryKey: ['feed-mom'] })
+      qc.invalidateQueries({ queryKey: ['feed', 'dashboard-preview'] })
+      toast(post ? `${isMom ? 'MoM' : 'Post'} updated` : `${isMom ? 'MoM' : 'Post'} published`, 'success')
       onClose()
     },
-    onError: (err) => setFormError(getApiError(err, `Failed to ${post ? 'update' : 'publish'} post`)),
+    onError: (err) => setFormError(getApiError(err, `Failed to ${post ? 'update' : 'publish'} ${isMom ? 'MoM' : 'post'}`)),
   })
 
   const submit = () => {
@@ -141,18 +167,44 @@ function PostFormModal({ post, onClose }: { post: FeedPostResponse | null; onClo
   }
 
   return (
-    <Modal open title={post ? 'Edit Post' : 'New Post'} onClose={onClose} error={formError}>
+    <Modal open title={post ? `Edit ${isMom ? 'MoM' : 'Post'}` : (isMom ? 'New MoM' : 'New Post')} onClose={onClose} error={formError}>
       <div className="flex flex-col gap-4">
         <Input label="Title" value={title} onChange={e => setTitle(e.target.value)}
-          error={error} placeholder="What's the update?" />
+          error={error} placeholder={isMom ? 'e.g. Weekly clinic sync — 10 Sep' : "What's the update?"} />
 
         <div>
-          <label className="form-label">Details</label>
+          <label className="form-label">{isMom ? 'Minutes' : 'Details'}</label>
           <div className="rich-text-editor form-input">
             <RichTextToolbar editor={editor} />
             <EditorContent editor={editor} />
           </div>
         </div>
+
+        {isMom ? (
+          <div>
+            <label className="form-label">Attendees</label>
+            <RecipientPicker
+              selected={attendees}
+              onChange={setAttendees}
+              roles={STAFF_ROLES}
+              minChars={3}
+              placeholder="Search staff by name (3+ letters)…"
+            />
+          </div>
+        ) : (
+          <div>
+            <label className="form-label">Share with</label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer mb-2" style={{ color: colors.text.primary }}>
+              <input type="checkbox" checked={shareWithEveryone}
+                onChange={e => setShareWithEveryone(e.target.checked)}
+                className="h-4 w-4" style={{ accentColor: colors.accent }} />
+              Everyone in the organisation
+            </label>
+            {!shareWithEveryone && (
+              <RecipientPicker selected={recipients} onChange={setRecipients} />
+            )}
+          </div>
+        )}
 
         <div>
           <label className="form-label">Images</label>
@@ -252,6 +304,9 @@ function CommentsSection({ postId, canManage, currentUserId }: {
       qc.setQueryData<FeedCommentResponse[]>(['feed-comments', postId], prev => [...(prev ?? []), created])
       qc.setQueryData<FeedPostResponse[]>(['feed'], prev =>
         prev?.map(p => p.id === postId ? { ...p, commentCount: p.commentCount + 1 } : p) ?? [])
+      // MoM's own cache is a different shape (paged, not a flat array) — cheaper to just
+      // invalidate it than to duplicate the patch logic for a rarely-commented-on entry.
+      qc.invalidateQueries({ queryKey: ['feed-mom'] })
       setText('')
     },
     onError: (err) => toast(getApiError(err, 'Failed to add comment'), 'error'),
@@ -263,6 +318,7 @@ function CommentsSection({ postId, canManage, currentUserId }: {
       qc.setQueryData<FeedCommentResponse[]>(['feed-comments', postId], prev => prev?.filter(c => c.id !== commentId) ?? [])
       qc.setQueryData<FeedPostResponse[]>(['feed'], prev =>
         prev?.map(p => p.id === postId ? { ...p, commentCount: Math.max(0, p.commentCount - 1) } : p) ?? [])
+      qc.invalidateQueries({ queryKey: ['feed-mom'] })
     },
     onError: (err) => toast(getApiError(err, 'Failed to delete comment'), 'error'),
   })
@@ -343,6 +399,7 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
     },
     onSuccess: (updated) => {
       qc.setQueryData<FeedPostResponse[]>(['feed'], prev => prev?.map(p => p.id === updated.id ? updated : p) ?? [])
+      qc.invalidateQueries({ queryKey: ['feed-mom'] })
     },
   })
 
@@ -375,6 +432,25 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
         )}
       </div>
 
+      {post.type === 'MOM' ? (
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap text-xs" style={{ color: colors.text.dim }}>
+          <Users size={12} />
+          {post.attendees.length === 0
+            ? 'No attendees recorded'
+            : <>Attendees: {post.attendees.map(a => `${a.firstName} ${a.lastName}`).join(', ')}</>}
+        </div>
+      ) : post.recipients.length > 0 ? (
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap text-xs" style={{ color: colors.text.dim }}>
+          <Users size={12} />
+          Shared with: {post.recipients.map(r => `${r.firstName} ${r.lastName}`).join(', ')}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: colors.text.dim }}>
+          <Globe size={12} />
+          Everyone in the organisation
+        </div>
+      )}
+
       {sanitizedBody && (
         <div className="rich-text mt-3" style={{ color: colors.text.muted }} dangerouslySetInnerHTML={{ __html: sanitizedBody }} />
       )}
@@ -405,6 +481,20 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
 
 // ── FeedPage ─────────────────────────────────────────────────────────────────
 
+/** Groups already-newest-first entries by calendar day, preserving that order across groups. */
+function groupByDay(entries: FeedPostResponse[]): { day: string; entries: FeedPostResponse[] }[] {
+  const groups: { day: string; entries: FeedPostResponse[] }[] = []
+  for (const entry of entries) {
+    const day = format(parseISO(entry.createdAt), 'yyyy-MM-dd')
+    const last = groups[groups.length - 1]
+    if (last && last.day === day) last.entries.push(entry)
+    else groups.push({ day, entries: [entry] })
+  }
+  return groups
+}
+
+type Tab = 'feed' | 'mom'
+
 export default function FeedPage() {
   const { user, activeRole } = useAuth()
   const qc = useQueryClient()
@@ -412,6 +502,12 @@ export default function FeedPage() {
   const canManage = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
   // Office Admin can post but not edit/delete/moderate — that stays canManage-only.
   const canPost = canManage || activeRole === 'OFFICE_ADMIN'
+  const isStaff = !!activeRole && (STAFF_ROLES as string[]).includes(activeRole)
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab') === 'mom' && isStaff ? 'mom' : 'feed'
+  const [tab, setTab] = useState<Tab>(requestedTab)
+  const setActiveTab = (t: Tab) => { setTab(t); setSearchParams(t === 'mom' ? { tab: 'mom' } : {}, { replace: true }) }
 
   const [showForm, setShowForm]       = useState(false)
   const [editingPost, setEditingPost] = useState<FeedPostResponse | null>(null)
@@ -421,40 +517,102 @@ export default function FeedPage() {
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['feed'],
     queryFn: feedApi.list,
+    enabled: tab === 'feed',
   })
+
+  const { data: momPage, isLoading: momLoading } = useQuery({
+    queryKey: ['feed-mom'],
+    queryFn: () => feedApi.listMom({ size: 1000 }),
+    enabled: tab === 'mom' && isStaff,
+  })
+  const momEntries = momPage?.content ?? []
+  const momByDay = groupByDay(momEntries)
+
+  const list = tab === 'mom' ? momEntries : posts
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => feedApi.delete(id),
     onSuccess: (_, id) => {
       qc.setQueryData<FeedPostResponse[]>(['feed'], prev => prev?.filter(p => p.id !== id) ?? [])
+      qc.setQueryData<{ content: FeedPostResponse[] }>(['feed-mom'], prev =>
+        prev ? { ...prev, content: prev.content.filter(p => p.id !== id) } : prev)
       setDeleting(null)
-      toast('Post deleted', 'success')
+      toast(`${deleting?.type === 'MOM' ? 'MoM' : 'Post'} deleted`, 'success')
     },
-    onError: (err) => setDeleteError(getApiError(err, 'Failed to delete post')),
+    onError: (err) => setDeleteError(getApiError(err, `Failed to delete ${deleting?.type === 'MOM' ? 'MoM' : 'post'}`)),
   })
 
-  if (isLoading) return <PageLoader />
+  if (tab === 'feed' && isLoading) return <PageLoader />
+  if (tab === 'mom' && momLoading) return <PageLoader />
 
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-2">
-          <Newspaper size={20} style={{ color: colors.accent }} />
-          <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>Feed</h1>
+          {tab === 'mom' ? <ClipboardList size={20} style={{ color: colors.accent }} /> : <Newspaper size={20} style={{ color: colors.accent }} />}
+          <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>{tab === 'mom' ? 'Minutes of Meeting' : 'Feed'}</h1>
           <span className="text-sm font-medium px-2 py-0.5 rounded-full"
             style={{ background: accentAlpha(0.08), color: colors.accent }}>
-            {posts.length}
+            {list.length}
           </span>
         </div>
         {canPost && (
           <Button variant="primary" onClick={() => { setEditingPost(null); setShowForm(true) }}>
-            <Plus size={15} className="mr-1.5" /> New Post
+            <Plus size={15} className="mr-1.5" /> {tab === 'mom' ? 'New MoM' : 'New Post'}
           </Button>
         )}
       </div>
 
+      {isStaff && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 mb-5">
+          {([['feed', 'Feed'], ['mom', 'Minutes of Meeting']] as [Tab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium"
+              style={tab === key ? { background: accentAlpha(0.14), color: colors.accent } : { color: colors.text.dim }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="max-w-3xl">
-        {posts.length === 0 ? (
+        {tab === 'mom' ? (
+          momEntries.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList size={22} />}
+              title="No minutes recorded yet"
+              description={canPost
+                ? 'Record a meeting’s minutes and staff will be notified by email.'
+                : 'Minutes of meeting will show up here.'}
+              action={canPost ? { label: 'New MoM', onClick: () => { setEditingPost(null); setShowForm(true) } } : undefined}
+            />
+          ) : (
+            <div className="flex flex-col gap-6">
+              {momByDay.map(group => (
+                <div key={group.day}>
+                  <h2 className="text-xs font-semibold uppercase tracking-wide mb-2.5" style={{ color: colors.text.dim }}>
+                    {format(parseISO(group.day + 'T00:00:00'), 'EEEE, d MMMM yyyy')}
+                  </h2>
+                  <div className="flex flex-col gap-3">
+                    {group.entries.map(post => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        canManage={canManage}
+                        currentUserId={user?.id ?? ''}
+                        onEdit={() => { setEditingPost(post); setShowForm(true) }}
+                        onDelete={() => setDeleting(post)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : posts.length === 0 ? (
           <EmptyState
             icon={<Newspaper size={22} />}
             title="No posts yet"
@@ -480,11 +638,15 @@ export default function FeedPage() {
       </div>
 
       {showForm && (
-        <PostFormModal post={editingPost} onClose={() => { setShowForm(false); setEditingPost(null) }} />
+        <PostFormModal
+          post={editingPost}
+          type={tab === 'mom' ? 'MOM' : 'POST'}
+          onClose={() => { setShowForm(false); setEditingPost(null) }}
+        />
       )}
 
       {deleting && (
-        <Modal open title="Delete post?" onClose={() => setDeleting(null)} error={deleteError}>
+        <Modal open title={`Delete ${deleting.type === 'MOM' ? 'MoM' : 'post'}?`} onClose={() => setDeleting(null)} error={deleteError}>
           <p className="text-sm" style={{ color: colors.text.muted }}>
             This removes "{deleting.title}" for everyone. This can't be undone.
           </p>

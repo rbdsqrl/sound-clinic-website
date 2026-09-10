@@ -20,6 +20,11 @@ export const feedApi = {
     client.get<ApiResponse<PagedResponse<FeedPostResponse>>>('/feed', { params })
       .then(r => r.data.data),
 
+  /** Minutes of Meeting entries — staff only, never mixed into the regular feed. */
+  listMom: (params: { page?: number; size?: number } = {}) =>
+    client.get<ApiResponse<PagedResponse<FeedPostResponse>>>('/feed/mom', { params })
+      .then(r => r.data.data),
+
   create: (data: CreateFeedPostRequest) =>
     client.post<ApiResponse<FeedPostResponse>>('/feed', data).then(r => r.data.data),
 

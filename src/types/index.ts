@@ -1089,6 +1089,14 @@ export interface FeedPostImageResponse {
   createdAt: string
 }
 
+export type FeedPostType = 'POST' | 'MOM'
+
+export interface FeedPostRecipient {
+  id: string
+  firstName: string
+  lastName: string
+}
+
 export interface FeedPostResponse {
   id: string
   orgId: string
@@ -1098,6 +1106,11 @@ export interface FeedPostResponse {
   authorRole: Role
   title: string
   body: string | null
+  type: FeedPostType
+  /** Named recipients — empty means visible to everyone in the org. */
+  recipients: FeedPostRecipient[]
+  /** Staff who attended the meeting — only meaningful when type is MOM. */
+  attendees: FeedPostRecipient[]
   createdAt: string
   updatedAt: string
   likeCount: number
@@ -1110,11 +1123,20 @@ export interface FeedPostResponse {
 export interface CreateFeedPostRequest {
   title: string
   body?: string
+  /** Defaults to POST when omitted. */
+  type?: FeedPostType
+  /** Omit or leave empty for "everyone in the org". Ignored when type is MOM. */
+  recipientIds?: string[]
+  /** Staff who attended the meeting — only meaningful when type is MOM. */
+  attendeeIds?: string[]
 }
 
 export interface UpdateFeedPostRequest {
   title?: string
   body?: string
+  attendeeIds?: string[]
+  /** Omit to leave the audience unchanged; pass an empty array to clear it back to "everyone". */
+  recipientIds?: string[]
 }
 
 export interface FeedCommentResponse {
