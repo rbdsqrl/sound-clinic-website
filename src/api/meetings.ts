@@ -15,4 +15,10 @@ export const meetingsApi = {
     client
       .patch<ApiResponse<MeetingResponse>>(`/meetings/${id}/cancel`, { reason })
       .then(r => r.data.data),
+
+  /** Per-occurrence write-up — a recurring series' other occurrences keep their own notes. */
+  updateNotes: (id: string, notes: string) =>
+    client
+      .patch<ApiResponse<MeetingResponse>>(`/meetings/${id}/notes`, { notes })
+      .then(r => r.data.data),
 }

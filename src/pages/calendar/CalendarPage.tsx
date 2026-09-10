@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, CalendarDays, Phone,
   CalendarOff, Clock, ExternalLink, Users, Bell, BellOff,
-  Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus, Download,
+  Activity, CheckCircle2, Zap, Sun, MessageSquare, MapPin, Plus, Download, Repeat,
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -35,9 +35,10 @@ import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/u
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { meetingsApi } from '../../api/meetings'
 import { usersApi } from '../../api/users'
+import { organisationApi } from '../../api/organisation'
 import { SessionNotesModal, RescheduleSessionModal } from '../patients/EnrollmentSessions'
 import AdHocSessionModal from './AdHocSessionModal'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, DayOfWeek } from '../../types'
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
@@ -1371,6 +1372,19 @@ function SlotChoiceModal({
 
 // ── Schedule a meeting ────────────────────────────────────────────────────────
 
+// Same day-picker pattern as the Program enrollment flow's Session Days field
+// (PatientDetailPage.tsx) — a weekday chip row that defaults to every day except the org's
+// weekly off days, and disables those chips so they can't be re-selected.
+const MEETING_WEEK_DAYS: { value: DayOfWeek; label: string }[] = [
+  { value: 'MONDAY',    label: 'Mon' },
+  { value: 'TUESDAY',   label: 'Tue' },
+  { value: 'WEDNESDAY', label: 'Wed' },
+  { value: 'THURSDAY',  label: 'Thu' },
+  { value: 'FRIDAY',    label: 'Fri' },
+  { value: 'SATURDAY',  label: 'Sat' },
+  { value: 'SUNDAY',    label: 'Sun' },
+]
+
 function NewMeetingModal({
   onClose, onDone, initial,
 }: {
@@ -1394,6 +1408,27 @@ function NewMeetingModal({
   const [search, setSearch]       = useState('')
   const [error, setError]         = useState('')
 
+  // Recurrence — mirrors the Program enrollment flow's Session Days picker.
+  const [recurring, setRecurring]           = useState(false)
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
+  const [recurrenceDays, setRecurrenceDays] = useState<DayOfWeek[]>(MEETING_WEEK_DAYS.map(d => d.value))
+
+  const { data: weeklyOffDays = [] } = useQuery({
+    queryKey: ['organisation', 'weekly-off-days'],
+    queryFn: organisationApi.getWeeklyOffDays,
+    enabled: recurring,
+  })
+  useEffect(() => {
+    setRecurrenceDays(prev => {
+      // Only while every day is still selected — once the caller deselects one themselves,
+      // stop overwriting their choice.
+      if (prev.length !== MEETING_WEEK_DAYS.length) return prev
+      return MEETING_WEEK_DAYS.map(d => d.value).filter(d => !weeklyOffDays.includes(d))
+    })
+  }, [weeklyOffDays])
+  const toggleRecurrenceDay = (day: DayOfWeek) =>
+    setRecurrenceDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+
   // Parents are included: a meeting about a child usually needs one in the room.
   const { data: people = [] } = useQuery({
     queryKey: ['assignable', 'with-parents'],
@@ -1416,6 +1451,9 @@ function NewMeetingModal({
       endTime: addMinutesToTime(startTime, duration),
       location: location.trim() || undefined,
       participantIds: picked,
+      recurring: recurring || undefined,
+      recurrenceDays: recurring ? recurrenceDays : undefined,
+      recurrenceEndDate: recurring ? recurrenceEndDate : undefined,
     }),
     onSuccess: onDone,
     onError: (err: unknown) => setError(getApiError(err, 'Could not schedule the meeting')),
@@ -1426,6 +1464,11 @@ function NewMeetingModal({
     if (picked.length === 0) { setError('Pick at least one participant'); return }
     if (date < todayStr())   { setError('Date cannot be in the past'); return }
     if (isPastDateTime(date, startTime)) { setError('Start time cannot be in the past'); return }
+    if (recurring) {
+      if (recurrenceDays.length === 0)      { setError('Select at least one day for the recurrence'); return }
+      if (!recurrenceEndDate)               { setError('Pick a recurrence end date'); return }
+      if (recurrenceEndDate <= date)        { setError('Recurrence end date must be after the start date'); return }
+    }
     setError('')
     mut.mutate()
   }
@@ -1457,13 +1500,65 @@ function NewMeetingModal({
           </div>
         </div>
 
+        {/* Recurrence — opt-in, defaults to every day except the org's weekly off days */}
+        <div className="rounded-xl p-3" style={{ background: surface.filterStrip }}>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)}
+              className="mt-0.5" />
+            <span>
+              <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Make this recurring</span>
+              <span className="block text-xs mt-0.5" style={{ color: colors.text.dim }}>
+                Repeats on the days you pick until an end date. One invite email announces the whole series.
+              </span>
+            </span>
+          </label>
+
+          {recurring && (
+            <div className="mt-3 pt-3 flex flex-col gap-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+              <div>
+                <label className="form-label">Repeat until</label>
+                <input type="date" value={recurrenceEndDate} min={date}
+                  onChange={e => setRecurrenceEndDate(e.target.value)}
+                  className="form-input w-full sm:w-48" />
+              </div>
+              <div>
+                <label className="form-label">Repeat on</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MEETING_WEEK_DAYS.map(d => {
+                    const active = recurrenceDays.includes(d.value)
+                    const isWeeklyOff = weeklyOffDays.includes(d.value)
+                    return (
+                      <button
+                        key={d.value}
+                        type="button"
+                        disabled={isWeeklyOff}
+                        onClick={() => toggleRecurrenceDay(d.value)}
+                        title={isWeeklyOff ? 'Weekly off day for this organisation' : undefined}
+                        className="rounded-full px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={active ? styles.filterTabActive : styles.filterTabInactive}
+                      >
+                        {d.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <Input label="Location (optional)" value={location} onChange={e => setLocation(e.target.value)}
           placeholder="Main Clinic — Room 2" />
 
         <div>
-          <label className="form-label">Notes (optional)</label>
+          <label className="form-label">Agenda (optional)</label>
           <textarea value={description} onChange={e => setDesc(e.target.value)} rows={2}
             className="form-input w-full" placeholder="What the meeting is for" />
+          {recurring && (
+            <p className="text-xs mt-1" style={{ color: colors.text.dim }}>
+              Shared by every occurrence — each one gets its own notes afterward.
+            </p>
+          )}
         </div>
 
         {/* Participants */}
@@ -1615,6 +1710,21 @@ function EventDetailDrawer({
   const rawReview      = event.raw as ReviewMeetingResponse
   const rawMeeting     = event.raw as MeetingResponse
 
+  const { user } = useAuth()
+  const isMeetingParticipant = !!user && (rawMeeting.participants ?? []).some(p => p.id === user.id)
+  const canEditMeetingNotes = isMeeting && !!user
+    && (isMeetingParticipant || hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD'))
+  const [notesDraft, setNotesDraft] = useState(rawMeeting.notes ?? '')
+  const [editingNotes, setEditingNotes] = useState(false)
+
+  const saveNotesMut = useMutation({
+    mutationFn: (notes: string) => meetingsApi.updateNotes(rawMeeting.id, notes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meetings'] })
+      setEditingNotes(false)
+    },
+  })
+
   const cancelMeetingMut = useMutation({
     mutationFn: (reason: string) => meetingsApi.cancel(rawMeeting.id, reason || undefined),
     onSuccess: () => {
@@ -1748,6 +1858,10 @@ function EventDetailDrawer({
             <>
               <Row icon={<Clock size={14} />}
                 label={`${formatTimeStr(rawMeeting.startTime)} – ${formatTimeStr(rawMeeting.endTime)}`} />
+              {rawMeeting.seriesId && rawMeeting.occurrenceNumber && rawMeeting.totalOccurrences && (
+                <Row icon={<Repeat size={14} />}
+                  label={`Recurring — meeting ${rawMeeting.occurrenceNumber} of ${rawMeeting.totalOccurrences}`} />
+              )}
               {rawMeeting.location && (
                 <Row icon={<MapPin size={14} />} label={rawMeeting.location} />
               )}
@@ -1755,13 +1869,56 @@ function EventDetailDrawer({
               {rawMeeting.description && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-                    style={{ color: colors.text.muted }}>Notes</p>
+                    style={{ color: colors.text.muted }}>Agenda</p>
                   <p className="text-sm rounded-xl px-3 py-2.5 whitespace-pre-wrap"
                     style={{ color: colors.text.primary, background: surface.rowHover }}>
                     {rawMeeting.description}
                   </p>
                 </div>
               )}
+
+              {/* Per-occurrence notes — editable after the meeting, independent of every other
+                  occurrence in a recurring series. */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: colors.text.muted }}>Meeting Notes</p>
+                  {canEditMeetingNotes && !editingNotes && (
+                    <button
+                      onClick={() => { setNotesDraft(rawMeeting.notes ?? ''); setEditingNotes(true) }}
+                      className="text-xs font-medium"
+                      style={{ color: colors.accent }}>
+                      {rawMeeting.notes ? 'Edit' : 'Add notes'}
+                    </button>
+                  )}
+                </div>
+                {editingNotes ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      value={notesDraft}
+                      onChange={e => setNotesDraft(e.target.value)}
+                      rows={3}
+                      className="form-input w-full"
+                      placeholder="What was discussed, decided, next steps…"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" onClick={() => setEditingNotes(false)}>Cancel</Button>
+                      <Button variant="primary" loading={saveNotesMut.isPending}
+                        onClick={() => saveNotesMut.mutate(notesDraft.trim())}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : rawMeeting.notes ? (
+                  <p className="text-sm rounded-xl px-3 py-2.5 whitespace-pre-wrap"
+                    style={{ color: colors.text.primary, background: surface.rowHover }}>
+                    {rawMeeting.notes}
+                  </p>
+                ) : (
+                  <p className="text-xs" style={{ color: colors.text.dim }}>No notes added yet.</p>
+                )}
+              </div>
+
               {canCreateMeetings && rawMeeting.status === 'SCHEDULED' && (
                 <button
                   onClick={() => {

@@ -1569,6 +1569,13 @@ export interface MeetingResponse {
   createdBy: string
   createdByName: string | null
   participants: MeetingParticipant[]
+  /** Post-meeting write-up for this occurrence — separate from `description`, the shared
+   *  pre-meeting agenda set once for the whole (possibly recurring) series. */
+  notes: string | null
+  /** Shared by every occurrence a single recurring create() generated; null for a one-off. */
+  seriesId: string | null
+  occurrenceNumber: number | null
+  totalOccurrences: number | null
 }
 
 export interface CreateMeetingRequest {
@@ -1579,6 +1586,11 @@ export interface CreateMeetingRequest {
   endTime: string
   location?: string
   participantIds: string[]
+  /** When true, one meeting is generated per matching date up to recurrenceEndDate —
+   *  recurrenceDays and recurrenceEndDate are then required. */
+  recurring?: boolean
+  recurrenceDays?: DayOfWeek[]
+  recurrenceEndDate?: string
 }
 
 // ── Activities ───────────────────────────────────────────────────────────────
