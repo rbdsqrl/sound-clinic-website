@@ -1583,6 +1583,10 @@ export default function PatientDetailPage() {
   // Baseline Report and Media & Notes stay hidden (they have no backend access to them).
   const visibleTabs: Tab[] = currentRoleEarly === 'OFFICE_ADMIN'
     ? TABS.filter(t => t === 'Overview' || t === 'Therapy')
+    // Baseline Report is clinical staff shorthand (domain scores, not parent-legible) — kept
+    // off the Parent's case view the same way Progress was pulled from their sidebar.
+    : isParentRole
+    ? TABS.filter(t => t !== 'Baseline Report')
     : [...TABS]
 
   const { data: patient, isLoading } = useQuery({
