@@ -1747,13 +1747,16 @@ export default function PatientDetailPage() {
   const isTherapist         = currentRole === 'THERAPIST'
   const isOfficeAdmin       = currentRole === 'OFFICE_ADMIN'
   // A discharged case is read-only throughout — the one exception is re-enrolling (starting a
-  // new program), which admin roles can still do via canManageSubs below (deliberately NOT
-  // ANDed with !isDischarged, since that's what "Enroll Again" runs on).
+  // new program), which admin roles can still do via canManageSubs, canRecordPayment and
+  // canCreateEnrollment below (deliberately NOT ANDed with !isDischarged, since "Enroll Again"
+  // runs the same subscription → payment → enrollment chain as a new case, and the enrollment
+  // step is what reactivates the patient server-side — see EnrollmentModal's onCreated, which
+  // refetches the patient so isDischarged flips false and the rest of the profile unlocks).
   const isDischarged        = patient.stage === 'DISCHARGED'
   const canChangeStage      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canManageSubs       = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '')
-  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
-  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
+  const canRecordPayment    = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+  const canCreateEnrollment = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
   const canEditDetails      = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'OFFICE_ADMIN'].includes(currentRole ?? '') && !isDischarged
   const canDelete           = currentRole === 'BUSINESS_OWNER' && !isDischarged
   // Review-meeting feedback content stays clinic-staff-only even though Office Admin
@@ -2677,6 +2680,10 @@ export default function PatientDetailPage() {
           onCreated={() => {
             refetchEnrollments()
             refetchSubs()
+            // A discharged patient is reactivated server-side by this same call (see
+            // EnrollmentController#create) — refetch so isDischarged flips false and the
+            // rest of the profile (IEP, activities, etc.) unlocks without a page reload.
+            refresh()
             toast('Enrollment created — sessions generated', 'success')
             setEnrollForSub(null)
             setEnrollContinuation(false)
