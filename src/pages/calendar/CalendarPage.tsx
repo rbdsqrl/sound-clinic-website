@@ -2348,6 +2348,9 @@ export default function CalendarPage() {
   // they only ever render one day at a time via eventsOnDay, but Agenda rendered its events
   // array directly, so a leave/review/inquiry from any date used to leak into the list.
   const agendaEvents = mode === 'agenda' ? eventsInRange(visibleEvents, agendaFrom, agendaTo) : visibleEvents
+  // Header count is sessions only — reviews/meetings/leaves/holidays/consultations don't
+  // count as a therapy session, which is what "N sessions" should mean here.
+  const agendaSessionCount = agendaEvents.filter(ev => ev.kind === 'session').length
   const agendaEmptyMessage =
     agendaGranularity === 'month' ? 'Nothing scheduled this month' :
     agendaGranularity === 'week'  ? 'Nothing scheduled this week'  :
@@ -2542,7 +2545,7 @@ export default function CalendarPage() {
 
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs" style={{ color: colors.text.muted }}>
-              {agendaEvents.length} event{agendaEvents.length !== 1 ? 's' : ''}
+              {agendaSessionCount} session{agendaSessionCount !== 1 ? 's' : ''}
             </span>
 
             {/* Notification permission — previously lived on the Today/Tomorrow strip */}
@@ -2610,7 +2613,7 @@ export default function CalendarPage() {
                     <div className="px-4 pt-4 pb-1 flex-shrink-0">
                       <h3 className="text-sm font-semibold" style={{ color: colors.text.primary }}>{title}</h3>
                       <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                        {agendaEvents.length} event{agendaEvents.length !== 1 ? 's' : ''}
+                        {agendaSessionCount} session{agendaSessionCount !== 1 ? 's' : ''}
                       </p>
                     </div>
                     <AgendaView
