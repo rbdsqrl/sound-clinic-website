@@ -528,8 +528,9 @@ function SessionNotesHistoryPanel({ sessionId }: { sessionId: string }) {
 
 export function SessionNotesModal({
   session,
-  canEdit,
+  canEdit: canEditProp,
   canDirectlyCancel,
+  hideFeedback = false,
   enrollmentId,
   onClose,
   onReschedule,
@@ -540,6 +541,10 @@ export function SessionNotesModal({
   session: TherapySessionResponse
   canEdit: boolean
   canDirectlyCancel: boolean
+  /** Calendar-only, parents: shows the session exists but never its clinical write-up
+   *  (score, rating, progress report, checklist, attachments, edit history). Takes
+   *  precedence over canEdit — never editable when feedback itself isn't visible. */
+  hideFeedback?: boolean
   enrollmentId: string
   onClose: () => void
   /** Calendar-only: renders a "Reschedule session" action when provided. */
@@ -551,6 +556,7 @@ export function SessionNotesModal({
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  const canEdit = canEditProp && !hideFeedback
 
   const parsedRating = session.feedback ? parseInt(session.feedback, 10) : NaN
   const [rating, setRating]                 = useState(Number.isNaN(parsedRating) ? 0 : parsedRating)
@@ -562,11 +568,13 @@ export function SessionNotesModal({
   const { data: attachments = [], isLoading: attLoading } = useQuery({
     queryKey: ['session-attachments', session.id],
     queryFn: () => therapySessionsApi.listAttachments(session.id),
+    enabled: !hideFeedback,
   })
 
   const { data: feedback, isLoading: feedbackLoading } = useQuery({
     queryKey: ['session-feedback', session.id],
     queryFn: () => therapySessionsApi.getFeedback(session.id),
+    enabled: !hideFeedback,
   })
 
   const [checklistAnswers, setChecklistAnswers] = useState<Map<string, string[]>>(new Map())
@@ -710,27 +718,35 @@ export function SessionNotesModal({
         </span>
       </div>
 
-      {/* Notes / Activity Log tabs */}
-      <div className="flex gap-0 border-b mb-4" style={{ borderColor: border.divider }}>
-        {([
-          { key: 'notes' as const,   label: 'Notes' },
-          { key: 'history' as const, label: 'Activity Log', icon: <History size={13} /> },
-        ]).map(t => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setNotesTab(t.key)}
-            className="flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
-            style={notesTab === t.key ? styles.tabActive : styles.tabInactive}
-          >
-            {t.icon}{t.label}
-          </button>
-        ))}
-      </div>
+      {/* Notes / Activity Log tabs — both hidden entirely when feedback is off-limits to this viewer. */}
+      {!hideFeedback && (
+        <div className="flex gap-0 border-b mb-4" style={{ borderColor: border.divider }}>
+          {([
+            { key: 'notes' as const,   label: 'Notes' },
+            { key: 'history' as const, label: 'Activity Log', icon: <History size={13} /> },
+          ]).map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setNotesTab(t.key)}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+              style={notesTab === t.key ? styles.tabActive : styles.tabInactive}
+            >
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {notesTab === 'history' && <SessionNotesHistoryPanel sessionId={session.id} />}
+      {hideFeedback && (
+        <p className="text-sm text-center py-10" style={{ color: colors.text.dim }}>
+          Feedback for this session isn't shown here.
+        </p>
+      )}
 
-      {notesTab === 'notes' && (
+      {!hideFeedback && notesTab === 'history' && <SessionNotesHistoryPanel sessionId={session.id} />}
+
+      {!hideFeedback && notesTab === 'notes' && (
       <div className="flex flex-col gap-4">
         {/* Performance Score */}
         <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={fieldsRequired} />

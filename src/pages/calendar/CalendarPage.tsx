@@ -364,19 +364,39 @@ function upcomingDateLabel(dateKey: string): string {
 
 // ── Event chip ────────────────────────────────────────────────────────────────
 
+/** Therapist name for a therapy-session event — used to add a dedicated second line
+ *  to session chips/rows, distinct from the "Session x/y" subtitle. */
+function sessionTherapistName(ev: CalendarEvent): string | undefined {
+  if (ev.kind !== 'session') return undefined
+  const s = ev.raw as TherapySessionResponse
+  return `${s.therapistFirstName} ${s.therapistLastName}`
+}
+
 function EventChip({
-  event, onClick, compact = false, colorOverride,
-}: { event: CalendarEvent; onClick: () => void; compact?: boolean; colorOverride?: React.CSSProperties }) {
+  event, onClick, compact = false, colorOverride, showTherapist = false,
+}: {
+  event: CalendarEvent; onClick: () => void; compact?: boolean; colorOverride?: React.CSSProperties
+  /** Month/Week views only — adds the therapist name as a second line for session events. */
+  showTherapist?: boolean
+}) {
   const s = colorOverride ?? kindStyle(event.kind, event.status)
+  const therapistName = showTherapist ? sessionTherapistName(event) : undefined
   return (
     <button
       onClick={e => { e.stopPropagation(); onClick() }}
-      className="w-full text-left rounded-md px-1.5 py-0.5 truncate transition-opacity hover:opacity-75"
+      className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-75"
       style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
-      {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
-      <span className="truncate">{event.title}</span>
-      {!compact && !event.isAllDay && event.time && (
-        <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
+      <div className="truncate">
+        {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
+        <span className="truncate">{event.title}</span>
+        {!compact && !event.isAllDay && event.time && (
+          <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
+        )}
+      </div>
+      {therapistName && (
+        <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
+          {therapistName}
+        </div>
       )}
     </button>
   )
@@ -479,19 +499,22 @@ function useSlotDrag(onPick: (sel: SlotSelection) => void) {
 // ── Month View ────────────────────────────────────────────────────────────────
 
 function MonthView({
-  current, events, onSelect, holidayDates, colorFn, onDayClick,
+  current, events, onSelect, holidayDates, colorFn, onDayClick, showTherapist = false,
 }: {
   current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void; holidayDates: Set<string>
   /** Overrides the default kind-based chip color — used by the Staff month view to color by therapist. */
   colorFn?: (ev: CalendarEvent) => React.CSSProperties | undefined
   /** Drill into a day — clicking the cell background or "+N more" (not an event chip, which opens that event instead). */
   onDayClick?: (day: Date) => void
+  /** Adds the therapist name as a second line on session chips. */
+  showTherapist?: boolean
 }) {
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(current), { weekStartsOn: 1 }),
     end:   endOfWeek(endOfMonth(current),     { weekStartsOn: 1 }),
   })
   const dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const todayKey = format(new Date(), 'yyyy-MM-dd')
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -508,6 +531,7 @@ function MonthView({
           const inMonth    = isSameMonth(day, current)
           const todayDay   = isToday(day)
           const isHoliday  = holidayDates.has(dayKey)
+          const isPast     = dayKey < todayKey
           const isLastRow  = idx >= days.length - 7
           const isLastCol  = (idx + 1) % 7 === 0
 
@@ -527,7 +551,7 @@ function MonthView({
               style={{
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
-                opacity: inMonth ? 1 : 0.4,
+                opacity: !inMonth ? 0.4 : isPast ? 0.7 : 1,
                 background: isHoliday ? '#FEF3C720' : undefined,
                 cursor: onDayClick ? 'pointer' : undefined,
               }}>
@@ -543,7 +567,7 @@ function MonthView({
               </div>
               <div className="flex flex-col gap-0.5 flex-1 overflow-hidden min-w-0">
                 {sorted.slice(0, 2).map(ev => (
-                  <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact colorOverride={colorFn?.(ev)} />
+                  <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact colorOverride={colorFn?.(ev)} showTherapist={showTherapist} />
                 ))}
                 {sorted.length > 2 && (
                   <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
@@ -562,7 +586,7 @@ function MonthView({
 // ── Week View ─────────────────────────────────────────────────────────────────
 
 function WeekView({
-  current, events, onSelect, holidayDates, onSlotSelect, colorFn,
+  current, events, onSelect, holidayDates, onSlotSelect, colorFn, showTherapist = false,
 }: {
   current: Date; events: CalendarEvent[]; onSelect: (e: CalendarEvent) => void
   holidayDates: Set<string>
@@ -570,6 +594,8 @@ function WeekView({
   onSlotSelect?: (sel: SlotSelection) => void
   /** Overrides the default kind-based chip color — used by the Staff week view to color by therapist. */
   colorFn?: (ev: CalendarEvent) => React.CSSProperties | undefined
+  /** Adds the therapist name as a second line on session chips. */
+  showTherapist?: boolean
 }) {
   const { cellProps } = useSlotDrag(onSlotSelect ?? (() => {}))
   const nowMins = useNowMinutes()
@@ -600,9 +626,10 @@ function WeekView({
         {days.map(day => {
           const dayKey    = format(day, 'yyyy-MM-dd')
           const isHoliday = holidayDates.has(dayKey)
+          const isPast    = dayKey < todayKey
           return (
             <div key={day.toISOString()} className="py-2 text-center border-l min-w-0"
-              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : undefined }}>
+              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : undefined, opacity: isPast ? 0.6 : 1 }}>
               <p className="text-xs font-semibold truncate px-1" style={{ color: isHoliday ? '#B45309' : colors.text.muted }}>
                 {format(day, 'EEE')}
                 {isHoliday && <Sun size={9} className="inline ml-1 opacity-80" />}
@@ -628,9 +655,10 @@ function WeekView({
           </div>
           {days.map(day => {
             const leaves = allDayEventsOnDay(events, day)
+            const isPast = format(day, 'yyyy-MM-dd') < todayKey
             return (
               <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
-                style={{ borderColor: border.divider }}>
+                style={{ borderColor: border.divider, opacity: isPast ? 0.6 : 1 }}>
                 {leaves.map(ev => (
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
                 ))}
@@ -654,6 +682,7 @@ function WeekView({
               const timed    = timedEventsAtHour(events, day, hour)
               const dayKeyH  = format(day, 'yyyy-MM-dd')
               const isHolCol = holidayDates.has(dayKeyH)
+              const isPastCol = dayKeyH < todayKey
               const drag     = onSlotSelect ? cellProps(dayKeyH, hour) : null
               return (
                 <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 relative min-w-0"
@@ -663,6 +692,7 @@ function WeekView({
                     borderColor: border.divider,
                     background: drag?.selected ? accentAlpha(0.14)
                               : isHolCol ? '#FFFBEB30' : undefined,
+                    opacity: isPastCol ? 0.6 : 1,
                     cursor: onSlotSelect ? 'cell' : undefined,
                     userSelect: 'none',
                   }}>
@@ -676,7 +706,7 @@ function WeekView({
                     return (
                       <>
                         {sortedTimed.slice(0, expanded ? undefined : 3).map(ev => (
-                          <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
+                          <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} showTherapist={showTherapist} />
                         ))}
                         {timed.length > 3 && (
                           <button
@@ -1113,10 +1143,21 @@ function AgendaView({
                 </td>
                 <td className="px-2 py-1.5" style={{ borderBottom: `1px solid ${border.divider}` }}>
                   <button onClick={() => onSelect(ev)}
-                    className="w-full text-left rounded-lg px-2.5 py-1.5 truncate transition-opacity hover:opacity-80"
+                    className="w-full text-left rounded-lg px-2.5 py-1.5 transition-opacity hover:opacity-80"
                     style={rowStyle}>
-                    <span className="text-sm font-semibold">{ev.title}</span>
-                    {ev.subtitle && <span className="text-xs opacity-80"> · {ev.subtitle}</span>}
+                    {ev.kind === 'session' ? (
+                      <>
+                        <span className="text-sm font-semibold truncate block">{ev.title}</span>
+                        {sessionTherapistName(ev) && (
+                          <span className="text-xs opacity-80 truncate block">{sessionTherapistName(ev)}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="truncate block">
+                        <span className="text-sm font-semibold">{ev.title}</span>
+                        {ev.subtitle && <span className="text-xs opacity-80"> · {ev.subtitle}</span>}
+                      </span>
+                    )}
                   </button>
                 </td>
               </tr>
@@ -1493,12 +1534,14 @@ function NewMeetingModal({
 // actions that only make sense from the calendar — reschedule, and approving/rejecting a
 // pending cancellation — as optional props on the shared modal.
 function SessionEventModal({
-  session, canAccessNotes, canCancel, canReschedule, onClose,
+  session, canAccessNotes, canCancel, canReschedule, hideFeedback = false, onClose,
 }: {
   session: TherapySessionResponse
   canAccessNotes: boolean
   canCancel: boolean
   canReschedule: boolean
+  /** Parents can see that a session exists but never the clinical write-up left for it. */
+  hideFeedback?: boolean
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -1527,6 +1570,7 @@ function SessionEventModal({
         session={session}
         canEdit={canAccessNotes}
         canDirectlyCancel={canCancel}
+        hideFeedback={hideFeedback}
         enrollmentId={session.enrollmentId}
         onClose={onClose}
         onReschedule={canReschedule && session.status === 'SCHEDULED' ? () => setRescheduleOpen(true) : undefined}
@@ -2578,10 +2622,10 @@ export default function CalendarPage() {
                   </div>
                 ) : view === 'month' ? (
                   <MonthView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
-                    onDayClick={day => { setCurrent(day); setView('day') }} />
+                    onDayClick={day => { setCurrent(day); setView('day') }} showTherapist />
                 ) : view === 'week' ? (
                   <WeekView current={current} events={visibleEvents} onSelect={setSelected} holidayDates={holidayDates}
-                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
+                    onSlotSelect={canBookSlots ? setSlotSelection : undefined} showTherapist />
                 ) : view === 'staff' ? (
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
@@ -2643,6 +2687,7 @@ export default function CalendarPage() {
             canAccessNotes={canManageNotes || rawSession.therapistId === user?.id}
             canCancel={canCancelSession}
             canReschedule={canReschedule}
+            hideFeedback={!!user && hasRole(user, 'PARENT')}
             onClose={() => setSelected(null)}
           />
         )
