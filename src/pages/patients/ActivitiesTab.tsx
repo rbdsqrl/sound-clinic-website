@@ -57,7 +57,7 @@ export default function ActivitiesTab({ patientId, readOnly = false }: { patient
       <Card>
         <CardHeader
           title="Assigned Activities"
-          subtitle="Assign activities from the Activities module, then log progress here"
+          subtitle={readOnly ? 'Activities your therapist has assigned for home practice' : 'Assign activities from the Activities module, then log progress here'}
           action={!readOnly ? <Link to={ROUTES.activities}><Button size="sm" variant="secondary"><Plus size={14} /> Assign from Activities</Button></Link> : undefined}
         />
         {!assignments || assignments.length === 0 ? (

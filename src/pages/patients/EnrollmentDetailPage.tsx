@@ -166,7 +166,7 @@ export default function EnrollmentDetailPage() {
     ? user?.id === enrollment.therapistId
     : canUpdateSession
 
-  // A Parent can't edit a session's report, but can open a completed one read-only.
+  // A Parent can open a session to see it's scheduled, but never its clinical feedback.
   const canViewSessions = currentRole === 'PARENT'
 
   const isAdminTier = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
@@ -400,6 +400,7 @@ export default function EnrollmentDetailPage() {
           canEdit={notesState.canEdit}
           canDirectlyCancel={['BUSINESS_OWNER', 'CLINIC_HEAD'].includes(currentRole ?? '')}
           enrollmentId={enrollment.id}
+          hideFeedback={currentRole === 'PARENT'}
           onClose={() => setNotesState(null)}
         />
       )}

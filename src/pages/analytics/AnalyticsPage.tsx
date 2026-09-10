@@ -384,16 +384,24 @@ export default function AnalyticsPage() {
   const baselineDomains = (baselineReportQuery.data?.domains ?? [])
     .filter(d => d.baselineValue || d.currentEntries.length > 0)
 
+  // Parents no longer get a progress view at all — only staff roles see analytics now.
+  if (isParentUser) {
+    return (
+      <div className="mx-auto max-w-7xl">
+        <EmptyState icon={<Users size={22} />} title="Not available"
+          description="Progress reports aren't shown here — check with your child's therapist for updates." />
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div>
         <h1 className="text-lg font-bold md:text-xl" style={{ color: colors.text.heading }}>
-          {isParentUser ? "Your Child's Progress" : 'Analytics'}
+          Analytics
         </h1>
         <p className="mt-0.5 text-sm" style={{ color: colors.text.muted }}>
-          {isParentUser
-            ? 'Daily, weekly and monthly progress trends from session and goal records'
-            : 'Engagement, caseload and clinical-outcome analytics across the organisation'}
+          Engagement, caseload and clinical-outcome analytics across the organisation
         </p>
       </div>
 

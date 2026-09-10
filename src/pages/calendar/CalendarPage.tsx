@@ -544,7 +544,7 @@ function MonthView({
 
           return (
             <div key={day.toISOString()}
-              className="flex flex-col p-1 min-h-[90px] min-w-0"
+              className={`flex flex-col p-1 min-w-0 ${showTherapist ? 'min-h-[112px]' : 'min-h-[90px]'}`}
               onClick={onDayClick ? () => onDayClick(day) : undefined}
               onMouseEnter={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) } : undefined}
               onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : '' } : undefined}
@@ -565,7 +565,7 @@ function MonthView({
                   {format(day, 'd')}
                 </span>
               </div>
-              <div className="flex flex-col gap-0.5 flex-1 overflow-hidden min-w-0">
+              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                 {sorted.slice(0, 2).map(ev => (
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact colorOverride={colorFn?.(ev)} showTherapist={showTherapist} />
                 ))}
@@ -2630,11 +2630,11 @@ export default function CalendarPage() {
                   staffGranularity === 'week' ? (
                     <WeekView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
                       colorFn={ev => therapistChipStyle(ev, staffColumns, theme === 'dark')}
-                      onSlotSelect={canBookSlots ? setSlotSelection : undefined} />
+                      onSlotSelect={canBookSlots ? setSlotSelection : undefined} showTherapist />
                   ) : staffGranularity === 'month' ? (
                     <MonthView current={current} events={staffFilteredEvents} onSelect={setSelected} holidayDates={holidayDates}
                       colorFn={ev => therapistChipStyle(ev, staffColumns, theme === 'dark')}
-                      onDayClick={day => { setCurrent(day); setStaffGranularity('day') }} />
+                      onDayClick={day => { setCurrent(day); setStaffGranularity('day') }} showTherapist />
                   ) : (
                     <StaffDayView current={current} events={staffFilteredEvents} columns={staffDayColumns}
                       onSelect={setSelected} holidayDates={holidayDates}

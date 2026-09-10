@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
-  ChevronLeft, ChevronRight, ChevronUp, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library,
+  ChevronLeft, ChevronRight, ChevronUp, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library, Home,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -69,12 +69,11 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.members,    label: 'Members',    icon: UserCog },
   ],
   PARENT: [
-    { to: ROUTES.dashboard,   label: 'Dashboard',   icon: LayoutDashboard },
-    { to: ROUTES.feed,        label: 'Feed',        icon: Newspaper },
-    { to: ROUTES.myChildren,  label: 'My Children', icon: Baby },
-    { to: ROUTES.myResources, label: 'Resources',   icon: Library },
-    { to: ROUTES.analytics,   label: 'Progress',    icon: TrendingUp },
-    { to: ROUTES.calendar,    label: 'Calendar',    icon: CalendarDays },
+    { to: ROUTES.dashboard,          label: 'Dashboard',            icon: LayoutDashboard },
+    { to: ROUTES.feed,               label: 'Feed',                 icon: Newspaper },
+    { to: ROUTES.myChildren,         label: 'My Children',          icon: Baby },
+    { to: ROUTES.homePlanActivities, label: 'Home Plan Activities', icon: Home },
+    { to: ROUTES.calendar,           label: 'Calendar',             icon: CalendarDays },
   ],
   PATIENT: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
