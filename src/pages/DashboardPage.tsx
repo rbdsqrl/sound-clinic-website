@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, Eye, UserPlus, Repeat, ClipboardList } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, Repeat, ClipboardList } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -10,6 +10,7 @@ import { tasksApi } from '../api/tasks'
 import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
+import { concernsApi } from '../api/concerns'
 import { usersApi } from '../api/users'
 import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
@@ -30,7 +31,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse, ConcernResponse } from '../types'
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -863,6 +864,118 @@ function CancellationRequestsPanel({ sessions, onDone }: {
         <Modal open title={`Cancellation Requests (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
             {sessions.map((s, i) => row(s, i, sessions))}
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+function ConcernsPanel({ concerns, onDone }: {
+  concerns: ConcernResponse[]
+  onDone: () => void
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const navigate = useNavigate()
+  const [showAll, setShowAll] = useState(false)
+  const PREVIEW = 3
+
+  const ackMut = useMutation({
+    mutationFn: (id: string) => concernsApi.acknowledge(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollment-concerns-open'] })
+      qc.invalidateQueries({ queryKey: ['enrollment-concerns'] })
+      toast('Concern acknowledged', 'success')
+      onDone()
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to acknowledge'), 'error'),
+  })
+
+  const row = (c: ConcernResponse, i: number, arr: ConcernResponse[]) => (
+    <div key={c.id} className="px-4 sm:px-6 py-3"
+      style={{
+        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+        transform: 'translateZ(0)',
+      }}>
+      <div className="flex items-start justify-between gap-3">
+        <button
+          onClick={() => navigate(ROUTES.patient(c.patientId))}
+          className="flex-1 min-w-0 text-left"
+        >
+          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
+            {c.patientFirstName} {c.patientLastName}
+          </p>
+          <p className="text-xs mt-0.5 truncate" style={{ color: colors.text.muted }}>
+            {c.programName}
+          </p>
+          <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.text.dim }}>
+            {c.description}
+          </p>
+          <p className="text-[11px] mt-1" style={{ color: colors.text.dim }}>
+            Raised {formatDateStr(c.raisedAt)}
+          </p>
+        </button>
+        <button
+          disabled={ackMut.isPending}
+          onClick={() => ackMut.mutate(c.id)}
+          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50 flex-shrink-0"
+          style={{ background: accentAlpha(0.10), color: colors.accent }}>
+          Acknowledge
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div style={{
+        ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.status.warning}`,
+        minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+      }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <MessageSquareWarning size={16} style={{ color: colors.status.warning }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              Parent Concerns
+            </h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: warningAlpha(0.09), color: colors.status.warning }}>
+              {concerns.length}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          {concerns.length === 0 ? (
+            <div className="h-full flex flex-col justify-center">
+              <EmptyState
+                icon={<MessageSquareWarning size={22} />}
+                title="No open concerns"
+                description="Concerns parents raise about a program will show up here."
+              />
+            </div>
+          ) : (
+            <div>
+              {concerns.slice(0, PREVIEW).map((c, i) => row(c, i, concerns.slice(0, PREVIEW)))}
+            </div>
+          )}
+        </div>
+
+        {concerns.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.status.warning }}>
+              View all {concerns.length} concerns
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={`Parent Concerns (${concerns.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {concerns.map((c, i) => row(c, i, concerns))}
           </div>
         </Modal>
       )}
@@ -1863,6 +1976,14 @@ export default function DashboardPage() {
     enabled: isOwnerOrAdmin,
     staleTime: 2 * 60 * 1000,
   })
+  // Parent-raised concerns, org-wide — Admin Roles only (Business Owner / Clinic Head /
+  // Office Admin). Therapists already see concerns on their own patients' Case details page.
+  const { data: openConcerns = [], isLoading: loadingConcerns, refetch: refetchConcerns } = useQuery({
+    queryKey: ['enrollment-concerns-open'],
+    queryFn: () => concernsApi.list({ status: 'OPEN' }),
+    enabled: isOwnerOrAdmin,
+    staleTime: 2 * 60 * 1000,
+  })
   // Still SCHEDULED but the session's own end time has already passed — nobody
   // marked it complete/missed or wrote it up. Only shows on the assigned
   // Therapist's own dashboard, since they're the one who has to act on it.
@@ -1996,6 +2117,7 @@ export default function DashboardPage() {
         const hasReschedule   = canReschedule && pendingReschedule.length > 0
         const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
         const hasPendingNotes = isTherapistRole && pendingNotes.length > 0
+        const hasConcerns     = isOwnerOrAdmin && openConcerns.length > 0
 
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2010,6 +2132,13 @@ export default function DashboardPage() {
               <CancellationRequestsPanel
                 sessions={cancellationRequests}
                 onDone={() => refetchCancelRequests()}
+              />
+            ))}
+
+            {isOwnerOrAdmin && (loadingConcerns ? <CardSkeleton /> : hasConcerns && (
+              <ConcernsPanel
+                concerns={openConcerns}
+                onDone={() => refetchConcerns()}
               />
             ))}
 
