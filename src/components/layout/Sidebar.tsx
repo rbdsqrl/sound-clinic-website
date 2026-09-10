@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, Stethoscope, Users,
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
-  ChevronLeft, ChevronRight, ChevronUp, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library, Home,
+  ChevronLeft, ChevronRight, ChevronUp, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library, Home, Target,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -72,6 +72,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.dashboard,          label: 'Dashboard',            icon: LayoutDashboard },
     { to: ROUTES.feed,               label: 'Feed',                 icon: Newspaper },
     { to: ROUTES.myChildren,         label: 'My Children',          icon: Baby },
+    { to: ROUTES.myIEP,              label: 'IEP',                  icon: Target },
     { to: ROUTES.homePlanActivities, label: 'Home Plan Activities', icon: Home },
     { to: ROUTES.calendar,           label: 'Calendar',             icon: CalendarDays },
   ],

@@ -31,6 +31,7 @@ import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import ActivitiesPage from './pages/activities/ActivitiesPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import HomePlanActivitiesPage from './pages/patients/HomePlanActivitiesPage'
+import MyIEPPage from './pages/patients/MyIEPPage'
 import CreateActivityPage from './pages/activities/CreateActivityPage'
 import ActivityDetailPage from './pages/activities/ActivityDetailPage'
 
@@ -98,6 +99,7 @@ function AppRoutes() {
         <Route path={ROUTES.activities}     element={<ActivitiesPage />} />
         <Route path={ROUTES.resources}      element={<ResourcesPage />} />
         <Route path={ROUTES.homePlanActivities} element={<HomePlanActivitiesPage />} />
+        <Route path={ROUTES.myIEP}              element={<MyIEPPage />} />
         <Route path={ROUTES.createActivity} element={<CreateActivityPage />} />
         <Route path="/activities/:id/edit"  element={<CreateActivityPage />} />
         <Route path="/activities/:id"       element={<ActivityDetailPage />} />

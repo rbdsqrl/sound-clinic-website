@@ -147,6 +147,7 @@ src/
     │
     ├── patients/
     │   ├── MyChildrenPage.tsx       # PARENT role: their linked children
+    │   ├── MyIEPPage.tsx            # PARENT role: child picker + read-only IEPTab for that child
     │   ├── PatientDetailPage.tsx    # View patient + manage conditions/parents/therapists
     │   ├── PatientsPage.tsx         # List + filter patients
     │   └── SharedMediaTab.tsx       # "Videos" tab — parent↔clinic video/note sharing
@@ -174,6 +175,7 @@ src/
 /patients           → PatientsPage           │
 /patients/:id       → PatientDetailPage      │ all wrapped in PrivateRoute → AppLayout
 /my-children        → MyChildrenPage         │
+/my-iep             → MyIEPPage               │
 /invitations        → InvitationsPage        │
 /calendar           → CalendarPage           │
 /availability       → AvailabilityPage       │
@@ -200,7 +202,7 @@ THERAPIST:
   Dashboard, Clinics, Patients, Calendar, My Leave
 
 PARENT:
-  Dashboard, My Children, Progress, Calendar
+  Dashboard, My Children, IEP, Home Plan Activities, Calendar
 
 PATIENT:
   Dashboard

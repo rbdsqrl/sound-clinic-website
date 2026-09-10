@@ -28,6 +28,8 @@ export const ROUTES = {
   resources:          '/resources',
   /** Parent-facing view — activities and resources assigned to their own child(ren), not the full library. */
   homePlanActivities: '/home-plan-activities',
+  /** Parent-facing view — IEP plans/goals assigned to their own child(ren). */
+  myIEP:              '/my-iep',
   createActivity:     '/activities/new',
   editActivity:       (id: string) => `/activities/${id}/edit`,
 } as const
