@@ -13,7 +13,6 @@ import { therapySessionsApi } from '../api/therapySessions'
 import { usersApi } from '../api/users'
 import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
-import ChildrenProgressChart from '../components/charts/ChildrenProgressChart'
 import { PageLoader } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
@@ -1920,17 +1919,6 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-
-        {loadingChildren ? (
-          <CardSkeleton />
-        ) : myChildren && myChildren.length > 0 && (
-          <div style={{ ...styles.card, padding: 20 }}>
-            <h2 className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
-              Progress — last 30 days
-            </h2>
-            <ChildrenProgressChart children={myChildren} />
-          </div>
-        )}
 
         {loadingChildren ? (
           <CardSkeleton />
