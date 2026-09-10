@@ -41,7 +41,7 @@ export function ResourcePickerModal({ selected, onConfirm, onClose }: {
     setDraft(prev => isSelected(r) ? prev.filter(d => d.id !== r.id) : [...prev, r])
 
   return (
-    <Modal open title="Add from Resources library" onClose={onClose} size="lg">
+    <Modal open title="Add from Activity Resources library" onClose={onClose} size="lg">
       {/* Selected chips */}
       {draft.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-3 pb-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
@@ -61,7 +61,7 @@ export function ResourcePickerModal({ selected, onConfirm, onClose }: {
           className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors"
           style={{ color: folder ? colors.text.muted : colors.accent, fontWeight: folder ? 400 : 600 }}
         >
-          <Home size={13} /> Resources
+          <Home size={13} /> Activity Resources
         </button>
         {breadcrumb.map(b => (
           <span key={b.id} className="flex items-center gap-1.5">

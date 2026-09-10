@@ -456,7 +456,7 @@ export default function CreateActivityPage() {
           </div>
 
           <div className="mt-4">
-            <label className="form-label">From your Resources library</label>
+            <label className="form-label">From your Activity Resources library</label>
             {linkedResources.length > 0 && (
               <ul className="space-y-1.5 mb-2">
                 {linkedResources.map((r) => {
@@ -477,7 +477,7 @@ export default function CreateActivityPage() {
               </ul>
             )}
             <Button type="button" variant="secondary" size="sm" onClick={() => setShowResourcePicker(true)}>
-              <Library size={14} /> Add from Resources library
+              <Library size={14} /> Add from Activity Resources library
             </Button>
           </div>
         </SectionCard>

@@ -9,6 +9,7 @@ import type {
   CreateResourceRequest,
   UpdateResourceRequest,
   AssignResourceRequest,
+  AssignFolderResponse,
 } from '../types'
 
 export const resourcesApi = {
@@ -25,6 +26,10 @@ export const resourcesApi = {
 
   unassign: (assignmentId: string) =>
     client.delete(`/resources/assignments/${assignmentId}`),
+
+  /** Assigns every resource in a folder (subfolders included) to a patient in one call. */
+  assignFolder: (folderId: string, data: AssignResourceRequest) =>
+    client.post<ApiResponse<AssignFolderResponse>>(`/resources/folders/${folderId}/assign`, data).then(r => r.data.data),
 
   /** Resources assigned to one patient — staff can pass any patient in their org, a Parent only their own child. */
   listAssignments: (patientId: string) =>

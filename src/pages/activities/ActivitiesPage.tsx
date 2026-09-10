@@ -242,7 +242,7 @@ export default function ActivitiesPage() {
       {tab === 'mine' && (
         <>
           <hr className="my-8" style={{ borderColor: border.divider }} />
-          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>Resources</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: colors.text.dim }}>Activity Resources</h2>
           <ResourcesPage ref={resourcesRef} embedded externalSearch={search} hideAddResourceButton />
         </>
       )}

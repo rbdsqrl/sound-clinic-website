@@ -2130,7 +2130,9 @@ export interface UpdateResourceRequest {
 }
 
 /** A Resources-library item assigned to one patient — what shows up in the Parent app, which
- *  never browses the library itself, only what's been assigned to their own child. */
+ *  never browses the library itself, only what's been assigned to their own child. `folderPath`
+ *  is the library breadcrumb joined with " / " (e.g. "Alphabet / Tracing"), null for a resource
+ *  that lives at the library root — lets the Parent app group assignments by folder. */
 export interface ResourceAssignmentResponse {
   id: string
   resourceId: string
@@ -2138,6 +2140,8 @@ export interface ResourceAssignmentResponse {
   resourceType: ResourceType
   resourceUrl: string
   hosted: boolean
+  folderId: string | null
+  folderPath: string | null
   patientId: string
   assignedBy: string
   assignedByName: string
@@ -2146,4 +2150,12 @@ export interface ResourceAssignmentResponse {
 
 export interface AssignResourceRequest {
   patientId: string
+}
+
+/** Summary returned after assigning a whole folder's resources (subfolders included) to a
+ *  patient in one call — an item already assigned to that patient is skipped, not an error. */
+export interface AssignFolderResponse {
+  totalResources: number
+  assignedCount: number
+  alreadyAssignedCount: number
 }

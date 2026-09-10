@@ -79,7 +79,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
   PATIENT: [
     { to: ROUTES.dashboard, label: 'Dashboard', icon: LayoutDashboard },
     { to: ROUTES.feed,      label: 'Feed',      icon: Newspaper },
-    { to: ROUTES.resources, label: 'Resources', icon: Library },
+    { to: ROUTES.resources, label: 'Activity Resources', icon: Library },
     { to: ROUTES.workforce, label: 'Workforce', icon: Briefcase },
   ],
 }

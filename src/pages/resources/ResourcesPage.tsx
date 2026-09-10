@@ -79,6 +79,7 @@ const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(functi
   const [deleteResourceTarget, setDeleteResourceTarget] = useState<ResourceResponse | null>(null)
   const [viewerTarget, setViewerTarget] = useState<ResourceResponse | null>(null)
   const [assignTarget, setAssignTarget] = useState<ResourceResponse | null>(null)
+  const [assignFolderTarget, setAssignFolderTarget] = useState<ResourceFolderResponse | null>(null)
   const [deleteFolderError, setDeleteFolderError] = useState<string | null>(null)
   const [deleteResourceError, setDeleteResourceError] = useState<string | null>(null)
 
@@ -124,7 +125,7 @@ const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(functi
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {!embedded ? (
           <div>
-            <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Resources</h1>
+            <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Activity Resources</h1>
             <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
               Activities, printables and worksheets for take-home practice
             </p>
@@ -179,7 +180,7 @@ const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(functi
           className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors"
           style={{ color: folder ? colors.text.muted : colors.accent, fontWeight: folder ? 400 : 600 }}
         >
-          <Home size={13} /> Resources
+          <Home size={13} /> Activity Resources
         </button>
         {breadcrumb.map(b => (
           <span key={b.id} className="flex items-center gap-1.5">
@@ -292,37 +293,56 @@ const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(functi
           })}
 
           {subfolders.map(f => (
-            <div
-              key={f.id}
-              onClick={() => openFolder(f.id)}
-              role="button"
-              tabIndex={0}
-              className={gridCardStyle}
-              style={styles.card}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}
-            >
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
-                <Folder size={17} style={{ color: colors.accent }} />
+            <div key={f.id} className="rounded-2xl overflow-hidden" style={styles.card}>
+              <div
+                onClick={() => openFolder(f.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter') openFolder(f.id) }}
+                className={gridCardStyle}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+              >
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: accentAlpha(0.10) }}>
+                  <Folder size={17} style={{ color: colors.accent }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                    {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
+                    {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
+                    {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate" style={{ color: colors.text.primary }}>{f.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-                  {f.subfolderCount > 0 && `${f.subfolderCount} folder${f.subfolderCount !== 1 ? 's' : ''}`}
-                  {f.subfolderCount > 0 && f.resourceCount > 0 && ' · '}
-                  {(f.resourceCount > 0 || f.subfolderCount === 0) && `${f.resourceCount} resource${f.resourceCount !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-              {canManage && (
-                <button
-                  onClick={e => { e.stopPropagation(); setDeleteFolderError(null); setDeleteFolderTarget(f) }}
-                  className="p-2 rounded-lg transition-colors flex-shrink-0"
-                  style={{ color: colors.text.dim }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
-                >
-                  <Trash2 size={14} />
-                </button>
+
+              {/* Actions live outside the open-folder click target, same reasoning as the
+                  resource cards above — a stray click on Assign/Delete would otherwise also
+                  navigate into the folder. */}
+              {(canAssign || canManage) && (
+                <div className="flex items-center gap-2 px-4 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
+                  {canAssign && (
+                    <button
+                      onClick={() => setAssignFolderTarget(f)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors"
+                      style={paletteStyle('teal', 0.12, 0)}
+                    >
+                      <UserPlus size={13} /> Assign to Patient
+                    </button>
+                  )}
+                  {canManage && (
+                    <button
+                      onClick={() => { setDeleteFolderError(null); setDeleteFolderTarget(f) }}
+                      className="p-2 rounded-lg transition-colors flex-shrink-0"
+                      style={{ color: colors.text.dim }}
+                      title="Delete"
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.status.danger}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.dim}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ))}
@@ -352,6 +372,10 @@ const ResourcesPage = forwardRef<ResourcesPageHandle, ResourcesPageProps>(functi
 
       {assignTarget && (
         <AssignResourceModal resource={assignTarget} onClose={() => setAssignTarget(null)} />
+      )}
+
+      {assignFolderTarget && (
+        <AssignFolderModal folder={assignFolderTarget} onClose={() => setAssignFolderTarget(null)} />
       )}
 
       {deleteFolderTarget && (
@@ -462,6 +486,93 @@ function AssignResourceModal({ resource, onClose }: { resource: ResourceResponse
 
   return (
     <Modal open title={`Assign “${resource.name}” to a patient`} onClose={onClose} error={error}>
+      <div className="relative">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
+        <input
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setError(null) }}
+          placeholder="Search cases by name…"
+          className="form-input pl-8 w-full"
+          autoFocus
+        />
+      </div>
+
+      <div className="mt-3 max-h-64 overflow-y-auto flex flex-col gap-1">
+        {debouncedQuery.length < 2 ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>Type at least 2 characters to search</p>
+        ) : isFetching ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>Searching…</p>
+        ) : patients.length === 0 ? (
+          <p className="text-xs py-3 text-center" style={{ color: colors.text.dim }}>No matching cases found</p>
+        ) : (
+          patients.map((p: PatientResponse) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={assignMut.isPending}
+              onClick={() => { setError(null); assignMut.mutate(p.id) }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors disabled:opacity-50"
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            >
+              <Avatar initials={`${p.firstName[0]}${p.lastName[0] ?? ''}`} name={`${p.firstName} ${p.lastName}`} size="sm" />
+              <span className="text-sm font-medium" style={{ color: colors.text.primary }}>{p.firstName} {p.lastName}</span>
+            </button>
+          ))
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ── Assign an entire folder to a patient ────────────────────────────────────────
+
+function AssignFolderModal({ folder, onClose }: { folder: ResourceFolderResponse; onClose: () => void }) {
+  const { toast } = useToast()
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const { data: results, isFetching } = useQuery({
+    queryKey: ['patients-search', debouncedQuery],
+    queryFn: () => patientsApi.search({ search: debouncedQuery, compact: true, size: 8 }),
+    enabled: debouncedQuery.length >= 2,
+  })
+
+  const assignMut = useMutation({
+    mutationFn: (patientId: string) => resourcesApi.assignFolder(folder.id, { patientId }),
+    onSuccess: (summary, patientId) => {
+      const name = results?.content.find(p => p.id === patientId)
+      const who = name ? `${name.firstName} ${name.lastName}` : 'the patient'
+      if (summary.totalResources === 0) {
+        toast(`“${folder.name}” has no resources to assign`, 'error')
+      } else if (summary.assignedCount === 0) {
+        toast(`All ${summary.totalResources} resources in “${folder.name}” were already assigned to ${who}`, 'success')
+      } else {
+        toast(
+          `Assigned ${summary.assignedCount} resource${summary.assignedCount !== 1 ? 's' : ''} in “${folder.name}” to ${who}`
+          + (summary.alreadyAssignedCount > 0 ? ` (${summary.alreadyAssignedCount} already were)` : ''),
+          'success',
+        )
+      }
+      onClose()
+    },
+    onError: (err) => setError(getApiError(err, 'Failed to assign folder')),
+  })
+
+  const patients = results?.content ?? []
+
+  return (
+    <Modal open title={`Assign “${folder.name}” to a patient`} onClose={onClose} error={error}>
+      <p className="text-xs -mt-1 mb-3" style={{ color: colors.text.muted }}>
+        Every resource inside this folder, including subfolders, will be assigned.
+      </p>
       <div className="relative">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.dim }} />
         <input
