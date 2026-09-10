@@ -290,6 +290,76 @@ function TodaySessions({
   )
 }
 
+/** Parent dashboard's "Upcoming Sessions" tile — next few sessions across all of the parent's
+ *  children, sorted soonest-first. Unlike TodaySessions (one calendar day, time-only rows), rows
+ *  here span multiple days so each one shows its date too. */
+function UpcomingSessions({ sessions }: { sessions: TherapySessionResponse[] }) {
+  const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
+
+  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
+    <Link
+      key={s.id}
+      to={`/patients/${s.patientId}`}
+      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+      onMouseEnter={ROW_HOVER_IN}
+      onMouseLeave={ROW_HOVER_OUT}
+    >
+      <div className="flex-shrink-0 w-14 sm:w-16">
+        <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
+          {format(parseISO(s.sessionDate), 'MMM d')}
+        </p>
+        <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>
+          {formatTimeStr(s.startTime)}
+        </p>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+          {s.programName}
+        </p>
+        <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+          {s.patientFirstName} {s.patientLastName}
+          <span style={{ color: colors.text.dim }}>
+            {' · '}{s.therapistFirstName} {s.therapistLastName}
+          </span>
+        </p>
+      </div>
+
+      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-center flex-shrink-0 whitespace-nowrap"
+        style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
+        {sessionStatusLabel(s.status)}
+      </span>
+    </Link>
+  )
+
+  return (
+    <div style={sectionCard}>
+      <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <div className="flex items-center gap-2">
+          <CalendarDays size={16} style={{ color: colors.accent }} />
+          <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+            Upcoming Sessions
+          </h2>
+        </div>
+        <Link to="/calendar" className="text-xs transition-colors" style={{ color: colors.accent }}>
+          Open calendar →
+        </Link>
+      </div>
+
+      {sessions.length === 0 ? (
+        <div className="py-10 flex flex-col items-center justify-center gap-2">
+          <CalendarDays size={28} style={{ color: colors.text.dim }} />
+          <p className="text-sm" style={{ color: colors.text.muted }}>No upcoming sessions scheduled</p>
+        </div>
+      ) : (
+        <div>{sessions.map((s, i) => row(s, i, sessions))}</div>
+      )}
+    </div>
+  )
+}
+
 function RescheduleModal({
   session,
   onClose,
@@ -1991,6 +2061,18 @@ export default function DashboardPage() {
   const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
   const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients'],    queryFn: patientsApi.list,       enabled: isStaff })
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
+  // Next few sessions across all of this parent's children — widened to a 90-day window since
+  // sessions can run weekly or less often, then trimmed client-side to the soonest 3 still live
+  // (skips CANCELLED/COMPLETED/NO_SHOW; the backend already sorts ascending by date then time).
+  const { data: upcomingSessionsRaw = [], isLoading: loadingUpcoming } = useQuery({
+    queryKey: ['therapy-sessions-cal', { from: today, to: format(addDays(new Date(), 90), 'yyyy-MM-dd') }],
+    queryFn: () => therapySessionsApi.list({ from: today, to: format(addDays(new Date(), 90), 'yyyy-MM-dd') }),
+    enabled: isParentView,
+    staleTime: 2 * 60 * 1000,
+  })
+  const upcomingSessions = upcomingSessionsRaw
+    .filter(s => s.status !== 'CANCELLED' && s.status !== 'COMPLETED' && s.status !== 'NO_SHOW')
+    .slice(0, PREVIEW)
   // Same queryKey shape as useCalendarBadge (Sidebar) and CalendarPage's 'therapy-sessions-cal'
   // cache — both request today's sessions with identical params, so sharing the key means one
   // network call instead of two whenever the Sidebar and Dashboard are mounted together.
@@ -2119,6 +2201,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {loadingUpcoming ? <CardSkeleton /> : <UpcomingSessions sessions={upcomingSessions} />}
 
         <FeedPanel />
       </div>
