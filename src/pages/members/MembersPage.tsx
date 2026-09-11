@@ -60,13 +60,14 @@ function canWithdraw(status: InviteResponse['status']): boolean {
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
-  member, clinicName, onDelete, onActivate, onReinvite, onSelect,
+  member, clinicName, onDelete, onActivate, onReinvite, onHardDelete, onSelect,
 }: {
   member: StaffMemberResponse
   clinicName: string
   onDelete?: () => void
   onActivate?: () => void
   onReinvite?: () => void
+  onHardDelete?: () => void
   onSelect: () => void
 }) {
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
@@ -165,6 +166,18 @@ function MemberCard({
               <Trash2 size={13} />
             </button>
           )}
+          {onHardDelete && (
+            <button
+              onClick={e => { e.stopPropagation(); onHardDelete() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.status.error }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Permanently delete member"
+            >
+              <Trash2 size={13} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -174,13 +187,14 @@ function MemberCard({
 // ── Member row (list view) ────────────────────────────────────────────────────
 
 function MemberRow({
-  member, clinicName, onDelete, onActivate, onReinvite, onSelect,
+  member, clinicName, onDelete, onActivate, onReinvite, onHardDelete, onSelect,
 }: {
   member: StaffMemberResponse
   clinicName: string
   onDelete?: () => void
   onActivate?: () => void
   onReinvite?: () => void
+  onHardDelete?: () => void
   onSelect: () => void
 }) {
   const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase()
@@ -257,6 +271,18 @@ function MemberRow({
               <Trash2 size={13} />
             </button>
           )}
+          {onHardDelete && (
+            <button
+              onClick={e => { e.stopPropagation(); onHardDelete() }}
+              className="flex items-center justify-center rounded-lg p-1.5 transition-colors"
+              style={{ color: colors.status.error }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = dangerAlpha(0.08) }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              title="Permanently delete member"
+            >
+              <Trash2 size={13} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -272,6 +298,9 @@ export default function MembersPage() {
   const { user, activeRole } = useAuth()
   const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
   const isOfficeAdmin = (activeRole ?? user?.role) === 'OFFICE_ADMIN'
+  // Permanently deleting an archived member is Admin Roles (Business Owner, Clinic Head,
+  // Office Admin) — broader than isOwner, which everything else on this page still uses.
+  const isAdminTier = isOwner || (activeRole ?? user?.role) === 'CLINIC_HEAD' || isOfficeAdmin
   // Office Admin can invite front-line staff, but not org leadership.
   const invitableRoles = isOfficeAdmin
     ? INVITABLE_ROLES.filter(r => r.value !== 'BUSINESS_OWNER' && r.value !== 'CLINIC_HEAD')
@@ -279,6 +308,8 @@ export default function MembersPage() {
 
   const [tab, setTab]               = useState<Tab>('members')
   const [deleteTarget, setDeleteTarget] = useState<StaffMemberResponse | null>(null)
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<StaffMemberResponse | null>(null)
+  const [hardDeleteError, setHardDeleteError] = useState<string | null>(null)
   const [viewMode, setViewMode]     = useState<ViewMode>('grid')
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -305,6 +336,7 @@ export default function MembersPage() {
 
   useEffect(() => { if (showInviteModal) setInviteError(null) }, [showInviteModal])
   useEffect(() => { if (deleteTarget) setDeleteError(null) }, [deleteTarget])
+  useEffect(() => { if (hardDeleteTarget) setHardDeleteError(null) }, [hardDeleteTarget])
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   // Tab badges show unfiltered totals for Members/Archived, so these are fetched
@@ -415,6 +447,16 @@ export default function MembersPage() {
       setDeleteTarget(null)
     },
     onError: (err) => setDeleteError(getApiError(err, 'Failed to delete member')),
+  })
+
+  const hardDeleteMemberMut = useMutation({
+    mutationFn: (id: string) => usersApi.hardDeleteMember(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] })
+      toast('Member permanently deleted', 'success')
+      setHardDeleteTarget(null)
+    },
+    onError: (err) => setHardDeleteError(getApiError(err, 'Failed to permanently delete member')),
   })
 
   // ── Filtering ─────────────────────────────────────────────────────────────────
@@ -702,6 +744,7 @@ export default function MembersPage() {
                 onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                 onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
                 onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
+                onHardDelete={isAdminTier && !m.isActive ? () => setHardDeleteTarget(m) : undefined}
                 onSelect={() => navigate(ROUTES.member(m.id))} />
             ))}
           </div>
@@ -722,6 +765,7 @@ export default function MembersPage() {
                     onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
                     onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
                     onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
+                    onHardDelete={isAdminTier && !m.isActive ? () => setHardDeleteTarget(m) : undefined}
                     onSelect={() => navigate(ROUTES.member(m.id))} />
                 ))}
               </tbody>
@@ -854,6 +898,26 @@ export default function MembersPage() {
                 <Trash2 size={14} /> Deactivate member
               </Button>
               <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Permanent delete confirmation — archived members only */}
+      <Modal open={!!hardDeleteTarget} onClose={() => setHardDeleteTarget(null)} title="Permanently Delete Member" error={hardDeleteError}>
+        {hardDeleteTarget && (
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: colors.text.primary }}>
+              This permanently removes <strong>{hardDeleteTarget.firstName} {hardDeleteTarget.lastName}</strong>'s
+              account. Unlike deactivating, this <strong>cannot be undone</strong>. If they still have any
+              historical records — past sessions, cases, leave, meetings — this will fail and they'll stay archived
+              instead.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="danger" onClick={() => { setHardDeleteError(null); hardDeleteMemberMut.mutate(hardDeleteTarget.id) }} loading={hardDeleteMemberMut.isPending}>
+                <Trash2 size={14} /> Permanently delete
+              </Button>
+              <Button variant="secondary" onClick={() => setHardDeleteTarget(null)}>Cancel</Button>
             </div>
           </div>
         )}

@@ -27,7 +27,7 @@ import type { CreatePatientRequest, Gender, PatientResponse } from '../../types'
 type CaseStatus = 'ACTIVE' | 'INACTIVE'
 
 function caseStatus(p: PatientResponse): CaseStatus {
-  return p.stage === 'DISCHARGED' ? 'INACTIVE' : 'ACTIVE'
+  return p.stage === 'DISCHARGED' || !p.isActive ? 'INACTIVE' : 'ACTIVE'
 }
 
 const STATUS_LABEL: Record<CaseStatus, string> = {

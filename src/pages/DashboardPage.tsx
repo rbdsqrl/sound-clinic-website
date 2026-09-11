@@ -1191,8 +1191,8 @@ function OrgOverview({ patients, members, invites }: {
   members: StaffMemberResponse[]
   invites: InviteResponse[]
 }) {
-  const activeCases   = patients.filter(p => p.stage !== 'DISCHARGED').length
-  const inactiveCases = patients.filter(p => p.stage === 'DISCHARGED').length
+  const activeCases   = patients.filter(p => p.stage !== 'DISCHARGED' && p.isActive).length
+  const inactiveCases = patients.filter(p => p.stage === 'DISCHARGED' || !p.isActive).length
 
   const activeMembers  = members.filter(m => m.isActive).length
   const invitedMembers = invites.filter(i => i.status === 'PENDING').length

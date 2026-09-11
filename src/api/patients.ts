@@ -54,6 +54,12 @@ export const patientsApi = {
   updateStage: (id: string, stage: PatientStage) =>
     client.patch<ApiResponse<PatientResponse>>(`/patients/${id}/stage`, { stage }).then((r) => r.data.data),
 
+  /** Marks a case active/inactive independently of stage — for a case that never fully
+   *  enrolled and needs pulling off the active list without a full discharge. Going inactive
+   *  cancels the case's still-upcoming sessions; going active again restores them. */
+  setActive: (id: string, active: boolean) =>
+    client.patch<ApiResponse<PatientResponse>>(`/patients/${id}/active`, { active }).then((r) => r.data.data),
+
   delete: (id: string) =>
     client.delete(`/patients/${id}`),
 

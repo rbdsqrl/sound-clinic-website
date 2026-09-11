@@ -1622,6 +1622,7 @@ export default function PatientDetailPage() {
   const [conditionsPage,   setConditionsPage]   = useState(0)
   const [sidebarSearch,    setSidebarSearch]    = useState('')
   const [dischargeModal,   setDischargeModal]   = useState(false)
+  const [markInactiveConfirm, setMarkInactiveConfirm] = useState(false)
 
   // Derive role early so queries can use it as a gate
   const currentRoleEarly = activeRole ?? user?.role
@@ -1671,6 +1672,18 @@ export default function PatientDetailPage() {
     mutationFn: (stage: PatientStage) => patientsApi.updateStage(id!, stage),
     onSuccess: () => { refresh(); toast('Stage updated', 'success') },
     onError:   (err) => toast(getApiError(err, 'Failed to update stage'), 'error'),
+  })
+
+  // Mark case active/inactive — independent of stage, for a case that never fully enrolled
+  const setActiveMutation = useMutation({
+    mutationFn: (active: boolean) => patientsApi.setActive(id!, active),
+    onSuccess: (_, active) => {
+      refresh()
+      queryClient.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      setMarkInactiveConfirm(false)
+      toast(active ? 'Case marked active — cancelled sessions restored' : 'Case marked inactive — upcoming sessions cancelled', 'success')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update case status'), 'error'),
   })
 
   // Condition mutations
@@ -1885,6 +1898,22 @@ export default function PatientDetailPage() {
         />
       )}
 
+      <Modal open={markInactiveConfirm} onClose={() => setMarkInactiveConfirm(false)} title="Mark Case Inactive">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: colors.text.primary }}>
+            Mark <strong>{patient.firstName} {patient.lastName}</strong> inactive? This removes the case from the
+            active list and cancels every upcoming scheduled session. This is for a case that hasn't fully
+            enrolled — for a case with completed programs, use Discharge Case instead.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="danger" onClick={() => setActiveMutation.mutate(false)} loading={setActiveMutation.isPending}>
+              <Ban size={14} /> Mark Inactive
+            </Button>
+            <Button variant="secondary" onClick={() => setMarkInactiveConfirm(false)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* ── Tab strip ────────────────────────────────────────────────────── */}
       <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
         {visibleTabs.map(tab => (
@@ -1956,6 +1985,27 @@ export default function PatientDetailPage() {
                         <Pencil size={13} /> Edit
                       </button>
                     )}
+                    {canChangeStage && patient.stage !== 'DISCHARGED' && patient.isActive && (
+                      <button
+                        onClick={() => setMarkInactiveConfirm(true)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ color: colors.text.muted, border: `1px solid ${border.divider}` }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colors.status.error; (e.currentTarget as HTMLElement).style.borderColor = colors.status.error }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = colors.text.muted; (e.currentTarget as HTMLElement).style.borderColor = border.divider }}
+                      >
+                        <Ban size={13} /> Mark Inactive
+                      </button>
+                    )}
+                    {canChangeStage && patient.stage !== 'DISCHARGED' && !patient.isActive && (
+                      <button
+                        onClick={() => setActiveMutation.mutate(true)}
+                        disabled={setActiveMutation.isPending}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        style={{ color: colors.status.success, border: `1px solid ${colors.status.success}30` }}
+                      >
+                        <UserCheck size={13} /> Mark Active
+                      </button>
+                    )}
                     {canChangeStage && patient.stage !== 'DISCHARGED' && (
                       <button
                         onClick={() => setDischargeModal(true)}
@@ -1983,7 +2033,7 @@ export default function PatientDetailPage() {
                     ['Date of Birth', patient.dateOfBirth ? formatDateStr(patient.dateOfBirth) : null],
                     ['Gender', patient.gender?.toLowerCase()],
                     ['Clinic', clinicName],
-                    ['Status', patient.stage === 'DISCHARGED' ? 'Inactive' : 'Active'],
+                    ['Status', patient.stage === 'DISCHARGED' || !patient.isActive ? 'Inactive' : 'Active'],
                   ].map(([label, value]) => (
                     <div key={label as string}>
                       <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
