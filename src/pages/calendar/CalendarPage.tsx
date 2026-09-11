@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -17,6 +18,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { getAvatarColorStyles, getAvatarChipStyle } from '../../lib/avatarColor'
+import { Avatar } from '../../components/shared/Avatar'
 import { hasRole } from '../../types'
 import { inquiriesApi } from '../../api/inquiries'
 import { leavesApi } from '../../api/leaves'
@@ -373,6 +375,101 @@ function sessionTherapistName(ev: CalendarEvent): string | undefined {
   return `${s.therapistFirstName} ${s.therapistLastName}`
 }
 
+/** Kind label shown in the hover card — mirrors EventDetailDrawer's per-kind header text. */
+function eventKindLabel(kind: EventKind): string {
+  switch (kind) {
+    case 'consultation': return 'Consultation'
+    case 'session':      return 'Therapy Session'
+    case 'holiday':      return 'Public Holiday'
+    case 'review':       return 'Review Meeting'
+    case 'meeting':      return 'Meeting'
+    case 'leave':        return 'Leave'
+  }
+}
+
+/** Attendee names shown in the hover card — never includes cost/price info. */
+function eventHoverAttendees(event: CalendarEvent): string[] {
+  if (event.kind === 'session') {
+    const s = event.raw as TherapySessionResponse
+    return [`${s.therapistFirstName} ${s.therapistLastName}`, `${s.patientFirstName} ${s.patientLastName}`]
+  }
+  if (event.kind === 'review') {
+    const r = event.raw as ReviewMeetingResponse
+    return (r.participants ?? []).map(p => `${p.firstName} ${p.lastName}`)
+  }
+  if (event.kind === 'meeting') {
+    const m = event.raw as MeetingResponse
+    return (m.participants ?? []).map(p => `${p.firstName} ${p.lastName}`)
+  }
+  if (event.kind === 'leave') {
+    const l = event.raw as LeaveResponse
+    return [`${l.therapistFirstName} ${l.therapistLastName}`]
+  }
+  return []
+}
+
+/**
+ * Hover card for a calendar pill — quick-glance date/time and attendees.
+ *
+ * Deliberately does not show cost/price: hovering is a fast peek anyone with calendar
+ * access can trigger, not a billing view, so session fees stay out of it.
+ */
+function EventHoverCard({ event, pos }: {
+  event: CalendarEvent
+  pos: { left: number; top: number; openUpward: boolean }
+}) {
+  const s = kindStyle(event.kind, event.status)
+  const isSession = event.kind === 'session'
+  const isReview  = event.kind === 'review'
+
+  const timeLabel = isSession
+    ? `${formatTimeStr((event.raw as TherapySessionResponse).startTime)} – ${formatTimeStr((event.raw as TherapySessionResponse).endTime)}`
+    : isReview
+      ? `${formatTimeStr((event.raw as ReviewMeetingResponse).startTime)} – ${formatTimeStr((event.raw as ReviewMeetingResponse).endTime)}`
+      : event.time ? formatTimeStr(event.time) : undefined
+
+  const attendees = eventHoverAttendees(event)
+
+  return createPortal(
+    <div
+      className="fixed z-50 pointer-events-none rounded-2xl p-4 w-72 max-w-[86vw]"
+      style={{
+        left: pos.left,
+        top: pos.top,
+        ...(pos.openUpward ? { transform: 'translateY(-100%)' } : {}),
+        background: surface.card,
+        border: `1px solid ${border.medium}`,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: s.color as string }}>
+        {eventKindLabel(event.kind)}
+      </p>
+      <p className="text-sm font-semibold mb-2 leading-snug" style={{ color: colors.text.primary }}>
+        {event.title}
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <Row icon={<CalendarDays size={13} />} label={formatDateStr(event.date)} />
+        {timeLabel && <Row icon={<Clock size={13} />} label={timeLabel} />}
+        {!isSession && !isReview && event.subtitle && (
+          <Row icon={<Users size={13} />} label={event.subtitle} />
+        )}
+      </div>
+      {attendees.length > 0 && (
+        <div className="pt-2 mt-2 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${border.divider}` }}>
+          {attendees.map((name, i) => (
+            <div key={`${name}-${i}`} className="flex items-center gap-2 min-w-0">
+              <Avatar initials={name.trim().charAt(0).toUpperCase()} name={name} size="xs" />
+              <span className="text-xs truncate" style={{ color: colors.text.primary }}>{name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body
+  )
+}
+
 function EventChip({
   event, onClick, compact = false, colorOverride, showTherapist = false,
 }: {
@@ -382,24 +479,57 @@ function EventChip({
 }) {
   const s = colorOverride ?? kindStyle(event.kind, event.status)
   const therapistName = showTherapist ? sessionTherapistName(event) : undefined
+
+  const buttonRef  = useRef<HTMLButtonElement>(null)
+  const showTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [hoverPos, setHoverPos] = useState<{ left: number; top: number; openUpward: boolean } | null>(null)
+
+  const cardWidth  = 288 // matches w-72
+  const cardHeight = 220 // rough estimate, enough to decide open-up vs open-down
+
+  const handleEnter = () => {
+    showTimer.current = setTimeout(() => {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const spaceBelow  = window.innerHeight - rect.bottom
+      const openUpward  = spaceBelow < cardHeight && rect.top > spaceBelow
+      setHoverPos({
+        left: Math.min(rect.left, window.innerWidth - cardWidth - 12),
+        top: openUpward ? rect.top - 6 : rect.bottom + 6,
+        openUpward,
+      })
+    }, 250)
+  }
+  const handleLeave = () => {
+    if (showTimer.current) clearTimeout(showTimer.current)
+    setHoverPos(null)
+  }
+  useEffect(() => () => { if (showTimer.current) clearTimeout(showTimer.current) }, [])
+
   return (
-    <button
-      onClick={e => { e.stopPropagation(); onClick() }}
-      className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-75"
-      style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
-      <div className="truncate">
-        {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
-        <span className="truncate">{event.title}</span>
-        {!compact && !event.isAllDay && event.time && (
-          <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
-        )}
-      </div>
-      {therapistName && (
-        <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
-          {therapistName}
+    <>
+      <button
+        ref={buttonRef}
+        onClick={e => { e.stopPropagation(); onClick() }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+        className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-75"
+        style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
+        <div className="truncate">
+          {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
+          <span className="truncate">{event.title}</span>
+          {!compact && !event.isAllDay && event.time && (
+            <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
+          )}
         </div>
-      )}
-    </button>
+        {therapistName && (
+          <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
+            {therapistName}
+          </div>
+        )}
+      </button>
+      {hoverPos && <EventHoverCard event={event} pos={hoverPos} />}
+    </>
   )
 }
 
@@ -2339,7 +2469,12 @@ export default function CalendarPage() {
       ? leaves.filter(l => l.status === 'APPROVED')
       : leaves
     for (const l of leavesToShow) out.push(...toLeaveEvents(l))
-    for (const s of sessions) out.push(toSessionEvent(s))
+    for (const s of sessions) {
+      // A session auto-cancelled by marking its patient's case inactive shouldn't clutter the
+      // calendar as a cancelled chip — unlike a one-off cancel (leave, manual), which still
+      // needs to show so the freed-up slot and the reason stay visible.
+      if (!s.cancelledByCaseInactive) out.push(toSessionEvent(s))
+    }
     for (const h of publicHolidays) out.push(toHolidayEvent(h))
     for (const m of reviewMeetings) {
       if (m.status !== 'CANCELLED') out.push(toReviewEvent(m))

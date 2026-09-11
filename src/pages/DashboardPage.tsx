@@ -1261,6 +1261,7 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
 
   const recentlyJoined = patients
     .filter(p => {
+      if (!p.isActive) return false
       const joinedDate = p.createdAt.slice(0, 10)
       if (from && joinedDate < from) return false
       if (to && joinedDate > to) return false
