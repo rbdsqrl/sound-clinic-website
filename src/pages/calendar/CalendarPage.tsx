@@ -30,7 +30,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
 import { saveBlob } from '../../lib/fileActions'
-import { colors, styles, border, surface, accentAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
+import { colors, styles, border, surface, accentAlpha, borderAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { meetingsApi } from '../../api/meetings'
@@ -548,12 +548,12 @@ function MonthView({
               className={`flex flex-col p-1 min-w-0 ${showTherapist ? 'min-h-[112px]' : 'min-h-[90px]'}`}
               onClick={onDayClick ? () => onDayClick(day) : undefined}
               onMouseEnter={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) } : undefined}
-              onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : '' } : undefined}
+              onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.06) : '' } : undefined}
               style={{
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
-                opacity: !inMonth ? 0.4 : isPast ? 0.5 : 1,
-                background: isHoliday ? '#FEF3C720' : undefined,
+                opacity: !inMonth ? 0.4 : 1,
+                background: isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.06) : undefined,
                 cursor: onDayClick ? 'pointer' : undefined,
               }}>
               <div className="flex justify-end mb-1">
