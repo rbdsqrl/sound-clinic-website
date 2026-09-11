@@ -59,12 +59,6 @@ export const usersApi = {
   activateMember: (id: string) =>
     client.patch(`/users/${id}/activate`),
 
-  /** Permanently removes an already-archived member's account — unlike deleteMember (which
-   *  deactivates), this can't be undone, and fails with a 409 if the member still has any
-   *  historical records (sessions, cases, leave, meetings, etc.) tied to their account. */
-  hardDeleteMember: (id: string) =>
-    client.delete(`/users/${id}/permanent`),
-
   /** The member profile page — contact, qualification, specialization, languages, case count. */
   getProfile: (id: string) =>
     client.get<ApiResponse<MemberProfileResponse>>(`/users/${id}/profile`).then((r) => r.data.data),
