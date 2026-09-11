@@ -39,6 +39,7 @@ import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { ROUTES } from '../../lib/routes'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
+import { todayStr } from '../../lib/schedule'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
@@ -1608,6 +1609,7 @@ export default function PatientDetailPage() {
   const [paymentContinuation, setPaymentContinuation] = useState(false)
   const [enrollContinuation,  setEnrollContinuation]  = useState(false)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
+  const [editScheduleFor, setEditScheduleFor] = useState<EnrollmentResponse | null>(null)
   const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
   // Program cards start collapsed so more of them fit on screen at once — expanded
   // per-card by clicking its chevron.
@@ -2460,6 +2462,17 @@ export default function PatientDetailPage() {
                                   <UserCheck size={12} /> Change Therapist
                                 </button>
                               )}
+                              {isEnrolled && enrollment && canCreateEnrollment && !isCancelled && (
+                                <button
+                                  onClick={() => setEditScheduleFor(enrollment)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                                >
+                                  <Pencil size={12} /> Edit Schedule
+                                </button>
+                              )}
                               {isEnrolled && enrollment && (
                                 <Link
                                   to={ROUTES.enrollment(id!, enrollment.id)}
@@ -2854,6 +2867,20 @@ export default function PatientDetailPage() {
         />
       )}
 
+      {editScheduleFor && (
+        <EditScheduleModal
+          enrollment={editScheduleFor}
+          onClose={() => setEditScheduleFor(null)}
+          onSaved={() => {
+            refetchEnrollments()
+            queryClient.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+            queryClient.invalidateQueries({ queryKey: ['review-meetings'] })
+            toast('Schedule updated', 'success')
+            setEditScheduleFor(null)
+          }}
+        />
+      )}
+
       {/* Book a one-off session on this plan — same modal the Calendar's drag-to-book uses */}
       {bookSessionFor && patient && (
         <AdHocSessionModal
@@ -3020,6 +3047,127 @@ function ChangeTherapistModal({
           }}
         >
           Change therapist
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Edit an ongoing plan's schedule ───────────────────────────────────────────
+
+function EditScheduleModal({
+  enrollment, onClose, onSaved,
+}: {
+  enrollment: EnrollmentResponse
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [effectiveDate, setEffectiveDate] = useState(todayStr())
+  const [startTime, setStartTime]         = useState(enrollment.startTime)
+  const [sessionDays, setSessionDays]     = useState<DayOfWeek[]>(
+    enrollment.sessionDays.length > 0 ? enrollment.sessionDays : WEEK_DAYS.map(d => d.value))
+  const [therapistId, setTherapistId]     = useState(enrollment.therapistId)
+  const [reason, setReason]               = useState('')
+  const [error, setError]                 = useState('')
+
+  const { data: weeklyOffDays = [] } = useQuery({
+    queryKey: ['organisation', 'weekly-off-days'],
+    queryFn: organisationApi.getWeeklyOffDays,
+  })
+  const { data: therapists = [], isLoading: loadingTherapists } = useQuery({
+    queryKey: ['therapists'],
+    queryFn:  () => usersApi.listTherapists(),
+  })
+
+  const toggleSessionDay = (day: DayOfWeek) =>
+    setSessionDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+
+  const mut = useMutation({
+    mutationFn: () => enrollmentsApi.updateSchedule(enrollment.id, {
+      effectiveDate,
+      startTime,
+      sessionDays,
+      therapistId,
+      reason: reason.trim() || undefined,
+    }),
+    onSuccess: onSaved,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not update the schedule')),
+  })
+
+  return (
+    <Modal open title="Edit schedule" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className="form-label">Effective from</label>
+          <input type="date" value={effectiveDate} min={todayStr()}
+            onChange={e => setEffectiveDate(e.target.value)} className="form-input w-full" />
+          <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>
+            Sessions before this date are untouched; sessions on or after it move to the new time/days below.
+          </p>
+        </div>
+
+        <TimePicker label="New time" value={startTime} onChange={setStartTime} />
+
+        <div>
+          <label className="form-label">Session Days</label>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEK_DAYS.map(d => {
+              const active = sessionDays.includes(d.value)
+              const isWeeklyOff = weeklyOffDays.includes(d.value)
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  disabled={isWeeklyOff}
+                  onClick={() => toggleSessionDay(d.value)}
+                  title={isWeeklyOff ? 'Weekly off day for this organisation' : undefined}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={active ? styles.filterTabActive : styles.filterTabInactive}
+                >
+                  {d.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <Select
+          label="Therapist"
+          value={therapistId}
+          onChange={e => setTherapistId(e.target.value)}
+          placeholder={loadingTherapists ? 'Loading…' : 'Select a therapist'}
+          options={therapists.map((t: UserResponse) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))}
+        />
+
+        <Input
+          label="Reason (optional)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Parent requested a later slot"
+        />
+
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          Sessions from the effective date onward move to the new time/days (and therapist, if
+          changed) — the total session count stays the same. Anything before that date, and
+          anything already completed, cancelled, or mid-reschedule, is untouched.
+        </p>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (sessionDays.length === 0) { setError('Pick at least one session day'); return }
+            if (!therapistId) { setError('Pick a therapist'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Save schedule
         </Button>
       </div>
     </Modal>

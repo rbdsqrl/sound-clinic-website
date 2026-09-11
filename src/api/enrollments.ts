@@ -6,6 +6,7 @@ import type {
   AvailableTherapistResponse,
   AvailableTherapistsQuery,
   EnrollmentCareStatus,
+  DayOfWeek,
 } from '../types'
 
 export const enrollmentsApi = {
@@ -29,6 +30,20 @@ export const enrollmentsApi = {
   changeTherapist: (id: string, therapistId: string, reason?: string) =>
     client
       .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/therapist`, { therapistId, reason })
+      .then(r => r.data.data),
+
+  /** Edit an ongoing plan's schedule — new start time and/or weekday pattern and/or therapist,
+   *  effective from a chosen date. Sessions before that date are untouched; sessions on/after
+   *  it are re-dated onto the new pattern, keeping the same session numbers/count. */
+  updateSchedule: (id: string, data: {
+    effectiveDate: string
+    startTime?: string
+    sessionDays?: DayOfWeek[]
+    therapistId?: string
+    reason?: string
+  }) =>
+    client
+      .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/schedule`, data)
       .then(r => r.data.data),
 
   /** Cancel an enrollment */
