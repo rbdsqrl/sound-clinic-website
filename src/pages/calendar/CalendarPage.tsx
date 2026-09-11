@@ -375,6 +375,14 @@ function sessionTherapistName(ev: CalendarEvent): string | undefined {
   return `${s.therapistFirstName} ${s.therapistLastName}`
 }
 
+/** Case (patient) name for a therapy-session event — the title/subtitle only carry the
+ *  program name and session number, never who the session is for. */
+function sessionPatientName(ev: CalendarEvent): string | undefined {
+  if (ev.kind !== 'session') return undefined
+  const s = ev.raw as TherapySessionResponse
+  return `${s.patientFirstName} ${s.patientLastName}`
+}
+
 /** Kind label shown in the hover card — mirrors EventDetailDrawer's per-kind header text. */
 function eventKindLabel(kind: EventKind): string {
   switch (kind) {
@@ -471,14 +479,17 @@ function EventHoverCard({ event, pos }: {
 }
 
 function EventChip({
-  event, onClick, compact = false, colorOverride, showTherapist = false,
+  event, onClick, compact = false, colorOverride, showTherapist = false, showPatient = false,
 }: {
   event: CalendarEvent; onClick: () => void; compact?: boolean; colorOverride?: React.CSSProperties
   /** Month/Week views only — adds the therapist name as a second line for session events. */
   showTherapist?: boolean
+  /** Staff Day view only — adds the Case (patient) name as a second line for session events,
+   *  since the therapist is already that column's header there. */
+  showPatient?: boolean
 }) {
   const s = colorOverride ?? kindStyle(event.kind, event.status)
-  const therapistName = showTherapist ? sessionTherapistName(event) : undefined
+  const secondLine = showTherapist ? sessionTherapistName(event) : showPatient ? sessionPatientName(event) : undefined
 
   const buttonRef  = useRef<HTMLButtonElement>(null)
   const showTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -522,9 +533,9 @@ function EventChip({
             <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
           )}
         </div>
-        {therapistName && (
+        {secondLine && (
           <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
-            {therapistName}
+            {secondLine}
           </div>
         )}
       </button>
@@ -1122,7 +1133,7 @@ function StaffDayView({
             <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
               style={{ borderColor: border.divider }}>
               {allDay.map(ev => (
-                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} />
+                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} showPatient />
               ))}
             </div>
           )
@@ -1164,7 +1175,7 @@ function StaffDayView({
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
                   {sorted.slice(0, expanded ? undefined : 2).map(ev => (
-                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} />
+                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} showPatient />
                   ))}
                   {sorted.length > 2 && (
                     <button
@@ -1278,8 +1289,10 @@ function AgendaView({
                     {ev.kind === 'session' ? (
                       <>
                         <span className="text-sm font-semibold truncate block">{ev.title}</span>
-                        {sessionTherapistName(ev) && (
-                          <span className="text-xs opacity-80 truncate block">{sessionTherapistName(ev)}</span>
+                        {(sessionTherapistName(ev) || sessionPatientName(ev)) && (
+                          <span className="text-xs opacity-80 truncate block">
+                            {[sessionTherapistName(ev), sessionPatientName(ev)].filter(Boolean).join(' · ')}
+                          </span>
                         )}
                       </>
                     ) : (
