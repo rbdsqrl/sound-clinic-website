@@ -552,7 +552,7 @@ function MonthView({
               style={{
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
-                opacity: !inMonth ? 0.4 : isPast ? 0.7 : 1,
+                opacity: !inMonth ? 0.4 : isPast ? 0.5 : 1,
                 background: isHoliday ? '#FEF3C720' : undefined,
                 cursor: onDayClick ? 'pointer' : undefined,
               }}>
