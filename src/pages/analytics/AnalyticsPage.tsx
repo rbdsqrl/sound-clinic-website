@@ -132,8 +132,8 @@ export default function AnalyticsPage() {
   }
 
   const patients = useQuery({
-    queryKey: isParentUser ? ['my-children'] : ['patients'],
-    queryFn: isParentUser ? patientsApi.myChildren : patientsApi.list,
+    queryKey: isParentUser ? ['my-children'] : ['patients', 'all-statuses'],
+    queryFn: isParentUser ? patientsApi.myChildren : patientsApi.listAllStatuses,
   })
   const enrollmentsQuery = useQuery({
     queryKey: ['enrollments', 'analytics', patientId],

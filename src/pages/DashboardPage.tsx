@@ -2060,7 +2060,9 @@ export default function DashboardPage() {
   const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
 
   const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
-  const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients'],    queryFn: patientsApi.list,       enabled: isStaff })
+  // All statuses, not just active — OrgOverview's ring chart needs the inactive count too;
+  // RecentlyJoinedChildren filters out inactive patients itself before rendering its list.
+  const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients', 'all-statuses'], queryFn: patientsApi.listAllStatuses, enabled: isStaff })
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
   // Next few sessions across all of this parent's children — widened to a 90-day window since
   // sessions can run weekly or less often, then trimmed client-side to the soonest 3 still live

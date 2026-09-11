@@ -26,8 +26,18 @@ export interface PatientSearchParams {
 }
 
 export const patientsApi = {
-  /** Every patient in the org — for pickers/dashboards that need the full list, not a page of it. */
+  /** Every ACTIVE patient in the org — for pickers/dashboards that need the full list, not a
+   *  page of it. Excludes discharged and manually-inactive cases, same as the backend's default
+   *  when `status` is omitted — a picker shouldn't let you assign new work to a case that's off
+   *  the active list. Use `listAllStatuses` for the rare view that legitimately wants those too. */
   list: () =>
+    client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params: { size: 1000 } })
+      .then((r) => r.data.data.content),
+
+  /** Every patient in the org regardless of status — for a view that legitimately needs
+   *  discharged/inactive cases alongside active ones (e.g. reviewing a discharged case's
+   *  historical analytics). Prefer `list` unless you specifically need this. */
+  listAllStatuses: () =>
     client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params: { size: 1000, status: '' } })
       .then((r) => r.data.data.content),
 
