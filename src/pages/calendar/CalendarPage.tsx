@@ -630,7 +630,7 @@ function WeekView({
           const isPast    = dayKey < todayKey
           return (
             <div key={day.toISOString()} className="py-2 text-center border-l min-w-0"
-              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : undefined, opacity: isPast ? 0.6 : 1 }}>
+              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : isPast ? borderAlpha(0.06) : undefined }}>
               <p className="text-xs font-semibold truncate px-1" style={{ color: isHoliday ? '#B45309' : colors.text.muted }}>
                 {format(day, 'EEE')}
                 {isHoliday && <Sun size={9} className="inline ml-1 opacity-80" />}
@@ -659,7 +659,7 @@ function WeekView({
             const isPast = format(day, 'yyyy-MM-dd') < todayKey
             return (
               <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
-                style={{ borderColor: border.divider, opacity: isPast ? 0.6 : 1 }}>
+                style={{ borderColor: border.divider, background: isPast ? borderAlpha(0.06) : undefined }}>
                 {leaves.map(ev => (
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
                 ))}
@@ -692,8 +692,7 @@ function WeekView({
                   style={{
                     borderColor: border.divider,
                     background: drag?.selected ? accentAlpha(0.14)
-                              : isHolCol ? '#FFFBEB30' : undefined,
-                    opacity: isPastCol ? 0.6 : 1,
+                              : isHolCol ? '#FFFBEB30' : isPastCol ? borderAlpha(0.06) : undefined,
                     cursor: onSlotSelect ? 'cell' : undefined,
                     userSelect: 'none',
                   }}>
