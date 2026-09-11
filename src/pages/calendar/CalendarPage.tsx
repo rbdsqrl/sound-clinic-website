@@ -548,12 +548,12 @@ function MonthView({
               className={`flex flex-col p-1 min-w-0 ${showTherapist ? 'min-h-[112px]' : 'min-h-[90px]'}`}
               onClick={onDayClick ? () => onDayClick(day) : undefined}
               onMouseEnter={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = accentAlpha(0.05) } : undefined}
-              onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.06) : '' } : undefined}
+              onMouseLeave={onDayClick ? e => { (e.currentTarget as HTMLElement).style.background = isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.14) : '' } : undefined}
               style={{
                 borderRight: !isLastCol ? `1px solid ${border.divider}` : 'none',
                 borderBottom: !isLastRow ? `1px solid ${border.divider}` : 'none',
                 opacity: !inMonth ? 0.4 : 1,
-                background: isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.06) : undefined,
+                background: isHoliday ? '#FEF3C720' : isPast ? borderAlpha(0.14) : undefined,
                 cursor: onDayClick ? 'pointer' : undefined,
               }}>
               <div className="flex justify-end mb-1">
@@ -630,7 +630,7 @@ function WeekView({
           const isPast    = dayKey < todayKey
           return (
             <div key={day.toISOString()} className="py-2 text-center border-l min-w-0"
-              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : isPast ? borderAlpha(0.06) : undefined }}>
+              style={{ borderColor: border.divider, background: isHoliday ? '#FEF3C730' : isPast ? borderAlpha(0.14) : undefined }}>
               <p className="text-xs font-semibold truncate px-1" style={{ color: isHoliday ? '#B45309' : colors.text.muted }}>
                 {format(day, 'EEE')}
                 {isHoliday && <Sun size={9} className="inline ml-1 opacity-80" />}
@@ -659,7 +659,7 @@ function WeekView({
             const isPast = format(day, 'yyyy-MM-dd') < todayKey
             return (
               <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
-                style={{ borderColor: border.divider, background: isPast ? borderAlpha(0.06) : undefined }}>
+                style={{ borderColor: border.divider, background: isPast ? borderAlpha(0.14) : undefined }}>
                 {leaves.map(ev => (
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} />
                 ))}
@@ -692,7 +692,7 @@ function WeekView({
                   style={{
                     borderColor: border.divider,
                     background: drag?.selected ? accentAlpha(0.14)
-                              : isHolCol ? '#FFFBEB30' : isPastCol ? borderAlpha(0.06) : undefined,
+                              : isHolCol ? '#FFFBEB30' : isPastCol ? borderAlpha(0.14) : undefined,
                     cursor: onSlotSelect ? 'cell' : undefined,
                     userSelect: 'none',
                   }}>
