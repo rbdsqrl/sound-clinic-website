@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { formatDateStr } from '../../lib/format'
-import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck, Repeat } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { formatDateStr, formatTimeStr } from '../../lib/format'
+import { ChevronRight, Pencil, Plus, X, Mail, Phone, Download, UserCheck, Repeat, Clock, Baby } from 'lucide-react'
 import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
 import { languagesApi } from '../../api/activityLookups'
 import { patientsApi } from '../../api/patients'
+import { therapySessionsApi } from '../../api/therapySessions'
 import { analyticsApi } from '../../api/analytics'
 import { reassignmentsApi } from '../../api/reassignments'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { useAvatarColor } from '../../hooks/useAvatarColor'
+import { getAvatarColorStyles } from '../../lib/avatarColor'
 import { calcAge } from '../../lib/age'
 import { ROUTES } from '../../lib/routes'
 import { Card } from '../../components/ui/Card'
@@ -27,8 +31,8 @@ import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
 import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
-import { colors, border, surface, paletteStyle } from '../../theme'
-import type { Role, ReassignmentType } from '../../types'
+import { colors, border, surface, paletteStyle, accentAlpha, styles } from '../../theme'
+import type { Role, ReassignmentType, PatientResponse } from '../../types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -70,6 +74,9 @@ export default function MemberProfilePage() {
   const [assignError, setAssignError] = useState<string | null>(null)
   const [reassignOpen, setReassignOpen] = useState(false)
   const [reassignError, setReassignError] = useState<string | null>(null)
+  // Parent/Staff view switcher — only relevant once `profile` loads, but the hook has to sit
+  // above the early-return guard below like every other hook in this component.
+  const [viewMode, setViewMode] = useState<'PARENT' | 'STAFF' | null>(null)
 
   useEffect(() => { if (assignOpen) setAssignError(null) }, [assignOpen])
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
@@ -213,6 +220,15 @@ export default function MemberProfilePage() {
 
   const specializationTags = (profile.specialization ?? '').split(',').map(s => s.trim()).filter(Boolean)
 
+  // A member can hold Parent alongside another role (primary or additional) — when they do,
+  // the two views (Parent: their children + sessions; Staff: the existing Insights/Cases
+  // content, the same regardless of which staff role they hold) are different enough to need
+  // a switcher rather than picking one shape from `profile.role` alone.
+  const heldRoles = [profile.role, ...profile.additionalRoles]
+  const isParent = heldRoles.includes('PARENT')
+  const hasOtherRole = heldRoles.some(r => r !== 'PARENT')
+  const effectiveView = viewMode ?? (profile.role === 'PARENT' ? 'PARENT' : 'STAFF')
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex items-center gap-1.5 text-sm" style={{ color: colors.text.dim }}>
@@ -338,6 +354,26 @@ export default function MemberProfilePage() {
         </div>
       </Card>
 
+      {isParent && hasOtherRole && (
+        <div className="inline-flex rounded-full p-0.5" style={styles.segmentTrack}>
+          {(['PARENT', 'STAFF'] as const).map(v => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setViewMode(v)}
+              className="rounded-full px-4 py-1.5 text-xs font-medium transition-all"
+              style={effectiveView === v ? styles.segmentActive : styles.segmentInactive}
+            >
+              {v === 'PARENT' ? 'Parent' : 'Staff'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {effectiveView === 'PARENT' ? (
+        <ParentChildrenPanel parentId={id!} />
+      ) : (
+      <>
       <Panel
         title="Insights"
         subtitle="Sessions, activities and duration for the selected window"
@@ -391,7 +427,6 @@ export default function MemberProfilePage() {
         </div>
       </Panel>
 
-      {profile.role !== 'PARENT' && (
       <Panel
         title={`Cases (${cases.length})`}
         action={
@@ -498,7 +533,6 @@ export default function MemberProfilePage() {
           </div>
         )}
       </Panel>
-      )}
 
       {canReassign && reassignments.length > 0 && (
         <Panel title="Reassignment History">
@@ -545,6 +579,8 @@ export default function MemberProfilePage() {
           </div>
         </Panel>
       )}
+      </>
+      )}
 
       {/* Reassign selected cases */}
       {reassignOpen && (
@@ -588,11 +624,157 @@ export default function MemberProfilePage() {
           additional roles intact. */}
       {addRoleOpen && (
         <AddRoleModal
-          heldRoles={[profile.role, ...profile.additionalRoles]}
+          heldRoles={heldRoles}
           pending={addRoleMut.isPending}
           onClose={() => setAddRoleOpen(false)}
           onAdd={role => addRoleMut.mutate(role)}
         />
+      )}
+    </div>
+  )
+}
+
+// ── Parent view — linked children + their sessions ───────────────────────────
+// Read-only from the admin's side: reschedule requests and concerns are the parent's own
+// self-service actions (see MyChildrenPage.tsx) — an admin viewing this profile can click
+// through to the Case page to act, not act on the parent's behalf from here.
+
+function ParentChildrenPanel({ parentId }: { parentId: string }) {
+  const { data: children, isLoading } = useQuery({
+    queryKey: ['patients', 'by-parent', parentId],
+    queryFn: () => patientsApi.byParent(parentId),
+  })
+
+  return (
+    <Panel title={`Children (${children?.length ?? 0})`}>
+      {isLoading ? (
+        <p className="text-sm py-4" style={{ color: colors.text.muted }}>Loading…</p>
+      ) : !children?.length ? (
+        <EmptyState icon={<Baby size={22} />} title="No children linked"
+          description="This parent isn't linked to any case yet." />
+      ) : (
+        <div className="space-y-3">
+          {children.map(child => <ChildCard key={child.id} child={child} />)}
+        </div>
+      )}
+    </Panel>
+  )
+}
+
+function ChildCard({ child }: { child: PatientResponse }) {
+  const { theme } = useTheme()
+  return (
+    <div className="rounded-xl p-4" style={{ background: surface.rowHover }}>
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0"
+          style={getAvatarColorStyles(`${child.firstName} ${child.lastName}`, theme === 'dark')}>
+          {child.firstName[0]}{child.lastName[0] ?? ''}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-sm" style={{ color: colors.text.heading }}>
+              {child.firstName} {child.lastName}
+            </p>
+            <Link to={ROUTES.patient(child.id)}
+              className="flex-shrink-0 flex items-center gap-0.5 text-xs font-medium transition-opacity hover:opacity-75"
+              style={{ color: colors.accent }}>
+              View Case <ChevronRight size={13} />
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs" style={{ color: colors.text.muted }}>
+            {child.dateOfBirth && <span>Born {formatDateStr(child.dateOfBirth)} ({calcAge(child.dateOfBirth)})</span>}
+            {child.therapists.length > 0 && (
+              <span className="flex items-center gap-1">
+                <UserCheck size={10} style={{ color: colors.text.dim }} />
+                {child.therapists.map(t => `${t.firstName} ${t.lastName}`).join(', ')}
+              </span>
+            )}
+          </div>
+          {child.conditions.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {child.conditions.map(c => (
+                <span key={c.id} className="inline-flex items-center rounded-full px-2 py-0.5 text-[12.65px] font-medium"
+                  style={paletteStyle('blue', 0.08, 0.14)}>
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <ChildUpcomingSessions childId={child.id} />
+    </div>
+  )
+}
+
+function ChildUpcomingSessions({ childId }: { childId: string }) {
+  const [showAll, setShowAll] = useState(false)
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['child-sessions', childId],
+    queryFn: () => therapySessionsApi.list({ patientId: childId, from: format(new Date(), 'yyyy-MM-dd') }),
+  })
+
+  const upcoming = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
+  const remaining = upcoming[0]?.parentReschedulesRemaining ?? null
+  const visible = showAll ? upcoming : upcoming.slice(0, 3)
+
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11.5px] font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>
+          Upcoming Sessions
+        </p>
+        {remaining !== null && (
+          <span className="text-[11.5px]" style={{ color: colors.text.dim }}>
+            {remaining} reschedule{remaining === 1 ? '' : 's'} left
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs py-1" style={{ color: colors.text.muted }}>Loading…</p>
+      ) : upcoming.length === 0 ? (
+        <p className="text-xs py-1" style={{ color: colors.text.dim }}>No upcoming sessions scheduled.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {visible.map(s => (
+            <div key={s.id} className="flex items-center gap-3 rounded-xl px-3 py-2"
+              style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+                    {format(parseISO(s.sessionDate), 'EEE, d MMM')}
+                  </span>
+                  <span className="text-xs flex items-center gap-1" style={{ color: colors.text.muted }}>
+                    <Clock size={10} />{formatTimeStr(s.startTime)}
+                  </span>
+                  <span className="text-xs" style={{ color: colors.text.muted }}>
+                    · {s.programName} #{s.sessionNumber}
+                  </span>
+                  <span className="text-xs" style={{ color: colors.text.dim }}>
+                    · {s.therapistFirstName} {s.therapistLastName}
+                  </span>
+                </div>
+              </div>
+              {s.status === 'PENDING_RESCHEDULE' && (
+                <span className="flex-shrink-0 text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
+                  style={paletteStyle('amber', 0.10, 0.15)}>
+                  Rescheduling
+                </span>
+              )}
+            </div>
+          ))}
+
+          {upcoming.length > 3 && (
+            <button
+              onClick={() => setShowAll(v => !v)}
+              className="w-full text-center text-xs py-1.5 transition-colors"
+              style={{ color: colors.accent }}
+            >
+              {showAll ? 'Show less' : `+${upcoming.length - 3} more session${upcoming.length - 3 !== 1 ? 's' : ''}`}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

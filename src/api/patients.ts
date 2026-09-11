@@ -49,6 +49,11 @@ export const patientsApi = {
   myChildren: () =>
     client.get<ApiResponse<PatientResponse[]>>('/patients/my-children').then((r) => r.data.data),
 
+  /** An arbitrary parent's linked children — the admin-facing equivalent of myChildren, for
+   *  MemberProfilePage's Parent view. Admin Roles only (BUSINESS_OWNER, CLINIC_HEAD). */
+  byParent: (parentId: string) =>
+    client.get<ApiResponse<PatientResponse[]>>(`/patients/by-parent/${parentId}`).then((r) => r.data.data),
+
   upcomingBirthdays: () =>
     client.get<ApiResponse<UpcomingBirthdayResponse[]>>('/patients/upcoming-birthdays').then((r) => r.data.data),
 
