@@ -8,6 +8,7 @@ import { usersApi } from '../../api/users'
 import { Modal } from '../../components/ui/Modal'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { getApiError } from '../../lib/apiError'
 import { isPastDateTime } from '../../lib/schedule'
 import { colors, surface, border, accentAlpha, warningAlpha } from '../../theme'
@@ -137,12 +138,10 @@ export default function AdHocSessionModal({
             <input type="date" value={date} min={today} onChange={e => setDate(e.target.value)} className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">Starts</label>
-            <input type="time" value={start} onChange={e => setStart(e.target.value)} className="form-input w-full" />
+            <TimePicker label="Starts" value={start} onChange={setStart} />
           </div>
           <div>
-            <label className="form-label">Ends</label>
-            <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="form-input w-full" />
+            <TimePicker label="Ends" value={end} onChange={setEnd} />
           </div>
         </div>
 

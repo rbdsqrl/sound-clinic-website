@@ -29,6 +29,7 @@ import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
 import { saveBlob } from '../../lib/fileActions'
@@ -1451,16 +1452,12 @@ function SlotChoiceModal({
               className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">Starts</label>
-            <input type="time" step={900} value={start}
-              onChange={e => { setStart(e.target.value); setError('') }}
-              className="form-input w-full" />
+            <TimePicker label="Starts" value={start}
+              onChange={v => { setStart(v); setError('') }} />
           </div>
           <div>
-            <label className="form-label">Ends</label>
-            <input type="time" step={900} value={end}
-              onChange={e => { setEnd(e.target.value); setError('') }}
-              className="form-input w-full" />
+            <TimePicker label="Ends" value={end}
+              onChange={v => { setEnd(v); setError('') }} />
           </div>
         </div>
 
@@ -1628,9 +1625,7 @@ function NewMeetingModal({
               className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">Starts</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-              className="form-input w-full" />
+            <TimePicker label="Starts" value={startTime} onChange={setStartTime} />
           </div>
           <div>
             <label className="form-label">Duration (min)</label>
@@ -2209,8 +2204,7 @@ function EditReviewMeetingModal({
             <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">Starts</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="form-input w-full" />
+            <TimePicker label="Starts" value={startTime} onChange={setStartTime} />
           </div>
         </div>
         <div>

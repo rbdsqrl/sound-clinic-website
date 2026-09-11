@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
@@ -407,9 +408,7 @@ export function RescheduleSessionModal({
               className="form-input w-full" />
           </div>
           <div>
-            <label className="form-label">New time</label>
-            <input type="time" value={time} onChange={e => setTime(e.target.value)}
-              className="form-input w-full" />
+            <TimePicker label="New time" value={time} onChange={setTime} />
           </div>
         </div>
         <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
