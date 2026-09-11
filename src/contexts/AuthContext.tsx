@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/auth'
 import { tokenStorage } from '../api/client'
 import { usersApi } from '../api/users'
@@ -53,6 +54,7 @@ function persistActiveRole(userId: string, role: Role) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const qc = useQueryClient()
   const [user, setUser] = useState<UserResponse | null>(() => {
     if (BYPASS_AUTH) return DEV_MOCK_USER
     try {
@@ -94,9 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const switchRole = (role: Role) => {
-    if (!user || !allRoles(user).includes(role)) return
+    if (!user || !allRoles(user).includes(role) || role === activeRole) return
     setActiveRoleState(role)
     persistActiveRole(user.id, role)
+    // Every request carries the active role as a header (see api/client.ts), so the backend can
+    // return genuinely different, role-scoped data for the same endpoint (e.g. the calendar).
+    // Without this, a view already mounted under the old role keeps showing its cached response
+    // — React Query has no way to know the "same" query key now means something different.
+    qc.invalidateQueries()
   }
 
   const addRole = async (role: Role) => {
@@ -112,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (activeRole === role) {
       setActiveRoleState(updated.role)
       persistActiveRole(updated.id, updated.role)
+      qc.invalidateQueries()
     }
   }
 
