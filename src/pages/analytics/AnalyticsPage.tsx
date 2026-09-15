@@ -467,14 +467,18 @@ export default function AnalyticsPage() {
 
           {!(tab === 'cases' && isParentUser) && (
             <>
-              <DateInput
-                id="from" label="From" value={range.from}
-                onChange={v => setRange(r => ({ ...r, from: v }))}
-              />
-              <DateInput
-                id="to" label="To" value={range.to}
-                onChange={v => setRange(r => ({ ...r, to: v }))}
-              />
+              <div className="min-w-[150px]">
+                <DateInput
+                  id="from" label="From" value={range.from}
+                  onChange={v => setRange(r => ({ ...r, from: v }))}
+                />
+              </div>
+              <div className="min-w-[150px]">
+                <DateInput
+                  id="to" label="To" value={range.to}
+                  onChange={v => setRange(r => ({ ...r, to: v }))}
+                />
+              </div>
             </>
           )}
         </div>
@@ -510,14 +514,18 @@ export default function AnalyticsPage() {
               options={(scheduleProgramsQuery.data ?? []).map(p => ({ value: p.id, label: p.name }))}
             />
           </div>
-          <DateInput
-            id="schedule-from" label="From" value={range.from}
-            onChange={v => setRange(r => ({ ...r, from: v }))}
-          />
-          <DateInput
-            id="schedule-to" label="To" value={range.to}
-            onChange={v => setRange(r => ({ ...r, to: v }))}
-          />
+          <div className="min-w-[150px]">
+            <DateInput
+              id="schedule-from" label="From" value={range.from}
+              onChange={v => setRange(r => ({ ...r, from: v }))}
+            />
+          </div>
+          <div className="min-w-[150px]">
+            <DateInput
+              id="schedule-to" label="To" value={range.to}
+              onChange={v => setRange(r => ({ ...r, to: v }))}
+            />
+          </div>
         </div>
       )}
 
