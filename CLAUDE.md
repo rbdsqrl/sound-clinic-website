@@ -57,6 +57,7 @@ src/
 ├── api/                             # One file per backend resource
 │   ├── appointments.ts              # slots + appointments (list, book, update status)
 │   ├── auth.ts                      # login, refresh, logout
+│   ├── calendarBlocks.ts            # list/create/delete org-wide recurring calendar blocks (e.g. Lunch Break)
 │   ├── client.ts                    # Axios instance with auth interceptors
 │   ├── clinics.ts                   # list, get, create, update clinic
 │   ├── conditions.ts                # list conditions (lookup)
@@ -68,6 +69,7 @@ src/
 │   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
 │   ├── programs.ts                  # program management
 │   ├── public.ts                    # public API endpoints
+│   ├── publicHolidays.ts            # list/create/delete org public holidays
 │   ├── reassignments.ts             # bulk therapist case reassignment — list/create/cancelEarly
 │   ├── sharedMedia.ts               # list/upload/delete shared videos+notes for a patient
 │   ├── subscriptions.ts             # subscription management

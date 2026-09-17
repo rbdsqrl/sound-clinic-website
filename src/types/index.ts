@@ -1173,6 +1173,29 @@ export interface CreatePublicHolidayRequest {
   name: string
 }
 
+// ── Org Calendar Blocks ──────────────────────────────────────────────────────────
+// An org-wide recurring calendar block (e.g. "Lunch Break") — shown on every user's calendar
+// automatically. Unlike a Meeting it has no participant list; unlike a Public Holiday it does
+// not block session/review-meeting autoscheduling.
+export interface OrgCalendarBlockResponse {
+  id: string
+  title: string
+  startTime: string      // "HH:mm:ss"
+  endTime: string         // "HH:mm:ss"
+  daysOfWeek: DayOfWeek[]
+  startDate: string       // "YYYY-MM-DD"
+  endDate: string | null  // null = ongoing indefinitely
+}
+
+export interface CreateOrgCalendarBlockRequest {
+  title: string
+  startTime: string       // "HH:mm"
+  endTime: string         // "HH:mm"
+  daysOfWeek: DayOfWeek[]
+  startDate: string       // "YYYY-MM-DD"
+  endDate?: string | null // null/omitted = ongoing indefinitely
+}
+
 // ── Attendance ─────────────────────────────────────────────────────────────────
 export type AttendanceStatus = 'CHECKED_IN' | 'CHECKED_OUT'
 

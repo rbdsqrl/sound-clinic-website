@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
-  Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, FileUp, Pencil, Plus, Trash2, X,
+  Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
   Target, Languages as LanguagesIcon, Box, ClipboardList,
 } from 'lucide-react'
@@ -11,6 +11,7 @@ import ProgramFeedbackTemplateModal from './programs/ProgramFeedbackTemplateModa
 import { format, parseISO } from 'date-fns'
 import { organisationApi } from '../api/organisation'
 import { publicHolidaysApi } from '../api/publicHolidays'
+import { calendarBlocksApi } from '../api/calendarBlocks'
 import { programsApi } from '../api/programs'
 import { conditionsApi } from '../api/conditions'
 import { taxesApi } from '../api/taxes'
@@ -26,13 +27,14 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { useToast } from '../hooks/useToast'
 import { getApiError } from '../lib/apiError'
-import { formatDateStr } from '../lib/format'
+import { formatDateStr, formatTimeStr } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { TIMEZONES } from '../lib/timezones'
 import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha } from '../theme'
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
   ProgramResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
+  CreateOrgCalendarBlockRequest,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
@@ -535,6 +537,14 @@ export default function OrganisationPage() {
   const [holidaysOpen, setHolidaysOpen] = useState(false)
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
+  const [addingBlock, setAddingBlock]   = useState(false)
+  const [blocksOpen, setBlocksOpen]     = useState(false)
+  const [blockTitle, setBlockTitle]     = useState('')
+  const [blockStartTime, setBlockStartTime] = useState('13:00')
+  const [blockEndTime, setBlockEndTime]     = useState('14:00')
+  const [blockDays, setBlockDays]       = useState<DayOfWeek[]>(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'])
+  const [blockStartDate, setBlockStartDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [blockEndDate, setBlockEndDate]     = useState('')
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
   const [showClinicModal, setShowClinicModal] = useState(false)
@@ -556,6 +566,12 @@ export default function OrganisationPage() {
   const { data: holidays = [] } = useQuery({
     queryKey: ['public-holidays'],
     queryFn: publicHolidaysApi.list,
+    enabled: tab === 'information',
+  })
+
+  const { data: calendarBlocks = [] } = useQuery({
+    queryKey: ['calendar-blocks'],
+    queryFn: calendarBlocksApi.list,
     enabled: tab === 'information',
   })
 
@@ -692,6 +708,38 @@ export default function OrganisationPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['public-holidays'] }); toast('Holiday removed', 'success') },
     onError: (err) => toast(getApiError(err, 'Failed to remove holiday'), 'error'),
   })
+
+  // ── Calendar block mutations ─────────────────────────────────────────────────
+  const createBlockMut = useMutation({
+    mutationFn: (data: CreateOrgCalendarBlockRequest) => calendarBlocksApi.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar-blocks'] })
+      toast('Calendar block added', 'success')
+      setAddingBlock(false); setBlockTitle(''); setBlockEndDate('')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to add calendar block'), 'error'),
+  })
+
+  const deleteBlockMut = useMutation({
+    mutationFn: calendarBlocksApi.delete,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['calendar-blocks'] }); toast('Calendar block removed', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to remove calendar block'), 'error'),
+  })
+
+  const toggleBlockDay = (day: DayOfWeek) => {
+    setBlockDays(current => current.includes(day) ? current.filter(d => d !== day) : [...current, day])
+  }
+
+  function blockDaysLabel(days: DayOfWeek[]): string {
+    if (days.length === 7) return 'Every day'
+    const weekdays: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']
+    if (days.length === 5 && weekdays.every(d => days.includes(d))) return 'Weekdays'
+    return WEEK_DAYS.filter(d => days.includes(d.value)).map(d => d.label).join(', ')
+  }
+
+  function formatTimeRange(start: string, end: string): string {
+    return `${formatTimeStr(start.slice(0, 5))} – ${formatTimeStr(end.slice(0, 5))}`
+  }
 
   // ── Programs mutations ───────────────────────────────────────────────────────
   const createProgramMut = useMutation({
@@ -1008,6 +1056,113 @@ export default function OrganisationPage() {
                 )
               })}
             </div>
+          </Card>
+
+          {/* Org-wide recurring calendar blocks (e.g. "Lunch Break") — shown on every user's
+              calendar automatically. Unlike a Meeting there's no participant list to pick, and
+              unlike a Public Holiday it doesn't block session/review-meeting autoscheduling. */}
+          <Card>
+            <CardHeader
+              title="Calendar Blocks"
+              subtitle={blocksOpen
+                ? 'Recurring blocks shown on everyone’s calendar (e.g. Lunch Break) — does not affect scheduling'
+                : `${calendarBlocks.length} block${calendarBlocks.length !== 1 ? 's' : ''} configured`}
+              action={
+                <div className="flex items-center gap-2">
+                  {canManage && (
+                    <Button variant="secondary" size="sm" onClick={() => { setAddingBlock(v => !v); setBlocksOpen(true) }}>
+                      <Plus size={14} /><span className="hidden sm:inline"> Add</span>
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setBlocksOpen(v => !v)}
+                    aria-expanded={blocksOpen}
+                    aria-label={blocksOpen ? 'Collapse calendar blocks' : 'Expand calendar blocks'}
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: colors.text.dim }}
+                  >
+                    <ChevronDown size={16} className="transition-transform" style={{ transform: blocksOpen ? 'rotate(180deg)' : 'none' }} />
+                  </button>
+                </div>
+              }
+            />
+            {blocksOpen && (
+              <>
+                {addingBlock && (
+                  <div className="mb-4 p-4 rounded-xl flex flex-col gap-3" style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
+                    <Input label="Title" placeholder="e.g. Lunch Break" value={blockTitle} onChange={e => setBlockTitle(e.target.value)} />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Input label="Start time" type="time" value={blockStartTime} onChange={e => setBlockStartTime(e.target.value)} />
+                      <Input label="End time" type="time" value={blockEndTime} onChange={e => setBlockEndTime(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="form-label">Repeats on</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {WEEK_DAYS.map(d => (
+                          <button
+                            key={d.value}
+                            type="button"
+                            onClick={() => toggleBlockDay(d.value)}
+                            className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                            style={blockDays.includes(d.value) ? styles.filterTabActive : styles.filterTabInactive}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Input label="Start date" type="date" value={blockStartDate} onChange={e => setBlockStartDate(e.target.value)} />
+                      <Input label="End date (optional)" type="date" value={blockEndDate} onChange={e => setBlockEndDate(e.target.value)} />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="secondary" onClick={() => { setAddingBlock(false); setBlockTitle(''); setBlockEndDate('') }}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        disabled={!blockTitle.trim() || blockDays.length === 0 || !blockStartTime || !blockEndTime || !blockStartDate}
+                        loading={createBlockMut.isPending}
+                        onClick={() => createBlockMut.mutate({
+                          title: blockTitle.trim(),
+                          startTime: blockStartTime,
+                          endTime: blockEndTime,
+                          daysOfWeek: blockDays,
+                          startDate: blockStartDate,
+                          endDate: blockEndDate || null,
+                        })}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {calendarBlocks.length === 0 ? (
+                  <div className="flex items-center gap-3 py-6 justify-center">
+                    <Clock size={20} style={{ color: colors.text.dim }} />
+                    <p className="text-sm" style={{ color: colors.text.muted }}>No recurring calendar blocks defined yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-subtle">
+                    {calendarBlocks.map(b => (
+                      <div key={b.id} className="flex items-center justify-between py-3">
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{b.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+                            {formatTimeRange(b.startTime, b.endTime)} · {blockDaysLabel(b.daysOfWeek)}
+                            {b.endDate ? ` · through ${formatDateStr(b.endDate)}` : ' · ongoing'}
+                          </p>
+                        </div>
+                        {canManage && (
+                          <button onClick={() => deleteBlockMut.mutate(b.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </Card>
         </>
       )}

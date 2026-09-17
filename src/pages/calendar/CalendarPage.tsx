@@ -24,6 +24,7 @@ import { inquiriesApi } from '../../api/inquiries'
 import { leavesApi } from '../../api/leaves'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { publicHolidaysApi } from '../../api/publicHolidays'
+import { calendarBlocksApi } from '../../api/calendarBlocks'
 import { ActionModal, hasNextAction } from '../inquiries/ActionModal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
@@ -41,7 +42,7 @@ import { usersApi } from '../../api/users'
 import { organisationApi } from '../../api/organisation'
 import { SessionNotesModal, RescheduleSessionModal } from '../patients/EnrollmentSessions'
 import AdHocSessionModal from './AdHocSessionModal'
-import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, DayOfWeek } from '../../types'
+import type { InquiryResponse, LeaveResponse, TherapySessionResponse, PublicHolidayResponse, ReviewMeetingResponse, MeetingResponse, MeetingParticipant, AssignableUser, DayOfWeek, OrgCalendarBlockResponse } from '../../types'
 import type { SlotSelection } from './types'
 import { ROUTES } from '../../lib/routes'
 import { todayStr, isPastDateTime, addMinutesToTime } from '../../lib/schedule'
@@ -49,7 +50,7 @@ import { formatTimeStr, formatDateStr } from '../../lib/format'
 
 // ── Event model ───────────────────────────────────────────────────────────────
 
-type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review' | 'meeting'
+type EventKind = 'consultation' | 'leave' | 'session' | 'holiday' | 'review' | 'meeting' | 'orgBlock'
 
 // Labels match the ones EventDetailDrawer already shows per kind.
 const EVENT_KIND_OPTIONS: { value: EventKind; label: string }[] = [
@@ -59,6 +60,7 @@ const EVENT_KIND_OPTIONS: { value: EventKind; label: string }[] = [
   { value: 'leave',        label: 'Leave' },
   { value: 'holiday',      label: 'Public Holiday' },
   { value: 'consultation', label: 'Consultation' },
+  { value: 'orgBlock',     label: 'Calendar Block' },
 ]
 
 // Fixed hex values for the Agenda PDF export — the on-screen kindDot()/kindStyle() colors lean
@@ -71,6 +73,7 @@ const PDF_KIND_COLOR: Record<EventKind, string> = {
   leave:        '#E05C5C',
   holiday:      '#B45309',
   consultation: '#1A73E8',
+  orgBlock:     '#64748B',
 }
 
 interface CalendarEvent {
@@ -82,7 +85,7 @@ interface CalendarEvent {
   subtitle?: string
   status?: string
   isAllDay: boolean
-  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse | ReviewMeetingResponse | MeetingResponse
+  raw: InquiryResponse | LeaveResponse | TherapySessionResponse | PublicHolidayResponse | ReviewMeetingResponse | MeetingResponse | OrgCalendarBlockResponse
 }
 
 // ── Visual config per kind ────────────────────────────────────────────────────
@@ -93,6 +96,9 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   }
   if (kind === 'holiday') {
     return { background: '#F59E0B20', color: '#B45309' }
+  }
+  if (kind === 'orgBlock') {
+    return { background: '#64748B18', color: '#64748B', borderLeft: '3px solid #64748B' }
   }
   if (kind === 'review') {
     if (status === 'CANCELLED') return { background: '#88888818', color: '#888', borderLeft: '3px solid #888' }
@@ -129,6 +135,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#1A73E8'
   if (kind === 'holiday')      return '#B45309'
+  if (kind === 'orgBlock')     return '#64748B'
   if (kind === 'review') {
     if (status === 'CANCELLED') return '#888'
     if (status === 'COMPLETED') return '#10b981'
@@ -274,6 +281,30 @@ function toHolidayEvent(h: PublicHolidayResponse): CalendarEvent {
   }
 }
 
+/** Expands an org-wide recurring calendar block (e.g. "Lunch Break") into one event per
+ *  matching date within [rangeStart, rangeEnd] — it's a rule, not materialized rows, same as
+ *  the backend storage; the calendar is what turns it into date-specific instances, the same
+ *  way it already does for a multi-day leave. */
+function toOrgBlockEvents(b: OrgCalendarBlockResponse, rangeStart: string, rangeEnd: string): CalendarEvent[] {
+  const from = b.startDate > rangeStart ? b.startDate : rangeStart
+  const to   = b.endDate && b.endDate < rangeEnd ? b.endDate : rangeEnd
+  if (from > to) return []
+  return eachDayOfInterval({ start: parseISO(from), end: parseISO(to) })
+    .filter(day => b.daysOfWeek.includes(format(day, 'EEEE').toUpperCase() as DayOfWeek))
+    .map(day => {
+      const dateStr = format(day, 'yyyy-MM-dd')
+      return {
+        id: `orgblock-${b.id}-${dateStr}`,
+        date: dateStr,
+        time: b.startTime.substring(0, 5),
+        kind: 'orgBlock',
+        title: b.title,
+        isAllDay: false,
+        raw: b,
+      } satisfies CalendarEvent
+    })
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function eventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
@@ -333,6 +364,15 @@ function eventOwnerIds(ev: CalendarEvent): string[] {
   if (ev.kind === 'review')  return [(ev.raw as ReviewMeetingResponse).therapistId]
   if (ev.kind === 'meeting') return (ev.raw as MeetingResponse).participants.map(p => p.id)
   return [] // consultations and holidays aren't owned by a specific therapist
+}
+
+/** Whether an event belongs in a given person's column/"Me" filter — an org-wide calendar
+ *  block (e.g. Lunch Break) has no single owner, so unlike eventOwnerIds() it belongs to
+ *  EVERY id rather than none; every per-therapist filter/column check should use this, not
+ *  a raw eventOwnerIds(ev).includes(id), or a block would vanish for a single-therapist view. */
+function eventVisibleToColumn(ev: CalendarEvent, id: string): boolean {
+  if (ev.kind === 'orgBlock') return true
+  return eventOwnerIds(ev).includes(id)
 }
 
 // Same hue as the therapist's initials avatar, so their calendar events read as "their color".
@@ -413,6 +453,10 @@ function agendaPdfColumns(ev: CalendarEvent): { therapist: string; program: stri
     const h = ev.raw as PublicHolidayResponse
     return { therapist: `${h.name} (Holiday)`, program: '', child: '' }
   }
+  if (ev.kind === 'orgBlock') {
+    const b = ev.raw as OrgCalendarBlockResponse
+    return { therapist: b.title, program: '', child: '' }
+  }
   const i = ev.raw as InquiryResponse
   return { therapist: `${i.name} (Consultation)`, program: '', child: '' }
 }
@@ -426,6 +470,7 @@ function eventKindLabel(kind: EventKind): string {
     case 'review':       return 'Review Meeting'
     case 'meeting':      return 'Meeting'
     case 'leave':        return 'Leave'
+    case 'orgBlock':     return 'Calendar Block'
   }
 }
 
@@ -1161,7 +1206,7 @@ function StaffDayView({
           <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>All day</span>
         </div>
         {columns.map(col => {
-          const allDay = dayEvents.filter(e => e.isAllDay && eventOwnerIds(e).includes(col.id))
+          const allDay = dayEvents.filter(e => e.isAllDay && eventVisibleToColumn(e, col.id))
           const chipStyle = getAvatarChipStyle(`${col.firstName} ${col.lastName}`, theme === 'dark')
           return (
             <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
@@ -1188,7 +1233,7 @@ function StaffDayView({
             {columns.map(col => {
               const timed = dayEvents.filter(e =>
                 !e.isAllDay && e.time != null && parseInt(e.time.split(':')[0]) === hour &&
-                eventOwnerIds(e).includes(col.id)
+                eventVisibleToColumn(e, col.id)
               )
               const sorted = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
               const drag   = onSlotSelect ? cellProps(`${dayKey}::${col.id}`, hour, dayKey) : null
@@ -1238,9 +1283,10 @@ function StaffDayView({
 // a useful thing to browse to. The Calendar grids have no such restriction.
 
 function eventEndTime(ev: CalendarEvent): string | undefined {
-  if (ev.kind === 'session') return (ev.raw as TherapySessionResponse).endTime
-  if (ev.kind === 'review')  return (ev.raw as ReviewMeetingResponse).endTime
-  if (ev.kind === 'meeting') return (ev.raw as MeetingResponse).endTime
+  if (ev.kind === 'session')  return (ev.raw as TherapySessionResponse).endTime
+  if (ev.kind === 'review')   return (ev.raw as ReviewMeetingResponse).endTime
+  if (ev.kind === 'meeting')  return (ev.raw as MeetingResponse).endTime
+  if (ev.kind === 'orgBlock') return (ev.raw as OrgCalendarBlockResponse).endTime
   return undefined
 }
 
@@ -1874,6 +1920,7 @@ function EventDetailDrawer({
   const isHolidayEv    = event.kind === 'holiday'
   const isReview       = event.kind === 'review'
   const isMeeting      = event.kind === 'meeting'
+  const isOrgBlock     = event.kind === 'orgBlock'
   const rawInquiry     = event.raw as InquiryResponse
   const rawLeave       = event.raw as LeaveResponse
   const rawSession     = event.raw as TherapySessionResponse
@@ -1920,12 +1967,12 @@ function EventDetailDrawer({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={s}>
-              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : isReview ? <MessageSquare size={17} /> : isMeeting ? <Users size={17} /> : <CalendarOff size={17} />}
+              {isConsultation ? <CalendarDays size={17} /> : isSession ? <Activity size={17} /> : isHolidayEv ? <Sun size={17} /> : isReview ? <MessageSquare size={17} /> : isMeeting ? <Users size={17} /> : isOrgBlock ? <Clock size={17} /> : <CalendarOff size={17} />}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
                 style={{ color: s.color as string }}>
-                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : isMeeting ? 'Meeting' : 'Leave'}
+                {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : isMeeting ? 'Meeting' : isOrgBlock ? 'Calendar Block' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
                 {event.title}
@@ -2112,8 +2159,16 @@ function EventDetailDrawer({
             </div>
           )}
 
+          {/* Org-calendar-block-specific */}
+          {isOrgBlock && (
+            <div className="rounded-xl px-3 py-3 text-sm"
+              style={{ background: '#64748B18', color: '#64748B', border: '1px solid #64748B30' }}>
+              A recurring block shared on everyone's calendar. It doesn't affect session or review-meeting scheduling.
+            </div>
+          )}
+
           {/* Leave-specific */}
-          {!isConsultation && !isSession && !isHolidayEv && !isReview && !isMeeting && (
+          {!isConsultation && !isSession && !isHolidayEv && !isReview && !isMeeting && !isOrgBlock && (
             <>
               <Row icon={<Users size={14} />}
                 label={`${rawLeave.therapistFirstName} ${rawLeave.therapistLastName}`} />
@@ -2463,6 +2518,15 @@ export default function CalendarPage() {
     staleTime: 60 * 60 * 1000, // holidays rarely change; cache for 1 hour
   })
 
+  // Org-wide recurring blocks (e.g. "Lunch Break") — visible to every role, same as the
+  // calendar itself; no `enabled` gate. Rarely change, so cached the same as holidays; the
+  // rule is expanded into date-specific events client-side, below.
+  const { data: calendarBlocks = [] } = useQuery({
+    queryKey: ['calendar-blocks'],
+    queryFn:  calendarBlocksApi.list,
+    staleTime: 60 * 60 * 1000,
+  })
+
   // All staff (Therapists, Clinic Heads, Business Owners, Office Admins) — not just
   // Therapists — so an admin can view any staff member's schedule side by side, not only
   // clinicians'. The viewer's own id is filtered out below (they already get a "Me" column).
@@ -2522,8 +2586,9 @@ export default function CalendarPage() {
     for (const m of meetings) {
       if (m.status !== 'CANCELLED') out.push(toMeetingEvent(m))
     }
+    for (const b of calendarBlocks) out.push(...toOrgBlockEvents(b, visStart, visEnd))
     return out
-  }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, meetings, canSeeInquiries])
+  }, [inquiries, leaves, sessions, publicHolidays, reviewMeetings, meetings, calendarBlocks, visStart, visEnd, canSeeInquiries])
 
   // ── Staff view: columns + Case/Program filters ─────────────────────────────
   const staffColumns = useMemo<StaffColumn[]>(() => {
@@ -2578,7 +2643,7 @@ export default function CalendarPage() {
   const staffFilteredEvents = useMemo(() => {
     const ownerId = staffTherapistId || (!canSeeStaffView ? user?.id : undefined)
     if (!ownerId) return staffEvents
-    return staffEvents.filter(ev => eventOwnerIds(ev).includes(ownerId))
+    return staffEvents.filter(ev => eventVisibleToColumn(ev, ownerId))
   }, [staffEvents, staffTherapistId, canSeeStaffView, user])
 
   const staffDayColumns = useMemo(
