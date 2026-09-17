@@ -384,6 +384,39 @@ function sessionPatientName(ev: CalendarEvent): string | undefined {
   return `${s.patientFirstName} ${s.patientLastName}`
 }
 
+/** Per-kind mapping into the Agenda PDF's Therapist Name / Program / Child's Name columns —
+ *  only a therapy session has a real program and a child, so those two stay blank for every
+ *  other kind; the Therapist Name column falls back to whichever name best identifies the row
+ *  (with a kind suffix, since the row's own color is the only other clue in print). */
+function agendaPdfColumns(ev: CalendarEvent): { therapist: string; program: string; child: string } {
+  if (ev.kind === 'session') {
+    const s = ev.raw as TherapySessionResponse
+    return {
+      therapist: `${s.therapistFirstName} ${s.therapistLastName}`,
+      program: s.programName,
+      child: `${s.patientFirstName} ${s.patientLastName}`,
+    }
+  }
+  if (ev.kind === 'leave') {
+    const l = ev.raw as LeaveResponse
+    return { therapist: `${l.therapistFirstName} ${l.therapistLastName} (Leave)`, program: '', child: '' }
+  }
+  if (ev.kind === 'review') {
+    const r = ev.raw as ReviewMeetingResponse
+    return { therapist: `${r.therapistName} (Review)`, program: '', child: '' }
+  }
+  if (ev.kind === 'meeting') {
+    const m = ev.raw as MeetingResponse
+    return { therapist: `${m.title} (Meeting)`, program: '', child: '' }
+  }
+  if (ev.kind === 'holiday') {
+    const h = ev.raw as PublicHolidayResponse
+    return { therapist: `${h.name} (Holiday)`, program: '', child: '' }
+  }
+  const i = ev.raw as InquiryResponse
+  return { therapist: `${i.name} (Consultation)`, program: '', child: '' }
+}
+
 /** Kind label shown in the hover card — mirrors EventDetailDrawer's per-kind header text. */
 function eventKindLabel(kind: EventKind): string {
   switch (kind) {
@@ -2705,21 +2738,21 @@ export default function CalendarPage() {
       doc.setTextColor(122, 143, 160)
       doc.text(`${agendaEvents.length} event${agendaEvents.length !== 1 ? 's' : ''}`, marginX, 82)
 
-      // A group-header row (full-width, shaded) stands in for the on-screen table's merged
-      // Date column — clearer on a printed page than repeating the date on every row.
+      // A group-header row (full-width, shaded) stands in for a repeated Date column —
+      // clearer on a printed page than repeating the date on every row.
       const body: (string | { content: string; colSpan?: number; styles?: Record<string, unknown> })[][] = []
       const rowColors: (string | null)[] = []
       for (const group of groups) {
         body.push([{
-          content: group.label, colSpan: 2,
+          content: group.label, colSpan: 4,
           styles: { fillColor: '#EEF1F6', textColor: '#1A2A3A', fontStyle: 'bold' },
         }])
         rowColors.push(null)
         for (const ev of group.items) {
           const end = eventEndTime(ev)
           const time = ev.isAllDay ? 'All day' : `${formatTimeStr(ev.time)}${end ? ` – ${formatTimeStr(end)}` : ''}`
-          const detail = ev.subtitle ? `${ev.title}\n${ev.subtitle}` : ev.title
-          body.push([time, detail])
+          const { therapist, program, child } = agendaPdfColumns(ev)
+          body.push([therapist, program, time, child])
           rowColors.push(PDF_KIND_COLOR[ev.kind])
         }
       }
@@ -2727,14 +2760,18 @@ export default function CalendarPage() {
       autoTable(doc, {
         startY: 96,
         margin: { left: marginX, right: marginX },
-        head: [['Time', 'Event']],
+        head: [['Therapist Name', 'Program', 'Time', "Child's Name"]],
         body,
         theme: 'grid',
         styles: { fontSize: 10, cellPadding: 7, lineColor: [225, 229, 235], lineWidth: 0.5 },
         headStyles: { fillColor: '#1A2A3A', textColor: '#ffffff', fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 110 } },
+        columnStyles: {
+          0: { cellWidth: 140 },
+          1: { cellWidth: 110 },
+          2: { cellWidth: 95 },
+        },
         didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 1) {
+          if (data.section === 'body') {
             const color = rowColors[data.row.index]
             if (color) {
               data.cell.styles.textColor = color
