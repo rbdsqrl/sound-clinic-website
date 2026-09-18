@@ -186,6 +186,30 @@ export default function PatientsPage() {
     }),
     placeholderData: (prev) => prev,
   })
+
+  // Tab count badges — the active tab's count comes free from the query above (its
+  // totalElements). The inactive tab needs its own request, but size:1 + compact keeps it
+  // to a near-empty response, so it doesn't add meaningful latency alongside the main fetch.
+  const otherTab = tab === 'all' ? 'mine' : 'all'
+  const { data: otherCountPage } = useQuery({
+    queryKey: ['patients', 'search', { page: 0, tab: otherTab, debouncedSearch, statusParam, size: 1 }],
+    queryFn: () => patientsApi.search({
+      page: 0,
+      size: 1,
+      search: debouncedSearch || undefined,
+      mine: otherTab === 'mine',
+      status: statusParam,
+      compact: true,
+    }),
+    enabled: !isOfficeAdmin,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  })
+  const tabCount: Record<'all' | 'mine', number | undefined> = {
+    [tab]: patientsPage?.totalElements,
+    [otherTab]: otherCountPage?.totalElements,
+  } as Record<'all' | 'mine', number | undefined>
+
   const { data: clinics } = useQuery({ queryKey: ['clinics'], queryFn: clinicsApi.list })
 
   const filtered = patientsPage?.content ?? []
@@ -233,6 +257,7 @@ export default function PatientsPage() {
                 style={tab === t ? styles.tabActive : styles.tabInactive}
               >
                 {t === 'all' ? 'All Cases' : 'My Cases'}
+                {tabCount[t] != null && <span className="ml-1.5 opacity-70">{tabCount[t]}</span>}
               </button>
             ))}
           </div>
