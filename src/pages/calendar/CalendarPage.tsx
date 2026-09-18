@@ -73,7 +73,7 @@ const PDF_KIND_COLOR: Record<EventKind, string> = {
   leave:        '#E05C5C',
   holiday:      '#B45309',
   consultation: '#1A73E8',
-  orgBlock:     '#334155',
+  orgBlock:     '#1A73E8', // PDF is a fixed light medium — the light-mode accent hex, not a theme var
 }
 
 interface CalendarEvent {
@@ -100,8 +100,9 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   if (kind === 'orgBlock') {
     // Deliberately solid, not the pastel tint every other kind uses — an org-wide block
     // (e.g. Lunch Break) is shared chrome, not a booked appointment, and should read as
-    // visually distinct at a glance rather than blend in as "one more event type."
-    return { background: '#334155', color: '#fff' }
+    // visually distinct at a glance rather than blend in as "one more event type." Uses
+    // the app's own theme accent (not a fixed hex) so it's on-brand and adapts to dark mode.
+    return { background: colors.accent, color: '#fff' }
   }
   if (kind === 'review') {
     if (status === 'CANCELLED') return { background: '#88888818', color: '#888', borderLeft: '3px solid #888' }
@@ -138,7 +139,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#1A73E8'
   if (kind === 'holiday')      return '#B45309'
-  if (kind === 'orgBlock')     return '#334155'
+  if (kind === 'orgBlock')     return colors.accent
   if (kind === 'review') {
     if (status === 'CANCELLED') return '#888'
     if (status === 'COMPLETED') return '#10b981'
@@ -609,6 +610,7 @@ function EventChip({
         style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
         <div className="truncate">
           {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
+          {event.kind === 'orgBlock' && <Clock size={9} className="inline mr-1 opacity-90" />}
           <span className="truncate">{event.title}</span>
           {!compact && !event.isAllDay && event.time && (
             <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
@@ -1209,12 +1211,16 @@ function StaffDayView({
         </div>
         {columns.map(col => {
           const allDay = dayEvents.filter(e => e.isAllDay && eventVisibleToColumn(e, col.id))
+          // Every chip in this column is tinted with the therapist's own avatar colour, so a
+          // glance at colour alone tells you whose column you're in — except an org-wide block
+          // (e.g. Lunch Break), which isn't owned by this therapist and would misleadingly look
+          // like "their" event if tinted the same way; it keeps its own distinct kind colour instead.
           const chipStyle = getAvatarChipStyle(`${col.firstName} ${col.lastName}`, theme === 'dark')
           return (
             <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
               style={{ borderColor: border.divider }}>
               {allDay.map(ev => (
-                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} showPatient />
+                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={ev.kind === 'orgBlock' ? undefined : chipStyle} showPatient />
               ))}
             </div>
           )
@@ -1241,6 +1247,10 @@ function StaffDayView({
               const drag   = onSlotSelect ? cellProps(`${dayKey}::${col.id}`, hour, dayKey) : null
               const cellKey = `${col.id}::${hour}`
               const expanded = expandedCells.has(cellKey)
+              // Every chip in this column is tinted with the therapist's own avatar colour, so a
+              // glance at colour alone tells you whose column you're in — except an org-wide block
+              // (e.g. Lunch Break), which isn't owned by this therapist and would misleadingly look
+              // like "their" event if tinted the same way; it keeps its own distinct kind colour instead.
               const chipStyle = getAvatarChipStyle(`${col.firstName} ${col.lastName}`, theme === 'dark')
               return (
                 <div key={col.id} className="border-l p-1 flex flex-col gap-0.5 relative min-w-0"
@@ -1256,7 +1266,7 @@ function StaffDayView({
                     <NowLine minutes={nowMins} innerRef={nowRef} />
                   )}
                   {sorted.slice(0, expanded ? undefined : 2).map(ev => (
-                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={chipStyle} showPatient />
+                    <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={ev.kind === 'orgBlock' ? undefined : chipStyle} showPatient />
                   ))}
                   {sorted.length > 2 && (
                     <button
@@ -1379,6 +1389,7 @@ function AgendaView({
                       </>
                     ) : (
                       <span className="truncate block">
+                        {ev.kind === 'orgBlock' && <Clock size={12} className="inline mr-1 opacity-90 align-[-1px]" />}
                         <span className="text-sm font-semibold">{ev.title}</span>
                         {ev.subtitle && <span className="text-xs opacity-80"> · {ev.subtitle}</span>}
                       </span>
@@ -2164,7 +2175,7 @@ function EventDetailDrawer({
           {/* Org-calendar-block-specific */}
           {isOrgBlock && (
             <div className="rounded-xl px-3 py-3 text-sm"
-              style={{ background: '#33415518', color: '#334155', border: '1px solid #33415530' }}>
+              style={{ background: accentAlpha(0.1), color: colors.accent, border: `1px solid ${accentAlpha(0.25)}` }}>
               A recurring block shared on everyone's calendar. It doesn't affect session or review-meeting scheduling.
             </div>
           )}
