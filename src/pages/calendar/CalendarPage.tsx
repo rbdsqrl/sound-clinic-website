@@ -73,7 +73,7 @@ const PDF_KIND_COLOR: Record<EventKind, string> = {
   leave:        '#E05C5C',
   holiday:      '#B45309',
   consultation: '#1A73E8',
-  orgBlock:     '#64748B',
+  orgBlock:     '#334155',
 }
 
 interface CalendarEvent {
@@ -98,7 +98,10 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
     return { background: '#F59E0B20', color: '#B45309' }
   }
   if (kind === 'orgBlock') {
-    return { background: '#64748B18', color: '#64748B', borderLeft: '3px solid #64748B' }
+    // Deliberately solid, not the pastel tint every other kind uses — an org-wide block
+    // (e.g. Lunch Break) is shared chrome, not a booked appointment, and should read as
+    // visually distinct at a glance rather than blend in as "one more event type."
+    return { background: '#334155', color: '#fff' }
   }
   if (kind === 'review') {
     if (status === 'CANCELLED') return { background: '#88888818', color: '#888', borderLeft: '3px solid #888' }
@@ -135,7 +138,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
 function kindDot(kind: EventKind, status?: string): string {
   if (kind === 'consultation') return '#1A73E8'
   if (kind === 'holiday')      return '#B45309'
-  if (kind === 'orgBlock')     return '#64748B'
+  if (kind === 'orgBlock')     return '#334155'
   if (kind === 'review') {
     if (status === 'CANCELLED') return '#888'
     if (status === 'COMPLETED') return '#10b981'
@@ -505,7 +508,6 @@ function EventHoverCard({ event, pos }: {
   event: CalendarEvent
   pos: { left: number; top: number; openUpward: boolean }
 }) {
-  const s = kindStyle(event.kind, event.status)
   const isSession = event.kind === 'session'
   const isReview  = event.kind === 'review'
 
@@ -529,7 +531,7 @@ function EventHoverCard({ event, pos }: {
         boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
       }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: s.color as string }}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: kindDot(event.kind, event.status) }}>
         {eventKindLabel(event.kind)}
       </p>
       <p className="text-sm font-semibold mb-2 leading-snug" style={{ color: colors.text.primary }}>
@@ -1971,7 +1973,7 @@ function EventDetailDrawer({
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
-                style={{ color: s.color as string }}>
+                style={{ color: kindDot(event.kind, event.status) }}>
                 {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : isMeeting ? 'Meeting' : isOrgBlock ? 'Calendar Block' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>
@@ -2162,7 +2164,7 @@ function EventDetailDrawer({
           {/* Org-calendar-block-specific */}
           {isOrgBlock && (
             <div className="rounded-xl px-3 py-3 text-sm"
-              style={{ background: '#64748B18', color: '#64748B', border: '1px solid #64748B30' }}>
+              style={{ background: '#33415518', color: '#334155', border: '1px solid #33415530' }}>
               A recurring block shared on everyone's calendar. It doesn't affect session or review-meeting scheduling.
             </div>
           )}

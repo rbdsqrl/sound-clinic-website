@@ -10,6 +10,10 @@ export const calendarBlocksApi = {
     client.post<ApiResponse<OrgCalendarBlockResponse>>('/calendar-blocks', data)
       .then(r => r.data.data),
 
+  update: (id: string, data: CreateOrgCalendarBlockRequest) =>
+    client.patch<ApiResponse<OrgCalendarBlockResponse>>(`/calendar-blocks/${id}`, data)
+      .then(r => r.data.data),
+
   delete: (id: string) =>
     client.delete<ApiResponse<void>>(`/calendar-blocks/${id}`)
       .then(r => r.data.data),

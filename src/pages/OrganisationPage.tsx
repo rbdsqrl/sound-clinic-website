@@ -34,7 +34,7 @@ import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
   ProgramResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
-  CreateOrgCalendarBlockRequest,
+  CreateOrgCalendarBlockRequest, OrgCalendarBlockResponse,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
@@ -538,6 +538,7 @@ export default function OrganisationPage() {
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
   const [addingBlock, setAddingBlock]   = useState(false)
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [blocksOpen, setBlocksOpen]     = useState(false)
   const [blockTitle, setBlockTitle]     = useState('')
   const [blockStartTime, setBlockStartTime] = useState('13:00')
@@ -710,14 +711,29 @@ export default function OrganisationPage() {
   })
 
   // ── Calendar block mutations ─────────────────────────────────────────────────
+  const resetBlockForm = () => {
+    setAddingBlock(false); setEditingBlockId(null)
+    setBlockTitle(''); setBlockEndDate('')
+  }
+
   const createBlockMut = useMutation({
     mutationFn: (data: CreateOrgCalendarBlockRequest) => calendarBlocksApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['calendar-blocks'] })
       toast('Calendar block added', 'success')
-      setAddingBlock(false); setBlockTitle(''); setBlockEndDate('')
+      resetBlockForm()
     },
     onError: (err) => toast(getApiError(err, 'Failed to add calendar block'), 'error'),
+  })
+
+  const updateBlockMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CreateOrgCalendarBlockRequest }) => calendarBlocksApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar-blocks'] })
+      toast('Calendar block updated', 'success')
+      resetBlockForm()
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update calendar block'), 'error'),
   })
 
   const deleteBlockMut = useMutation({
@@ -728,6 +744,18 @@ export default function OrganisationPage() {
 
   const toggleBlockDay = (day: DayOfWeek) => {
     setBlockDays(current => current.includes(day) ? current.filter(d => d !== day) : [...current, day])
+  }
+
+  const startEditBlock = (b: OrgCalendarBlockResponse) => {
+    setEditingBlockId(b.id)
+    setBlockTitle(b.title)
+    setBlockStartTime(b.startTime.slice(0, 5))
+    setBlockEndTime(b.endTime.slice(0, 5))
+    setBlockDays(b.daysOfWeek)
+    setBlockStartDate(b.startDate)
+    setBlockEndDate(b.endDate ?? '')
+    setAddingBlock(true)
+    setBlocksOpen(true)
   }
 
   function blockDaysLabel(days: DayOfWeek[]): string {
@@ -1070,7 +1098,10 @@ export default function OrganisationPage() {
               action={
                 <div className="flex items-center gap-2">
                   {canManage && (
-                    <Button variant="secondary" size="sm" onClick={() => { setAddingBlock(v => !v); setBlocksOpen(true) }}>
+                    <Button variant="secondary" size="sm" onClick={() => {
+                      if (addingBlock) resetBlockForm()
+                      else { setAddingBlock(true); setBlocksOpen(true) }
+                    }}>
                       <Plus size={14} /><span className="hidden sm:inline"> Add</span>
                     </Button>
                   )}
@@ -1091,6 +1122,9 @@ export default function OrganisationPage() {
               <>
                 {addingBlock && (
                   <div className="mb-4 p-4 rounded-xl flex flex-col gap-3" style={{ background: accentAlpha(0.04), border: `1px solid ${border.divider}` }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
+                      {editingBlockId ? 'Edit block' : 'New block'}
+                    </p>
                     <Input label="Title" placeholder="e.g. Lunch Break" value={blockTitle} onChange={e => setBlockTitle(e.target.value)} />
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Input label="Start time" type="time" value={blockStartTime} onChange={e => setBlockStartTime(e.target.value)} />
@@ -1117,21 +1151,25 @@ export default function OrganisationPage() {
                       <Input label="End date (optional)" type="date" value={blockEndDate} onChange={e => setBlockEndDate(e.target.value)} />
                     </div>
                     <div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="secondary" onClick={() => { setAddingBlock(false); setBlockTitle(''); setBlockEndDate('') }}>Cancel</Button>
+                      <Button size="sm" variant="secondary" onClick={resetBlockForm}>Cancel</Button>
                       <Button
                         size="sm"
                         disabled={!blockTitle.trim() || blockDays.length === 0 || !blockStartTime || !blockEndTime || !blockStartDate}
-                        loading={createBlockMut.isPending}
-                        onClick={() => createBlockMut.mutate({
-                          title: blockTitle.trim(),
-                          startTime: blockStartTime,
-                          endTime: blockEndTime,
-                          daysOfWeek: blockDays,
-                          startDate: blockStartDate,
-                          endDate: blockEndDate || null,
-                        })}
+                        loading={createBlockMut.isPending || updateBlockMut.isPending}
+                        onClick={() => {
+                          const data: CreateOrgCalendarBlockRequest = {
+                            title: blockTitle.trim(),
+                            startTime: blockStartTime,
+                            endTime: blockEndTime,
+                            daysOfWeek: blockDays,
+                            startDate: blockStartDate,
+                            endDate: blockEndDate || null,
+                          }
+                          if (editingBlockId) updateBlockMut.mutate({ id: editingBlockId, data })
+                          else createBlockMut.mutate(data)
+                        }}
                       >
-                        Add
+                        {editingBlockId ? 'Save changes' : 'Add'}
                       </Button>
                     </div>
                   </div>
@@ -1153,9 +1191,14 @@ export default function OrganisationPage() {
                           </p>
                         </div>
                         {canManage && (
-                          <button onClick={() => deleteBlockMut.mutate(b.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
-                            <Trash2 size={15} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditBlock(b)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => deleteBlockMut.mutate(b.id)} className="p-2 rounded-lg" style={{ color: colors.text.dim }}>
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
