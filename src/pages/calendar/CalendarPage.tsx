@@ -348,15 +348,10 @@ function weekRangeTitle(current: Date): string {
     : `${format(ws, 'd MMM')} – ${format(we, 'd MMM yyyy')}`
 }
 
-// Org-wide blocks (e.g. Lunch Break) are deliberately excluded here — they get their own
-// dedicated row above the hourly grid (see orgBlocksOnDay) instead of sitting inside an hour
-// cell. A block's start time rarely lands on the hour, and every day/therapist column shares
-// that row's height, so a lone block chip in an otherwise-empty hour made the row look
-// stranded — pulling it into its own row sidesteps the shared-height mismatch entirely.
 function timedEventsAtHour(events: CalendarEvent[], day: Date, hour: number): CalendarEvent[] {
   const key = format(day, 'yyyy-MM-dd')
   return events.filter(e =>
-    !e.isAllDay && e.kind !== 'orgBlock' && e.date === key &&
+    !e.isAllDay && e.date === key &&
     e.time != null && parseInt(e.time.split(':')[0]) === hour
   )
 }
@@ -364,15 +359,6 @@ function timedEventsAtHour(events: CalendarEvent[], day: Date, hour: number): Ca
 function allDayEventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
   const key = format(day, 'yyyy-MM-dd')
   return events.filter(e => e.isAllDay && e.date === key)
-}
-
-/** Org-wide recurring blocks for one day, sorted by start time — rendered in their own row in
- *  the Day/Week/Staff-Day grids instead of inside the hourly cells (see timedEventsAtHour). */
-function orgBlocksOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
-  const key = format(day, 'yyyy-MM-dd')
-  return events
-    .filter(e => e.kind === 'orgBlock' && e.date === key)
-    .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
 }
 
 /** Which staff-column(s) an event belongs to — used by the per-therapist Staff view. */
@@ -860,7 +846,6 @@ function WeekView({
     })
 
   const hasAnyAllDay = days.some(d => allDayEventsOnDay(events, d).length > 0)
-  const hasAnyOrgBlock = days.some(d => orgBlocksOnDay(events, d).length > 0)
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-auto">
@@ -913,27 +898,6 @@ function WeekView({
         </div>
       )}
 
-      {/* Org-wide recurring blocks (e.g. Lunch Break) — their own row rather than sitting
-          inside an hour cell, since their start time rarely lands on the hour and every
-          day column shares that hour row's height (a lone block chip on a quiet day would
-          otherwise float in an oversized row sized by a busier neighbouring day). */}
-      {hasAnyOrgBlock && (
-        <div className="grid border-b"
-          style={{ gridTemplateColumns: '64px repeat(7, 1fr)', borderColor: border.divider, background: surface.card }}>
-          <div className="px-1 pt-1 text-right">
-            <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>Blocks</span>
-          </div>
-          {days.map(day => (
-            <div key={day.toISOString()} className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
-              style={{ borderColor: border.divider }}>
-              {orgBlocksOnDay(events, day).map(ev => (
-                <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Hour rows */}
       <div className="flex-1">
         {HOURS.map(hour => (
@@ -971,7 +935,7 @@ function WeekView({
                     return (
                       <>
                         {sortedTimed.slice(0, expanded ? undefined : 3).map(ev => (
-                          <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={colorFn?.(ev)} showTherapist={showTherapist} />
+                          <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} colorOverride={ev.kind === 'orgBlock' ? undefined : colorFn?.(ev)} showTherapist={showTherapist} />
                         ))}
                         {timed.length > 3 && (
                           <button
@@ -1089,23 +1053,6 @@ function DayView({
           <div className="flex-1 border-l p-2 flex flex-col gap-1 min-h-[32px]"
             style={{ borderColor: border.divider }}>
             {allDayEvs.filter(e => e.kind !== 'holiday').map(ev => (
-              <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Org-wide recurring blocks (e.g. Lunch Break) — their own row rather than sitting
-          inside an hour cell, since their start time rarely lands on the hour. */}
-      {orgBlocksOnDay(events, current).length > 0 && (
-        <div className="flex border-b flex-shrink-0"
-          style={{ borderColor: border.divider, background: surface.card }}>
-          <div className="w-16 flex-shrink-0 px-2 pt-1.5 text-right">
-            <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>Blocks</span>
-          </div>
-          <div className="flex-1 border-l p-2 flex flex-col gap-1 min-h-[32px]"
-            style={{ borderColor: border.divider }}>
-            {orgBlocksOnDay(events, current).map(ev => (
               <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
             ))}
           </div>
@@ -1285,25 +1232,6 @@ function StaffDayView({
         })}
       </div>
 
-      {/* Org-wide recurring blocks (e.g. Lunch Break) — one banner spanning every column
-          instead of repeating the same chip in each therapist's column: it's the same block
-          for the same day regardless of whose column you're looking at, and giving it its own
-          row avoids the shared-hour-row-height mismatch a lone block chip caused before. */}
-      {orgBlocksOnDay(events, current).length > 0 && (
-        <div className="grid border-b"
-          style={{ gridTemplateColumns: gridCols, minWidth: gridMinWidth, borderColor: border.divider, background: surface.card }}>
-          <div className="px-1 pt-1 text-right">
-            <span className="text-[10.35px] uppercase tracking-wide" style={{ color: colors.text.muted }}>Blocks</span>
-          </div>
-          <div className="border-l p-1 flex flex-col gap-0.5 min-h-[28px] min-w-0"
-            style={{ borderColor: border.divider, gridColumn: `span ${columns.length}` }}>
-            {orgBlocksOnDay(events, current).map(ev => (
-              <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Hour rows */}
       <div className="flex-1">
         {HOURS.map(hour => (
@@ -1317,7 +1245,7 @@ function StaffDayView({
             </div>
             {columns.map(col => {
               const timed = dayEvents.filter(e =>
-                !e.isAllDay && e.kind !== 'orgBlock' && e.time != null && parseInt(e.time.split(':')[0]) === hour &&
+                !e.isAllDay && e.time != null && parseInt(e.time.split(':')[0]) === hour &&
                 eventVisibleToColumn(e, col.id)
               )
               const sorted = [...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
