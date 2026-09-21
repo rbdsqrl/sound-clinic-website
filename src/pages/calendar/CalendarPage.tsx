@@ -752,7 +752,10 @@ function MonthView({
       <div className="grid grid-cols-7 flex-1" style={{ gridAutoRows: '1fr' }}>
         {days.map((day, idx) => {
           const dayKey     = format(day, 'yyyy-MM-dd')
-          const dayEvents  = eventsOnDay(events, day)
+          // Org-wide recurring blocks (e.g. Lunch Break) recur on every day, so showing them
+          // here would flood the "+N more" count on every cell for a chip that carries no
+          // day-specific information — they're only useful in the timed hourly views.
+          const dayEvents  = eventsOnDay(events, day).filter(e => e.kind !== 'orgBlock')
           const inMonth    = isSameMonth(day, current)
           const todayDay   = isToday(day)
           const isHoliday  = holidayDates.has(dayKey)
@@ -760,15 +763,10 @@ function MonthView({
           const isLastRow  = idx >= days.length - 7
           const isLastCol  = (idx + 1) % 7 === 0
 
-          // Sort: holidays first, then org-wide blocks (e.g. Lunch Break — only 2 chips show
-          // before "+N more", so without this a block could land behind it on a busy day while
-          // showing fine on a quiet one, looking like it randomly comes and goes), then other
-          // all-day, then timed
+          // Sort: holidays first, then other all-day, then timed
           const sorted = [...dayEvents].sort((a, b) => {
             if (a.kind === 'holiday' && b.kind !== 'holiday') return -1
             if (b.kind === 'holiday' && a.kind !== 'holiday') return 1
-            if (a.kind === 'orgBlock' && b.kind !== 'orgBlock') return -1
-            if (b.kind === 'orgBlock' && a.kind !== 'orgBlock') return 1
             return (b.isAllDay ? 1 : 0) - (a.isAllDay ? 1 : 0)
           })
 
