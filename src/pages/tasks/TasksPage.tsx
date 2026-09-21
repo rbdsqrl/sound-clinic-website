@@ -637,6 +637,20 @@ function TaskDetailModal({
             )}
           </div>
 
+          {/* Created by */}
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[11.5px] uppercase font-semibold tracking-wide" style={{ color: colors.text.dim }}>Created by</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11.5px] font-bold h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                style={getAvatarColorStyles(`${task.assignedByFirstName} ${task.assignedByLastName}`, theme === 'dark')}>
+                {initials(task.assignedByFirstName, task.assignedByLastName)}
+              </span>
+              <span className="text-xs" style={{ color: colors.text.primary }}>
+                {task.assignedByFirstName} {task.assignedByLastName}
+              </span>
+            </div>
+          </div>
+
           {/* Assignees */}
           <div className="flex flex-col gap-1 min-w-0">
             <div className="flex items-center gap-1">
