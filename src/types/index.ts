@@ -288,6 +288,11 @@ export interface OrganisationResponse {
   aiKeyConfigured: boolean
   /** Days autoscheduling (therapy sessions, review meetings) skips every week. Ad-hoc sessions are unaffected. */
   weeklyOffDays: DayOfWeek[]
+  /** Geo-fence for a Business Owner's attendance check-in — verified against the org's own
+   *  address rather than any single clinic, since they aren't tied to one. */
+  latitude: number | null
+  longitude: number | null
+  geoFenceRadiusMeters: number | null
   createdAt: string
 }
 
@@ -303,6 +308,9 @@ export interface UpdateOrganisationRequest {
   aiApiKey?: string
   /** Omit to leave unchanged; pass [] to clear all weekly off days. */
   weeklyOffDays?: DayOfWeek[]
+  latitude?: number
+  longitude?: number
+  geoFenceRadiusMeters?: number
 }
 
 // ── Clinic ─────────────────────────────────────────────────────────────────────
@@ -1241,6 +1249,18 @@ export interface VerifyAttendanceRequest {
   latitude?: number
   longitude?: number
   faceDescriptor?: number[]
+}
+
+/** Live "how far am I" preview computed right after the browser reports a location —
+ *  before an actual check-in/verify is submitted. `referenceType` is CLINIC for most
+ *  roles, ORGANISATION for a Business Owner (verified against the org's own address). */
+export interface GeoCheckResponse {
+  verified: boolean
+  /** Null when the reference location has no latitude/longitude configured. */
+  distanceMeters: number | null
+  radiusMeters: number | null
+  referenceLabel: string
+  referenceType: 'CLINIC' | 'ORGANISATION'
 }
 
 // ── IEP ───────────────────────────────────────────────────────────────────────

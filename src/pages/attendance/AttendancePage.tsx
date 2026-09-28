@@ -16,7 +16,7 @@ import { getApiError } from '../../lib/apiError'
 import { formatTime, formatDateStr } from '../../lib/format'
 import { colors, successAlpha, dangerAlpha, warningAlpha } from '../../theme'
 import { CameraView } from './CameraView'
-import type { AttendanceResponse } from '../../types'
+import type { AttendanceResponse, GeoCheckResponse } from '../../types'
 
 const MODELS_PATH = '/models'
 
@@ -33,6 +33,37 @@ function VerifyBadge({ ok, label }: VerifyBadgeProps) {
       {ok ? <CheckCircle size={12} /> : <XCircle size={12} />}
       {label}
     </span>
+  )
+}
+
+function formatDistance(meters: number): string {
+  return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
+}
+
+/** Shown right under "Location captured" — the live distance/verified preview against
+ *  whatever the check-in will actually be verified against (a clinic, or the org's own
+ *  address for a Business Owner). */
+function GeoCheckStatus({ geoCheck, loading }: { geoCheck?: GeoCheckResponse; loading: boolean }) {
+  if (loading) {
+    return (
+      <p className="text-xs mt-1.5 flex items-center gap-1.5" style={{ color: colors.text.muted }}>
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+        Checking distance…
+      </p>
+    )
+  }
+  if (!geoCheck) return null
+  if (geoCheck.distanceMeters == null) {
+    return (
+      <p className="text-xs mt-1.5" style={{ color: colors.text.muted }}>
+        No geo-fence configured for {geoCheck.referenceLabel}
+      </p>
+    )
+  }
+  return (
+    <p className="text-xs mt-1.5" style={{ color: geoCheck.verified ? colors.status.success : colors.status.error }}>
+      {formatDistance(geoCheck.distanceMeters)} from {geoCheck.referenceLabel} — {geoCheck.verified ? 'within range' : `outside ${geoCheck.radiusMeters}m range`}
+    </p>
   )
 }
 
@@ -213,6 +244,16 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   // Hooks must appear before any conditional early returns.
 
   const checkedIn = today?.status === 'CHECKED_IN'
+
+  // ── Live geo-fence preview ────────────────────────────────────────────────────
+  // Which clinic (or org, resolved server-side) the captured location is measured against —
+  // the one being checked into, or the existing record's clinic when fixing verification.
+  const previewClinicId = checkedIn ? today?.clinicId : selectedClinicId
+  const { data: geoCheck, isFetching: geoCheckLoading } = useQuery({
+    queryKey: ['attendance', 'geo-check', previewClinicId, location?.lat, location?.lon],
+    queryFn: () => attendanceApi.geoCheck({ clinicId: previewClinicId!, latitude: location!.lat, longitude: location!.lon }),
+    enabled: geoStatus === 'ok' && !!location && !!previewClinicId,
+  })
 
   const checkInScan = useFaceScan(
     cameraActive && faceEnrolled && !enrollMode && modelsLoaded && !checkedIn,
@@ -428,6 +469,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 {geoStatus === 'permission-denied' && 'Location access denied'}
                 {geoStatus === 'idle'              && (geoFenceError ? 'Retry location' : 'Allow location access')}
               </button>
+              {geoStatus === 'ok' && <GeoCheckStatus geoCheck={geoCheck} loading={geoCheckLoading} />}
               {geoStatus === 'permission-denied' && (
                 <p className="text-xs mt-2" style={{ color: colors.text.muted }}>
                   Location permission was blocked. On iPhone, go to{' '}
@@ -522,9 +564,12 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                   Location
                 </p>
                 {geoStatus === 'ok' ? (
-                  <div className="flex items-center gap-2 text-sm" style={{ color: colors.status.success }}>
-                    <CheckCircle size={14} />
-                    Location captured
+                  <div>
+                    <div className="flex items-center gap-2 text-sm" style={{ color: colors.status.success }}>
+                      <CheckCircle size={14} />
+                      Location captured
+                    </div>
+                    <GeoCheckStatus geoCheck={geoCheck} loading={geoCheckLoading} />
                   </div>
                 ) : geoStatus === 'loading' ? (
                   <div className="flex items-center gap-2 text-sm" style={{ color: colors.text.muted }}>

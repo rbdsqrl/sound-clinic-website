@@ -997,6 +997,8 @@ function EditProfileModal({
   const { data: clinics = [] } = useQuery({ queryKey: ['clinics'], queryFn: () => clinicsApi.list() })
   const { data: languages = [] } = useQuery({ queryKey: ['languages'], queryFn: () => languagesApi.list() })
 
+  const needsClinic = role === 'THERAPIST' || role === 'OFFICE_ADMIN'
+
   const mut = useMutation({
     mutationFn: () => usersApi.updateProfile(memberId, {
       phone: phone.trim() || undefined,
@@ -1009,6 +1011,12 @@ function EditProfileModal({
     onSuccess: onSaved,
     onError: (err: unknown) => setError(getApiError(err, 'Could not save profile')),
   })
+
+  const save = () => {
+    setError('')
+    if (needsClinic && !clinicId) { setError('Clinic is required for this role'); return }
+    mut.mutate()
+  }
 
   return (
     <Modal open title="Edit Profile" onClose={onClose}>
@@ -1023,7 +1031,7 @@ function EditProfileModal({
         )}
         <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" />
         <Select
-          label="Clinic"
+          label={needsClinic ? 'Clinic (required for this role)' : 'Clinic'}
           placeholder="No clinic"
           value={clinicId}
           onChange={e => setClinicId(e.target.value)}
@@ -1044,7 +1052,7 @@ function EditProfileModal({
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" loading={mut.isPending} onClick={() => { setError(''); mut.mutate() }}>
+        <Button variant="primary" loading={mut.isPending} onClick={save}>
           Save
         </Button>
       </div>

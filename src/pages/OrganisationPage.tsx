@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
-  Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Pencil, Plus, Trash2, X,
+  Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, MapPin, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
   Target, Languages as LanguagesIcon, Box, ClipboardList,
 } from 'lucide-react'
@@ -22,6 +22,7 @@ import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { LocationPickerModal } from '../components/ui/LocationPickerModal'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
@@ -548,6 +549,7 @@ export default function OrganisationPage() {
   const [blockEndDate, setBlockEndDate]     = useState('')
   const [csvRows, setCsvRows]         = useState<CsvRow[] | null>(null)
   const [csvUploading, setCsvUploading] = useState(false)
+  const [showMapPicker, setShowMapPicker] = useState(false)
   const [showClinicModal, setShowClinicModal] = useState(false)
   const [clinicError, setClinicError] = useState<string | null>(null)
   useEffect(() => { if (showClinicModal) setClinicError(null) }, [showClinicModal])
@@ -619,7 +621,9 @@ export default function OrganisationPage() {
   })
 
   // ── Org form ─────────────────────────────────────────────────────────────────
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdateOrganisationRequest>()
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<UpdateOrganisationRequest>()
+  const watchedLat = watch('latitude')
+  const watchedLng = watch('longitude')
 
   // ── Clinic form ───────────────────────────────────────────────────────────────
   const {
@@ -642,7 +646,17 @@ export default function OrganisationPage() {
   })
 
   const startEdit = () => {
-    if (org) reset({ name: org.name, contactEmail: org.contactEmail ?? '', contactPhone: org.contactPhone ?? '', address: org.address ?? '', logoUrl: org.logoUrl ?? '', timezone: org.timezone })
+    if (org) reset({
+      name: org.name,
+      contactEmail: org.contactEmail ?? '',
+      contactPhone: org.contactPhone ?? '',
+      address: org.address ?? '',
+      logoUrl: org.logoUrl ?? '',
+      timezone: org.timezone,
+      latitude: org.latitude ?? undefined,
+      longitude: org.longitude ?? undefined,
+      geoFenceRadiusMeters: org.geoFenceRadiusMeters ?? 200,
+    })
     setEditing(true)
   }
 
@@ -942,7 +956,10 @@ export default function OrganisationPage() {
             {!editing ? (
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[['Name', org?.name], ['Email', org?.contactEmail],
-                  ['Phone', org?.contactPhone], ['Timezone', org?.timezone], ['Address', org?.address]
+                  ['Phone', org?.contactPhone], ['Timezone', org?.timezone], ['Address', org?.address],
+                  ['Latitude', org?.latitude != null ? String(org.latitude) : null],
+                  ['Longitude', org?.longitude != null ? String(org.longitude) : null],
+                  ['Geo-fence Radius (m)', org?.geoFenceRadiusMeters != null ? String(org.geoFenceRadiusMeters) : null],
                 ].map(([label, value]) => (
                   <div key={label as string}>
                     <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
@@ -957,6 +974,17 @@ export default function OrganisationPage() {
                   <Input label="Contact Email" type="email" {...register('contactEmail')} />
                   <Input label="Contact Phone" {...register('contactPhone')} />
                   <Input label="Timezone" {...register('timezone')} />
+                  <Input label="Latitude"  type="number" step="any" placeholder="e.g. 12.9716" {...register('latitude', { valueAsNumber: true })} />
+                  <Input label="Longitude" type="number" step="any" placeholder="e.g. 77.5946" {...register('longitude', { valueAsNumber: true })} />
+                  <div className="sm:col-span-2 flex items-center gap-3">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowMapPicker(true)}>
+                      <MapPin size={14} /> Pick on Map
+                    </Button>
+                    <span className="text-xs" style={{ color: colors.text.dim }}>
+                      or type coordinates manually above — used to check a Business Owner's attendance against the org's own address
+                    </span>
+                  </div>
+                  <Input label="Geo-fence Radius (metres)" type="number" placeholder="200" {...register('geoFenceRadiusMeters', { valueAsNumber: true })} />
                 </div>
                 <Input label="Address" {...register('address')} />
                 <Input label="Logo URL" type="url" {...register('logoUrl')} />
@@ -967,6 +995,17 @@ export default function OrganisationPage() {
               </form>
             )}
           </Card>
+
+          <LocationPickerModal
+            open={showMapPicker}
+            onClose={() => setShowMapPicker(false)}
+            initialLat={watchedLat || undefined}
+            initialLng={watchedLng || undefined}
+            onConfirm={(lat, lng) => {
+              setValue('latitude', lat, { shouldDirty: true })
+              setValue('longitude', lng, { shouldDirty: true })
+            }}
+          />
 
           {/* Public Holidays — collapsed by default; the list can run long and there's rarely
               a reason to look at it beyond adding/importing a new one. */}

@@ -355,7 +355,7 @@ export default function MembersPage() {
   // ── Invite form ───────────────────────────────────────────────────────────────
   const { register, handleSubmit, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm<InviteRequest>()
   const selectedRole = watch('role') as Role | undefined
-  const needsClinic  = selectedRole === 'THERAPIST' || selectedRole === 'PARENT'
+  const needsClinic  = selectedRole === 'THERAPIST' || selectedRole === 'PARENT' || selectedRole === 'OFFICE_ADMIN'
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const inviteMut = useMutation({
@@ -788,7 +788,8 @@ export default function MembersPage() {
             {...register('role', { required: 'Role is required' })} />
           {needsClinic && clinicOptions.length > 0 && (
             <Select label="Clinic" placeholder="Select a clinic…" options={clinicOptions}
-              {...register('clinicId')} />
+              error={errors.clinicId?.message}
+              {...register('clinicId', { required: 'Clinic is required for this role' })} />
           )}
           <div className="flex gap-3 pt-1">
             <Button onClick={handleSubmit(d => { setInviteError(null); inviteMut.mutate(d) })} loading={isSubmitting || inviteMut.isPending}>

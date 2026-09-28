@@ -1,9 +1,13 @@
 import client from './client'
-import type { ApiResponse, AttendanceResponse, CheckInRequest, CheckOutRequest, EnrollFaceRequest, VerifyAttendanceRequest } from '../types'
+import type { ApiResponse, AttendanceResponse, CheckInRequest, CheckOutRequest, EnrollFaceRequest, GeoCheckResponse, VerifyAttendanceRequest } from '../types'
 
 export const attendanceApi = {
   checkIn: (data: CheckInRequest) =>
     client.post<ApiResponse<AttendanceResponse>>('/attendance/check-in', data).then(r => r.data.data),
+
+  /** Live distance/verified preview against the check-in reference — no attendance record is touched. */
+  geoCheck: (params: { clinicId: string; latitude: number; longitude: number }) =>
+    client.get<ApiResponse<GeoCheckResponse>>('/attendance/geo-check', { params }).then(r => r.data.data),
 
   checkOut: (data: CheckOutRequest) =>
     client.post<ApiResponse<AttendanceResponse>>('/attendance/check-out', data).then(r => r.data.data),
