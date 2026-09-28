@@ -10,5 +10,14 @@
   },
   "triggers": {
     "crons": ["*/5 * * * *"]
+  },
+  // Keeps the cron's console.log output (e.g. "keepalive: GET .../health/db -> 200") visible
+  // in the dashboard's Logs tab, matching what was enabled there.
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    }
   }
 }
