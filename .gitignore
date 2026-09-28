@@ -9,6 +9,9 @@ dist-ssr
 .vite
 *.tsbuildinfo
 
+# Wrangler local dev/build cache
+.wrangler
+
 # Local env files
 .env
 .env.local

@@ -1,11 +1,12 @@
 {
   "name": "sound-clinic-website",
   "compatibility_date": "2024-05-06",
-  // Cron-only worker script — exports no fetch handler, so the site itself keeps being
-  // served straight from assets exactly as before. See worker/keepalive.js.
+  // Worker script adds the cron keepalive on top of the plain static site — its fetch handler
+  // just forwards every request to the assets binding below, unchanged. See worker/keepalive.js.
   "main": "worker/keepalive.js",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
   "triggers": {
