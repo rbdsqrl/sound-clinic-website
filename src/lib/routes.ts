@@ -23,6 +23,7 @@ export const ROUTES = {
   members:            '/members',
   member:             (id: string) => `/members/${id}`,
   analytics:          '/analytics',
+  therapistActivity:  '/therapist-activity',
   activities:         '/activities',
   activity:           (id: string) => `/activities/${id}`,
   resources:          '/resources',

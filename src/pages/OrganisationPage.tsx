@@ -704,6 +704,32 @@ export default function OrganisationPage() {
     weeklyOffMut.mutate({ weeklyOffDays: next })
   }
 
+  // ── Review Session slot grid ──────────────────────────────────────────────────
+  const [newSlotTime, setNewSlotTime] = useState('')
+  const reviewSlotsMut = useMutation({
+    mutationFn: organisationApi.update,
+    onSuccess: (updated) => {
+      qc.setQueryData(['organisation'], updated)
+      toast('Review Session slots updated', 'success')
+      setNewSlotTime('')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update Review Session slots'), 'error'),
+  })
+
+  const addReviewSlot = () => {
+    if (!org || !newSlotTime) return
+    const current = org.reviewSlotTimes ?? []
+    if (current.some(t => t.slice(0, 5) === newSlotTime)) { setNewSlotTime(''); return }
+    reviewSlotsMut.mutate({ reviewSlotTimes: [...current, newSlotTime] })
+  }
+
+  const removeReviewSlot = (time: string) => {
+    if (!org) return
+    const next = (org.reviewSlotTimes ?? []).filter(t => t !== time)
+    if (next.length === 0) { toast('At least one Review Session slot is required', 'error'); return }
+    reviewSlotsMut.mutate({ reviewSlotTimes: next })
+  }
+
   // ── Holiday mutations ────────────────────────────────────────────────────────
   const createHolidayMut = useMutation({
     mutationFn: (data: CreatePublicHolidayRequest) => publicHolidaysApi.create(data),
@@ -1123,6 +1149,45 @@ export default function OrganisationPage() {
                 )
               })}
             </div>
+          </Card>
+
+          {/* Review Session slot grid — the fixed daily times a review meeting can be booked
+              into (per Clinic Head; see ReviewSlotPicker). Editing this never touches already
+              -scheduled meetings, only what's offerable going forward. */}
+          <Card>
+            <CardHeader
+              title="Review Session Slots"
+              subtitle="The fixed times a Review Session can be booked into each day, per Clinic Head"
+            />
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(org?.reviewSlotTimes ?? []).map(t => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
+                  style={styles.filterTabActive}
+                >
+                  {formatTimeStr(t.slice(0, 5))}
+                  {canManage && (
+                    <button onClick={() => removeReviewSlot(t)} disabled={reviewSlotsMut.isPending}>
+                      <X size={12} />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {canManage && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={newSlotTime}
+                  onChange={e => setNewSlotTime(e.target.value)}
+                  className="form-input"
+                />
+                <Button size="sm" onClick={addReviewSlot} loading={reviewSlotsMut.isPending} disabled={!newSlotTime}>
+                  <Plus size={13} /> Add slot
+                </Button>
+              </div>
+            )}
           </Card>
 
           {/* Org-wide recurring calendar blocks (e.g. "Lunch Break") — shown on every user's

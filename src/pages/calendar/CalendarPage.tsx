@@ -37,6 +37,7 @@ import { saveBlob } from '../../lib/fileActions'
 import { colors, styles, border, surface, accentAlpha, borderAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
+import { ReviewSlotPicker } from '../../components/review/ReviewSlotPicker'
 import { meetingsApi } from '../../api/meetings'
 import { usersApi } from '../../api/users'
 import { organisationApi } from '../../api/organisation'
@@ -2298,18 +2299,14 @@ function EditReviewMeetingModal({
   }
 
   const pending = rescheduleMut.isPending || participantsMut.isPending
+  const pickedClinicHeadIds = picked.filter(id => people.find((u: AssignableUser) => u.id === id)?.role === 'CLINIC_HEAD')
 
   return (
     <Modal open title="Edit review meeting" onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="form-label">Date</label>
-            <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
-          </div>
-          <div>
-            <TimePicker label="Starts" value={startTime} onChange={setStartTime} />
-          </div>
+        <div>
+          <label className="form-label">Date</label>
+          <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
         </div>
         <div>
           <label className="form-label">Duration (min)</label>
@@ -2319,6 +2316,14 @@ function EditReviewMeetingModal({
             className="form-input w-full"
           />
         </div>
+        <ReviewSlotPicker
+          label="Starts"
+          clinicHeadIds={pickedClinicHeadIds}
+          date={date}
+          value={startTime}
+          onChange={setStartTime}
+          excludeMeetingId={meeting.id}
+        />
 
         <div>
           <label className="form-label">

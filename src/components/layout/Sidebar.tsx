@@ -5,6 +5,7 @@ import {
   LogOut, Baby, X, CalendarDays,
   Sun, Moon, Inbox, Briefcase,
   ChevronLeft, ChevronRight, ChevronUp, ListTodo, UserCog, TrendingUp, ClipboardList, Newspaper, Library, Home, Target,
+  ClipboardCheck,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -27,6 +28,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.patients,     label: 'Cases',        icon: Users },
     { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
     { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
+    { to: ROUTES.therapistActivity, label: 'Therapist Activity', icon: ClipboardCheck },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
     { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },
@@ -40,6 +42,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.patients,     label: 'Cases',        icon: Users },
     { to: ROUTES.activities,   label: 'Activities',   icon: ClipboardList },
     { to: ROUTES.analytics,    label: 'Analytics',    icon: TrendingUp },
+    { to: ROUTES.therapistActivity, label: 'Therapist Activity', icon: ClipboardCheck },
     { to: ROUTES.tasks,        label: 'Tasks',        icon: ListTodo },
     { to: ROUTES.calendar,     label: 'Calendar',     icon: CalendarDays },
     { to: ROUTES.workforce,    label: 'Workforce',    icon: Briefcase },

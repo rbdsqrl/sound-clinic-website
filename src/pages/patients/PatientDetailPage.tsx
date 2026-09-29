@@ -1631,10 +1631,11 @@ export default function PatientDetailPage() {
   const isParentRole = currentRoleEarly === 'PARENT'
 
   // OFFICE_ADMIN runs onboarding/scheduling, not clinical documentation — only the
-  // administrative/operational tabs are shown; IEP, per-case Activities, Assessments,
-  // Baseline Report and Media & Notes stay hidden (they have no backend access to them).
+  // administrative/operational tabs are shown, plus Assessments and Baseline Report as
+  // view-only (AssessmentTab/BaselineReportTab gate their own create/edit UI by role).
+  // IEP, per-case Activities and Media & Notes stay hidden (no backend access to them).
   const visibleTabs: Tab[] = currentRoleEarly === 'OFFICE_ADMIN'
-    ? TABS.filter(t => t === 'Overview' || t === 'Therapy')
+    ? TABS.filter(t => t === 'Overview' || t === 'Therapy' || t === 'Assessments' || t === 'Baseline Report')
     // Baseline Report is clinical staff shorthand (domain scores, not parent-legible) — kept
     // off the Parent's case view the same way Progress was pulled from their sidebar.
     : isParentRole

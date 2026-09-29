@@ -8,6 +8,7 @@ import type {
   UpdateReviewParticipantsRequest,
   ParentFeedbackRequest,
   ClinicHeadRemarksRequest,
+  ReviewSlotResponse,
 } from '../types'
 
 export const reviewMeetingsApi = {
@@ -15,6 +16,18 @@ export const reviewMeetingsApi = {
   listForEnrollment: (enrollmentId: string) =>
     client
       .get<ApiResponse<ReviewMeetingResponse[]>>('/review-meetings', { params: { enrollmentId } })
+      .then(r => r.data.data),
+
+  /**
+   * The org's fixed daily Review Session grid for a date, marked available/booked for the given
+   * Clinic Head(s). Pass excludeMeetingId when editing an existing meeting so its own current
+   * slot doesn't show as booked against itself.
+   */
+  getSlots: (clinicHeadIds: string[], date: string, excludeMeetingId?: string) =>
+    client
+      .get<ApiResponse<ReviewSlotResponse[]>>('/review-meetings/slots', {
+        params: { clinicHeadIds: clinicHeadIds.join(','), date, ...(excludeMeetingId && { excludeMeetingId }) },
+      })
       .then(r => r.data.data),
 
   /** The caller's own meetings — their children's if a parent, their own if a therapist. */

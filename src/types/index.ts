@@ -293,6 +293,8 @@ export interface OrganisationResponse {
   latitude: number | null
   longitude: number | null
   geoFenceRadiusMeters: number | null
+  /** The fixed daily Review Session grid, sorted, "HH:mm:ss" — see ReviewSlotResponse. */
+  reviewSlotTimes: string[]
   createdAt: string
 }
 
@@ -311,6 +313,8 @@ export interface UpdateOrganisationRequest {
   latitude?: number
   longitude?: number
   geoFenceRadiusMeters?: number
+  /** Full replacement of the Review Session daily grid. Omit to leave unchanged; must not be empty. */
+  reviewSlotTimes?: string[]
 }
 
 // ── Clinic ─────────────────────────────────────────────────────────────────────
@@ -690,6 +694,14 @@ export interface RescheduleReviewRequest {
 
 export interface UpdateReviewParticipantsRequest {
   participantIds: string[]
+}
+
+/** One of the org's fixed daily Review Session grid times, for a specific date + Clinic Head(s). */
+export interface ReviewSlotResponse {
+  time: string              // "HH:mm:ss"
+  available: boolean
+  /** Which of the requested Clinic Head(s) already have a review session overlapping this slot — empty if available. */
+  busyClinicHeadNames: string[]
 }
 
 export interface ParentFeedbackRequest {
@@ -2205,4 +2217,63 @@ export interface AssignFolderResponse {
   totalResources: number
   assignedCount: number
   alreadyAssignedCount: number
+}
+
+// ── Therapist Activity ──────────────────────────────────────────────────────────
+// Management's daily documentation check (Business Owner / Clinic Head only) — three
+// independent metrics for one therapist on one day. The same Media & Notes entry can appear
+// in both freeTextNotesByChild and mediaByChild if it carries both a note and a file.
+
+export interface SessionNoteEntry {
+  sessionId: string
+  startTime: string        // "HH:mm:ss"
+  notes: string | null
+  progressReport: string | null
+  feedback: string | null
+  performanceScore: number | null
+}
+
+export interface ChildSessionNotes {
+  patientId: string
+  patientName: string
+  entries: SessionNoteEntry[]
+}
+
+export interface FreeTextNoteEntry {
+  id: string
+  createdAt: string
+  note: string | null
+}
+
+export interface ChildFreeTextNotes {
+  patientId: string
+  patientName: string
+  entries: FreeTextNoteEntry[]
+}
+
+export interface MediaEntry {
+  id: string
+  createdAt: string
+  fileUrl: string | null
+  fileName: string | null
+  contentType: string | null
+  note: string | null
+}
+
+export interface ChildMedia {
+  patientId: string
+  patientName: string
+  entries: MediaEntry[]
+}
+
+export interface TherapistActivityResponse {
+  therapistId: string
+  therapistName: string
+  date: string              // "YYYY-MM-DD"
+  therapySessionNotesCount: number
+  therapySessionNotesByChild: ChildSessionNotes[]
+  freeTextNotesCount: number
+  freeTextNotesByChild: ChildFreeTextNotes[]
+  mediaCount: number
+  mediaByChild: ChildMedia[]
 }

@@ -8,8 +8,8 @@ import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
-import { TimePicker } from '../../components/ui/TimePicker'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
+import { ReviewSlotPicker } from '../../components/review/ReviewSlotPicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { todayStr, isPastDateTime } from '../../lib/schedule'
@@ -484,7 +484,14 @@ export function ScheduleModal({
           </div>
         </div>
 
-        <TimePicker label="Time" value={startTime} onChange={setStartTime} error={errors.time} />
+        <MultiSelectChips
+          label="Clinic Head(s) to invite"
+          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+          selected={clinicHeadIds}
+          onChange={setClinicHeadIds}
+          emptyMessage="No Clinic Head is set up in this organisation yet."
+        />
+        {errors.participants && <p className="form-error">{errors.participants}</p>}
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -510,14 +517,17 @@ export function ScheduleModal({
           </div>
         </div>
 
-        <MultiSelectChips
-          label="Clinic Head(s) to invite"
-          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
-          selected={clinicHeadIds}
-          onChange={setClinicHeadIds}
-          emptyMessage="No Clinic Head is set up in this organisation yet."
+        <ReviewSlotPicker
+          clinicHeadIds={clinicHeadIds}
+          date={firstDate}
+          value={startTime}
+          onChange={setStartTime}
+          error={errors.time}
         />
-        {errors.participants && <p className="form-error">{errors.participants}</p>}
+        <p className="text-[12.65px] -mt-2" style={{ color: colors.text.dim }}>
+          Every future occurrence is checked against this same time — if a later date's slot is
+          already taken, scheduling stops there and tells you which date.
+        </p>
       </div>
 
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
@@ -556,11 +566,17 @@ function AddMeetingModal({
   return (
     <Modal open title="Add a review meeting" onClose={onClose}>
       <div className="flex flex-col gap-4">
+        <MultiSelectChips
+          label="Clinic Head(s) to invite"
+          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+          selected={clinicHeadIds}
+          onChange={setClinicHeadIds}
+          emptyMessage="No Clinic Head is set up in this organisation yet."
+        />
         <div>
           <label className="form-label">Date</label>
           <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
         </div>
-        <TimePicker label="Time" value={startTime} onChange={setStartTime} />
         <div>
           <label className="form-label">Duration (minutes)</label>
           <input
@@ -569,13 +585,7 @@ function AddMeetingModal({
             className="form-input w-full"
           />
         </div>
-        <MultiSelectChips
-          label="Clinic Head(s) to invite"
-          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
-          selected={clinicHeadIds}
-          onChange={setClinicHeadIds}
-          emptyMessage="No Clinic Head is set up in this organisation yet."
-        />
+        <ReviewSlotPicker clinicHeadIds={clinicHeadIds} date={date} value={startTime} onChange={setStartTime} />
         {error && <p className="form-error">{error}</p>}
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
