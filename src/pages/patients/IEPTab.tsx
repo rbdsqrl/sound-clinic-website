@@ -1311,7 +1311,9 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
   const { user, activeRole } = useAuth()
   // A discharged case's IEP stays fully browsable — every goal/plan edit affordance
   // below keys off isEditor/isAdmin, so folding readOnly in here locks all of them at once.
-  const isEditor = activeRole !== 'PARENT' && !readOnly
+  // Matches IEPController's write endpoints exactly — Office Admin can see this tab but
+  // never edit it, same as Assessments/Baseline Report.
+  const isEditor = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST'].includes(activeRole ?? '') && !readOnly
   const isAdmin = (activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD') && !readOnly
 
   const [showPlanModal,  setShowPlanModal]  = useState(false)
