@@ -6,11 +6,12 @@ import { colors, successAlpha, dangerAlpha } from '../../theme'
 import type { ReviewSlotResponse } from '../../types'
 
 /**
- * The org's fixed daily Review Session grid (default 3 morning + 3 evening times, editable in
- * Organisation settings) for the chosen Clinic Head(s) and date — booked slots are struck
- * through and disabled, so a session can never be double-booked. Used by every place a review
- * meeting is scheduled or rescheduled: the enrollment's recurring schedule, an ad-hoc meeting
- * from the Case's Therapy tab, and the Calendar's edit modal.
+ * The Review Session grid for the chosen Clinic Head(s) and date — each Clinic Head can
+ * configure their own list of times in Organisation settings, falling back to the org-wide
+ * default when they haven't set one. Booked slots are struck through and disabled, so a
+ * session can never be double-booked. Used by every place a review meeting is scheduled or
+ * rescheduled: the enrollment's recurring schedule, an ad-hoc meeting from the Case's Therapy
+ * tab, and the Calendar's edit modal.
  */
 export function ReviewSlotPicker({
   clinicHeadIds, date, value, onChange, excludeMeetingId, label = 'Time', error,

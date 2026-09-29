@@ -9,6 +9,7 @@ import type {
   ParentFeedbackRequest,
   ClinicHeadRemarksRequest,
   ReviewSlotResponse,
+  ClinicHeadSlotTimesResponse,
 } from '../types'
 
 export const reviewMeetingsApi = {
@@ -28,6 +29,18 @@ export const reviewMeetingsApi = {
       .get<ApiResponse<ReviewSlotResponse[]>>('/review-meetings/slots', {
         params: { clinicHeadIds: clinicHeadIds.join(','), date, ...(excludeMeetingId && { excludeMeetingId }) },
       })
+      .then(r => r.data.data),
+
+  /** A Clinic Head's own Review Session grid, or the org default if they haven't set one. */
+  getClinicHeadSlotTimes: (clinicHeadId: string) =>
+    client
+      .get<ApiResponse<ClinicHeadSlotTimesResponse>>(`/review-meetings/clinic-heads/${clinicHeadId}/slot-times`)
+      .then(r => r.data.data),
+
+  /** Full replacement of a Clinic Head's own grid — an empty array clears the override. */
+  updateClinicHeadSlotTimes: (clinicHeadId: string, times: string[]) =>
+    client
+      .put<ApiResponse<ClinicHeadSlotTimesResponse>>(`/review-meetings/clinic-heads/${clinicHeadId}/slot-times`, { times })
       .then(r => r.data.data),
 
   /** The caller's own meetings — their children's if a parent, their own if a therapist. */

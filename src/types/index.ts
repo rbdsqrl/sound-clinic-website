@@ -237,7 +237,8 @@ export function hasRole(user: UserResponse, role: Role): boolean {
 }
 
 export interface LoginRequest {
-  email: string
+  /** Either the account's email address or its phone number — the backend tells them apart. */
+  identifier: string
   password: string
 }
 
@@ -696,12 +697,19 @@ export interface UpdateReviewParticipantsRequest {
   participantIds: string[]
 }
 
-/** One of the org's fixed daily Review Session grid times, for a specific date + Clinic Head(s). */
+/** One of the Review Session grid times offered for a specific date + Clinic Head(s). */
 export interface ReviewSlotResponse {
   time: string              // "HH:mm:ss"
   available: boolean
   /** Which of the requested Clinic Head(s) already have a review session overlapping this slot — empty if available. */
   busyClinicHeadNames: string[]
+}
+
+/** A Clinic Head's effective Review Session grid — their own override if set, else the org default. */
+export interface ClinicHeadSlotTimesResponse {
+  clinicHeadId: string
+  times: string[]           // "HH:mm:ss", sorted
+  usingOrgDefault: boolean
 }
 
 export interface ParentFeedbackRequest {
@@ -2220,12 +2228,14 @@ export interface AssignFolderResponse {
 }
 
 // ── Therapist Activity ──────────────────────────────────────────────────────────
-// Management's daily documentation check (Business Owner / Clinic Head only) — three
-// independent metrics for one therapist on one day. The same Media & Notes entry can appear
-// in both freeTextNotesByChild and mediaByChild if it carries both a note and a file.
+// Management's documentation check over a date range (Business Owner / Clinic Head only) —
+// three independent metrics for one therapist (a single day is just from === to). The same
+// Media & Notes entry can appear in both freeTextNotesByChild and mediaByChild if it carries
+// both a note and a file.
 
 export interface SessionNoteEntry {
   sessionId: string
+  sessionDate: string       // "YYYY-MM-DD"
   startTime: string        // "HH:mm:ss"
   notes: string | null
   progressReport: string | null
@@ -2269,7 +2279,8 @@ export interface ChildMedia {
 export interface TherapistActivityResponse {
   therapistId: string
   therapistName: string
-  date: string              // "YYYY-MM-DD"
+  from: string              // "YYYY-MM-DD"
+  to: string                // "YYYY-MM-DD"
   therapySessionNotesCount: number
   therapySessionNotesByChild: ChildSessionNotes[]
   freeTextNotesCount: number

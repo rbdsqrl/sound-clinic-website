@@ -16,6 +16,8 @@ import { programsApi } from '../api/programs'
 import { conditionsApi } from '../api/conditions'
 import { taxesApi } from '../api/taxes'
 import { clinicsApi } from '../api/clinics'
+import { usersApi } from '../api/users'
+import { reviewMeetingsApi } from '../api/reviewMeetings'
 import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
 import IEPLibraryTab from './patients/IEPLibraryTab'
 import { Card, CardHeader } from '../components/ui/Card'
@@ -730,6 +732,51 @@ export default function OrganisationPage() {
     reviewSlotsMut.mutate({ reviewSlotTimes: next })
   }
 
+  // ── Review Session slot grid — per Clinic Head override ──────────────────────
+  const [selectedClinicHeadId, setSelectedClinicHeadId] = useState('')
+  const [newHeadSlotTime, setNewHeadSlotTime] = useState('')
+
+  const { data: clinicHeads = [] } = useQuery({
+    queryKey: ['assignable', 'clinic-head'],
+    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
+    enabled: tab === 'information',
+  })
+
+  const { data: clinicHeadSlots } = useQuery({
+    queryKey: ['review-meetings', 'clinic-head-slot-times', selectedClinicHeadId],
+    queryFn: () => reviewMeetingsApi.getClinicHeadSlotTimes(selectedClinicHeadId),
+    enabled: !!selectedClinicHeadId,
+  })
+
+  const clinicHeadSlotsMut = useMutation({
+    mutationFn: (times: string[]) => reviewMeetingsApi.updateClinicHeadSlotTimes(selectedClinicHeadId, times),
+    onSuccess: (updated) => {
+      qc.setQueryData(['review-meetings', 'clinic-head-slot-times', selectedClinicHeadId], updated)
+      toast('Clinic Head slots updated', 'success')
+      setNewHeadSlotTime('')
+    },
+    onError: (err) => toast(getApiError(err, 'Failed to update Clinic Head slots'), 'error'),
+  })
+
+  const addClinicHeadSlot = () => {
+    if (!clinicHeadSlots || !newHeadSlotTime) return
+    // clinicHeadSlots.times is always the effective list, org default or personal — adding
+    // while still on the default forks a personal copy of it plus the new time, rather than
+    // discarding everything else they were seeing.
+    const base = clinicHeadSlots.times
+    if (base.some(t => t.slice(0, 5) === newHeadSlotTime)) { setNewHeadSlotTime(''); return }
+    clinicHeadSlotsMut.mutate([...base, newHeadSlotTime])
+  }
+
+  const resetClinicHeadToOrgDefault = () => {
+    clinicHeadSlotsMut.mutate([])
+  }
+
+  const removeClinicHeadSlot = (time: string) => {
+    if (!clinicHeadSlots) return
+    clinicHeadSlotsMut.mutate(clinicHeadSlots.times.filter(t => t !== time))
+  }
+
   // ── Holiday mutations ────────────────────────────────────────────────────────
   const createHolidayMut = useMutation({
     mutationFn: (data: CreatePublicHolidayRequest) => publicHolidaysApi.create(data),
@@ -1151,13 +1198,14 @@ export default function OrganisationPage() {
             </div>
           </Card>
 
-          {/* Review Session slot grid — the fixed daily times a review meeting can be booked
-              into (per Clinic Head; see ReviewSlotPicker). Editing this never touches already
-              -scheduled meetings, only what's offerable going forward. */}
+          {/* Review Session slot grid — org-wide default (see ReviewSlotPicker). A Clinic Head
+              can set their own list instead, in the card below — this is the fallback for any
+              Clinic Head who hasn't. Editing this never touches already-scheduled meetings,
+              only what's offerable going forward. */}
           <Card>
             <CardHeader
-              title="Review Session Slots"
-              subtitle="The fixed times a Review Session can be booked into each day, per Clinic Head"
+              title="Review Session Slots — Org Default"
+              subtitle="The times a Review Session can be booked into each day — add as many as you need. Applies to any Clinic Head who hasn't set their own below."
             />
             <div className="flex flex-wrap gap-2 mb-3">
               {(org?.reviewSlotTimes ?? []).map(t => (
@@ -1186,6 +1234,66 @@ export default function OrganisationPage() {
                 <Button size="sm" onClick={addReviewSlot} loading={reviewSlotsMut.isPending} disabled={!newSlotTime}>
                   <Plus size={13} /> Add slot
                 </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* Review Session slot grid — per Clinic Head override. Each Clinic Head can set
+              their own list of times instead of the org default above, so e.g. one who only
+              works mornings isn't offered evening slots at all. */}
+          <Card>
+            <CardHeader
+              title="Review Session Slots — Per Clinic Head"
+              subtitle="Give a specific Clinic Head their own grid instead of the org default"
+            />
+            <Select
+              label="Clinic Head"
+              placeholder="Select a Clinic Head…"
+              value={selectedClinicHeadId}
+              onChange={e => setSelectedClinicHeadId(e.target.value)}
+              options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+            />
+            {selectedClinicHeadId && clinicHeadSlots && (
+              <div className="mt-4">
+                {clinicHeadSlots.usingOrgDefault && (
+                  <p className="text-xs mb-2" style={{ color: colors.text.dim }}>
+                    Currently using the org default shown above.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {clinicHeadSlots.times.map(t => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
+                      style={styles.filterTabActive}
+                    >
+                      {formatTimeStr(t.slice(0, 5))}
+                      {canManage && (
+                        <button onClick={() => removeClinicHeadSlot(t)} disabled={clinicHeadSlotsMut.isPending}>
+                          <X size={12} />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+                {canManage && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="time"
+                      value={newHeadSlotTime}
+                      onChange={e => setNewHeadSlotTime(e.target.value)}
+                      className="form-input"
+                    />
+                    <Button size="sm" onClick={addClinicHeadSlot} loading={clinicHeadSlotsMut.isPending} disabled={!newHeadSlotTime}>
+                      <Plus size={13} /> Add slot
+                    </Button>
+                    {!clinicHeadSlots.usingOrgDefault && (
+                      <Button size="sm" variant="secondary" onClick={resetClinicHeadToOrgDefault} loading={clinicHeadSlotsMut.isPending}>
+                        Reset to org default
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </Card>

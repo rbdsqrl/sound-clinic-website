@@ -8,11 +8,11 @@ import { therapistActivityApi } from '../api/therapistActivity'
 import { usersApi } from '../api/users'
 import { Card, CardHeader, StatCard } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
-import { Input } from '../components/ui/Input'
+import { DateInput } from '../components/ui/DateInput'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { viewFile } from '../lib/fileActions'
-import { formatTimeStr, formatDateTimeStr } from '../lib/format'
+import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../lib/format'
 import { colors, border, surface } from '../theme'
 import type { ChildFreeTextNotes, ChildMedia, ChildSessionNotes } from '../types'
 
@@ -48,14 +48,14 @@ function SessionNotesSection({ groups }: { groups: ChildSessionNotes[] }) {
       <CardHeader title="Therapy Session Notes" subtitle="From the session's own notes / progress report / feedback fields" />
       {groups.length === 0 ? (
         <EmptyState icon={<ClipboardCheck size={28} />} title="No session notes"
-          description="No session on this date had notes, a progress report or feedback filled in." />
+          description="No session in this range had notes, a progress report or feedback filled in." />
       ) : (
         <div className="space-y-3">
           {groups.map(g => (
             <ChildGroupCard key={g.patientId} patientName={g.patientName}>
               {g.entries.map(e => (
                 <div key={e.sessionId} className="pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: `${colors.text.dim}20` }}>
-                  <p className="text-xs" style={{ color: colors.text.muted }}>{formatTimeStr(e.startTime)}</p>
+                  <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateStr(e.sessionDate)} · {formatTimeStr(e.startTime)}</p>
                   <NoteField label="Notes" value={e.notes} />
                   <NoteField label="Progress Report" value={e.progressReport} />
                   <NoteField label="Feedback" value={e.feedback} />
@@ -75,7 +75,7 @@ function FreeTextNotesSection({ groups }: { groups: ChildFreeTextNotes[] }) {
       <CardHeader title="Free-Text Notes" subtitle="From the Media & Notes channel" />
       {groups.length === 0 ? (
         <EmptyState icon={<StickyNote size={28} />} title="No free-text notes"
-          description="No note was shared through Media & Notes on this date." />
+          description="No note was shared through Media & Notes in this range." />
       ) : (
         <div className="space-y-3">
           {groups.map(g => (
@@ -100,7 +100,7 @@ function MediaSection({ groups }: { groups: ChildMedia[] }) {
       <CardHeader title="Media / Videos" subtitle="From the Media & Notes channel" />
       {groups.length === 0 ? (
         <EmptyState icon={<Clapperboard size={28} />} title="No media uploaded"
-          description="No video or file was shared through Media & Notes on this date." />
+          description="No video or file was shared through Media & Notes in this range." />
       ) : (
         <div className="space-y-3">
           {groups.map(g => (
@@ -136,8 +136,9 @@ function MediaSection({ groups }: { groups: ChildMedia[] }) {
 
 export default function TherapistActivityPage() {
   const [therapistId, setTherapistId] = useState('')
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const today = format(new Date(), 'yyyy-MM-dd')
+  const [from, setFrom] = useState(today)
+  const [to, setTo] = useState(today)
 
   const { data: therapists = [] } = useQuery({
     queryKey: ['users', 'therapists'],
@@ -146,9 +147,9 @@ export default function TherapistActivityPage() {
   const therapistOptions = therapists.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))
 
   const { data: activity, isLoading } = useQuery({
-    queryKey: ['therapist-activity', therapistId, date],
-    queryFn: () => therapistActivityApi.get(therapistId, date),
-    enabled: !!therapistId && !!date,
+    queryKey: ['therapist-activity', therapistId, from, to],
+    queryFn: () => therapistActivityApi.get(therapistId, from, to),
+    enabled: !!therapistId && !!from && !!to && from <= to,
   })
 
   return (
@@ -156,12 +157,12 @@ export default function TherapistActivityPage() {
       <div>
         <h1 className="text-lg md:text-xl font-bold" style={{ color: colors.text.heading }}>Therapist Activity</h1>
         <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>
-          Daily check — did a therapist keep session notes and share media today
+          Documentation check — did a therapist keep session notes and share media over this range
         </p>
       </div>
 
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Select
             label="Therapist"
             placeholder="Select a therapist…"
@@ -169,8 +170,12 @@ export default function TherapistActivityPage() {
             onChange={e => setTherapistId(e.target.value)}
             options={therapistOptions}
           />
-          <Input label="Date" type="date" value={date} max={today} onChange={e => setDate(e.target.value)} />
+          <DateInput label="From" value={from} max={to || today} onChange={v => setFrom(v)} />
+          <DateInput label="To" value={to} min={from} max={today} onChange={v => setTo(v)} />
         </div>
+        {from > to && (
+          <p className="form-error mt-2">"From" cannot be after "To"</p>
+        )}
       </Card>
 
       {!therapistId ? (
@@ -178,7 +183,7 @@ export default function TherapistActivityPage() {
           <EmptyState
             icon={<ClipboardCheck size={32} />}
             title="Select a therapist"
-            description="Pick a therapist and a date above to see their notes and media for that day."
+            description="Pick a therapist and a date range above to see their notes and media."
           />
         </Card>
       ) : isLoading ? (

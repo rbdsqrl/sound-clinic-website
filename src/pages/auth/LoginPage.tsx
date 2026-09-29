@@ -23,7 +23,7 @@ export default function LoginPage() {
       navigate(ROUTES.dashboard)
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Invalid email or password')
+      setError(msg ?? 'Invalid email/phone or password')
     }
   }
 
@@ -70,12 +70,12 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <Input
-              label="Email address"
-              type="email"
-              autoComplete="email"
-              placeholder="you@clinic.com"
-              error={errors.email?.message}
-              {...register('email', { required: 'Email is required' })}
+              label="Email or phone number"
+              type="text"
+              autoComplete="username"
+              placeholder="you@clinic.com or phone number"
+              error={errors.identifier?.message}
+              {...register('identifier', { required: 'Email or phone number is required' })}
             />
             <div>
               <Input
