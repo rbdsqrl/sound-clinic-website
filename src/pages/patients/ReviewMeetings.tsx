@@ -206,14 +206,18 @@ export function ReviewMeetingsPanel({
           enrollmentId={enrollmentId}
           enrollmentStartDate={enrollmentStartDate}
           enrollmentEndDate={enrollmentEndDate}
+          defaultRepeat
           onClose={() => setScheduleOpen(false)}
           onDone={() => { setScheduleOpen(false); invalidate() }}
         />
       )}
 
       {addOpen && (
-        <AddMeetingModal
+        <ScheduleModal
           enrollmentId={enrollmentId}
+          enrollmentStartDate={enrollmentStartDate}
+          enrollmentEndDate={enrollmentEndDate}
+          defaultRepeat={false}
           onClose={() => setAddOpen(false)}
           onDone={() => { setAddOpen(false); invalidate() }}
         />
@@ -395,18 +399,22 @@ function MeetingRow({
   )
 }
 
-// ── Schedule a recurring series ────────────────────────────────────────────────
+// ── Schedule a meeting — recurring series, or a single one-off ─────────────────
 
 export function ScheduleModal({
-  enrollmentId, enrollmentStartDate, enrollmentEndDate, onClose, onDone,
+  enrollmentId, enrollmentStartDate, enrollmentEndDate, defaultRepeat = true, onClose, onDone,
 }: {
   enrollmentId: string
   enrollmentStartDate: string
   enrollmentEndDate: string | null
+  /** Whether the "Repeat event" checkbox starts checked — true from the first-time
+   *  "Schedule reviews" entry point, false from "Add meeting" on an existing series. */
+  defaultRepeat?: boolean
   onClose: () => void
   onDone: () => void
 }) {
   const { toast } = useToast()
+  const [repeat, setRepeat] = useState(defaultRepeat)
   const [intervalWeeks, setIntervalWeeks] = useState(DEFAULT_REVIEW_INTERVAL_WEEKS)
   const [startTime, setStartTime] = useState('16:00')
   const [duration, setDuration] = useState(30)
@@ -421,7 +429,7 @@ export function ScheduleModal({
     queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
   })
 
-  const mut = useMutation({
+  const scheduleMut = useMutation({
     mutationFn: () => reviewMeetingsApi.generateSchedule(enrollmentId, {
       startTime,
       durationMinutes: duration,
@@ -437,12 +445,23 @@ export function ScheduleModal({
     onError: (err) => setFormError(getApiError(err, 'Failed to schedule review meetings')),
   })
 
+  const addMut = useMutation({
+    mutationFn: () => reviewMeetingsApi.create({
+      enrollmentId, meetingDate: firstDate, startTime, durationMinutes: duration, participantIds: clinicHeadIds,
+    }),
+    onSuccess: () => { toast('Meeting scheduled — invites sent', 'success'); onDone() },
+    onError: (err) => setFormError(getApiError(err, 'Failed to schedule meeting')),
+  })
+
+  const mut = repeat ? scheduleMut : addMut
+
   const submit = () => {
     const e: Record<string, string> = {}
     if (!startTime) e.time = 'Pick a time'
-    if (!endDate) e.end = 'Pick an end date'
-    if (endDate && firstDate && endDate < firstDate) e.end = 'End date is before the first meeting'
-    if (firstDate && firstDate < todayStr()) e.first = 'First meeting cannot be in the past'
+    if (!firstDate) e.first = repeat ? 'Pick a first meeting date' : 'Pick a date'
+    if (repeat && !endDate) e.end = 'Pick an end date'
+    if (repeat && endDate && firstDate && endDate < firstDate) e.end = 'End date is before the first meeting'
+    if (firstDate && firstDate < todayStr()) e.first = 'Meeting cannot be in the past'
     else if (firstDate && startTime && isPastDateTime(firstDate, startTime)) e.time = 'Time cannot be in the past'
     if (clinicHeadIds.length === 0) e.participants = 'Pick at least one Clinic Head to invite'
     setErrors(e)
@@ -451,26 +470,39 @@ export function ScheduleModal({
   }
 
   return (
-    <Modal open title="Schedule review meetings" onClose={onClose} error={formError}>
+    <Modal open title={repeat ? 'Schedule review meetings' : 'Add a review meeting'} onClose={onClose} error={formError}>
       <div className="flex flex-col gap-4">
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={repeat}
+            onChange={e => setRepeat(e.target.checked)}
+            className="h-4 w-4 flex-shrink-0"
+            style={{ accentColor: colors.accent }}
+          />
+          <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Repeat event</span>
+        </label>
+
         <p className="text-xs" style={{ color: colors.text.muted }}>
-          Meetings repeat on this rhythm until the end date, skipping public holidays.
-          Every linked parent and the Clinic Head(s) picked below get a calendar invite —
-          not the therapist.
+          {repeat
+            ? 'Meetings repeat on this rhythm until the end date, skipping public holidays. Every linked parent and the Clinic Head(s) picked below get a calendar invite — not the therapist.'
+            : 'Schedules a single meeting outside any recurring rhythm. Every linked parent and the Clinic Head(s) picked below get a calendar invite — not the therapist.'}
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="form-label">Repeat every</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number" min={1} max={26} value={intervalWeeks}
-                onChange={e => setIntervalWeeks(Math.max(1, Number(e.target.value)))}
-                className="form-input w-full"
-              />
-              <span className="text-sm" style={{ color: colors.text.muted }}>weeks</span>
+        <div className={repeat ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3'}>
+          {repeat && (
+            <div>
+              <label className="form-label">Repeat every</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={1} max={26} value={intervalWeeks}
+                  onChange={e => setIntervalWeeks(Math.max(1, Number(e.target.value)))}
+                  className="form-input w-full"
+                />
+                <span className="text-sm" style={{ color: colors.text.muted }}>weeks</span>
+              </div>
             </div>
-          </div>
+          )}
           <div>
             <label className="form-label">Duration</label>
             <div className="flex items-center gap-2">
@@ -493,28 +525,32 @@ export function ScheduleModal({
         />
         {errors.participants && <p className="form-error">{errors.participants}</p>}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={repeat ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3'}>
           <div>
-            <label className="form-label">First meeting</label>
+            <label className="form-label">{repeat ? 'First meeting' : 'Date'}</label>
             <input
               type="date" value={firstDate} min={enrollmentStartDate > todayStr() ? enrollmentStartDate : todayStr()}
               onChange={e => setFirstDate(e.target.value)}
               className="form-input w-full"
             />
             {errors.first && <p className="form-error mt-1">{errors.first}</p>}
-            <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>
-              Defaults to {intervalWeeks} week{intervalWeeks > 1 ? 's' : ''} after the therapy starts
-            </p>
+            {repeat && (
+              <p className="text-[12.65px] mt-1" style={{ color: colors.text.dim }}>
+                Defaults to {intervalWeeks} week{intervalWeeks > 1 ? 's' : ''} after the therapy starts
+              </p>
+            )}
           </div>
-          <div>
-            <label className="form-label">Until</label>
-            <input
-              type="date" value={endDate} min={firstDate || enrollmentStartDate}
-              onChange={e => setEndDate(e.target.value)}
-              className="form-input w-full"
-            />
-            {errors.end && <p className="form-error mt-1">{errors.end}</p>}
-          </div>
+          {repeat && (
+            <div>
+              <label className="form-label">Until</label>
+              <input
+                type="date" value={endDate} min={firstDate || enrollmentStartDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="form-input w-full"
+              />
+              {errors.end && <p className="form-error mt-1">{errors.end}</p>}
+            </div>
+          )}
         </div>
 
         <ReviewSlotPicker
@@ -524,84 +560,17 @@ export function ScheduleModal({
           onChange={setStartTime}
           error={errors.time}
         />
-        <p className="text-[12.65px] -mt-2" style={{ color: colors.text.dim }}>
-          Every future occurrence is checked against this same time — if a later date's slot is
-          already taken, scheduling stops there and tells you which date.
-        </p>
+        {repeat && (
+          <p className="text-[12.65px] -mt-2" style={{ color: colors.text.dim }}>
+            Every future occurrence is checked against this same time — if a later date's slot is
+            already taken, scheduling stops there and tells you which date.
+          </p>
+        )}
       </div>
 
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button variant="primary" loading={mut.isPending} onClick={submit}>Schedule</Button>
-      </div>
-    </Modal>
-  )
-}
-
-// ── Add one meeting ────────────────────────────────────────────────────────────
-
-function AddMeetingModal({
-  enrollmentId, onClose, onDone,
-}: { enrollmentId: string; onClose: () => void; onDone: () => void }) {
-  const { toast } = useToast()
-  const [date, setDate] = useState('')
-  const [startTime, setStartTime] = useState('16:00')
-  const [duration, setDuration] = useState(30)
-  const [clinicHeadIds, setClinicHeadIds] = useState<string[]>([])
-  const [error, setError] = useState('')
-
-  const { data: clinicHeads = [] } = useQuery({
-    queryKey: ['assignable', 'clinic-head'],
-    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
-  })
-
-  const mut = useMutation({
-    mutationFn: () => reviewMeetingsApi.create({
-      enrollmentId, meetingDate: date, startTime, durationMinutes: duration, participantIds: clinicHeadIds,
-    }),
-    onSuccess: () => { toast('Meeting scheduled — invites sent', 'success'); onDone() },
-    onError: (err) => setError(getApiError(err, 'Failed to schedule meeting')),
-  })
-
-  return (
-    <Modal open title="Add a review meeting" onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <MultiSelectChips
-          label="Clinic Head(s) to invite"
-          options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
-          selected={clinicHeadIds}
-          onChange={setClinicHeadIds}
-          emptyMessage="No Clinic Head is set up in this organisation yet."
-        />
-        <div>
-          <label className="form-label">Date</label>
-          <input type="date" value={date} min={todayStr()} onChange={e => setDate(e.target.value)} className="form-input w-full" />
-        </div>
-        <div>
-          <label className="form-label">Duration (minutes)</label>
-          <input
-            type="number" min={15} max={240} step={15} value={duration}
-            onChange={e => setDuration(Math.max(15, Number(e.target.value)))}
-            className="form-input w-full"
-          />
-        </div>
-        <ReviewSlotPicker clinicHeadIds={clinicHeadIds} date={date} value={startTime} onChange={setStartTime} />
-        {error && <p className="form-error">{error}</p>}
-      </div>
-      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button
-          variant="primary"
-          loading={mut.isPending}
-          onClick={() => {
-            if (!date) { setError('Pick a date'); return }
-            if (date < todayStr()) { setError('Date cannot be in the past'); return }
-            if (isPastDateTime(date, startTime)) { setError('Time cannot be in the past'); return }
-            if (clinicHeadIds.length === 0) { setError('Pick at least one Clinic Head to invite'); return }
-            setError(''); mut.mutate()
-          }}>
-          Schedule
-        </Button>
       </div>
     </Modal>
   )
