@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, Repeat, ClipboardList } from 'lucide-react'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, Repeat, ClipboardList, IndianRupee } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -10,11 +10,13 @@ import { tasksApi } from '../api/tasks'
 import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
+import { subscriptionsApi } from '../api/subscriptions'
 import { concernsApi } from '../api/concerns'
 import { usersApi } from '../api/users'
 import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
 import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
+import { MockRazorpayModal } from '../components/subscriptions/MockRazorpayModal'
 import { PageLoader } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
@@ -32,7 +34,11 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse, ConcernResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse, ConcernResponse, SubscriptionResponse } from '../types'
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const PREVIEW = 3
@@ -356,6 +362,70 @@ function UpcomingSessions({ sessions }: { sessions: TherapySessionResponse[] }) 
       ) : (
         <div>{sessions.map((s, i) => row(s, i, sessions))}</div>
       )}
+    </div>
+  )
+}
+
+/** Parent dashboard's "Pending Payments" tile — fans out one subscriptions query per child
+ *  (same per-child pattern MyChildrenPage.tsx already uses for sessions/enrollments), filtered
+ *  to plans that still owe money, with a "Pay Now" button reusing the shared MockRazorpayModal. */
+function PendingPayments({
+  myChildren,
+  onPay,
+}: {
+  myChildren: PatientResponse[]
+  onPay: (sub: SubscriptionResponse) => void
+}) {
+  const results = useQueries({
+    queries: myChildren.map(child => ({
+      queryKey: ['child-subscriptions', child.id],
+      queryFn: () => subscriptionsApi.listForPatient(child.id),
+      staleTime: 60 * 1000,
+    })),
+  })
+
+  const rows = myChildren.flatMap((child, i) => {
+    const subs = results[i]?.data ?? []
+    return subs
+      .filter(s => s.status === 'ACTIVE' && s.paymentStatus !== 'PAID')
+      .map(sub => ({ child, sub }))
+  })
+
+  if (rows.length === 0) return null
+
+  return (
+    <div style={{ ...styles.card, overflow: 'hidden', padding: 0 }}>
+      <div className="px-4 sm:px-6 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <IndianRupee size={16} style={{ color: colors.accent }} />
+        <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Pending Payments</h2>
+      </div>
+      <div>
+        {rows.map(({ child, sub }, i) => (
+          <div
+            key={sub.id}
+            className="flex items-center gap-4 px-4 sm:px-6 py-3.5"
+            style={i < rows.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+                {child.firstName} {child.lastName} — {sub.programName}
+              </p>
+              <p className="text-xs" style={{ color: colors.text.dim }}>
+                {sub.paymentStatus === 'PARTIAL'
+                  ? `${formatINR(sub.amountPaid)} of ${formatINR(sub.totalAmount)} paid`
+                  : `${formatINR(sub.totalAmount)} due`}
+              </p>
+            </div>
+            <button
+              onClick={() => onPay(sub)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
+              style={{ color: '#fff', background: colors.accent }}
+            >
+              <IndianRupee size={12} /> Pay Now
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -2058,6 +2128,8 @@ export default function DashboardPage() {
   const canActOnConcerns   = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
 
   const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
+  const [mockPayTarget, setMockPayTarget] = useState<SubscriptionResponse | null>(null)
+  const qc = useQueryClient()
 
   const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
   // All statuses, not just active — OrgOverview's ring chart needs the inactive count too;
@@ -2205,9 +2277,24 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {!loadingChildren && myChildren && myChildren.length > 0 && (
+          <PendingPayments myChildren={myChildren} onPay={sub => setMockPayTarget(sub)} />
+        )}
+
         {loadingUpcoming ? <CardSkeleton /> : <UpcomingSessions sessions={upcomingSessions} />}
 
         <FeedPanel />
+
+        {mockPayTarget && (
+          <MockRazorpayModal
+            subscription={mockPayTarget}
+            onClose={() => setMockPayTarget(null)}
+            onSaved={() => {
+              qc.invalidateQueries({ queryKey: ['child-subscriptions'] })
+              qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+            }}
+          />
+        )}
       </div>
     )
   }

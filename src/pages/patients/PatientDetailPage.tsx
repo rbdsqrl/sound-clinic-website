@@ -9,7 +9,7 @@ import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
 import SharedMediaTab from './SharedMediaTab'
 import { CaseHistoryCard } from './CaseHistoryCard'
-import { ReviewMeetingsPanel, DEFAULT_REVIEW_INTERVAL_WEEKS } from './ReviewMeetings'
+import { ReviewMeetingsPanel, ScheduleModal } from './ReviewMeetings'
 import AdHocSessionModal from '../calendar/AdHocSessionModal'
 import { patientsApi } from '../../api/patients'
 import { clinicsApi } from '../../api/clinics'
@@ -29,11 +29,11 @@ import { Modal } from '../../components/ui/Modal'
 import { Badge, roleLabel } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
 import { UserSearchPicker } from '../../components/ui/UserSearchPicker'
-import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { Avatar } from '../../components/shared/Avatar'
 import { CopyLinkBox } from '../../components/shared/CopyLinkBox'
 import { ResolveConcernModal } from '../../components/shared/ResolveConcernModal'
+import { MockRazorpayModal } from '../../components/subscriptions/MockRazorpayModal'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
@@ -596,116 +596,6 @@ function RecordPaymentModal({
   )
 }
 
-// ── MockRazorpayModal ──────────────────────────────────────────────────────────
-
-function MockRazorpayModal({
-  subscription,
-  onClose,
-  onSaved,
-}: {
-  subscription: SubscriptionResponse
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const [step, setStep] = useState<'gateway' | 'success'>('gateway')
-  const [processing, setProcessing] = useState(false)
-
-  const handlePay = async () => {
-    setProcessing(true)
-    try {
-      await subscriptionsApi.recordPayment(subscription.id, {
-        discountPercent: 0,
-        amountPaid: subscription.totalAmount,
-        paymentNotes: 'Paid via Razorpay',
-      })
-    } catch {
-      // PARENT role doesn't have backend permission to call recordPayment directly;
-      // in production this would be handled by a Razorpay webhook. For demo, proceed.
-    }
-    setProcessing(false)
-    setStep('success')
-    onSaved()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={styles.modalBackdrop}>
-      <div className="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-y-auto" style={styles.modal}>
-        {step === 'gateway' ? (
-          <>
-            {/* Mock gateway header */}
-            <div className="flex items-center gap-2.5 mb-6">
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: '#072654' }}>
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: colors.text.primary }}>Razorpay</p>
-                <p className="text-[12.65px]" style={{ color: colors.text.dim }}>Secure Payment Gateway</p>
-              </div>
-              <button onClick={onClose} className="p-2 rounded-lg" style={{ color: colors.text.muted }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Amount */}
-            <div className="text-center mb-6 py-4 rounded-2xl" style={{ background: accentAlpha(0.05), border: `1px solid ${accentAlpha(0.12)}` }}>
-              <p className="text-3xl font-bold" style={{ color: colors.text.heading }}>
-                {formatINR(subscription.totalAmount)}
-              </p>
-              <p className="text-sm mt-1 font-medium" style={{ color: colors.text.muted }}>{subscription.programName}</p>
-              <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>{subscription.numSessions} sessions</p>
-            </div>
-
-            {/* Mock payment method */}
-            <div className="mb-5">
-              <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: colors.text.dim }}>Payment Method</p>
-              <div className="rounded-xl px-4 py-3 flex items-center gap-3"
-                style={{ background: surface.filterStrip, border: `1.5px solid ${colors.accent}` }}>
-                <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                  style={{ borderColor: colors.accent }}>
-                  <div className="w-2 h-2 rounded-full" style={{ background: colors.accent }} />
-                </div>
-                <span className="text-sm font-medium" style={{ color: colors.text.primary }}>UPI</span>
-                <span className="ml-auto text-xs" style={{ color: colors.text.dim }}>·····@upi</span>
-              </div>
-            </div>
-
-            <button
-              onClick={handlePay}
-              disabled={processing}
-              className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity"
-              style={styles.buttonPrimary}
-            >
-              {processing ? 'Processing…' : `Pay ${formatINR(subscription.totalAmount)}`}
-            </button>
-
-            <p className="text-center text-[12.65px] mt-3" style={{ color: colors.text.dim }}>
-              Demo only — no real transaction occurs
-            </p>
-          </>
-        ) : (
-          <div className="flex flex-col items-center py-6 text-center">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ background: successAlpha(0.13), color: colors.status.success }}>
-              <ShieldCheck size={32} />
-            </div>
-            <h3 className="text-lg font-bold mb-1" style={{ color: colors.text.heading }}>Payment Successful!</h3>
-            <p className="text-sm" style={{ color: colors.text.muted }}>
-              {formatINR(subscription.totalAmount)} paid for {subscription.programName}
-            </p>
-            <p className="text-xs mt-1" style={{ color: colors.text.dim }}>Your therapy sessions are now active.</p>
-            <button onClick={onClose}
-              className="mt-6 px-8 py-2.5 rounded-xl text-sm font-semibold"
-              style={styles.buttonPrimary}>
-              Done
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Session status helpers ─────────────────────────────────────────────────────
 
 const SESSION_DURATION_OPTIONS = [
@@ -888,22 +778,11 @@ function EnrollmentModal({
     })
   }, [weeklyOffDays])
 
-  // Review meetings — opt-in, fortnightly by default
-  const [wantsReviews, setWantsReviews]         = useState(true)
-  const [reviewIntervalWeeks, setReviewIntervalWeeks] = useState(DEFAULT_REVIEW_INTERVAL_WEEKS)
-  const [reviewTime, setReviewTime]             = useState('16:00')
-  const [reviewDuration, setReviewDuration]     = useState(30)
-  const [clinicHeadIds, setClinicHeadIds]       = useState<string[]>([])
   const [availableTherapists, setAvailableTherapists] = useState<AvailableTherapistResponse[]>([])
   const [selectedTherapistId, setSelectedTherapistId] = useState('')
   const [findingTherapists, setFindingTherapists]     = useState(false)
   const [step1Errors, setStep1Errors]           = useState<Record<string, string>>({})
   const [formError, setFormError]               = useState<string | null>(null)
-
-  const { data: clinicHeads = [] } = useQuery({
-    queryKey: ['assignable', 'clinic-head'],
-    queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
-  })
 
   const createMut = useMutation({
     mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
@@ -921,7 +800,6 @@ function EnrollmentModal({
     if (!startDate) e.date = 'Select a start date'
     if (!startTime) e.time = 'Select a time'
     if (sessionDays.length === 0) e.days = 'Select at least one day'
-    if (wantsReviews && clinicHeadIds.length === 0) e.reviewParticipants = 'Pick at least one Clinic Head to invite'
     setStep1Errors(e)
     return Object.keys(e).length === 0
   }
@@ -957,15 +835,8 @@ function EnrollmentModal({
       startTime,
       sessionDays,
       // No end date sent — the server derives it from the start date and the
-      // number of sessions in the plan, and the review series inherits it.
-      reviewSchedule: wantsReviews
-        ? {
-            startTime: reviewTime,
-            durationMinutes: reviewDuration,
-            intervalWeeks: reviewIntervalWeeks,
-            participantIds: clinicHeadIds,
-          }
-        : undefined,
+      // number of sessions in the plan. Review meetings are set up as their own
+      // step right after this, not bundled into enrollment creation.
     })
   }
 
@@ -1133,71 +1004,9 @@ function EnrollmentModal({
               {step1Errors.days && <p className="form-error">{step1Errors.days}</p>}
             </div>
 
-            {/* Review meetings */}
-            <div className="rounded-xl p-3" style={{ background: surface.filterStrip }}>
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={wantsReviews}
-                  onChange={e => setWantsReviews(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 flex-shrink-0"
-                  style={{ accentColor: colors.accent }}
-                />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium" style={{ color: colors.text.primary }}>
-                    Schedule review meetings
-                  </span>
-                  <span className="block text-[12.65px] mt-0.5" style={{ color: colors.text.muted }}>
-                    Recurring feedback meetings for the Clinic Head and parents, with calendar invites — not the therapist
-                  </span>
-                </span>
-              </label>
-
-              {wantsReviews && (
-                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
-                    <div>
-                      <label className="form-label">Every</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" min={1} max={26} value={reviewIntervalWeeks}
-                          onChange={e => setReviewIntervalWeeks(Math.max(1, Number(e.target.value)))}
-                          className="form-input w-full"
-                        />
-                        <span className="text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>weeks</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="form-label">For</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" min={15} max={240} step={15} value={reviewDuration}
-                          onChange={e => setReviewDuration(Math.max(15, Number(e.target.value)))}
-                          className="form-input w-full"
-                        />
-                        <span className="text-xs whitespace-nowrap" style={{ color: colors.text.muted }}>min</span>
-                      </div>
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <TimePicker label="Meeting time" value={reviewTime} onChange={setReviewTime} />
-                    </div>
-                  </div>
-                  <p className="text-[12.65px] mt-3" style={{ color: colors.text.dim }}>
-                    Meetings run until the plan's last session.
-                  </p>
-                  <div className="mt-3">
-                    <MultiSelectChips
-                      label="Clinic Head(s) to invite"
-                      options={clinicHeads.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
-                      selected={clinicHeadIds}
-                      onChange={setClinicHeadIds}
-                      emptyMessage="No Clinic Head is set up in this organisation yet."
-                    />
-                    {step1Errors.reviewParticipants && <p className="form-error mt-1">{step1Errors.reviewParticipants}</p>}
-                  </div>
-                </div>
-              )}
-            </div>
+            <p className="text-[12.65px] -mt-1" style={{ color: colors.text.dim }}>
+              Review meetings are set up as their own step right after the therapist is confirmed.
+            </p>
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={styles.buttonSecondary}>Cancel</button>
@@ -1606,11 +1415,13 @@ export default function PatientDetailPage() {
   const [paymentTarget,    setPaymentTarget]    = useState<SubscriptionResponse | null>(null)
   const [mockPayTarget,    setMockPayTarget]    = useState<SubscriptionResponse | null>(null)
   const [enrollForSub,     setEnrollForSub]     = useState<SubscriptionResponse | null>(null)
-  // Whether the payment/enrollment modal above was opened automatically as the next
-  // step of the Add Program → Record Payment → Schedule flow, rather than clicked
-  // directly — only then do we show the "you can close this and continue later" hint.
+  const [scheduleReviewFor, setScheduleReviewFor] = useState<EnrollmentResponse | null>(null)
+  // Whether the payment/enrollment/review-schedule modal above was opened automatically as
+  // the next step of the Add Program → Record Payment → Schedule → Review flow, rather than
+  // clicked directly — only then do we show the "you can close this and continue later" hint.
   const [paymentContinuation, setPaymentContinuation] = useState(false)
   const [enrollContinuation,  setEnrollContinuation]  = useState(false)
+  const [reviewContinuation,  setReviewContinuation]  = useState(false)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [editScheduleFor, setEditScheduleFor] = useState<EnrollmentResponse | null>(null)
   const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
@@ -2257,7 +2068,9 @@ export default function PatientDetailPage() {
                   const isCompleted   = !isEnrolled && enrollments.some(e => e.subscriptionId === sub.id && e.status === 'COMPLETED')
                   const isPaid        = sub.paymentStatus === 'PAID'
                   const alreadyEnrolled = isEnrolled
-                  const canEnroll     = canCreateEnrollment && isPaid && !alreadyEnrolled && !isCancelled
+                  // Payment is no longer a precondition for enrolling — sessions are generated
+                  // immediately and held "awaiting payment" until this subscription is PAID.
+                  const canEnroll     = canCreateEnrollment && !alreadyEnrolled && !isCancelled
 
                   const sessionsCompleted = enrollment?.sessionsCompleted ?? 0
                   const progressPct       = sub.numSessions > 0
@@ -2437,6 +2250,12 @@ export default function PatientDetailPage() {
                                 <span className="italic">{sub.paymentNotes}</span>
                               )}
                             </>
+                          )}
+                          {enrollment?.awaitingPayment && (
+                            <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-full uppercase"
+                              style={paletteStyle('amber', 0.14, 0)}>
+                              Payment pending
+                            </span>
                           )}
                         </div>
 
@@ -2797,7 +2616,7 @@ export default function PatientDetailPage() {
           preselectedSub={enrollForSub}
           continuedFromPayment={enrollContinuation}
           onClose={() => { setEnrollForSub(null); setEnrollContinuation(false) }}
-          onCreated={() => {
+          onCreated={(enrollment) => {
             refetchEnrollments()
             refetchSubs()
             // A discharged patient is reactivated server-side by this same call (see
@@ -2807,6 +2626,26 @@ export default function PatientDetailPage() {
             toast('Enrollment created — sessions generated', 'success')
             setEnrollForSub(null)
             setEnrollContinuation(false)
+            if (canCreateEnrollment) { setReviewContinuation(true); setScheduleReviewFor(enrollment) }
+          }}
+        />
+      )}
+
+      {/* Schedule review meetings — offered as its own step right after enrollment,
+          same modal as "Add meeting" on an existing plan's Therapy tab. */}
+      {scheduleReviewFor && (
+        <ScheduleModal
+          enrollmentId={scheduleReviewFor.id}
+          enrollmentStartDate={scheduleReviewFor.startDate}
+          enrollmentEndDate={scheduleReviewFor.endDate}
+          defaultRepeat
+          continuedFromEnrollment={reviewContinuation}
+          onClose={() => { setScheduleReviewFor(null); setReviewContinuation(false) }}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ['review-meetings'] })
+            toast('Review meetings scheduled — invites sent', 'success')
+            setScheduleReviewFor(null)
+            setReviewContinuation(false)
           }}
         />
       )}

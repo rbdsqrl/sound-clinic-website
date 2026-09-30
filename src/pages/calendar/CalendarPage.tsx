@@ -91,7 +91,7 @@ interface CalendarEvent {
 
 // ── Visual config per kind ────────────────────────────────────────────────────
 
-function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
+function kindStyle(kind: EventKind, status?: string, awaitingPayment?: boolean): React.CSSProperties {
   if (kind === 'consultation') {
     return { background: '#1A73E818', color: '#1A73E8' }
   }
@@ -123,7 +123,10 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
     }
   }
   if (kind === 'session') {
-    const accent = `3px solid ${kindDot('session', status)}`
+    const accent = `3px solid ${kindDot('session', status, awaitingPayment)}`
+    // Payment-pending look wins over the default SCHEDULED styling below — status stays
+    // SCHEDULED throughout, so this must be checked first or it'd never show.
+    if (awaitingPayment)                    return { background: '#F59E0B14', color: '#B45309', borderLeft: accent, opacity: 0.75 }
     if (status === 'PENDING_RESCHEDULE')    return { background: '#F59E0B18', color: '#B45309', borderLeft: accent }
     if (status === 'CANCELLATION_REQUESTED') return { background: '#EF444418', color: '#dc2626', borderLeft: accent }
     if (status === 'CANCELLED')             return { background: '#88888818', color: '#888', borderLeft: accent }
@@ -137,7 +140,7 @@ function kindStyle(kind: EventKind, status?: string): React.CSSProperties {
   return { background: '#F59E0B18', color: '#F59E0B' } // PENDING
 }
 
-function kindDot(kind: EventKind, status?: string): string {
+function kindDot(kind: EventKind, status?: string, awaitingPayment?: boolean): string {
   if (kind === 'consultation') return '#1A73E8'
   if (kind === 'holiday')      return '#B45309'
   if (kind === 'orgBlock')     return colors.accent
@@ -150,6 +153,7 @@ function kindDot(kind: EventKind, status?: string): string {
     return status === 'CANCELLED' ? '#888' : palette.pink.text
   }
   if (kind === 'session') {
+    if (awaitingPayment)                    return '#B45309'
     if (status === 'PENDING_RESCHEDULE')    return '#B45309'
     if (status === 'CANCELLATION_REQUESTED') return '#dc2626'
     if (status === 'CANCELLED')             return '#888'
@@ -160,6 +164,12 @@ function kindDot(kind: EventKind, status?: string): string {
   if (status === 'APPROVED')   return '#E05C5C'
   if (status === 'REJECTED')   return '#888'
   return '#F59E0B'
+}
+
+/** A session event's awaitingPayment flag, for kindStyle/kindDot — undefined for every other
+ *  kind, which those functions already treat as "not awaiting payment." */
+function sessionAwaitingPayment(ev: CalendarEvent): boolean | undefined {
+  return ev.kind === 'session' ? (ev.raw as TherapySessionResponse).awaitingPayment : undefined
 }
 
 // ── Data transformation ───────────────────────────────────────────────────────
@@ -533,7 +543,7 @@ function EventHoverCard({ event, pos }: {
         boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
       }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: kindDot(event.kind, event.status) }}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: kindDot(event.kind, event.status, sessionAwaitingPayment(event)) }}>
         {eventKindLabel(event.kind)}
       </p>
       <p className="text-sm font-semibold mb-2 leading-snug" style={{ color: colors.text.primary }}>
@@ -571,7 +581,7 @@ function EventChip({
    *  since the therapist is already that column's header there. */
   showPatient?: boolean
 }) {
-  const s = colorOverride ?? kindStyle(event.kind, event.status)
+  const s = colorOverride ?? kindStyle(event.kind, event.status, sessionAwaitingPayment(event))
   const secondLine = showTherapist ? sessionTherapistName(event) : showPatient ? sessionPatientName(event) : undefined
 
   const buttonRef  = useRef<HTMLButtonElement>(null)
@@ -1088,7 +1098,7 @@ function DayView({
                 )}
                 {[...timed].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
                   .slice(0, expandedHours.has(hour) ? undefined : 3).map(ev => {
-                  const s = kindStyle(ev.kind, ev.status)
+                  const s = kindStyle(ev.kind, ev.status, sessionAwaitingPayment(ev))
                   const rawSess = ev.kind === 'session' ? (ev.raw as TherapySessionResponse) : null
                   return (
                     <button key={ev.id} onClick={() => onSelect(ev)}
@@ -1359,7 +1369,7 @@ function AgendaView({
         </thead>
         <tbody>
           {groups.flatMap(group => group.items.map((ev, i) => {
-            const rowStyle = colorFn?.(ev) ?? kindStyle(ev.kind, ev.status)
+            const rowStyle = colorFn?.(ev) ?? kindStyle(ev.kind, ev.status, sessionAwaitingPayment(ev))
             const end = eventEndTime(ev)
             return (
               <tr key={ev.id}>
@@ -1452,7 +1462,7 @@ function UpcomingPanel({
               {/* Event cards */}
               <div className="flex flex-col gap-1.5">
                 {group.items.map(ev => {
-                  const dot = kindDot(ev.kind, ev.status)
+                  const dot = kindDot(ev.kind, ev.status, sessionAwaitingPayment(ev))
                   return (
                     <button key={ev.id} onClick={() => onSelect(ev)}
                       className="text-left rounded-xl p-2.5 w-full transition-colors"
@@ -1896,7 +1906,7 @@ function SessionEventModal({
     <>
       <SessionNotesModal
         session={session}
-        canEdit={canAccessNotes}
+        canEdit={canAccessNotes && !session.awaitingPayment}
         canDirectlyCancel={canCancel}
         hideFeedback={hideFeedback}
         enrollmentId={session.enrollmentId}
@@ -1930,7 +1940,7 @@ function EventDetailDrawer({
 }) {
   const navigate  = useNavigate()
   const qc        = useQueryClient()
-  const s         = kindStyle(event.kind, event.status)
+  const s         = kindStyle(event.kind, event.status, sessionAwaitingPayment(event))
 
   const isConsultation = event.kind === 'consultation'
   const isSession      = event.kind === 'session'
@@ -1988,7 +1998,7 @@ function EventDetailDrawer({
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-0.5"
-                style={{ color: kindDot(event.kind, event.status) }}>
+                style={{ color: kindDot(event.kind, event.status, sessionAwaitingPayment(event)) }}>
                 {isConsultation ? 'Consultation' : isSession ? 'Therapy Session' : isHolidayEv ? 'Public Holiday' : isReview ? 'Review Meeting' : isMeeting ? 'Meeting' : isOrgBlock ? 'Calendar Block' : 'Leave'}
               </p>
               <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>

@@ -291,6 +291,13 @@ export function SessionList({
                     {s.requiresPayment ? 'Payment due' : 'No charge'}
                   </span>
                 )}
+                {s.awaitingPayment && !hidePayment && (
+                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={paletteStyle('amber', 0.14, 0)}
+                    title="Scheduled, but on hold until the plan's payment is completed">
+                    Payment pending
+                  </span>
+                )}
 
                 <span className="flex-1" />
 
@@ -313,7 +320,7 @@ export function SessionList({
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.accent }} />
                 )}
 
-                {canReschedule && s.status === 'SCHEDULED' && (
+                {canReschedule && s.status === 'SCHEDULED' && !s.awaitingPayment && (
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); setReschedulingSession(s) }}
@@ -715,6 +722,11 @@ export function SessionNotesModal({
           }>
           {session.status.replace('_', ' ')}
         </span>
+        {session.awaitingPayment && (
+          <span className="text-[11.5px] px-2 py-1 rounded-full font-medium" style={paletteStyle('amber', 0.14, 0)}>
+            Payment pending
+          </span>
+        )}
       </div>
 
       {/* Notes / Activity Log tabs — both hidden entirely when feedback is off-limits to this viewer. */}

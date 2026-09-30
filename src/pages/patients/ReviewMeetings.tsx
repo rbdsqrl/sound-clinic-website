@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  MessageSquare, Plus, Star, CalendarClock, CheckCircle2, XCircle, Repeat, ChevronDown,
+  MessageSquare, Plus, Star, CalendarClock, CheckCircle2, XCircle, Repeat, ChevronDown, Sparkles,
 } from 'lucide-react'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { usersApi } from '../../api/users'
@@ -402,7 +402,8 @@ function MeetingRow({
 // ── Schedule a meeting — recurring series, or a single one-off ─────────────────
 
 export function ScheduleModal({
-  enrollmentId, enrollmentStartDate, enrollmentEndDate, defaultRepeat = true, onClose, onDone,
+  enrollmentId, enrollmentStartDate, enrollmentEndDate, defaultRepeat = true,
+  continuedFromEnrollment, onClose, onDone,
 }: {
   enrollmentId: string
   enrollmentStartDate: string
@@ -410,6 +411,9 @@ export function ScheduleModal({
   /** Whether the "Repeat event" checkbox starts checked — true from the first-time
    *  "Schedule reviews" entry point, false from "Add meeting" on an existing series. */
   defaultRepeat?: boolean
+  /** Opened automatically right after confirming a new enrollment — shows a hint that
+   *  closing here is fine, review meetings can always be set up later from the Therapy tab. */
+  continuedFromEnrollment?: boolean
   onClose: () => void
   onDone: () => void
 }) {
@@ -472,6 +476,16 @@ export function ScheduleModal({
   return (
     <Modal open title={repeat ? 'Schedule review meetings' : 'Add a review meeting'} onClose={onClose} error={formError}>
       <div className="flex flex-col gap-4">
+        {continuedFromEnrollment && (
+          <div className="rounded-xl px-3 py-2.5 flex items-start gap-2"
+            style={{ background: accentAlpha(0.06), border: `1px solid ${accentAlpha(0.15)}` }}>
+            <Sparkles size={13} style={{ color: colors.accent, marginTop: 2, flexShrink: 0 }} />
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              Enrollment created — set up review meetings now, or close and come back to it
+              anytime from the plan's Therapy tab.
+            </p>
+          </div>
+        )}
         <label className="flex items-center gap-2.5 cursor-pointer">
           <input
             type="checkbox"
