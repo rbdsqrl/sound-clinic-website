@@ -455,7 +455,10 @@ function RecordPaymentModal({
   const [formError, setFormError] = useState<string | null>(null)
 
   const discountVal = parseFloat(discount) || 0
-  const total = subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100)
+  // Rounded to whole rupees to match the backend's payment-status comparison — otherwise a
+  // payment that matches this preview exactly could still land a few paise short server-side
+  // and never flip to Paid.
+  const total = Math.round(subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100))
 
   const saveMut = useMutation({
     mutationFn: (data: UpdatePaymentRequest) => subscriptionsApi.recordPayment(subscription.id, data),
