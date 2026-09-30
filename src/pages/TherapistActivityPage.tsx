@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import {
   ClipboardCheck, StickyNote, Clapperboard, FileText, Image as ImageIcon, Video, ExternalLink,
 } from 'lucide-react'
@@ -137,7 +137,7 @@ function MediaSection({ groups }: { groups: ChildMedia[] }) {
 export default function TherapistActivityPage() {
   const [therapistId, setTherapistId] = useState('')
   const today = format(new Date(), 'yyyy-MM-dd')
-  const [from, setFrom] = useState(today)
+  const [from, setFrom] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'))
   const [to, setTo] = useState(today)
 
   const { data: therapists = [] } = useQuery({
