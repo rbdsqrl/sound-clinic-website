@@ -876,6 +876,92 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
     })
   }
 
+  // Goals — added inline so a plan doesn't have to start empty
+  const goalsSection = (
+  <div>
+    <div className="flex items-center justify-between mb-2">
+      <span className="form-label !mb-0">
+        Goals <span className="font-normal normal-case" style={{ color: colors.text.dim }}>(optional)</span>
+      </span>
+      {!showGoalForm && (
+        <button type="button" onClick={() => setShowGoalForm(true)}
+          className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.accent }}>
+          <Plus size={13} /> Add Goal
+        </button>
+      )}
+    </div>
+
+    {templateGoalOptions.length > 0 && (
+      <div className="space-y-2 mb-3">
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          From the selected template — untick any you don't want in this plan
+        </p>
+        {templateGoalOptions.map(g => {
+          const checked = !excludedGoalIds.has(g.id)
+          return (
+            <label key={g.id} className="flex items-start gap-2.5 rounded-xl px-3 py-2 cursor-pointer"
+              style={checked
+                ? { border: `1.5px solid ${colors.accent}`, background: accentAlpha(0.06) }
+                : { border: border.card, background: surface.card, opacity: 0.7 }}>
+              <input type="checkbox" className="mt-1" checked={checked} onChange={() => toggleTemplateGoal(g.id)} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{g.title}</p>
+                <p className="text-xs" style={{ color: colors.text.dim }}>
+                  {DOMAINS.find(d => d.value === g.domain)?.label}
+                </p>
+              </div>
+            </label>
+          )
+        })}
+      </div>
+    )}
+
+    {goalDrafts.length > 0 && (
+      <div className="space-y-2 mb-3">
+        {goalDrafts.map((g, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+            style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{g.title}</p>
+              <p className="text-xs" style={{ color: colors.text.dim }}>
+                {DOMAINS.find(d => d.value === g.domain)?.label}
+              </p>
+            </div>
+            <button type="button" onClick={() => setGoalDrafts(prev => prev.filter((_, idx) => idx !== i))}
+              style={{ color: colors.text.dim }}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {showGoalForm && (
+      <div className="rounded-xl p-3 space-y-3" style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
+        <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={goalErrors.goalTitle?.message}
+          {...registerGoal('goalTitle', { required: 'Required' })} />
+        <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={goalErrors.domain?.message}
+          {...registerGoal('domain', { required: 'Required' })} />
+        <div>
+          <label className="form-label">Goal statement</label>
+          <textarea className="form-input resize-none" rows={2}
+            placeholder="Full SMART goal text…" {...registerGoal('goalStatement')} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Baseline" placeholder="Current level" {...registerGoal('baseline')} />
+          <Input label="Target criteria" placeholder='e.g. "80% over 3 sessions"' {...registerGoal('targetCriteria')} />
+        </div>
+        <Input label="Target date" type="date" {...registerGoal('targetDate')} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" size="sm"
+            onClick={() => { resetGoalForm(); setShowGoalForm(false) }}>Cancel</Button>
+          <Button type="button" size="sm" onClick={handleGoalSubmit(addGoalDraft)}>Add</Button>
+        </div>
+      </div>
+    )}
+  </div>
+  )
+
   return (
     <Modal open={open} onClose={handleClose} title="New IEP Plan" size="lg" error={formError}>
       {mode === 'choice' ? (
@@ -961,6 +1047,11 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
           )}
         </div>
       )}
+      {mode === 'template' && (
+        <div className="mb-5 pb-5 border-b" style={{ borderColor: border.divider }}>
+          {goalsSection}
+        </div>
+      )}
       {/* Not a <form> — the inline goal-draft fields below share field names (title, domain, …)
           with this plan form, and two same-named inputs inside one native <form> is a real
           footgun (autofill/reset confusion). Submission is wired up manually instead, same as
@@ -986,90 +1077,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
             No therapist assigned to this case yet — a Business Owner or Clinic Head can assign one to this plan later.
           </p>
         )}
-
-        {/* Goals — added inline so a plan doesn't have to start empty */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="form-label !mb-0">
-              Goals <span className="font-normal normal-case" style={{ color: colors.text.dim }}>(optional)</span>
-            </span>
-            {!showGoalForm && (
-              <button type="button" onClick={() => setShowGoalForm(true)}
-                className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.accent }}>
-                <Plus size={13} /> Add Goal
-              </button>
-            )}
-          </div>
-
-          {templateGoalOptions.length > 0 && (
-            <div className="space-y-2 mb-3">
-              <p className="text-xs" style={{ color: colors.text.dim }}>
-                From the selected template — untick any you don't want in this plan
-              </p>
-              {templateGoalOptions.map(g => {
-                const checked = !excludedGoalIds.has(g.id)
-                return (
-                  <label key={g.id} className="flex items-start gap-2.5 rounded-xl px-3 py-2 cursor-pointer"
-                    style={checked
-                      ? { border: `1.5px solid ${colors.accent}`, background: accentAlpha(0.06) }
-                      : { border: border.card, background: surface.card, opacity: 0.7 }}>
-                    <input type="checkbox" className="mt-1" checked={checked} onChange={() => toggleTemplateGoal(g.id)} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{g.title}</p>
-                      <p className="text-xs" style={{ color: colors.text.dim }}>
-                        {DOMAINS.find(d => d.value === g.domain)?.label}
-                      </p>
-                    </div>
-                  </label>
-                )
-              })}
-            </div>
-          )}
-
-          {goalDrafts.length > 0 && (
-            <div className="space-y-2 mb-3">
-              {goalDrafts.map((g, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
-                  style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{g.title}</p>
-                    <p className="text-xs" style={{ color: colors.text.dim }}>
-                      {DOMAINS.find(d => d.value === g.domain)?.label}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => setGoalDrafts(prev => prev.filter((_, idx) => idx !== i))}
-                    style={{ color: colors.text.dim }}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showGoalForm && (
-            <div className="rounded-xl p-3 space-y-3" style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
-              <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={goalErrors.goalTitle?.message}
-                {...registerGoal('goalTitle', { required: 'Required' })} />
-              <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={goalErrors.domain?.message}
-                {...registerGoal('domain', { required: 'Required' })} />
-              <div>
-                <label className="form-label">Goal statement</label>
-                <textarea className="form-input resize-none" rows={2}
-                  placeholder="Full SMART goal text…" {...registerGoal('goalStatement')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Baseline" placeholder="Current level" {...registerGoal('baseline')} />
-                <Input label="Target criteria" placeholder='e.g. "80% over 3 sessions"' {...registerGoal('targetCriteria')} />
-              </div>
-              <Input label="Target date" type="date" {...registerGoal('targetDate')} />
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" size="sm"
-                  onClick={() => { resetGoalForm(); setShowGoalForm(false) }}>Cancel</Button>
-                <Button type="button" size="sm" onClick={handleGoalSubmit(addGoalDraft)}>Add</Button>
-              </div>
-            </div>
-          )}
-        </div>
+        {mode === 'custom' && goalsSection}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
