@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, isAfter } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
@@ -44,8 +44,17 @@ export function useCalendarBadge(): number {
     queryFn:  () => therapySessionsApi.list({ from: todayKey, to: todayKey }),
     enabled:  canSeeSessions,
     staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,   // re-fetch every minute so past sessions drop off the count
   })
+
+  // Past sessions drop off the count as the day goes on. That only needs the clock, not the
+  // network — a local minute tick re-runs the count below instead of polling the server every
+  // minute from every open tab.
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
 
   return useMemo(() => {
     const now        = new Date()
@@ -75,5 +84,5 @@ export function useCalendarBadge(): number {
     }
 
     return count
-  }, [inquiries, leaves, sessions, todayKey, /* re-run when minute changes is handled by refetchInterval */])
+  }, [inquiries, leaves, sessions, todayKey, tick])
 }

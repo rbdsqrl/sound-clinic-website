@@ -1960,6 +1960,14 @@ export interface EngagementOverviewResponse {
   mostAssignedActivities: NameCount[]
 }
 
+/** Dashboard Organisation Overview ring counts. */
+export interface OrgOverviewResponse {
+  activeCases: number
+  inactiveCases: number
+  activeMembers: number
+  invitedMembers: number
+}
+
 // ── Cases (Analytics — Cases tab) ────────────────────────────────────────────
 /** One active case's trend buckets — what the Cases tab's multi-case chart draws. */
 export interface CaseTrendResponse {

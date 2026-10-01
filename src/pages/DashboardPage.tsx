@@ -4,7 +4,7 @@ import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, Li
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
-import { clinicsApi } from '../api/clinics'
+import { dashboardApi } from '../api/dashboard'
 import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
 import { feedApi } from '../api/feed'
@@ -13,7 +13,6 @@ import { therapySessionsApi } from '../api/therapySessions'
 import { subscriptionsApi } from '../api/subscriptions'
 import { concernsApi } from '../api/concerns'
 import { usersApi } from '../api/users'
-import { invitationsApi } from '../api/invitations'
 import { Avatar } from '../components/shared/Avatar'
 import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
 import { MockRazorpayModal } from '../components/subscriptions/MockRazorpayModal'
@@ -34,7 +33,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, StaffMemberResponse, InviteResponse, ConcernResponse, SubscriptionResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse } from '../types'
 
 function formatINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -1256,16 +1255,8 @@ function StatRingPanel({ title, ring, stats, divider }: {
  * rings entirely — they're neither "active" nor "invited," so counting them in either
  * bucket would be misleading.
  */
-function OrgOverview({ patients, members, invites }: {
-  patients: PatientResponse[]
-  members: StaffMemberResponse[]
-  invites: InviteResponse[]
-}) {
-  const activeCases   = patients.filter(p => p.stage !== 'DISCHARGED' && p.isActive).length
-  const inactiveCases = patients.filter(p => p.stage === 'DISCHARGED' || !p.isActive).length
-
-  const activeMembers  = members.filter(m => m.isActive).length
-  const invitedMembers = invites.filter(i => i.status === 'PENDING').length
+function OrgOverview({ counts }: { counts: OrgOverviewResponse }) {
+  const { activeCases, inactiveCases, activeMembers, invitedMembers } = counts
 
   const sectionCard: React.CSSProperties = {
     ...styles.card, padding: 0, overflow: 'hidden',
@@ -2131,10 +2122,9 @@ export default function DashboardPage() {
   const [mockPayTarget, setMockPayTarget] = useState<SubscriptionResponse | null>(null)
   const qc = useQueryClient()
 
-  const { data: clinics,    isLoading: loadingClinics }  = useQuery({ queryKey: ['clinics'],     queryFn: clinicsApi.list,        enabled: isOwnerOrAdmin })
-  // All statuses, not just active — OrgOverview's ring chart needs the inactive count too;
-  // RecentlyJoinedChildren filters out inactive patients itself before rendering its list.
-  const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients', 'all-statuses'], queryFn: patientsApi.listAllStatuses, enabled: isStaff })
+  // Only RecentlyJoinedChildren (Admin Roles) renders from this list — the Organisation Overview
+  // counts come from their own endpoint — so it isn't fetched at all for therapists.
+  const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients', 'all-statuses'], queryFn: patientsApi.listAllStatuses, enabled: isOwnerOrAdmin })
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
   // Next few sessions across all of this parent's children — widened to a 90-day window since
   // sessions can run weekly or less often, then trimmed client-side to the soonest 3 still live
@@ -2200,22 +2190,14 @@ export default function DashboardPage() {
     staleTime: 60 * 60 * 1000,
   })
 
-  const { data: members = [], isLoading: loadingMembers } = useQuery({
-    queryKey: ['members'],
-    queryFn: usersApi.listMembers,
+  // Four counts from one tiny endpoint — this used to download every member (size 1000), every
+  // invitation, and re-use the full patient list just to count rows for two rings.
+  const { data: orgOverview, isLoading: loadingOrgOverview } = useQuery({
+    queryKey: ['dashboard', 'org-overview'],
+    queryFn: dashboardApi.orgOverview,
     enabled: isOwnerOrAdmin,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   })
-  const { data: invites = [] } = useQuery({
-    queryKey: ['invitations'],
-    queryFn: invitationsApi.list,
-    enabled: isOwnerOrAdmin,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const uniqueTherapistIds = new Set(patients?.flatMap(p => p.therapists).map(t => t.id) ?? [])
-
-  void loadingClinics // no card on this page renders from it directly
 
   // ── Parent dashboard ──────────────────────────────────────────────────────
   if (isParentView) {
@@ -2370,7 +2352,7 @@ export default function DashboardPage() {
 
             {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
             {isOwnerOrAdmin && (loadingPatients ? <CardSkeleton /> : <RecentlyJoinedChildren patients={patients ?? []} />)}
-            {isOwnerOrAdmin && ((loadingPatients || loadingMembers) ? <CardSkeleton /> : <OrgOverview patients={patients ?? []} members={members} invites={invites} />)}
+            {isOwnerOrAdmin && (loadingOrgOverview || !orgOverview ? <CardSkeleton /> : <OrgOverview counts={orgOverview} />)}
             <MyTasks userId={user?.id ?? ''} />
           </div>
         )
