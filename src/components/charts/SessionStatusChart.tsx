@@ -63,10 +63,12 @@ export default function SessionStatusChart({ points, height = 220 }: { points: S
   const labelStep = points.length > 20 ? Math.ceil(points.length / 10) : points.length > 10 ? 2 : 1
 
   const hovered = hover !== null ? points[hover] : null
+  // Completed always shows, even at 0 — every other status only shows when it actually
+  // occurred that day, since a scheduled-only day shouldn't list every possible outcome.
   const hoveredRows = hovered
     ? STATUS_ORDER
-        .filter(s => (hovered.byStatus[s] ?? 0) > 0)
-        .map(s => ({ status: s, label: STATUS_META[s].label, color: palette[STATUS_META[s].color].text, count: hovered.byStatus[s] }))
+        .filter(s => s === 'COMPLETED' || (hovered.byStatus[s] ?? 0) > 0)
+        .map(s => ({ status: s, label: STATUS_META[s].label, color: palette[STATUS_META[s].color].text, count: hovered.byStatus[s] ?? 0 }))
     : []
   const hoveredTotal = hoveredRows.reduce((a, r) => a + r.count, 0)
 
