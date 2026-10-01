@@ -762,6 +762,8 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   const qc = useQueryClient()
   const [mode, setMode] = useState<'choice' | 'template' | 'custom'>('choice')
   const [selectedTemplate, setSelectedTemplate] = useState<IEPTemplateResponse | null>(null)
+  // Template goals the user has unticked — everything else on the template is added to the plan.
+  const [excludedGoalIds, setExcludedGoalIds] = useState<Set<string>>(new Set())
   const [goalDrafts,   setGoalDrafts]   = useState<CreateIEPGoalRequest[]>([])
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -809,7 +811,20 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
     enabled: open,
   })
 
+  // Goals without a domain can't be added to a plan, so they aren't offered.
+  const templateGoalOptions = (selectedTemplate?.goals ?? [])
+    .filter((g): g is typeof g & { domain: IEPGoalDomain } => !!g.domain)
+  const selectedTemplateGoals = templateGoalOptions.filter(g => !excludedGoalIds.has(g.id))
+
+  const toggleTemplateGoal = (id: string) =>
+    setExcludedGoalIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
   const pickTemplate = (t: IEPTemplateResponse) => {
+    setExcludedGoalIds(new Set())
     if (selectedTemplate?.id === t.id) {
       setSelectedTemplate(null)
       setValue('title', '')
@@ -822,26 +837,22 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   }
 
   const handleClose = () => {
-    reset(); setMode('choice'); setSelectedTemplate(null); setGoalDrafts([]); setShowGoalForm(false)
+    reset(); setMode('choice'); setSelectedTemplate(null); setExcludedGoalIds(new Set()); setGoalDrafts([]); setShowGoalForm(false)
     resetGoalForm(); onClose()
   }
 
   const backToChoice = () => {
-    setMode('choice'); setSelectedTemplate(null); setValue('title', ''); setValue('tags', '')
+    setMode('choice'); setSelectedTemplate(null); setExcludedGoalIds(new Set()); setValue('title', ''); setValue('tags', '')
   }
 
   const mut = useMutation({
     mutationFn: async (data: CreateIEPPlanRequest) => {
       const plan = await iepApi.createPlan(patientId, data)
 
-      const templateGoals: CreateIEPGoalRequest[] = selectedTemplate
-        ? selectedTemplate.goals
-            .filter((g): g is typeof g & { domain: IEPGoalDomain } => !!g.domain)
-            .map(g => ({
-              title: g.title, domain: g.domain, goalStatement: g.goalStatement,
-              baseline: g.baseline, targetCriteria: g.targetCriteria,
-            }))
-        : []
+      const templateGoals: CreateIEPGoalRequest[] = selectedTemplateGoals.map(g => ({
+        title: g.title, domain: g.domain, goalStatement: g.goalStatement,
+        baseline: g.baseline, targetCriteria: g.targetCriteria,
+      }))
       const allGoals = [...templateGoals, ...goalDrafts]
 
       for (const g of allGoals) {
@@ -941,9 +952,9 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
           </div>
           {selectedTemplate && (
             <p className="text-xs mt-2.5" style={{ color: colors.accent }}>
-              {selectedTemplate.goalCount} goal{selectedTemplate.goalCount !== 1 ? 's' : ''} will be added automatically
+              {selectedTemplateGoals.length} of {templateGoalOptions.length} goal{templateGoalOptions.length !== 1 ? 's' : ''} will be added
               {' · '}
-              <button type="button" onClick={() => { setSelectedTemplate(null); setValue('title', ''); setValue('tags', '') }} className="underline">
+              <button type="button" onClick={() => { setSelectedTemplate(null); setExcludedGoalIds(new Set()); setValue('title', ''); setValue('tags', '') }} className="underline">
                 Clear
               </button>
             </p>
@@ -990,10 +1001,29 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
             )}
           </div>
 
-          {(selectedTemplate ? selectedTemplate.goalCount : 0) > 0 && (
-            <p className="text-xs mb-2" style={{ color: colors.text.dim }}>
-              + {selectedTemplate!.goalCount} goal{selectedTemplate!.goalCount !== 1 ? 's' : ''} from the selected template
-            </p>
+          {templateGoalOptions.length > 0 && (
+            <div className="space-y-2 mb-3">
+              <p className="text-xs" style={{ color: colors.text.dim }}>
+                From the selected template — untick any you don't want in this plan
+              </p>
+              {templateGoalOptions.map(g => {
+                const checked = !excludedGoalIds.has(g.id)
+                return (
+                  <label key={g.id} className="flex items-start gap-2.5 rounded-xl px-3 py-2 cursor-pointer"
+                    style={checked
+                      ? { border: `1.5px solid ${colors.accent}`, background: accentAlpha(0.06) }
+                      : { border: border.card, background: surface.card, opacity: 0.7 }}>
+                    <input type="checkbox" className="mt-1" checked={checked} onChange={() => toggleTemplateGoal(g.id)} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{g.title}</p>
+                      <p className="text-xs" style={{ color: colors.text.dim }}>
+                        {DOMAINS.find(d => d.value === g.domain)?.label}
+                      </p>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
           )}
 
           {goalDrafts.length > 0 && (
