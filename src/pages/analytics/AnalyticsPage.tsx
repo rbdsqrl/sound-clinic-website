@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery, useQueries } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { analyticsApi } from '../../api/analytics'
 import { patientsApi } from '../../api/patients'
@@ -214,31 +214,29 @@ export default function AnalyticsPage() {
     c.patientName.toLowerCase().includes(caseSearch.trim().toLowerCase())
   )
 
-  // One trend query per active case, keyed exactly like the single-case drill-in's own query
-  // below — so opening one case's detail from here reuses what's already fetched rather than
-  // firing it again. useQueries resolves each independently, so the chart fills in line by
-  // line as cases finish instead of blocking on the slowest one.
+  // Every active case's trend in ONE request. This used to fire one patientProgress call per
+  // case at once (30 cases = 30 simultaneous requests, each running several queries), which is
+  // what was saturating the server's threads and database connections.
   const [casesMetric, setCasesMetric] = useState<CasesMetric>('mastery')
   // Clicking a name under the chart isolates that one case's line — click it again (or search
   // it out of the list) to go back to showing every case.
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
-  const caseTrendQueries = useQueries({
-    queries: (casesQuery.data ?? []).map(c => ({
-      queryKey: ['analytics', 'patient', c.patientId, params],
-      queryFn: () => analyticsApi.patientProgress(c.patientId, params),
-      enabled: tab === 'cases' && !isParentUser && !patientId,
-      staleTime: 5 * 60 * 1000,
-    })),
+  const caseTrendsQuery = useQuery({
+    queryKey: ['analytics', 'cases-trends', params],
+    queryFn: () => analyticsApi.casesTrends(params),
+    enabled: tab === 'cases' && !isParentUser && !patientId,
+    staleTime: 5 * 60 * 1000,
   })
+  const caseBucketsByPatient = new Map((caseTrendsQuery.data ?? []).map(t => [t.patientId, t.buckets]))
   // Colour is assigned from the full (unfiltered) active-case list so a case keeps its line
   // colour as the search box narrows which lines are actually drawn.
   const caseSeriesAll = (casesQuery.data ?? []).map((c, i) => ({
     caseId: c.patientId,
     name: c.patientName,
     color: CASE_LINE_COLORS[i % CASE_LINE_COLORS.length],
-    query: caseTrendQueries[i],
+    buckets: caseBucketsByPatient.get(c.patientId),
   }))
-  const caseTrendPeriods = caseSeriesAll.find(cs => cs.query.data)?.query.data?.buckets.map(b => ({ label: b.label })) ?? []
+  const caseTrendPeriods = caseSeriesAll.find(cs => cs.buckets)?.buckets?.map(b => ({ label: b.label })) ?? []
   // Falls back to "show every case" if the isolated one drops out of the search results,
   // instead of silently leaving the chart empty.
   const effectiveSelectedCaseId = selectedCaseId && filteredCases.some(fc => fc.patientId === selectedCaseId)
@@ -247,16 +245,15 @@ export default function AnalyticsPage() {
   // Every case that could be charted (search-filtered, but not yet narrowed to the single
   // selected one) — the legend always renders from this so every name stays clickable, including
   // to switch away from whichever case is currently isolated.
-  const caseLegendItems = caseSeriesAll.filter(cs => cs.query.data && filteredCases.some(fc => fc.patientId === cs.caseId))
+  const caseLegendItems = caseSeriesAll.filter(cs => cs.buckets && filteredCases.some(fc => fc.patientId === cs.caseId))
   const caseTrendSeries = caseLegendItems
     .filter(cs => !effectiveSelectedCaseId || cs.caseId === effectiveSelectedCaseId)
     .map(cs => ({
       id: cs.caseId,
       name: cs.name,
       color: cs.color,
-      values: cs.query.data!.buckets.map(b => casesMetricValue(b, casesMetric)),
+      values: cs.buckets!.map(b => casesMetricValue(b, casesMetric)),
     }))
-  const caseTrendPendingCount = caseSeriesAll.filter(cs => cs.query.isLoading).length
   const caseTrendMetricMeta = CASES_METRIC_OPTIONS.find(o => o.value === casesMetric)!
 
   // The Members list. Selecting a row drills into that therapist's caseload below.
@@ -548,9 +545,9 @@ export default function AnalyticsPage() {
                   options={CASES_METRIC_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
                 />
               </div>
-              {caseTrendPendingCount > 0 && (
+              {caseTrendsQuery.isLoading && (
                 <span className="text-xs" style={{ color: colors.text.dim }}>
-                  Loading {caseTrendPendingCount} of {caseSeriesAll.length} cases…
+                  Loading case trends…
                 </span>
               )}
             </div>

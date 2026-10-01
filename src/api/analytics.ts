@@ -1,7 +1,7 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  CaseSummaryResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
+  CaseSummaryResponse, CaseTrendResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
   IEPGoalDomain, MemberSummaryResponse, OrgSnapshotResponse, ScheduleResponse, SuccessCriteriaResponse,
   TimeSeriesResponse, TrendPoint,
 } from '../types'
@@ -109,6 +109,12 @@ export const analyticsApi = {
     client
       .get<ApiResponse<CaseSummaryResponse[]>>('/analytics/cases', { params: { from, to } })
       .then(r => r.data.data),
+
+  /** Trend buckets for every active case in one call — replaces one patientProgress request per case. */
+  casesTrends: (params: AnalyticsWindow): Promise<CaseTrendResponse[]> =>
+    client
+      .get<ApiResponse<CaseTrendResponse[]>>('/analytics/cases/trends', { params })
+      .then(r => (r.data.data ?? []).map(t => ({ ...t, buckets: (t.buckets ?? []).map(normaliseBucket) }))),
 
   /** One row per therapist — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
   members: (from: string, to: string) =>

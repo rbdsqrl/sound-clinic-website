@@ -1961,6 +1961,12 @@ export interface EngagementOverviewResponse {
 }
 
 // ── Cases (Analytics — Cases tab) ────────────────────────────────────────────
+/** One active case's trend buckets — what the Cases tab's multi-case chart draws. */
+export interface CaseTrendResponse {
+  patientId: string
+  buckets: AnalyticsBucket[]
+}
+
 export interface CaseSummaryResponse {
   patientId: string
   patientName: string
