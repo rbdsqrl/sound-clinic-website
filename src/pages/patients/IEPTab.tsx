@@ -764,7 +764,6 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   const [selectedTemplate, setSelectedTemplate] = useState<IEPTemplateResponse | null>(null)
   const [goalDrafts,   setGoalDrafts]   = useState<CreateIEPGoalRequest[]>([])
   const [showGoalForm, setShowGoalForm] = useState(false)
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => { if (open) setFormError(null) }, [open])
@@ -823,7 +822,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   }
 
   const handleClose = () => {
-    reset(); setMode('choice'); setSelectedTemplate(null); setGoalDrafts([]); setShowGoalForm(false); setSaveAsTemplate(false)
+    reset(); setMode('choice'); setSelectedTemplate(null); setGoalDrafts([]); setShowGoalForm(false)
     resetGoalForm(); onClose()
   }
 
@@ -848,21 +847,9 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
       for (const g of allGoals) {
         await iepApi.addGoal(plan.id, g)
       }
-
-      // Bank this plan's goals as a reusable template for future cases too.
-      if (saveAsTemplate) {
-        const template = await iepTemplatesApi.create({ name: data.title, tags: data.tags })
-        for (const g of allGoals) {
-          await iepTemplatesApi.addGoal(template.id, {
-            title: g.title, goalStatement: g.goalStatement, domain: g.domain,
-            baseline: g.baseline, targetCriteria: g.targetCriteria,
-          })
-        }
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
-      if (saveAsTemplate) qc.invalidateQueries({ queryKey: ['iep-templates'] })
       toast('IEP plan created', 'success')
       handleClose()
     },
@@ -1053,11 +1040,6 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
             </div>
           )}
         </div>
-
-        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text.primary }}>
-          <input type="checkbox" checked={saveAsTemplate} onChange={e => setSaveAsTemplate(e.target.checked)} />
-          Also save as a reusable template in the library
-        </label>
 
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
