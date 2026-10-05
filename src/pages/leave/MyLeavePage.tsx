@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, Plus, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { leavesApi } from '../../api/leaves'
+import { leavePolicyApi } from '../../api/leavePolicy'
+import { Select } from '../../components/ui/Select'
+import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -13,7 +16,7 @@ import { getApiError } from '../../lib/apiError'
 import { formatDateStr } from '../../lib/format'
 import { colors, styles, border, surface, palette } from '../../theme'
 import { LeaveStatusBadge, LEAVE_STATUS_META } from '../../components/shared/LeaveStatusBadge'
-import type { CreateLeaveRequest, LeaveResponse, LeaveStatus } from '../../types'
+import type { CreateLeaveRequest, LeaveBalance, LeaveResponse, LeaveStatus } from '../../types'
 
 /** "07 Sep, 2026" for a single day, "07 Sep, 2026 – 12 Sep, 2026" for a range. */
 function leaveDateLabel(leave: { leaveDate: string; endDate: string }) {
@@ -37,6 +40,12 @@ function LeaveCard({ leave, onCancel, cancelling }: {
             {leaveDateLabel(leave)}
           </p>
           <LeaveStatusBadge status={leave.status} />
+          {leave.categoryName && <Badge variant="teal">{leave.categoryName}</Badge>}
+          {leave.workingDays != null && (
+            <span className="text-xs" style={{ color: colors.text.dim }}>
+              {leave.workingDays} working day{leave.workingDays === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
 
         {leave.reason && (
@@ -70,6 +79,26 @@ function LeaveCard({ leave, onCancel, cancelling }: {
   )
 }
 
+// ── Balances ───────────────────────────────────────────────────────────────────
+
+function BalanceCard({ b }: { b: LeaveBalance }) {
+  const low = b.remaining !== null && b.remaining <= 0
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[150px]" style={{ background: surface.sidebarFooter, border: border.card }}>
+      <p className="text-xs mb-1" style={{ color: colors.text.muted }}>{b.categoryName}</p>
+      <p className="text-2xl font-bold" style={{ color: low ? colors.status.warning : colors.text.primary }}>
+        {b.remaining === null ? '—' : b.remaining}
+        <span className="text-xs font-normal ml-1" style={{ color: colors.text.dim }}>
+          {b.remaining === null ? 'no limit' : `of ${b.allocated} left`}
+        </span>
+      </p>
+      <p className="text-[11px] mt-0.5" style={{ color: colors.text.dim }}>
+        {b.used} used{b.pending > 0 ? ` · ${b.pending} pending` : ''}
+      </p>
+    </div>
+  )
+}
+
 // ── Apply Leave Modal ──────────────────────────────────────────────────────────
 
 
@@ -79,6 +108,11 @@ function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () =
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<CreateLeaveRequest>()
 
   const startDate = watch('leaveDate')
+  const chosenCategory = watch('categoryId')
+
+  const { data: categories = [] } = useQuery({ queryKey: ['leave-policy', 'categories'], queryFn: () => leavePolicyApi.categories(), enabled: open })
+  const { data: myBalances } = useQuery({ queryKey: ['leave-policy', 'my-balances'], queryFn: () => leavePolicyApi.myBalances(), enabled: open && categories.length > 0 })
+  const chosenBalance = myBalances?.balances.find(b => b.categoryId === chosenCategory)
 
   const mut = useMutation({
     mutationFn: (data: CreateLeaveRequest) => leavesApi.apply({ ...data, endDate: data.endDate || data.leaveDate }),
@@ -90,7 +124,26 @@ function ApplyModal({ open, onClose, onCreated }: { open: boolean; onClose: () =
 
   return (
     <Modal open={open} onClose={onClose} title="Apply for Leave" error={formError}>
-      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
+      <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync({ ...d, categoryId: d.categoryId || undefined }) })} className="space-y-4">
+        {categories.length > 0 && (
+          <div>
+            <Select
+              label="Leave type"
+              placeholder="Select a leave type…"
+              options={categories.map(c => ({ value: c.id, label: c.name }))}
+              error={errors.categoryId?.message}
+              {...register('categoryId', { required: 'Choose a leave type' })}
+            />
+            {chosenBalance && (
+              <p className="text-xs mt-1" style={{ color: colors.text.dim }}>
+                {chosenBalance.remaining === null
+                  ? 'No yearly limit for this leave type.'
+                  : `${chosenBalance.remaining} working day${chosenBalance.remaining === 1 ? '' : 's'} left this leave year.`}
+                {' '}Weekly off days and public holidays aren't counted.
+              </p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Input
             label="Start Date"
@@ -143,10 +196,11 @@ export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
     queryKey: ['my-leaves'],
     queryFn: () => leavesApi.listMine(),
   })
+  const { data: balances } = useQuery({ queryKey: ['leave-policy', 'my-balances'], queryFn: () => leavePolicyApi.myBalances() })
 
   const cancelMut = useMutation({
     mutationFn: (id: string) => leavesApi.cancel(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-leaves'] }); toast('Leave request cancelled', 'success') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-leaves'] }); qc.invalidateQueries({ queryKey: ['leave-policy'] }); toast('Leave request cancelled', 'success') },
     onError:   (err) => toast(getApiError(err, 'Failed to cancel request'), 'error'),
   })
 
@@ -174,6 +228,18 @@ export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
           <Button onClick={() => setModalOpen(true)}>
             <Plus size={16} /> Apply for Leave
           </Button>
+        </div>
+      )}
+
+      {/* Balances — only when the organisation has set up leave types */}
+      {balances && balances.balances.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>
+            Leave balance · {formatDateStr(balances.yearStart)} – {formatDateStr(balances.yearEnd)}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {balances.balances.map(b => <BalanceCard key={b.categoryId} b={b} />)}
+          </div>
         </div>
       )}
 
@@ -237,7 +303,7 @@ export default function MyLeavePage({ asTab = false }: { asTab?: boolean }) {
       <ApplyModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onCreated={() => { qc.invalidateQueries({ queryKey: ['my-leaves'] }); setModalOpen(false) }}
+        onCreated={() => { qc.invalidateQueries({ queryKey: ['my-leaves'] }); qc.invalidateQueries({ queryKey: ['leave-policy'] }); setModalOpen(false) }}
       />
     </div>
   )

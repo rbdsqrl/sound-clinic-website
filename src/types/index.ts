@@ -546,6 +546,11 @@ export interface LeaveResponse {
   reviewedByLastName: string | null
   reviewedAt: string | null
   createdAt: string
+  /** The leave category this counts against — null for legacy leaves or when no categories are set up. */
+  categoryId?: string | null
+  categoryName?: string | null
+  /** Working days the leave covers (weekly off days and public holidays excluded). */
+  workingDays?: number | null
 }
 
 export interface CreateLeaveRequest {
@@ -553,6 +558,57 @@ export interface CreateLeaveRequest {
   /** Inclusive end of the range — omit (or set equal to leaveDate) for a single-day leave. */
   endDate?: string
   reason?: string
+  /** Required when the organisation has leave categories. */
+  categoryId?: string
+}
+
+/** A kind of leave (Casual, Sick…) with an optional yearly allowance. */
+export interface LeaveCategory {
+  id: string
+  name: string
+  /** Days per leave year each person gets by default; null = no limit. */
+  annualDays: number | null
+  active: boolean
+}
+
+/** One category's position for one person in a leave year. */
+export interface LeaveBalance {
+  categoryId: string
+  categoryName: string
+  /** Days available this year; null = no limit. */
+  allocated: number | null
+  /** Working days of approved leave. */
+  used: number
+  /** Working days awaiting approval. */
+  pending: number
+  /** allocated − used − pending; null when there is no limit. */
+  remaining: number | null
+  /** True when this person's own allocation overrides the category default. */
+  custom: boolean
+}
+
+export interface MyLeaveBalances {
+  year: number
+  yearStart: string
+  yearEnd: string
+  balances: LeaveBalance[]
+}
+
+export interface PersonLeaveBalances {
+  userId: string
+  name: string
+  role: string
+  balances: LeaveBalance[]
+  pendingRequests: number
+  approvedRequests: number
+  rejectedRequests: number
+}
+
+export interface LeaveBalancesResponse {
+  year: number
+  yearStart: string
+  yearEnd: string
+  people: PersonLeaveBalances[]
 }
 
 export interface ReviewLeaveRequest {

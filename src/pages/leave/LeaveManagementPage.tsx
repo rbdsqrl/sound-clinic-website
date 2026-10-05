@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, CheckCircle2, XCircle } from 'lucide-react'
 import { leavesApi } from '../../api/leaves'
+import LeaveBalancesView from './LeaveBalancesView'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Badge } from '../../components/ui/Badge'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
@@ -45,11 +47,13 @@ function LeaveRow({ leave, onReview, reviewing }: {
             {leave.therapistFirstName} {leave.therapistLastName}
           </p>
           <LeaveStatusBadge status={leave.status} />
+          {leave.categoryName && <Badge variant="teal">{leave.categoryName}</Badge>}
         </div>
 
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <p className="text-xs font-medium" style={{ color: colors.text.muted }}>
             {leaveDateLabel(leave)}
+            {leave.workingDays != null && ` · ${leave.workingDays} working day${leave.workingDays === 1 ? '' : 's'}`}
           </p>
           {leave.reason && (
             <p className="text-xs" style={{ color: colors.text.dim }}>· {leave.reason}</p>
@@ -92,6 +96,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
   const qc = useQueryClient()
   const { toast } = useToast()
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | ''>('PENDING')
+  const [view, setView] = useState<'requests' | 'balances'>('requests')
 
   const { data: leaves, isLoading } = useQuery({
     queryKey: ['leaves'],
@@ -103,6 +108,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
       leavesApi.review(id, { status: action }),
     onSuccess: (_, { action }) => {
       qc.invalidateQueries({ queryKey: ['leaves'] })
+      qc.invalidateQueries({ queryKey: ['leave-policy'] })
       toast(action === 'APPROVED' ? 'Leave approved' : 'Leave rejected', 'success')
     },
     onError: (err) => toast(getApiError(err, 'Failed to review leave request'), 'error'),
@@ -127,6 +133,22 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
         </div>
       )}
 
+      <div className="inline-flex rounded-full p-0.5" style={styles.segmentTrack}>
+        {([['requests', 'Requests'], ['balances', 'Balances']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setView(key)}
+            className="rounded-full px-4 py-1.5 text-xs font-medium transition-all"
+            style={view === key ? styles.segmentActive : styles.segmentInactive}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'balances' ? <LeaveBalancesView /> : (
+      <>
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-3">
         {[
@@ -188,6 +210,8 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
             />
           ))}
         </Card>
+      )}
+      </>
       )}
     </div>
   )
