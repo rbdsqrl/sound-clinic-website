@@ -6,6 +6,18 @@ import type {
 } from '../types'
 
 export const iepApi = {
+  /** The organisation's own goal domains, in addition to the built-in ones. */
+  customDomains: () =>
+    client.get<ApiResponse<{ id: string; name: string }[]>>('/iep/custom-domains').then(r => r.data.data),
+
+  /** Adds a custom domain (returns the existing one if the name is already there). */
+  createCustomDomain: (name: string) =>
+    client.post<ApiResponse<{ id: string; name: string }>>('/iep/custom-domains', { name }).then(r => r.data.data),
+
+  /** Removes a custom domain from the picker — goals already using it keep its name. */
+  deleteCustomDomain: (id: string) =>
+    client.delete<void>(`/iep/custom-domains/${id}`).then(() => undefined),
+
   /** How the plan's active goals are spread across the upcoming sessions of its linked therapy. */
   pacing: (planId: string) =>
     client.get<ApiResponse<GoalPacingResponse>>(`/iep/${planId}/pacing`).then(r => r.data.data),

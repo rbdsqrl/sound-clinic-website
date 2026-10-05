@@ -1474,6 +1474,8 @@ export interface GeoCheckResponse {
 export type IEPGoalDomain =
   | 'AUDITORY' | 'SPEECH' | 'LANGUAGE' | 'SENSORY'
   | 'MOTOR' | 'SOCIAL' | 'COGNITIVE' | 'LITERACY' | 'ADAPTIVE'
+  /** An organisation-defined domain — the name is in the goal's customDomain. */
+  | 'CUSTOM'
 
 export type IEPGoalStatus =
   | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'PENDING_APPROVAL' | 'APPROVED'
@@ -1486,6 +1488,8 @@ export interface IEPGoalResponse {
   title: string
   goalStatement: string | null
   domain: IEPGoalDomain
+  /** The domain's name when domain is CUSTOM. */
+  customDomain?: string | null
   baseline: string | null
   targetCriteria: string | null
   targetDate: string | null
@@ -1555,6 +1559,8 @@ export interface CreateIEPGoalRequest {
   title: string
   goalStatement?: string
   domain: IEPGoalDomain
+  /** Required when domain is CUSTOM. */
+  customDomain?: string
   baseline?: string
   targetCriteria?: string
   targetDate?: string
@@ -1576,6 +1582,7 @@ export interface UpdateIEPGoalRequest {
   title?: string
   goalStatement?: string
   domain?: IEPGoalDomain
+  customDomain?: string
   baseline?: string
   targetCriteria?: string
   targetDate?: string
@@ -1677,6 +1684,7 @@ export interface IEPTemplateGoalResponse {
   title: string
   goalStatement?: string
   domain?: IEPGoalDomain
+  customDomain?: string | null
   baseline?: string
   targetCriteria?: string
   createdAt: string
@@ -1703,6 +1711,7 @@ export interface CreateIEPTemplateGoalRequest {
   title: string
   goalStatement?: string
   domain?: IEPGoalDomain
+  customDomain?: string
   baseline?: string
   targetCriteria?: string
 }
@@ -1732,7 +1741,8 @@ export interface AnalyticsBucket {
 
 /** Per-domain mastery, aligned index-for-index with the parent series' buckets. */
 export interface DomainSeries {
-  domain: IEPGoalDomain
+  /** A built-in domain's name, or the name of a custom domain. */
+  domain: string
   masteryPct: (number | null)[]
   current: number | null
   deltaPts: number | null

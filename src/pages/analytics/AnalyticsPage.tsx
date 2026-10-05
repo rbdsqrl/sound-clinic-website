@@ -24,6 +24,7 @@ import type { Granularity, IEPGoalDomain, EnrollmentCareStatus, AnalyticsBucket 
 import { Delta, Loading, Metric, Panel, Tile } from './components'
 import { StarRating } from '../patients/ReviewMeetings'
 import { domainLabel as baselineDomainLabel, ScorePill } from '../patients/BaselineReportTab'
+import { useCustomDomains } from '../../lib/iepDomains'
 import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import EvidenceReport from './EvidenceReport'
@@ -40,7 +41,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'schedule',  label: 'Schedule' },
 ]
 
-const DOMAINS: IEPGoalDomain[] = [
+const DOMAINS: Exclude<IEPGoalDomain, 'CUSTOM'>[] = [
   'AUDITORY', 'SPEECH', 'LANGUAGE', 'SENSORY', 'MOTOR', 'SOCIAL', 'COGNITIVE', 'LITERACY', 'ADAPTIVE',
 ]
 
@@ -99,7 +100,8 @@ export default function AnalyticsPage() {
 
   const [tab, setTab] = useState<TabKey>('overview')
   const [granularity, setGranularity] = useState<Granularity>('DAILY')
-  const [domain, setDomain] = useState<IEPGoalDomain | ''>('')
+  const [domain, setDomain] = useState<string>('')
+  const { names: customDomainNames } = useCustomDomains()
   const [patientId, setPatientId] = useState('')
   const [therapistId, setTherapistId] = useState('')
   const [range, setRange] = useState(defaultWindow)
@@ -457,8 +459,11 @@ export default function AnalyticsPage() {
                 label="Domain"
                 placeholder="All domains"
                 value={domain}
-                onChange={e => setDomain(e.target.value as IEPGoalDomain | '')}
-                options={DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() }))}
+                onChange={e => setDomain(e.target.value)}
+                options={[
+                  ...DOMAINS.map(d => ({ value: d, label: d.charAt(0) + d.slice(1).toLowerCase() })),
+                  ...customDomainNames.map(n => ({ value: n, label: n })),
+                ]}
               />
             </div>
           )}

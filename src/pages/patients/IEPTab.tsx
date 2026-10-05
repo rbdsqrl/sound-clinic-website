@@ -14,6 +14,8 @@ import { enrollmentsApi } from '../../api/enrollments'
 import { evidenceApi } from '../../api/evidence'
 import { CompleteGoalDialog, GoalEvidenceDialog } from './GoalEvidence'
 import GoalPacingPanel from './GoalPacingPanel'
+import { DomainField, customDomainRule } from '../../components/shared/DomainField'
+import { domainLabel, domainToFormValue, resolveDomainValue } from '../../lib/iepDomains'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -33,18 +35,6 @@ import type {
 } from '../../types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const DOMAINS: { value: IEPGoalDomain; label: string }[] = [
-  { value: 'AUDITORY',  label: 'Auditory Processing'      },
-  { value: 'SPEECH',    label: 'Speech Production'        },
-  { value: 'LANGUAGE',  label: 'Language'                 },
-  { value: 'SENSORY',   label: 'Sensory Processing'       },
-  { value: 'MOTOR',     label: 'Motor Skills'             },
-  { value: 'SOCIAL',    label: 'Social Communication'     },
-  { value: 'COGNITIVE', label: 'Cognitive Skills'         },
-  { value: 'LITERACY',  label: 'Literacy'                 },
-  { value: 'ADAPTIVE',  label: 'Adaptive / Daily Living'  },
-]
 
 const STATUS_META: Record<IEPGoalStatus, { label: string; icon: React.ElementType; dot: string }> = {
   IN_PROGRESS:      { label: 'Progress',          icon: Clock,        dot: '#3b82f6' },
@@ -846,19 +836,19 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, act
   // (e.g. "goalTitle" not "title") — two inputs sharing a `name` on the same page
   // confuses the browser's autofill/value-sync heuristics even outside a <form>.
   const {
-    register: registerGoal, handleSubmit: handleGoalSubmit, reset: resetGoalForm,
+    register: registerGoal, handleSubmit: handleGoalSubmit, reset: resetGoalForm, watch: watchGoal,
     formState: { errors: goalErrors },
   } = useForm<{
-    goalTitle: string; domain: IEPGoalDomain; goalStatement?: string
+    goalTitle: string; domain: string; customDomain?: string; goalStatement?: string
     baseline?: string; targetCriteria?: string; targetDate?: string
   }>()
 
   const addGoalDraft = (data: {
-    goalTitle: string; domain: IEPGoalDomain; goalStatement?: string
+    goalTitle: string; domain: string; customDomain?: string; goalStatement?: string
     baseline?: string; targetCriteria?: string; targetDate?: string
   }) => {
     setGoalDrafts(prev => [...prev, {
-      title: data.goalTitle, domain: data.domain, goalStatement: data.goalStatement,
+      title: data.goalTitle, ...resolveDomainValue(data.domain, data.customDomain), goalStatement: data.goalStatement,
       baseline: data.baseline, targetCriteria: data.targetCriteria, targetDate: data.targetDate,
     }])
     resetGoalForm()
@@ -918,7 +908,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, act
       const plan = await iepApi.createPlan(patientId, data)
 
       const templateGoals: CreateIEPGoalRequest[] = selectedTemplateGoals.map(g => ({
-        title: g.title, domain: g.domain, goalStatement: g.goalStatement,
+        title: g.title, domain: g.domain, customDomain: g.customDomain ?? undefined, goalStatement: g.goalStatement,
         baseline: g.baseline, targetCriteria: g.targetCriteria,
       }))
       const allGoals = [...templateGoals, ...goalDrafts]
@@ -976,7 +966,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, act
               <div className="min-w-0">
                 <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{g.title}</p>
                 <p className="text-xs" style={{ color: colors.text.dim }}>
-                  {DOMAINS.find(d => d.value === g.domain)?.label}
+                  {domainLabel(g.domain, g.customDomain)}
                 </p>
               </div>
             </label>
@@ -993,7 +983,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, act
             <div className="min-w-0">
               <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{g.title}</p>
               <p className="text-xs" style={{ color: colors.text.dim }}>
-                {DOMAINS.find(d => d.value === g.domain)?.label}
+                {domainLabel(g.domain, g.customDomain)}
               </p>
             </div>
             <button type="button" onClick={() => setGoalDrafts(prev => prev.filter((_, idx) => idx !== i))}
@@ -1009,8 +999,13 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, act
       <div className="rounded-xl p-3 space-y-3" style={{ border: `1px solid ${border.divider}`, background: surface.card }}>
         <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={goalErrors.goalTitle?.message}
           {...registerGoal('goalTitle', { required: 'Required' })} />
-        <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={goalErrors.domain?.message}
-          {...registerGoal('domain', { required: 'Required' })} />
+        <DomainField
+          selectProps={registerGoal('domain', { required: 'Required' })}
+          customProps={registerGoal('customDomain', customDomainRule)}
+          value={watchGoal('domain')}
+          error={goalErrors.domain?.message}
+          customError={goalErrors.customDomain?.message}
+        />
         <div>
           <label className="form-label">Goal statement</label>
           <textarea className="form-input resize-none" rows={2}
@@ -1180,14 +1175,16 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
   const { toast } = useToast()
   const qc = useQueryClient()
   const [formError, setFormError] = useState<string | null>(null)
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
 
   useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
-    mutationFn: (data: CreateIEPGoalRequest) => iepApi.addGoal(planId, data),
+    mutationFn: (data: CreateIEPGoalRequest) =>
+      iepApi.addGoal(planId, { ...data, ...resolveDomainValue(data.domain, data.customDomain) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
+      qc.invalidateQueries({ queryKey: ['iep-custom-domains'] })
       toast('Goal added', 'success')
       reset()
       onClose()
@@ -1200,8 +1197,13 @@ function AddGoalModal({ open, onClose, planId, planTitle }: {
       <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={errors.title?.message}
           {...register('title', { required: 'Required' })} />
-        <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={errors.domain?.message}
-          {...register('domain', { required: 'Required' })} />
+        <DomainField
+          selectProps={register('domain', { required: 'Required' })}
+          customProps={register('customDomain', customDomainRule)}
+          value={watch('domain')}
+          error={errors.domain?.message}
+          customError={errors.customDomain?.message}
+        />
         <div>
           <label className="form-label">Goal statement</label>
           <textarea className="form-input resize-none" rows={3}
@@ -1231,13 +1233,13 @@ function EditGoalModal({ open, onClose, goal }: {
   const { toast } = useToast()
   const qc = useQueryClient()
   const [formError, setFormError] = useState<string | null>(null)
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<CreateIEPGoalRequest>()
 
   useEffect(() => {
     if (goal) {
       reset({
         title: goal.title,
-        domain: goal.domain,
+        domain: domainToFormValue(goal.domain, goal.customDomain) as CreateIEPGoalRequest['domain'],
         goalStatement: goal.goalStatement ?? '',
         baseline: goal.baseline ?? '',
         targetCriteria: goal.targetCriteria ?? '',
@@ -1249,9 +1251,11 @@ function EditGoalModal({ open, onClose, goal }: {
   useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
-    mutationFn: (data: CreateIEPGoalRequest) => iepApi.updateGoal(goal!.id, data),
+    mutationFn: (data: CreateIEPGoalRequest) =>
+      iepApi.updateGoal(goal!.id, { ...data, ...resolveDomainValue(data.domain, data.customDomain) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep'] })
+      qc.invalidateQueries({ queryKey: ['iep-custom-domains'] })
       toast('Goal updated', 'success')
       onClose()
     },
@@ -1265,8 +1269,13 @@ function EditGoalModal({ open, onClose, goal }: {
       <form onSubmit={handleSubmit(d => { setFormError(null); return mut.mutateAsync(d) })} className="space-y-4">
         <Input label="Goal title" placeholder="e.g. Phoneme Discrimination" error={errors.title?.message}
           {...register('title', { required: 'Required' })} />
-        <Select label="Domain" placeholder="Select domain…" options={DOMAINS} error={errors.domain?.message}
-          {...register('domain', { required: 'Required' })} />
+        <DomainField
+          selectProps={register('domain', { required: 'Required' })}
+          customProps={register('customDomain', customDomainRule)}
+          value={watch('domain')}
+          error={errors.domain?.message}
+          customError={errors.customDomain?.message}
+        />
         <div>
           <label className="form-label">Goal statement</label>
           <textarea className="form-input resize-none" rows={3}

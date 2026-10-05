@@ -19,6 +19,8 @@ import type {
   IEPGoalDomain,
   CreateIEPTemplateGoalRequest,
 } from '../../types'
+import { DomainField, customDomainRule } from '../../components/shared/DomainField'
+import { domainLabel, resolveDomainValue } from '../../lib/iepDomains'
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
 
@@ -81,18 +83,6 @@ function parseCsvTemplates(text: string): CsvTemplate[] {
 
 // ── Domain config ─────────────────────────────────────────────────────────────
 
-const DOMAINS: { value: IEPGoalDomain; label: string }[] = [
-  { value: 'AUDITORY',  label: 'Auditory Processing'     },
-  { value: 'SPEECH',    label: 'Speech Production'       },
-  { value: 'LANGUAGE',  label: 'Language'                },
-  { value: 'SENSORY',   label: 'Sensory Processing'      },
-  { value: 'MOTOR',     label: 'Motor Skills'            },
-  { value: 'SOCIAL',    label: 'Social Communication'    },
-  { value: 'COGNITIVE', label: 'Cognitive Skills'        },
-  { value: 'LITERACY',  label: 'Literacy'                },
-  { value: 'ADAPTIVE',  label: 'Adaptive / Daily Living' },
-]
-
 const DOMAIN_PALETTE: Record<IEPGoalDomain, 'blue' | 'green' | 'yellow' | 'red' | 'slate'> = {
   AUDITORY:  'blue',
   SPEECH:    'green',
@@ -103,23 +93,20 @@ const DOMAIN_PALETTE: Record<IEPGoalDomain, 'blue' | 'green' | 'yellow' | 'red' 
   COGNITIVE: 'yellow',
   LITERACY:  'red',
   ADAPTIVE:  'slate',
-}
-
-function domainLabel(d: IEPGoalDomain) {
-  return DOMAINS.find(x => x.value === d)?.label ?? d
+  CUSTOM:    'slate',
 }
 
 type ToastFn = (msg: string, type: 'success' | 'error') => void
 
 // ── Domain badge ──────────────────────────────────────────────────────────────
 
-function DomainBadge({ domain }: { domain: IEPGoalDomain }) {
+function DomainBadge({ domain, customDomain }: { domain: IEPGoalDomain; customDomain?: string | null }) {
   return (
     <span
       className="inline-flex items-center text-xs font-medium rounded-full px-2.5 py-0.5 flex-shrink-0"
       style={paletteStyle(DOMAIN_PALETTE[domain])}
     >
-      {domainLabel(domain)}
+      {domainLabel(domain, customDomain)}
     </span>
   )
 }
@@ -146,7 +133,7 @@ function GoalItem({
           <p className="text-xs mt-0.5 leading-relaxed" style={{ color: colors.text.muted }}>{goal.goalStatement}</p>
         )}
         <div className="flex items-center gap-2 flex-wrap mt-1.5">
-          {goal.domain && <DomainBadge domain={goal.domain} />}
+          {goal.domain && <DomainBadge domain={goal.domain} customDomain={goal.customDomain} />}
           {goal.baseline && (
             <span className="text-xs" style={{ color: colors.text.dim }}>
               Baseline: {goal.baseline}
@@ -191,15 +178,17 @@ function AddGoalModal({
 }) {
   const qc = useQueryClient()
   const [formError, setFormError] = useState<string | null>(null)
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } =
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } =
     useForm<CreateIEPTemplateGoalRequest>()
 
   useEffect(() => { if (open) setFormError(null) }, [open])
 
   const mut = useMutation({
-    mutationFn: (data: CreateIEPTemplateGoalRequest) => iepTemplatesApi.addGoal(templateId, data),
+    mutationFn: (data: CreateIEPTemplateGoalRequest) =>
+      iepTemplatesApi.addGoal(templateId, { ...data, ...resolveDomainValue(data.domain ?? '', data.customDomain) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iep-templates'] })
+      qc.invalidateQueries({ queryKey: ['iep-custom-domains'] })
       toast('Goal added', 'success')
       reset()
       onClose()
@@ -216,12 +205,12 @@ function AddGoalModal({
           error={errors.title?.message}
           {...register('title', { required: 'Title is required' })}
         />
-        <Select
-          label="Domain"
-          placeholder="Select domain…"
-          options={DOMAINS}
+        <DomainField
+          selectProps={register('domain', { required: 'Domain is required' })}
+          customProps={register('customDomain', customDomainRule)}
+          value={watch('domain')}
           error={errors.domain?.message}
-          {...register('domain', { required: 'Domain is required' })}
+          customError={errors.customDomain?.message}
         />
         <div>
           <label className="form-label">Goal statement</label>

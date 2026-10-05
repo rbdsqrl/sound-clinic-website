@@ -10,7 +10,8 @@ export interface AnalyticsWindow {
   granularity: Granularity
   from: string          // yyyy-MM-dd
   to: string            // yyyy-MM-dd
-  domain?: IEPGoalDomain
+  /** A built-in domain's name, or the name of a custom domain. */
+  domain?: string
 }
 
 /**
