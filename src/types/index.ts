@@ -950,7 +950,8 @@ export interface SessionAttachmentResponse {
 export type SharedMediaDirection = 'PARENT_TO_CLINIC' | 'CLINIC_TO_PARENT'
 
 export type MemberDocumentCategory =
-  | 'IDENTITY_PROOF' | 'QUALIFICATION' | 'CERTIFICATION' | 'EMPLOYMENT_CONTRACT' | 'OTHER'
+  | 'IDENTITY_PROOF' | 'QUALIFICATION' | 'CERTIFICATION' | 'EMPLOYMENT_CONTRACT'
+  | 'OFFER_LETTER' | 'JOINING_DETAILS' | 'INDUCTION' | 'OTHER'
 
 /** A file kept on a staff member's record. `fileUrl` is a short-lived download link. */
 export interface MemberDocumentResponse {
@@ -1018,6 +1019,38 @@ export interface EvidenceAnalyticsRow {
   videosUploaded: number
   cannotUploadRecords: number
   reasons: { reason: EvidenceReason; count: number }[]
+}
+
+export interface EvidenceMonthCell {
+  month: string   // "2026-09"
+  goalsCompleted: number
+  goalsWithVideo: number
+  goalsCannotUpload: number
+  goalsWithoutEvidence: number
+}
+
+export interface EvidenceMonthlyResponse {
+  videosRequired: number
+  months: string[]
+  rows: { therapistId: string; therapistName: string; months: EvidenceMonthCell[] }[]
+}
+
+export interface EvidenceChildRow {
+  patientId: string
+  patientName: string
+  therapies: string[]
+  activeGoals: number
+  goalsCompleted: number
+  goalsWithVideo: number
+  goalsCannotUpload: number
+  goalsWithoutEvidence: number
+  videosUploaded: number
+  sessionsCompleted: number
+}
+
+export interface EvidenceByChildResponse {
+  videosRequired: number
+  rows: EvidenceChildRow[]
 }
 
 export interface EvidenceAnalyticsResponse {

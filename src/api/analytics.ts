@@ -1,7 +1,7 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  CaseSummaryResponse, CaseTrendResponse, EvidenceAnalyticsResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
+  CaseSummaryResponse, CaseTrendResponse, EvidenceAnalyticsResponse, EvidenceMonthlyResponse, EvidenceByChildResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
   IEPGoalDomain, MemberSummaryResponse, OrgSnapshotResponse, ScheduleResponse, SuccessCriteriaResponse,
   TimeSeriesResponse, TrendPoint,
 } from '../types'
@@ -121,6 +121,14 @@ export const analyticsApi = {
     client
       .get<ApiResponse<EvidenceAnalyticsResponse>>('/analytics/evidence', { params: { from, to } })
       .then(r => ({ ...r.data.data, rows: (r.data.data.rows ?? []).map(row => ({ ...row, compliancePct: num(row.compliancePct) })) })),
+
+  /** The same report month by month (calendar months in the organisation's timezone). */
+  evidenceMonthly: (from: string, to: string) =>
+    client.get<ApiResponse<EvidenceMonthlyResponse>>('/analytics/evidence/monthly', { params: { from, to } }).then(r => r.data.data),
+
+  /** The same report per child, with their therapies, active goals and sessions completed. */
+  evidenceByChild: (from: string, to: string) =>
+    client.get<ApiResponse<EvidenceByChildResponse>>('/analytics/evidence/children', { params: { from, to } }).then(r => r.data.data),
 
   /** One row per therapist — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
   members: (from: string, to: string) =>

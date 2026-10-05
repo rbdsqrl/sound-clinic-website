@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Upload, X, Trash2, FileText, Image as ImageIcon, Download, FolderOpen } from 'lucide-react'
+import { Upload, X, Trash2, FileText, Image as ImageIcon, Download, FolderOpen, CheckCircle2, Plus } from 'lucide-react'
 import { memberDocumentsApi } from '../../api/memberDocuments'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -14,15 +14,18 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { formatDateStr } from '../../lib/format'
-import { colors, border, styles, accentAlpha } from '../../theme'
+import { colors, border, styles, accentAlpha, successAlpha } from '../../theme'
 import type { PaletteKey } from '../../theme'
 import type { MemberDocumentCategory, MemberDocumentResponse } from '../../types'
 
 const CATEGORIES: { value: MemberDocumentCategory; label: string; badge: PaletteKey }[] = [
-  { value: 'IDENTITY_PROOF',      label: 'Identity Proof',      badge: 'blue' },
+  { value: 'IDENTITY_PROOF',      label: 'Identity and Address Proof', badge: 'blue' },
   { value: 'QUALIFICATION',       label: 'Qualification',       badge: 'green' },
   { value: 'CERTIFICATION',       label: 'Certification',       badge: 'teal' },
+  { value: 'OFFER_LETTER',        label: 'Offer Letter',        badge: 'amber' },
   { value: 'EMPLOYMENT_CONTRACT', label: 'Employment Contract', badge: 'purple' },
+  { value: 'JOINING_DETAILS',     label: 'Joining Details',     badge: 'pink' },
+  { value: 'INDUCTION',           label: 'Induction',           badge: 'yellow' },
   { value: 'OTHER',               label: 'Other',               badge: 'slate' },
 ]
 const categoryMeta = (c: MemberDocumentCategory) => CATEGORIES.find(x => x.value === c) ?? CATEGORIES[CATEGORIES.length - 1]
@@ -115,6 +118,8 @@ export default function MemberDocumentsTab({ memberId }: { memberId: string }) {
   if (isLoading) return <PageLoader />
 
   const countBy = (c: MemberDocumentCategory) => docs.filter(d => d.category === c).length
+  // The documents every employee file should hold — shown as a checklist so gaps are obvious.
+  const ONBOARDING: MemberDocumentCategory[] = ['IDENTITY_PROOF', 'OFFER_LETTER', 'EMPLOYMENT_CONTRACT', 'JOINING_DETAILS', 'INDUCTION']
   const visible = filter === 'ALL' ? docs : docs.filter(d => d.category === filter)
 
   return (
@@ -124,6 +129,29 @@ export default function MemberDocumentsTab({ memberId }: { memberId: string }) {
         subtitle="Identity proofs, qualifications, contracts and other files kept on this member's record"
         action={<Button size="sm" onClick={() => setUploadOpen(true)}><Upload size={14} /> Upload</Button>}
       >
+        <div className="mb-4 rounded-xl p-3" style={{ border: `1px solid ${border.divider}` }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>Employee file checklist</p>
+          <div className="flex flex-wrap gap-2">
+            {ONBOARDING.map(c => {
+              const onFile = countBy(c) > 0
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => { if (onFile) setFilter(c); else { setCategory(c); setUploadOpen(true) } }}
+                  title={onFile ? 'Show these documents' : 'Not on file — click to upload'}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium min-h-[32px]"
+                  style={onFile
+                    ? { background: successAlpha(0.10), color: colors.status.success, border: `1px solid ${successAlpha(0.25)}` }
+                    : { background: 'transparent', color: colors.text.muted, border: `1px dashed ${border.divider}` }}
+                >
+                  {onFile ? <CheckCircle2 size={12} /> : <Plus size={12} />} {categoryMeta(c).label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {docs.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 flex-wrap">
             {([{ value: 'ALL', label: `All (${docs.length})` },
