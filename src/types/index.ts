@@ -935,6 +935,25 @@ export interface SessionAttachmentResponse {
 // ── Shared Media (videos/notes between parents and the care team) ───────────────
 export type SharedMediaDirection = 'PARENT_TO_CLINIC' | 'CLINIC_TO_PARENT'
 
+export type MemberDocumentCategory =
+  | 'IDENTITY_PROOF' | 'QUALIFICATION' | 'CERTIFICATION' | 'EMPLOYMENT_CONTRACT' | 'OTHER'
+
+/** A file kept on a staff member's record. `fileUrl` is a short-lived download link. */
+export interface MemberDocumentResponse {
+  id: string
+  memberId: string
+  category: MemberDocumentCategory
+  title: string
+  fileName: string
+  fileUrl: string
+  contentType: string | null
+  fileSizeBytes: number | null
+  notes: string | null
+  uploadedById: string
+  uploadedByName: string
+  createdAt: string
+}
+
 export interface SharedMediaResponse {
   id: string
   patientId: string

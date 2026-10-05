@@ -65,6 +65,7 @@ src/
 │   ├── inquiries.ts                 # inquiry management
 │   ├── invitations.ts               # invite, list, accept
 │   ├── leaves.ts                    # apply, list, review, cancel leave
+│   ├── memberDocuments.ts           # list/upload/delete documents on a staff member's record
 │   ├── organisation.ts              # get, update org
 │   ├── patients.ts                  # CRUD patients + conditions/parents/therapists
 │   ├── programs.ts                  # program management
@@ -283,7 +284,7 @@ Higher-level pieces built from the `ui/` primitives above, factored out because 
 
 ### Notable patterns
 
-- **`MemberProfilePage.tsx`** (Members section): the Cases panel supports selecting multiple cases and bulk-reassigning them to another therapist — permanently or for a time-bound window that hands back automatically — via `reassignmentsApi`. Gated on a `canReassign` flag (Admin Roles) kept separate from the page's existing `canEdit` flag, which is narrower.
+- **`MemberProfilePage.tsx`** (Members section): the Cases panel supports selecting multiple cases and bulk-reassigning them to another therapist — permanently or for a time-bound window that hands back automatically — via `reassignmentsApi`. Gated on a `canReassign` flag (Admin Roles) kept separate from the page's existing `canEdit` flag, which is narrower. The staff view has Overview / Documents sub-tabs; the **Documents** tab (`MemberDocumentsTab.tsx`, via `memberDocumentsApi`) stores ID proofs, qualifications, contracts and other files on a member's record and is shown only when `canEdit` (Business Owner / Clinic Head) — the backend enforces the same, since these are HR-sensitive.
 - **Review meetings** no longer auto-invite the assigned therapist — scheduling one (from `ReviewMeetings.tsx`) requires picking at least one Clinic Head via `usersApi.listAssignable(false, 'CLINIC_HEAD')`; participants can be edited afterward from the Calendar (see above) via `reviewMeetingsApi.updateParticipants`.
 
 ### Adding a new API module

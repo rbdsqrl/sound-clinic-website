@@ -29,6 +29,7 @@ import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
+import MemberDocumentsTab from './MemberDocumentsTab'
 import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { colors, border, surface, paletteStyle, accentAlpha, styles } from '../../theme'
@@ -77,6 +78,8 @@ export default function MemberProfilePage() {
   // Parent/Staff view switcher — only relevant once `profile` loads, but the hook has to sit
   // above the early-return guard below like every other hook in this component.
   const [viewMode, setViewMode] = useState<'PARENT' | 'STAFF' | null>(null)
+  // Staff view sub-tabs. Documents is HR-sensitive, so it's offered to canEdit (Business Owner / Clinic Head) only.
+  const [staffTab, setStaffTab] = useState<'overview' | 'documents'>('overview')
 
   useEffect(() => { if (assignOpen) setAssignError(null) }, [assignOpen])
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
@@ -374,6 +377,26 @@ export default function MemberProfilePage() {
         <ParentChildrenPanel parentId={id!} />
       ) : (
       <>
+      {canEdit && (
+        <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
+          {([['overview', 'Overview'], ['documents', 'Documents']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStaffTab(key)}
+              className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
+              style={staffTab === key ? styles.tabActive : styles.tabInactive}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {canEdit && staffTab === 'documents' ? (
+        <MemberDocumentsTab memberId={id!} />
+      ) : (
+      <>
       <Panel
         title="Insights"
         subtitle="Sessions, activities and duration for the selected window"
@@ -578,6 +601,8 @@ export default function MemberProfilePage() {
             </table>
           </div>
         </Panel>
+      )}
+      </>
       )}
       </>
       )}
