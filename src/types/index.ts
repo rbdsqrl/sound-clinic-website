@@ -838,6 +838,20 @@ export interface UpdateSessionNotesRequest {
   performanceScore?: number  // 1–5
 }
 
+/** One entry in a session's Activity Log — marked completed, cancelled, rescheduled, a score
+ *  given, notes saved or edited. `legacy` entries predate the log and only know the value the
+ *  notes held *before* an edit (so `to` is null). */
+export interface SessionActivityResponse {
+  id: string
+  actorId: string | null
+  actorName: string
+  type: string
+  summary: string
+  changes: { field: string; from: string | null; to: string | null }[]
+  legacy: boolean
+  createdAt: string
+}
+
 /** One prior version of a session's notes, captured right before an edit overwrote it. */
 export interface SessionNotesHistoryResponse {
   id: string
@@ -952,6 +966,63 @@ export interface MemberDocumentResponse {
   uploadedById: string
   uploadedByName: string
   createdAt: string
+}
+
+// ── Goal video evidence ─────────────────────────────────────────────────────
+
+export type EvidenceKind = 'VIDEO' | 'CANNOT_UPLOAD'
+
+export type EvidenceReason =
+  | 'DEVICE_PROBLEM' | 'POOR_NETWORK' | 'STORAGE_FULL' | 'FILE_TOO_LARGE'
+  | 'APP_ERROR' | 'CHILD_UNWELL_OR_UNCOOPERATIVE' | 'NO_CONSENT' | 'OTHER'
+
+/** The organisation's goal video evidence rules. 0 videos required = evidence is optional. */
+export interface EvidenceSettings {
+  videosRequired: number
+  maxVideoMb: number
+  maxVideoSeconds: number
+}
+
+export interface EvidenceResponse {
+  id: string
+  patientId: string
+  planId: string | null
+  goalId: string | null
+  sessionId: string | null
+  kind: EvidenceKind
+  /** "IEP Plan - Goal" for goal evidence; a generic label for ad hoc evidence. */
+  title: string
+  planTitle: string | null
+  goalTitle: string | null
+  fileName: string | null
+  fileUrl: string | null
+  contentType: string | null
+  fileSizeBytes: number | null
+  durationSeconds: number | null
+  reasonCode: EvidenceReason | null
+  reasonText: string | null
+  note: string | null
+  therapistId: string
+  therapistName: string
+  createdAt: string
+}
+
+export interface EvidenceAnalyticsRow {
+  therapistId: string
+  therapistName: string
+  goalsCompleted: number
+  goalsWithVideo: number
+  goalsCannotUpload: number
+  goalsWithoutEvidence: number
+  compliancePct: number | null
+  videosUploaded: number
+  cannotUploadRecords: number
+  reasons: { reason: EvidenceReason; count: number }[]
+}
+
+export interface EvidenceAnalyticsResponse {
+  videosRequired: number
+  rows: EvidenceAnalyticsRow[]
 }
 
 export interface SharedMediaResponse {
@@ -1344,6 +1415,8 @@ export interface IEPPlanResponse {
   id: string
   patientId: string
   therapistId: string | null
+  /** The ongoing therapy this plan is linked to, if any. */
+  enrollmentId: string | null
   therapistName: string | null
   patientName: string | null
   title: string
@@ -1373,6 +1446,8 @@ export interface CreateIEPPlanRequest {
   tags?: string[]
   goals?: CreateIEPGoalRequest[]
   therapistId?: string
+  /** Optional link to one of the child's ongoing therapies. */
+  enrollmentId?: string
 }
 
 export interface UpdateIEPGoalRequest {

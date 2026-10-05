@@ -20,6 +20,7 @@ import { usersApi } from '../api/users'
 import { reviewMeetingsApi } from '../api/reviewMeetings'
 import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
 import IEPLibraryTab from './patients/IEPLibraryTab'
+import { EvidenceSettingsCard } from '../components/shared/EvidenceSettingsCard'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -40,7 +41,7 @@ import type {
   CreateOrgCalendarBlockRequest, OrgCalendarBlockResponse,
 } from '../types'
 
-type Tab = 'information' | 'clinics' | 'manage' | 'activity-library' | 'iep-library'
+type Tab = 'information' | 'clinics' | 'manage' | 'settings' | 'activity-library' | 'iep-library'
 
 const WEEK_DAYS: { value: DayOfWeek; label: string }[] = [
   { value: 'MONDAY', label: 'Mon' },
@@ -571,13 +572,13 @@ export default function OrganisationPage() {
   const { data: holidays = [] } = useQuery({
     queryKey: ['public-holidays'],
     queryFn: publicHolidaysApi.list,
-    enabled: tab === 'information',
+    enabled: tab === 'settings',
   })
 
   const { data: calendarBlocks = [] } = useQuery({
     queryKey: ['calendar-blocks'],
     queryFn: calendarBlocksApi.list,
-    enabled: tab === 'information',
+    enabled: tab === 'settings',
   })
 
   const { data: programs = [] } = useQuery({
@@ -739,7 +740,7 @@ export default function OrganisationPage() {
   const { data: clinicHeads = [] } = useQuery({
     queryKey: ['assignable', 'clinic-head'],
     queryFn: () => usersApi.listAssignable(false, 'CLINIC_HEAD'),
-    enabled: tab === 'information',
+    enabled: tab === 'settings',
   })
 
   const { data: clinicHeadSlots } = useQuery({
@@ -989,6 +990,7 @@ export default function OrganisationPage() {
     { key: 'information', label: 'Information' },
     { key: 'clinics',     label: 'Clinics' },
     { key: 'manage',           label: 'Manage' },
+    { key: 'settings',         label: 'Settings' },
     { key: 'activity-library', label: 'Activity Settings' },
     { key: 'iep-library',      label: 'IEP Library' },
   ]
@@ -1079,6 +1081,13 @@ export default function OrganisationPage() {
               setValue('longitude', lng, { shouldDirty: true })
             }}
           />
+        </>
+      )}
+
+      {/* ── Settings tab ────────────────────────────────────────────────────── */}
+      {tab === 'settings' && (
+        <>
+          <EvidenceSettingsCard canEdit={canManage} />
 
           {/* Public Holidays — collapsed by default; the list can run long and there's rarely
               a reason to look at it beyond adding/importing a new one. */}

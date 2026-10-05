@@ -64,6 +64,7 @@ src/
 │   ├── enrollments.ts               # enrollment management
 │   ├── inquiries.ts                 # inquiry management
 │   ├── invitations.ts               # invite, list, accept
+│   ├── evidence.ts                  # goal video evidence: org rules, list/upload/can't-upload/delete
 │   ├── leaves.ts                    # apply, list, review, cancel leave
 │   ├── memberDocuments.ts           # list/upload/delete documents on a staff member's record
 │   ├── organisation.ts              # get, update org
@@ -285,6 +286,7 @@ Higher-level pieces built from the `ui/` primitives above, factored out because 
 ### Notable patterns
 
 - **`MemberProfilePage.tsx`** (Members section): the Cases panel supports selecting multiple cases and bulk-reassigning them to another therapist — permanently or for a time-bound window that hands back automatically — via `reassignmentsApi`. Gated on a `canReassign` flag (Admin Roles) kept separate from the page's existing `canEdit` flag, which is narrower. The staff view has Overview / Documents sub-tabs; the **Documents** tab (`MemberDocumentsTab.tsx`, via `memberDocumentsApi`) stores ID proofs, qualifications, contracts and other files on a member's record and is shown only when `canEdit` (Business Owner / Clinic Head) — the backend enforces the same, since these are HR-sensitive.
+- **Goal video evidence** (`pages/patients/GoalEvidence.tsx`): choosing *Completed* on an IEP goal opens `CompleteGoalDialog`, which enforces the org's rules (set in Organisation → Settings via `EvidenceSettingsCard`) — upload the required videos, or tick "I can't upload" and give a reason. `GoalEvidenceDialog` views/adds evidence per goal, or ad hoc from Media & Notes, where families also see the videos titled "IEP Plan - Goal". Analytics → Members has a Video Evidence report (`pages/analytics/EvidenceReport.tsx`). The Organisation page's **Settings** tab groups settings-style features (evidence rules, public holidays, weekly off days, review slots, calendar blocks).
 - **Review meetings** no longer auto-invite the assigned therapist — scheduling one (from `ReviewMeetings.tsx`) requires picking at least one Clinic Head via `usersApi.listAssignable(false, 'CLINIC_HEAD')`; participants can be edited afterward from the Calendar (see above) via `reviewMeetingsApi.updateParticipants`.
 
 ### Adding a new API module

@@ -1,7 +1,7 @@
 import client from './client'
 import type {
   ActivityProgressResponse, AnalyticsBucket, AnalyticsTotals, ApiResponse, CaseloadResponse,
-  CaseSummaryResponse, CaseTrendResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
+  CaseSummaryResponse, CaseTrendResponse, EvidenceAnalyticsResponse, DomainSeries, EngagementOverviewResponse, FrequencyResponse, Granularity,
   IEPGoalDomain, MemberSummaryResponse, OrgSnapshotResponse, ScheduleResponse, SuccessCriteriaResponse,
   TimeSeriesResponse, TrendPoint,
 } from '../types'
@@ -115,6 +115,12 @@ export const analyticsApi = {
     client
       .get<ApiResponse<CaseTrendResponse[]>>('/analytics/cases/trends', { params })
       .then(r => (r.data.data ?? []).map(t => ({ ...t, buckets: (t.buckets ?? []).map(normaliseBucket) }))),
+
+  /** Goal completion and video-evidence compliance per therapist, including why videos couldn't be uploaded. */
+  evidence: (from: string, to: string) =>
+    client
+      .get<ApiResponse<EvidenceAnalyticsResponse>>('/analytics/evidence', { params: { from, to } })
+      .then(r => ({ ...r.data.data, rows: (r.data.data.rows ?? []).map(row => ({ ...row, compliancePct: num(row.compliancePct) })) })),
 
   /** One row per therapist — cases/activities assigned, activities created, sessions cancelled, IEP plans. */
   members: (from: string, to: string) =>

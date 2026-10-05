@@ -19,7 +19,7 @@ import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlph
 import { isPastDateTime, todayStr } from '../../lib/schedule'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
-import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse, SessionNotesHistoryResponse } from '../../types'
+import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
@@ -469,14 +469,25 @@ export function RescheduleSessionModal({
 
 // ── SessionNotesModal ──────────────────────────────────────────────────────────
 
-// ── Notes activity log ────────────────────────────────────────────────────────
-// Each entry is a prior version of the notes — what feedback/progress report/notes/
-// performance score held right before a later edit overwrote them.
+// ── Activity Log ──────────────────────────────────────────────────────────────
+// Everything that happened to the session — marked completed, cancelled, rescheduled, a score
+// given, notes saved or edited — each with its before → after values.
 
-function SessionNotesHistoryPanel({ sessionId }: { sessionId: string }) {
-  const { data: history = [], isLoading } = useQuery({
-    queryKey: ['session-notes-history', sessionId],
-    queryFn: () => therapySessionsApi.notesHistory(sessionId),
+/** Accent colour for an entry's marker, by what kind of thing happened. */
+function activityTone(type: string, summary: string): string {
+  if (type === 'CANCELLATION_APPROVED' || summary.startsWith('Session cancelled') || summary.startsWith('Automatically cancelled')) return colors.status.danger
+  if (summary.startsWith('Marked as completed')) return colors.status.success
+  if (summary.startsWith('Marked as no show') || type === 'CANCELLATION_REQUESTED' || type === 'RESCHEDULE_REQUESTED') return colors.status.warning
+  if (type === 'RESCHEDULED' || type === 'SESSION_CREATED') return colors.status.info
+  return colors.accent
+}
+
+function SessionActivityPanel({ sessionId }: { sessionId: string }) {
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ['session-activity', sessionId],
+    queryFn: () => therapySessionsApi.activity(sessionId),
+    // Always fresh: this opens right after saving notes or changing status in the same dialog.
+    staleTime: 0,
   })
 
   if (isLoading) {
@@ -487,47 +498,46 @@ function SessionNotesHistoryPanel({ sessionId }: { sessionId: string }) {
     )
   }
 
-  if (history.length === 0) {
+  if (entries.length === 0) {
     return (
       <p className="text-sm text-center py-10" style={{ color: colors.text.dim }}>
-        No edits yet — changes made after the notes are first saved will show up here.
+        No activity recorded yet — status changes, scores and note edits will show up here.
       </p>
     )
   }
 
-  const entryFields = (h: SessionNotesHistoryResponse) => [
-    { label: 'Performance Score', value: h.previousPerformanceScore !== null ? `${h.previousPerformanceScore}%` : null },
-    { label: 'Rating',            value: h.previousFeedback ? `${h.previousFeedback}/5` : null },
-    { label: 'Progress Report',   value: h.previousProgressReport },
-  ].filter((f): f is { label: string; value: string } => !!f.value)
-
   return (
     <div className="flex flex-col gap-3">
-      {history.map(h => {
-        const fields = entryFields(h)
-        return (
-          <div key={h.id} className="rounded-xl p-3" style={{ border: border.card }}>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{h.changedByName}</p>
-              <p className="text-xs" style={{ color: colors.text.dim }}>
-                {formatDateTimeStr(h.changedAt)}
-              </p>
+      {entries.map(e => (
+        <div key={e.id} className="rounded-xl p-3 flex gap-3" style={{ border: border.card }}>
+          <span className="mt-1.5 h-2 w-2 rounded-full flex-shrink-0" style={{ background: activityTone(e.type, e.summary) }} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{e.summary}</p>
+              <p className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>{formatDateTimeStr(e.createdAt)}</p>
             </div>
-            {fields.length === 0 ? (
-              <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>Notes were empty before this edit</p>
-            ) : (
+            <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>by {e.actorName}</p>
+            {e.changes.length > 0 && (
               <div className="mt-2 flex flex-col gap-1.5">
-                {fields.map(f => (
-                  <div key={f.label} className="text-xs">
-                    <span className="font-medium" style={{ color: colors.text.muted }}>{f.label}: </span>
-                    <span style={{ color: colors.text.dim }}>{f.value}</span>
+                {e.changes.map((c, i) => (
+                  <div key={`${c.field}-${i}`} className="text-xs break-words whitespace-pre-wrap">
+                    <span className="font-medium" style={{ color: colors.text.muted }}>{c.field}: </span>
+                    {e.legacy ? (
+                      <span style={{ color: colors.text.dim }}>was {c.from ?? '—'}</span>
+                    ) : (
+                      <>
+                        <span style={{ color: colors.text.dim }}>{c.from ?? '—'}</span>
+                        <span style={{ color: colors.text.dim }}> → </span>
+                        <span style={{ color: colors.text.primary }}>{c.to ?? '—'}</span>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
-        )
-      })}
+        </div>
+      ))}
     </div>
   )
 }
@@ -755,7 +765,7 @@ export function SessionNotesModal({
         </p>
       )}
 
-      {!hideFeedback && notesTab === 'history' && <SessionNotesHistoryPanel sessionId={session.id} />}
+      {!hideFeedback && notesTab === 'history' && <SessionActivityPanel sessionId={session.id} />}
 
       {!hideFeedback && notesTab === 'notes' && (
       <div className="flex flex-col gap-4">

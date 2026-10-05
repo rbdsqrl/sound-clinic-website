@@ -10,6 +10,7 @@ import type {
   SessionFeedbackResponse,
   UpdateSessionFeedbackRequest,
   SessionNotesHistoryResponse,
+  SessionActivityResponse,
 } from '../types'
 
 export const therapySessionsApi = {
@@ -114,6 +115,13 @@ export const therapySessionsApi = {
     client.put<ApiResponse<void>>(
       `/therapy-sessions/${id}/feedback`,
       data,
+    ).then(r => r.data.data),
+
+  /** The session's Activity Log, newest first — status changes, scores, notes saved/edited,
+   *  reschedules and cancellations, with before/after values. */
+  activity: (id: string) =>
+    client.get<ApiResponse<SessionActivityResponse[]>>(
+      `/therapy-sessions/${id}/activity`,
     ).then(r => r.data.data),
 
   /** Notes edit history, newest first — each entry is what feedback/progress report/notes/

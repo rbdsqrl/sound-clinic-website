@@ -6,10 +6,13 @@ import {
   Plus, Upload, Download, ChevronDown, ChevronUp, Check,
   Target, Trash2, FileText, AlertCircle, CheckCircle2,
   Clock, PauseCircle, ShieldCheck, CalendarDays, Pencil,
-  ArrowLeft, Layers,
+  ArrowLeft, Layers, Video, Link2,
 } from 'lucide-react'
 import { iepApi } from '../../api/iep'
 import { iepTemplatesApi } from '../../api/iep-templates'
+import { enrollmentsApi } from '../../api/enrollments'
+import { evidenceApi } from '../../api/evidence'
+import { CompleteGoalDialog, GoalEvidenceDialog } from './GoalEvidence'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -25,6 +28,7 @@ import { colors, border, surface, accentAlpha, paletteStyle, palette } from '../
 import type {
   IEPGoalResponse, IEPGoalStatus, IEPGoalDomain, IEPTemplateResponse, TherapistSummary,
   CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest, IEPGoalProgressResponse,
+  EnrollmentResponse,
 } from '../../types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -193,12 +197,55 @@ const SAMPLE_ROWS = [
   ['Motor Skills Plan', '2025-03-01', '2025-12-31', 'motor', 'Pincer Grasp', 'Student will pick up small objects using pincer grasp independently', 'MOTOR', 'Requires hand-over-hand assistance', 'Independent in 4/5 trials', '2025-12-01'],
 ]
 
+// ── Linked therapy ────────────────────────────────────────────────────────────
+
+/** Which ongoing therapy an IEP plan belongs to (optional). Editors can link, change or unlink it. */
+function PlanTherapyLink({ enrollmentId, enrollments, canEdit, onChange }: {
+  enrollmentId: string | null
+  enrollments: EnrollmentResponse[]
+  canEdit: boolean
+  onChange: (enrollmentId: string | null) => void
+}) {
+  const linked = enrollments.find(e => e.id === enrollmentId)
+  const label = linked ? linked.programName : enrollmentId ? 'Linked therapy' : null
+  const options = enrollments.filter(e => e.status === 'ACTIVE' || e.id === enrollmentId)
+
+  if (!canEdit) {
+    return label ? (
+      <span className="inline-flex items-center gap-1"><Link2 size={11} /> {label}</span>
+    ) : null
+  }
+  return (
+    <span className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+      <Link2 size={11} />
+      <select
+        value={enrollmentId ?? ''}
+        onChange={e => onChange(e.target.value || null)}
+        aria-label="Linked therapy"
+        className="text-xs bg-transparent outline-none cursor-pointer max-w-[200px] truncate"
+        style={{ color: enrollmentId ? colors.text.muted : colors.text.dim }}
+      >
+        <option value="">No linked therapy</option>
+        {options.map(e => (
+          <option key={e.id} value={e.id}>{e.programName} · {e.therapistFirstName} {e.therapistLastName}</option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
 // ── Goal row ──────────────────────────────────────────────────────────────────
 
-function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete, onLogProgress, onViewProgress, onEdit }: {
+function GoalRow({ goal, isEditor, videoCount, canSeeEvidence, onStatusChange, onRequestComplete, onOpenEvidence, onProgressTagChange, onDelete, onLogProgress, onViewProgress, onEdit }: {
   goal: IEPGoalResponse
   isEditor: boolean
+  /** Videos recorded as evidence for this goal. */
+  videoCount: number
+  canSeeEvidence: boolean
   onStatusChange: (id: string, status: IEPGoalStatus) => void
+  /** Completing a goal goes through the evidence dialog rather than a plain status change. */
+  onRequestComplete: (goal: IEPGoalResponse) => void
+  onOpenEvidence: (goal: IEPGoalResponse) => void
   onProgressTagChange: (id: string, tag: string) => void
   onDelete: (id: string) => void
   onLogProgress: (goal: IEPGoalResponse) => void
@@ -229,7 +276,11 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
             <div className="relative">
               <select
                 value={goal.status}
-                onChange={e => onStatusChange(goal.id, e.target.value as IEPGoalStatus)}
+                onChange={e => {
+                  const next = e.target.value as IEPGoalStatus
+                  if (next === 'COMPLETED' && goal.status !== 'COMPLETED') onRequestComplete(goal)
+                  else onStatusChange(goal.id, next)
+                }}
                 className="appearance-none text-xs rounded-full pl-5 pr-6 py-1 border outline-none cursor-pointer"
                 style={{ borderColor: border.divider, background: surface.card, color: colors.text.primary }}
               >
@@ -262,6 +313,20 @@ function GoalRow({ goal, isEditor, onStatusChange, onProgressTagChange, onDelete
             <FileText size={11} />
             {goal.progressCount}
           </button>
+
+          {/* Video evidence — watch, or (for editors) add */}
+          {canSeeEvidence && (isEditor || videoCount > 0) && (
+            <button
+              onClick={() => onOpenEvidence(goal)}
+              className="inline-flex items-center gap-1 text-xs rounded-full px-2.5 py-1 transition-opacity hover:opacity-70"
+              style={videoCount > 0
+                ? { background: accentAlpha(0.08), color: colors.accent, border: `1px solid ${accentAlpha(0.18)}` }
+                : { color: colors.text.dim, border: `1px dashed ${border.divider}` }}
+              title={videoCount > 0 ? 'Video evidence' : 'Add video evidence'}
+            >
+              <Video size={11} /> {videoCount > 0 ? videoCount : 'Add video'}
+            </button>
+          )}
 
           {/* Latest logged mastery percentage */}
           {goal.latestMasteryPct !== null && (
@@ -751,12 +816,14 @@ function parseCsvRowPreview(line: string): string[] {
 
 // ── Add Plan modal ────────────────────────────────────────────────────────────
 
-function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
+function AddPlanModal({ open, onClose, patientId, therapists, currentUserId, activeEnrollments }: {
   open: boolean
   onClose: () => void
   patientId: string
   therapists: TherapistSummary[]
   currentUserId?: string
+  /** The child's ongoing therapies — a plan can optionally be linked to one. */
+  activeEnrollments: EnrollmentResponse[]
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
@@ -771,7 +838,7 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
   useEffect(() => { if (open) setFormError(null) }, [open])
 
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<{
-    title: string; startDate: string; endDate: string; tags: string; therapistId: string
+    title: string; startDate: string; endDate: string; tags: string; therapistId: string; enrollmentId: string
   }>()
 
   // Field names deliberately don't collide with the plan-level form's fields above
@@ -867,12 +934,13 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
     onError: (err) => setFormError(getApiError(err, 'Failed to create plan')),
   })
 
-  const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string; therapistId: string }) => {
+  const onSubmit = (data: { title: string; startDate: string; endDate: string; tags: string; therapistId: string; enrollmentId: string }) => {
     setFormError(null)
     const tags = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : []
     return mut.mutateAsync({
       title: data.title, startDate: data.startDate || undefined, endDate: data.endDate || undefined, tags,
       therapistId: data.therapistId || undefined,
+      enrollmentId: data.enrollmentId || undefined,
     })
   }
 
@@ -1076,6 +1144,14 @@ function AddPlanModal({ open, onClose, patientId, therapists, currentUserId }: {
           <p className="text-xs" style={{ color: colors.text.dim }}>
             No therapist assigned to this case yet — a Business Owner or Clinic Head can assign one to this plan later.
           </p>
+        )}
+        {activeEnrollments.length > 0 && (
+          <Select
+            label="Link to an ongoing therapy (optional)"
+            placeholder="Not linked to a therapy"
+            options={activeEnrollments.map(en => ({ value: en.id, label: `${en.programName} · ${en.therapistFirstName} ${en.therapistLastName}`.trim() }))}
+            {...register('enrollmentId')}
+          />
         )}
         {mode === 'custom' && goalsSection}
 
@@ -1343,6 +1419,26 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
   const [progressTarget, setProgressTarget] = useState<IEPGoalResponse | null>(null)
   const [historyTarget,  setHistoryTarget]  = useState<IEPGoalResponse | null>(null)
   const [expandedPlans,  setExpandedPlans]  = useState<Set<string>>(new Set())
+  const [completeTarget, setCompleteTarget] = useState<IEPGoalResponse | null>(null)
+  const [evidenceTarget, setEvidenceTarget] = useState<IEPGoalResponse | null>(null)
+
+  // Video evidence is visible to the care team and the family (not Office Admin).
+  const canSeeEvidence = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST', 'PARENT'].includes(activeRole ?? '')
+  const { data: evidence = [] } = useQuery({
+    queryKey: ['evidence', patientId],
+    queryFn: () => evidenceApi.list(patientId),
+    enabled: canSeeEvidence,
+  })
+  const videoCountByGoal = new Map<string, number>()
+  evidence.forEach(e => { if (e.kind === 'VIDEO' && e.goalId) videoCountByGoal.set(e.goalId, (videoCountByGoal.get(e.goalId) ?? 0) + 1) })
+
+  // The child's therapies — plans can be linked to an ongoing one.
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ['enrollments', 'iep-link', patientId],
+    queryFn: () => enrollmentsApi.listForPatient(patientId),
+    enabled: isEditor,
+  })
+  const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE')
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ['iep', patientId],
@@ -1364,6 +1460,13 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
       iepApi.updateGoal(goalId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iep'] }),
     onError: (err) => toast(getApiError(err, 'Failed to update goal'), 'error'),
+  })
+
+  const linkTherapyMut = useMutation({
+    mutationFn: ({ planId, enrollmentId }: { planId: string; enrollmentId: string | null }) =>
+      iepApi.updatePlan(planId, enrollmentId ? { enrollmentId } : { unlinkEnrollment: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['iep'] }); toast('Therapy link updated', 'success') },
+    onError: (err) => toast(getApiError(err, 'Failed to update the therapy link'), 'error'),
   })
 
   const deletePlanMut = useMutation({
@@ -1487,6 +1590,12 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
                         canEdit={isEditor}
                         onSave={(startDate, endDate) => updatePlanDatesMut.mutate({ planId: plan.id, startDate, endDate })}
                       />
+                      <PlanTherapyLink
+                        enrollmentId={plan.enrollmentId ?? null}
+                        enrollments={enrollments}
+                        canEdit={isEditor}
+                        onChange={enrollmentId => linkTherapyMut.mutate({ planId: plan.id, enrollmentId })}
+                      />
                     </div>
                   </div>
 
@@ -1531,6 +1640,10 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
                             key={goal.id}
                             goal={goal}
                             isEditor={isEditor}
+                            videoCount={videoCountByGoal.get(goal.id) ?? 0}
+                            canSeeEvidence={canSeeEvidence}
+                            onRequestComplete={g => setCompleteTarget(g)}
+                            onOpenEvidence={g => setEvidenceTarget(g)}
                             onStatusChange={(id, status) => updateGoalMut.mutate({ goalId: id, data: { status } })}
                             onProgressTagChange={(id, tag) => updateGoalMut.mutate({ goalId: id, data: { progressTag: tag } })}
                             onDelete={id => deleteGoalMut.mutate(id)}
@@ -1573,6 +1686,7 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
       {isEditor && (
         <>
           <AddPlanModal
+            activeEnrollments={activeEnrollments}
             open={showPlanModal}
             onClose={() => setShowPlanModal(false)}
             patientId={patientId}
@@ -1614,6 +1728,23 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
             goal={historyTarget}
           />
         </>
+      )}
+
+      {completeTarget && (
+        <CompleteGoalDialog
+          patientId={patientId}
+          goal={completeTarget}
+          onClose={() => setCompleteTarget(null)}
+          onCompleted={() => { setCompleteTarget(null); qc.invalidateQueries({ queryKey: ['iep'] }) }}
+        />
+      )}
+      {evidenceTarget && (
+        <GoalEvidenceDialog
+          patientId={patientId}
+          goal={evidenceTarget}
+          canEdit={isEditor}
+          onClose={() => setEvidenceTarget(null)}
+        />
       )}
     </div>
   )

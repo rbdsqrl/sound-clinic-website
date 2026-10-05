@@ -2,6 +2,9 @@ import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Paperclip, Upload, X, Trash2, FileVideo, Image as ImageIcon, FileText, Download, Pin, Play } from 'lucide-react'
 import { sharedMediaApi } from '../../api/sharedMedia'
+import { evidenceApi } from '../../api/evidence'
+import { iepApi } from '../../api/iep'
+import { GoalEvidenceDialog } from './GoalEvidence'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge, roleBadge } from '../../components/ui/Badge'
@@ -15,6 +18,16 @@ import { formatDateTimeStr } from '../../lib/format'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, styles } from '../../theme'
 import type { SharedMediaResponse } from '../../types'
+
+/** A Media & Notes card: a shared file/note, or video evidence recorded against an IEP goal. */
+type BoardItem = SharedMediaResponse & { evidence?: { title: string } }
+
+/** Ad hoc evidence from the Media & Notes tab — optionally tied to one of the child's IEP goals. */
+function AdHocEvidenceDialog({ patientId, onClose }: { patientId: string; onClose: () => void }) {
+  const { data: plans = [] } = useQuery({ queryKey: ['iep', patientId], queryFn: () => iepApi.listPlans(patientId) })
+  const goalOptions = plans.flatMap(p => p.goals.map(g => ({ id: g.id, label: `${p.title} - ${g.title}` })))
+  return <GoalEvidenceDialog patientId={patientId} goalOptions={goalOptions} canEdit onClose={onClose} />
+}
 
 // Mirrors the backend's SharedMediaController#SUPPORTED_DOCUMENT_TYPES allowlist.
 const ACCEPTED_FILE_TYPES = [
@@ -63,13 +76,14 @@ function tiltFor(id: string): number {
 
 export default function SharedMediaTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState('')
-  const [selected, setSelected] = useState<SharedMediaResponse | null>(null)
+  const [selected, setSelected] = useState<BoardItem | null>(null)
+  const [adHocOpen, setAdHocOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: items, isLoading } = useQuery({
@@ -89,10 +103,23 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
     onError: (err) => toast(getApiError(err, 'Failed to share'), 'error'),
   })
 
+  // Video evidence recorded against this child's IEP goals appears here too, titled "IEP Plan - Goal".
+  // Families see the videos; the "couldn't upload" records stay internal.
+  const canSeeEvidence = ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST', 'PARENT'].includes(activeRole ?? '')
+  const canAddEvidence = !readOnly && ['BUSINESS_OWNER', 'CLINIC_HEAD', 'THERAPIST'].includes(activeRole ?? '')
+  const { data: evidence = [] } = useQuery({
+    queryKey: ['evidence', patientId],
+    queryFn: () => evidenceApi.list(patientId),
+    enabled: canSeeEvidence,
+  })
+
   const deleteMut = useMutation({
-    mutationFn: (id: string) => sharedMediaApi.remove(patientId, id),
+    mutationFn: (item: BoardItem) => item.evidence
+      ? evidenceApi.remove(patientId, item.id.replace(/^ev-/, ''))
+      : sharedMediaApi.remove(patientId, item.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shared-media', patientId] })
+      qc.invalidateQueries({ queryKey: ['evidence', patientId] })
       toast('Deleted', 'success')
       setSelected(null)
     },
@@ -101,8 +128,19 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
 
   if (isLoading) return <PageLoader />
 
+  const evidenceItems: BoardItem[] = evidence
+    .filter(e => e.kind === 'VIDEO' && e.fileUrl)
+    .map(e => ({
+      id: `ev-${e.id}`, patientId: e.patientId, direction: 'CLINIC_TO_PARENT' as const,
+      fileName: e.fileName, fileUrl: e.fileUrl, contentType: e.contentType, fileSizeBytes: e.fileSizeBytes,
+      note: e.note, uploadedById: e.therapistId, uploadedByName: e.therapistName, uploadedByRole: null,
+      createdAt: e.createdAt, evidence: { title: e.title },
+    }))
+  const board: BoardItem[] = [...(items ?? []), ...evidenceItems]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
   const canSubmit = !!file || note.trim().length > 0
-  const canDelete = (item: SharedMediaResponse) => !readOnly && !!user && (
+  const canDelete = (item: BoardItem) => !readOnly && !!user && (
     user.id === item.uploadedById || user.role === 'BUSINESS_OWNER' || user.role === 'CLINIC_HEAD'
   )
 
@@ -164,7 +202,15 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
       </Card>
       )}
 
-      {!items || items.length === 0 ? (
+      {canAddEvidence && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="secondary" onClick={() => setAdHocOpen(true)}>
+            <FileVideo size={13} /> Add video evidence
+          </Button>
+        </div>
+      )}
+
+      {board.length === 0 ? (
         <EmptyState
           icon={<Paperclip size={24} />}
           title="Nothing shared yet"
@@ -172,7 +218,7 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-8 pt-2">
-          {items.map(item => {
+          {board.map(item => {
             const kind = item.fileUrl ? fileKind(item.contentType) : null
             return (
               <div
@@ -196,9 +242,12 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
                   <Pin size={10} fill="#fff" style={{ color: '#fff' }} />
                 </div>
 
+                {item.evidence && (
+                  <p className="text-xs font-semibold mb-1.5 line-clamp-2" style={{ color: colors.accent }}>{item.evidence.title}</p>
+                )}
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   <p className="text-xs font-semibold truncate" style={{ color: colors.text.heading }}>{item.uploadedByName}</p>
-                  {directionBadge(item.direction)}
+                  {item.evidence ? <Badge variant="purple">Video evidence</Badge> : directionBadge(item.direction)}
                 </div>
 
                 {kind === 'image' && item.fileUrl && (
@@ -237,7 +286,10 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
       )}
 
       {selected && (
-        <Modal open title="Shared note" onClose={() => setSelected(null)} size="md" error={deleteError}>
+        <Modal open title={selected.evidence ? 'Video evidence' : 'Shared note'} onClose={() => setSelected(null)} size="md" error={deleteError}>
+          {selected.evidence && (
+            <p className="text-sm font-semibold mb-3" style={{ color: colors.accent }}>{selected.evidence.title}</p>
+          )}
           <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{selected.uploadedByName}</p>
@@ -288,13 +340,15 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
 
           {canDelete(selected) && (
             <div className="flex justify-end mt-5 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-              <Button variant="danger" loading={deleteMut.isPending} onClick={() => { setDeleteError(null); deleteMut.mutate(selected.id) }}>
+              <Button variant="danger" loading={deleteMut.isPending} onClick={() => { setDeleteError(null); deleteMut.mutate(selected) }}>
                 <Trash2 size={14} /> Delete
               </Button>
             </div>
           )}
         </Modal>
       )}
+
+      {adHocOpen && <AdHocEvidenceDialog patientId={patientId} onClose={() => setAdHocOpen(false)} />}
     </div>
   )
 }

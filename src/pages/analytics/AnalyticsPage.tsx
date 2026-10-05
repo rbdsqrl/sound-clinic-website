@@ -26,6 +26,7 @@ import { StarRating } from '../patients/ReviewMeetings'
 import { domainLabel as baselineDomainLabel, ScorePill } from '../patients/BaselineReportTab'
 import { childStatusBadge, type ChildStatus } from '../../components/ui/Badge'
 import { format, parseISO, addDays, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
+import EvidenceReport from './EvidenceReport'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { ROUTES } from '../../lib/routes'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
@@ -756,6 +757,8 @@ export default function AnalyticsPage() {
           )}
         </Panel>
       )}
+
+      {tab === 'members' && !therapistId && <EvidenceReport from={range.from} to={range.to} />}
 
       {/* Empty prompts */}
       {tab === 'cases' && isParentUser && !patientId && (
