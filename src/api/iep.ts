@@ -2,10 +2,18 @@ import client from './client'
 import type {
   ApiResponse, IEPPlanResponse, IEPGoalResponse, ImportResultResponse,
   CreateIEPPlanRequest, CreateIEPGoalRequest, UpdateIEPGoalRequest,
-  AddProgressRequest, IEPGoalProgressResponse,
+  AddProgressRequest, IEPGoalProgressResponse, GoalPacingResponse,
 } from '../types'
 
 export const iepApi = {
+  /** How the plan's active goals are spread across the upcoming sessions of its linked therapy. */
+  pacing: (planId: string) =>
+    client.get<ApiResponse<GoalPacingResponse>>(`/iep/${planId}/pacing`).then(r => r.data.data),
+
+  /** Re-spread the active goals and set their target dates to the suggested ones. */
+  applyPacing: (planId: string) =>
+    client.post<ApiResponse<GoalPacingResponse>>(`/iep/${planId}/pacing/apply`).then(r => r.data.data),
+
   listPlans: (patientId: string) =>
     client.get<ApiResponse<IEPPlanResponse[]>>('/iep', { params: { patientId } })
       .then(r => r.data.data),

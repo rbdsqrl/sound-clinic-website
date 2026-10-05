@@ -1519,6 +1519,38 @@ export interface IEPPlanResponse {
   createdAt: string
 }
 
+/** How a plan's active goals are spread across the upcoming sessions of its linked therapy. */
+export interface GoalPace {
+  goalId: string
+  title: string
+  status: IEPGoalStatus
+  /** Sessions allotted to this goal (null for completed goals). */
+  sessionsBudget: number | null
+  suggestedTargetDate: string | null
+  currentTargetDate: string | null
+  /** The current target date has passed and the goal isn't completed. */
+  overdue: boolean
+  /** The current target date is missing or over a week from the suggested one. */
+  differsFromSuggested: boolean
+}
+
+export interface GoalPacingResponse {
+  /** False when the plan isn't linked to a therapy. */
+  linked: boolean
+  planId: string
+  enrollmentId: string | null
+  programName: string | null
+  sessionsPerWeek: number
+  totalSessions: number
+  completedSessions: number
+  remainingSessions: number
+  activeGoals: number
+  /** The remaining sessions give the average goal fewer than 3 sessions. */
+  overloaded: boolean
+  summary: string
+  goals: GoalPace[]
+}
+
 export interface CreateIEPGoalRequest {
   title: string
   goalStatement?: string

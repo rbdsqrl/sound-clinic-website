@@ -6,13 +6,14 @@ import {
   Plus, Upload, Download, ChevronDown, ChevronUp, Check,
   Target, Trash2, FileText, AlertCircle, CheckCircle2,
   Clock, PauseCircle, ShieldCheck, CalendarDays, Pencil,
-  ArrowLeft, Layers, Video, Link2,
+  ArrowLeft, Layers, Video, Link2, CalendarClock,
 } from 'lucide-react'
 import { iepApi } from '../../api/iep'
 import { iepTemplatesApi } from '../../api/iep-templates'
 import { enrollmentsApi } from '../../api/enrollments'
 import { evidenceApi } from '../../api/evidence'
 import { CompleteGoalDialog, GoalEvidenceDialog } from './GoalEvidence'
+import GoalPacingPanel from './GoalPacingPanel'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -1420,6 +1421,8 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
   const [historyTarget,  setHistoryTarget]  = useState<IEPGoalResponse | null>(null)
   const [expandedPlans,  setExpandedPlans]  = useState<Set<string>>(new Set())
   const [completeTarget, setCompleteTarget] = useState<IEPGoalResponse | null>(null)
+  const [pacingPlans, setPacingPlans] = useState<Set<string>>(new Set())
+  const togglePacing = (planId: string) => setPacingPlans(prev => { const n = new Set(prev); if (n.has(planId)) n.delete(planId); else n.add(planId); return n })
   const [evidenceTarget, setEvidenceTarget] = useState<IEPGoalResponse | null>(null)
 
   // Video evidence is visible to the care team and the family (not Office Admin).
@@ -1655,15 +1658,30 @@ export default function IEPTab({ patientId, therapists = [], readOnly = false }:
                       </div>
                     )}
 
+                    {isEditor && pacingPlans.has(plan.id) && plan.totalGoals > 0 && (
+                      <GoalPacingPanel planId={plan.id} canApply={isEditor} />
+                    )}
+
                     {isEditor && (
                       <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: border.divider }}>
-                        <button
-                          onClick={() => setAddGoalTarget({ id: plan.id, title: plan.title })}
-                          className="flex items-center gap-1.5 text-xs font-medium"
-                          style={{ color: colors.accent }}
-                        >
-                          <Plus size={13} /> Add Goal
-                        </button>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => setAddGoalTarget({ id: plan.id, title: plan.title })}
+                            className="flex items-center gap-1.5 text-xs font-medium"
+                            style={{ color: colors.accent }}
+                          >
+                            <Plus size={13} /> Add Goal
+                          </button>
+                          {plan.totalGoals > 0 && (
+                            <button
+                              onClick={() => togglePacing(plan.id)}
+                              className="flex items-center gap-1.5 text-xs font-medium"
+                              style={{ color: colors.accent }}
+                            >
+                              <CalendarClock size={13} /> {pacingPlans.has(plan.id) ? 'Hide pacing' : 'Goal pacing'}
+                            </button>
+                          )}
+                        </div>
                         <button
                           onClick={() => deletePlanMut.mutate(plan.id)}
                           disabled={deletePlanMut.isPending}
