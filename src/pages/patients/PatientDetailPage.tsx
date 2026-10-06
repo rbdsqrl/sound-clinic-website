@@ -783,11 +783,32 @@ function EnrollmentModal({
   const [findingTherapists, setFindingTherapists]     = useState(false)
   const [step1Errors, setStep1Errors]           = useState<Record<string, string>>({})
   const [formError, setFormError]               = useState<string | null>(null)
+  const qc = useQueryClient()
 
   const createMut = useMutation({
     mutationFn: (data: CreateEnrollmentRequest) => enrollmentsApi.create(data),
     onSuccess: (enrollment) => { onCreated(enrollment) },
-    onError: (err) => setFormError(getApiError(err, 'Failed to create enrollment')),
+    onError: (err) => {
+      const axiosErr = err as import('axios').AxiosError
+      const status = axiosErr?.response?.status
+      // 409 = this program is already enrolled; no response at all = the request may have gone
+      // through but the reply was lost (timeout / dropped connection). Either way the enrollment
+      // may well exist now, so say so gently and refresh the page's data in the background
+      // rather than inviting a retry that would double-book the sessions.
+      if (status === 409 || !axiosErr?.response) {
+        setFormError(
+          status === 409
+            ? 'This program is already enrolled. We’re refreshing the page so you can see it.'
+            : 'We couldn’t confirm the enrollment — it may have gone through. We’re refreshing the page to check before you try again.'
+        )
+        qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+        qc.invalidateQueries({ queryKey: ['subscriptions', patientId] })
+        qc.invalidateQueries({ queryKey: ['patients', patientId] })
+        qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+        return
+      }
+      setFormError(getApiError(err, 'Failed to create enrollment'))
+    },
   })
 
   const toggleSessionDay = (day: DayOfWeek) => {
