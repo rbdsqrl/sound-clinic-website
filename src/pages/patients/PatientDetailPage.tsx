@@ -1324,7 +1324,7 @@ function DischargeModal({ patientId, patientName, onClose }: { patientId: string
               <div key={e.enrollmentId} className="rounded-xl p-3" style={{ background: surface.rowHover }}>
                 <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{e.programName}</p>
                 <p className="text-xs mb-2" style={{ color: colors.text.muted }}>{e.therapistName}</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <CriteriaChip label="Goal mastery" met={e.criteria.goalMasteryMet}
                     value={e.criteria.goalMasteryPct !== null ? `${e.criteria.goalMasteryPct}%` : 'No data'} />
                   <CriteriaChip label="Parent satisfaction" met={e.criteria.parentSatisfactionMet}

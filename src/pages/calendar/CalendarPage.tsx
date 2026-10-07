@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -1353,14 +1353,15 @@ function AgendaView({
     <div className="flex-1 min-h-0 overflow-y-auto">
       <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: 110 }} />
-          <col style={{ width: 170 }} />
+          <col className="hidden md:table-column" style={{ width: 110 }} />
+          <col className="w-[96px] md:w-[170px]" />
           <col />
         </colgroup>
         <thead>
           <tr>
             {['Date', 'Time', 'Event'].map(h => (
-              <th key={h} className="sticky top-0 text-left text-xs font-semibold uppercase tracking-wide px-3 py-2 z-10"
+              <th key={h}
+                className={`sticky top-0 text-left text-xs font-semibold uppercase tracking-wide px-3 py-2 z-10${h === 'Date' ? ' hidden md:table-cell' : ''}`}
                 style={{ color: colors.text.muted, background: surface.card, borderBottom: `1px solid ${border.divider}` }}>
                 {h}
               </th>
@@ -1372,10 +1373,23 @@ function AgendaView({
             const rowStyle = colorFn?.(ev) ?? kindStyle(ev.kind, ev.status, sessionAwaitingPayment(ev))
             const end = eventEndTime(ev)
             return (
-              <tr key={ev.id}>
+              <Fragment key={ev.id}>
+                {i === 0 && (
+                  <tr className="md:hidden">
+                    <td colSpan={2} className="px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        color: group.label === 'Today' ? colors.accent : colors.text.primary,
+                        borderBottom: `1px solid ${border.divider}`,
+                        borderLeft: `3px solid ${colors.accent}`,
+                      }}>
+                      {group.label}
+                    </td>
+                  </tr>
+                )}
+              <tr>
                 {i === 0 && (
                   <td rowSpan={group.items.length}
-                    className="align-top px-3 py-2.5 text-xs font-semibold whitespace-nowrap"
+                    className="hidden md:table-cell align-top px-3 py-2.5 text-xs font-semibold whitespace-nowrap"
                     style={{
                       color: group.label === 'Today' ? colors.accent : colors.text.primary,
                       borderBottom: `1px solid ${border.divider}`,
@@ -1384,7 +1398,7 @@ function AgendaView({
                     {group.label}
                   </td>
                 )}
-                <td className="align-top px-3 py-2.5 text-xs whitespace-nowrap"
+                <td className="align-top px-3 py-2.5 text-xs md:whitespace-nowrap"
                   style={{ color: colors.text.muted, borderBottom: `1px solid ${border.divider}` }}>
                   {ev.isAllDay ? 'All day' : `${formatTimeStr(ev.time)}${end ? ` – ${formatTimeStr(end)}` : ''}`}
                 </td>
@@ -1411,6 +1425,7 @@ function AgendaView({
                   </button>
                 </td>
               </tr>
+              </Fragment>
             )
           }))}
         </tbody>
@@ -2974,8 +2989,8 @@ export default function CalendarPage() {
 
           <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs" style={{ color: colors.text.muted }}>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <span className={`text-xs${mode === 'agenda' ? ' hidden sm:inline' : ''}`} style={{ color: colors.text.muted }}>
               {agendaSessionCount} session{agendaSessionCount !== 1 ? 's' : ''}
             </span>
 
