@@ -7,7 +7,8 @@ import {
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
   Target, Languages as LanguagesIcon, Box, ClipboardList,
 } from 'lucide-react'
-import ProgramFeedbackTemplateModal from './programs/ProgramFeedbackTemplateModal'
+import ProgramFeedbackTemplateModal, { FeedbackDraftModal } from './programs/ProgramFeedbackTemplateModal'
+import { feedbackQuestionsValid, toQuestionInputs, type EditableQuestion } from './programs/FeedbackTemplateEditor'
 import { format, parseISO } from 'date-fns'
 import { organisationApi } from '../api/organisation'
 import { publicHolidaysApi } from '../api/publicHolidays'
@@ -39,7 +40,7 @@ import { colors, border, surface, styles, accentAlpha, dangerAlpha, successAlpha
 import type {
   UpdateOrganisationRequest, CreatePublicHolidayRequest, CreateClinicRequest,
   ProgramResponse, TaxResponse, UpdateProgramRequest, AiProvider, DayOfWeek,
-  CreateOrgCalendarBlockRequest, OrgCalendarBlockResponse,
+  CreateOrgCalendarBlockRequest, OrgCalendarBlockResponse, ProgramFeedbackQuestionInput,
 } from '../types'
 
 type Tab = 'information' | 'clinics' | 'manage' | 'settings' | 'activity-library' | 'iep-library'
@@ -445,7 +446,7 @@ function ProgramRow({
 
 // ── Add program inline ─────────────────────────────────────────────────────────
 function AddProgramRow({ onAdd, loading, taxes }: {
-  onAdd: (name: string, cost: string, desc: string, taxId: string, priceIncludesTax: boolean) => void
+  onAdd: (name: string, cost: string, desc: string, taxId: string, priceIncludesTax: boolean, feedbackQuestions: ProgramFeedbackQuestionInput[]) => void
   loading: boolean
   taxes: TaxResponse[]
 }) {
@@ -455,6 +456,8 @@ function AddProgramRow({ onAdd, loading, taxes }: {
   const [taxId, setTaxId] = useState('')
   const [priceIncludesTax, setPriceIncludesTax] = useState(true)
   const [open, setOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackQuestions, setFeedbackQuestions] = useState<EditableQuestion[]>([])
 
   const selectedTax = taxes.find(t => t.id === taxId)
   const costNum = parseFloat(cost)
@@ -468,11 +471,12 @@ function AddProgramRow({ onAdd, loading, taxes }: {
 
   const reset = () => {
     setName(''); setCost(''); setDesc(''); setTaxId(''); setPriceIncludesTax(true); setOpen(false)
+    setFeedbackOpen(false); setFeedbackQuestions([])
   }
 
   const submit = () => {
-    if (!name.trim() || !cost) return
-    onAdd(name.trim(), cost, desc.trim(), taxId, priceIncludesTax)
+    if (!name.trim() || !cost || !feedbackQuestionsValid(feedbackQuestions)) return
+    onAdd(name.trim(), cost, desc.trim(), taxId, priceIncludesTax, toQuestionInputs(feedbackQuestions))
     reset()
   }
 
@@ -539,8 +543,43 @@ function AddProgramRow({ onAdd, loading, taxes }: {
         </>
       )}
 
+      {/* Optional session feedback form — opens the same checklist builder (CSV upload, copy
+          from another program) as the program's clipboard icon; saved once the program exists. */}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg" style={{ background: surface.rowHover }}>
+        <ClipboardList size={14} style={{ color: colors.accent }} />
+        <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Session feedback form</span>
+        {feedbackQuestions.length > 0 && (
+          <span className="text-xs" style={{ color: colors.text.muted }}>
+            {feedbackQuestions.length} header{feedbackQuestions.length !== 1 ? 's' : ''} ·{' '}
+            {feedbackQuestions.reduce((n, q) => n + q.options.filter(o => o.trim()).length, 0)} options
+          </span>
+        )}
+        <div className="flex items-center gap-2 ml-auto">
+          {feedbackQuestions.length > 0 && (
+            <button type="button" className="text-xs font-medium" style={{ color: colors.text.dim }}
+              onClick={() => setFeedbackQuestions([])}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+            style={{ color: colors.accent, background: accentAlpha(0.08) }}
+            onClick={() => setFeedbackOpen(true)}>
+            {feedbackQuestions.length > 0 ? 'Edit feedback' : '+ Add feedback'}
+          </button>
+        </div>
+      </div>
+      {feedbackOpen && (
+        <FeedbackDraftModal
+          programName={name.trim()}
+          initial={feedbackQuestions}
+          onClose={() => setFeedbackOpen(false)}
+          onDone={qs => { setFeedbackQuestions(qs); setFeedbackOpen(false) }}
+        />
+      )}
+
       <div className="flex gap-2">
-        <Button size="sm" onClick={submit} loading={loading} disabled={!name.trim() || !cost}>
+        <Button size="sm" onClick={submit} loading={loading}
+          disabled={!name.trim() || !cost || !feedbackQuestionsValid(feedbackQuestions)}>
           <Plus size={13} /> Add
         </Button>
         <Button size="sm" variant="secondary" onClick={reset}>
@@ -890,8 +929,24 @@ export default function OrganisationPage() {
 
   // ── Programs mutations ───────────────────────────────────────────────────────
   const createProgramMut = useMutation({
-    mutationFn: (p: { name: string; description?: string; perSessionCost: number; taxId?: string; priceIncludesTax?: boolean }) => programsApi.create(p),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast('Program added', 'success') },
+    mutationFn: async ({ feedbackQuestions, ...p }: { name: string; description?: string; perSessionCost: number; taxId?: string; priceIncludesTax?: boolean; feedbackQuestions: ProgramFeedbackQuestionInput[] }) => {
+      const created = await programsApi.create(p)
+      // The checklist is saved against the new program's id, so it can only follow the create.
+      // If it fails the program still exists — report that rather than losing the program.
+      if (feedbackQuestions.length > 0) {
+        try {
+          await programsApi.updateFeedbackTemplate(created.id, { questions: feedbackQuestions })
+        } catch {
+          return { created, feedbackFailed: true }
+        }
+      }
+      return { created, feedbackFailed: false }
+    },
+    onSuccess: ({ feedbackFailed }) => {
+      qc.invalidateQueries({ queryKey: ['programs'] })
+      if (feedbackFailed) toast('Program added, but the feedback form could not be saved — add it from the clipboard icon', 'error')
+      else toast('Program added', 'success')
+    },
     onError: (err) => toast(getApiError(err, 'Failed to add program'), 'error'),
   })
 
@@ -1577,12 +1632,13 @@ export default function OrganisationPage() {
               <AddProgramRow
                 loading={createProgramMut.isPending}
                 taxes={taxes}
-                onAdd={(name, cost, desc, taxId, priceIncludesTax) => createProgramMut.mutate({
+                onAdd={(name, cost, desc, taxId, priceIncludesTax, feedbackQuestions) => createProgramMut.mutate({
                   name,
                   description: desc || undefined,
                   perSessionCost: parseFloat(cost),
                   taxId: taxId || undefined,
                   priceIncludesTax: taxId ? priceIncludesTax : undefined,
+                  feedbackQuestions,
                 })}
               />
             )}
