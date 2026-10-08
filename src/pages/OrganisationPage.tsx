@@ -333,7 +333,6 @@ function ProgramRow({
     questionText: q.questionText, options: q.options.map(o => o.optionText),
   }))
   const hasFeedback = savedFeedback.length > 0
-  const optionCount = savedFeedback.reduce((n, q) => n + q.options.length, 0)
 
   const startEditing = () => { setFeedbackDraft(savedFeedback); setEditing(true) }
 
@@ -461,15 +460,6 @@ function ProgramRow({
               <IndianRupee size={10} />
               {Number(program.perSessionCost).toLocaleString('en-IN')}
             </span>
-            {hasFeedback && (
-              <span
-                className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1"
-                style={{ background: successAlpha(0.12), color: colors.status.success }}
-                title={`${savedFeedback.length} header${savedFeedback.length !== 1 ? 's' : ''} · ${optionCount} options`}
-              >
-                <ClipboardCheck size={10} /> Feedback form
-              </span>
-            )}
             {program.taxName && (
               <span className="text-xs" style={{ color: colors.text.muted }}>
                 {program.priceIncludesTax
