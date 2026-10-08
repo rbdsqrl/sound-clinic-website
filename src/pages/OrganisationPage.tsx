@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import {
   Building2, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, MapPin, Pencil, Plus, Trash2, X,
   ToggleLeft, ToggleRight, IndianRupee, HeartPulse, Receipt, Sparkles,
-  Target, Languages as LanguagesIcon, Box, ClipboardList,
+  Target, Languages as LanguagesIcon, Box, ClipboardCheck,
 } from 'lucide-react'
 import ProgramFeedbackTemplateModal, { FeedbackDraftModal } from './programs/ProgramFeedbackTemplateModal'
 import { feedbackQuestionsValid, toQuestionInputs, type EditableQuestion } from './programs/FeedbackTemplateEditor'
@@ -255,6 +255,53 @@ function AddRow({
   )
 }
 
+// ── Session feedback form control (shared by Add program and Edit program) ───────
+// Summary line + Add/Edit/Remove buttons; opens the same checklist builder (CSV upload, copy
+// from another program) as a draft — nothing is sent until the parent saves.
+function FeedbackFormControl({ programName, questions, onChange }: {
+  programName: string
+  questions: EditableQuestion[]
+  onChange: (qs: EditableQuestion[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const has = questions.length > 0
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg" style={{ background: surface.rowHover }}>
+        <ClipboardCheck size={14} style={{ color: colors.accent }} />
+        <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Session feedback form</span>
+        {has && (
+          <span className="text-xs" style={{ color: colors.text.muted }}>
+            {questions.length} header{questions.length !== 1 ? 's' : ''} ·{' '}
+            {questions.reduce((n, q) => n + q.options.filter(o => o.trim()).length, 0)} options
+          </span>
+        )}
+        <div className="flex items-center gap-2 ml-auto">
+          {has && (
+            <button type="button" className="text-xs font-medium" style={{ color: colors.text.dim }}
+              onClick={() => onChange([])}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+            style={{ color: colors.accent, background: accentAlpha(0.08) }}
+            onClick={() => setOpen(true)}>
+            {has ? 'Edit feedback' : '+ Add feedback'}
+          </button>
+        </div>
+      </div>
+      {open && (
+        <FeedbackDraftModal
+          programName={programName}
+          initial={questions}
+          onClose={() => setOpen(false)}
+          onDone={qs => { onChange(qs); setOpen(false) }}
+        />
+      )}
+    </>
+  )
+}
+
 // ── Program row ───────────────────────────────────────────────────────────────
 function ProgramRow({
   program, canManage, taxes, onToggle, onDelete, onEdit,
@@ -266,13 +313,29 @@ function ProgramRow({
   onDelete: () => void
   onEdit: (name: string, cost: number, description: string | undefined, taxId: string, priceIncludesTax: boolean) => void
 }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
   const [editing, setEditing] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackDraft, setFeedbackDraft] = useState<EditableQuestion[]>([])
   const [name, setName]       = useState(program.name)
   const [cost, setCost]       = useState(String(program.perSessionCost))
   const [desc, setDesc]       = useState(program.description ?? '')
   const [taxId, setTaxId]     = useState(program.taxId ?? '')
   const [priceIncludesTax, setPriceIncludesTax] = useState(program.priceIncludesTax)
+
+  // Same query key as the template modal, so the list badge and the modal share one cache entry.
+  const { data: template } = useQuery({
+    queryKey: ['program-feedback-template', program.id],
+    queryFn: () => programsApi.getFeedbackTemplate(program.id),
+  })
+  const savedFeedback: EditableQuestion[] = (template ?? []).map(q => ({
+    questionText: q.questionText, options: q.options.map(o => o.optionText),
+  }))
+  const hasFeedback = savedFeedback.length > 0
+  const optionCount = savedFeedback.reduce((n, q) => n + q.options.length, 0)
+
+  const startEditing = () => { setFeedbackDraft(savedFeedback); setEditing(true) }
 
   const resetFields = () => {
     setName(program.name); setCost(String(program.perSessionCost)); setDesc(program.description ?? '')
@@ -283,6 +346,14 @@ function ProgramRow({
     const c = parseFloat(cost)
     if (!name.trim() || isNaN(c)) return
     onEdit(name.trim(), c, desc.trim() || undefined, taxId, priceIncludesTax)
+    if (JSON.stringify(feedbackDraft) !== JSON.stringify(savedFeedback)) {
+      programsApi.updateFeedbackTemplate(program.id, { questions: toQuestionInputs(feedbackDraft) })
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ['program-feedback-template', program.id] })
+          qc.invalidateQueries({ queryKey: ['session-feedback'] })
+        })
+        .catch(err => toast(getApiError(err, 'Program saved, but the feedback form could not be saved — please try again'), 'error'))
+    }
     setEditing(false)
   }
 
@@ -362,8 +433,10 @@ function ProgramRow({
           </>
         )}
 
+        <FeedbackFormControl programName={name.trim() || program.name} questions={feedbackDraft} onChange={setFeedbackDraft} />
+
         <div className="flex gap-2">
-          <Button size="sm" onClick={save} disabled={!name.trim() || !cost}>Save</Button>
+          <Button size="sm" onClick={save} disabled={!name.trim() || !cost || !feedbackQuestionsValid(feedbackDraft)}>Save</Button>
           <Button size="sm" variant="secondary" onClick={() => { setEditing(false); resetFields() }}>Cancel</Button>
         </div>
       </div>
@@ -388,6 +461,15 @@ function ProgramRow({
               <IndianRupee size={10} />
               {Number(program.perSessionCost).toLocaleString('en-IN')}
             </span>
+            {hasFeedback && (
+              <span
+                className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1"
+                style={{ background: successAlpha(0.12), color: colors.status.success }}
+                title={`${savedFeedback.length} header${savedFeedback.length !== 1 ? 's' : ''} · ${optionCount} options`}
+              >
+                <ClipboardCheck size={10} /> Feedback form
+              </span>
+            )}
             {program.taxName && (
               <span className="text-xs" style={{ color: colors.text.muted }}>
                 {program.priceIncludesTax
@@ -405,13 +487,13 @@ function ProgramRow({
             <button
               onClick={() => setFeedbackOpen(true)}
               className="p-1.5 rounded-lg hover:opacity-75"
-              style={{ color: colors.text.dim }}
-              title="Session feedback template"
+              style={{ color: hasFeedback ? colors.status.success : colors.text.dim }}
+              title={hasFeedback ? 'Edit session feedback form' : 'Add session feedback form'}
             >
-              <ClipboardList size={13} />
+              <ClipboardCheck size={13} />
             </button>
             <button
-              onClick={() => setEditing(true)}
+              onClick={startEditing}
               className="p-1.5 rounded-lg hover:opacity-75"
               style={{ color: colors.text.dim }}
               title="Edit"
@@ -456,7 +538,6 @@ function AddProgramRow({ onAdd, loading, taxes }: {
   const [taxId, setTaxId] = useState('')
   const [priceIncludesTax, setPriceIncludesTax] = useState(true)
   const [open, setOpen] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackQuestions, setFeedbackQuestions] = useState<EditableQuestion[]>([])
 
   const selectedTax = taxes.find(t => t.id === taxId)
@@ -471,7 +552,7 @@ function AddProgramRow({ onAdd, loading, taxes }: {
 
   const reset = () => {
     setName(''); setCost(''); setDesc(''); setTaxId(''); setPriceIncludesTax(true); setOpen(false)
-    setFeedbackOpen(false); setFeedbackQuestions([])
+    setFeedbackQuestions([])
   }
 
   const submit = () => {
@@ -543,39 +624,8 @@ function AddProgramRow({ onAdd, loading, taxes }: {
         </>
       )}
 
-      {/* Optional session feedback form — opens the same checklist builder (CSV upload, copy
-          from another program) as the program's clipboard icon; saved once the program exists. */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg" style={{ background: surface.rowHover }}>
-        <ClipboardList size={14} style={{ color: colors.accent }} />
-        <span className="text-sm font-medium" style={{ color: colors.text.primary }}>Session feedback form</span>
-        {feedbackQuestions.length > 0 && (
-          <span className="text-xs" style={{ color: colors.text.muted }}>
-            {feedbackQuestions.length} header{feedbackQuestions.length !== 1 ? 's' : ''} ·{' '}
-            {feedbackQuestions.reduce((n, q) => n + q.options.filter(o => o.trim()).length, 0)} options
-          </span>
-        )}
-        <div className="flex items-center gap-2 ml-auto">
-          {feedbackQuestions.length > 0 && (
-            <button type="button" className="text-xs font-medium" style={{ color: colors.text.dim }}
-              onClick={() => setFeedbackQuestions([])}>
-              Remove
-            </button>
-          )}
-          <button type="button" className="text-xs font-semibold px-2.5 py-1.5 rounded-lg"
-            style={{ color: colors.accent, background: accentAlpha(0.08) }}
-            onClick={() => setFeedbackOpen(true)}>
-            {feedbackQuestions.length > 0 ? 'Edit feedback' : '+ Add feedback'}
-          </button>
-        </div>
-      </div>
-      {feedbackOpen && (
-        <FeedbackDraftModal
-          programName={name.trim()}
-          initial={feedbackQuestions}
-          onClose={() => setFeedbackOpen(false)}
-          onDone={qs => { setFeedbackQuestions(qs); setFeedbackOpen(false) }}
-        />
-      )}
+      {/* Optional session feedback form — saved once the program exists. */}
+      <FeedbackFormControl programName={name.trim() || 'New program'} questions={feedbackQuestions} onChange={setFeedbackQuestions} />
 
       <div className="flex gap-2">
         <Button size="sm" onClick={submit} loading={loading}
