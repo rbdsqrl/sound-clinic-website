@@ -149,29 +149,59 @@ function PaginatedItemList<T extends { id: string }>({
           &nbsp;
         </div>
       ))}
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between pt-3">
-          <button
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
-            style={{ color: colors.text.dim }}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-xs" style={{ color: colors.text.dim }}>
-            {start + 1}–{Math.min(items.length, start + pageSize)} of {items.length}
-          </span>
-          <button
-            onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
-            disabled={page === pageCount - 1}
-            className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
-            style={{ color: colors.text.dim }}
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      )}
+      <PagerBar page={page} pageCount={pageCount} start={start}
+        end={Math.min(items.length, start + pageSize)} total={items.length} onPage={setPage} />
+    </div>
+  )
+}
+
+// Prev/next pager shared by the paginated lists on this page.
+function PagerBar({ page, pageCount, start, end, total, onPage }: {
+  page: number; pageCount: number; start: number; end: number; total: number
+  onPage: (p: number) => void
+}) {
+  if (pageCount <= 1) return null
+  return (
+    <div className="flex items-center justify-between pt-3">
+      <button
+        onClick={() => onPage(Math.max(0, page - 1))}
+        disabled={page === 0}
+        className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
+        style={{ color: colors.text.dim }}
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <span className="text-xs" style={{ color: colors.text.dim }}>
+        {start + 1}–{end} of {total}
+      </span>
+      <button
+        onClick={() => onPage(Math.min(pageCount - 1, page + 1))}
+        disabled={page === pageCount - 1}
+        className="p-1.5 rounded-lg transition-colors hover:opacity-75 disabled:opacity-30"
+        style={{ color: colors.text.dim }}
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  )
+}
+
+// Renders rows via `renderItem`, 5 per page, with the same pager as PaginatedItemList —
+// for lists whose rows are richer than a name + delete (e.g. Programs).
+function PaginatedRows<T extends { id: string }>({ items, renderItem, pageSize = 5 }: {
+  items: T[]
+  renderItem: (item: T) => React.ReactNode
+  pageSize?: number
+}) {
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
+  useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1) }, [page, pageCount])
+  const start = page * pageSize
+  return (
+    <div>
+      {items.slice(start, start + pageSize).map(renderItem)}
+      <PagerBar page={page} pageCount={pageCount} start={start}
+        end={Math.min(items.length, start + pageSize)} total={items.length} onPage={setPage} />
     </div>
   )
 }
@@ -1524,7 +1554,7 @@ export default function OrganisationPage() {
             {programs.length === 0 && (
               <p className="text-sm py-2" style={{ color: colors.text.dim }}>No programs yet.</p>
             )}
-            {programs.map(p => (
+            <PaginatedRows items={programs} renderItem={p => (
               <ProgramRow
                 key={p.id}
                 program={p}
@@ -1542,7 +1572,7 @@ export default function OrganisationPage() {
                     : (p.taxId ? { removeTax: true } : {})),
                 })}
               />
-            ))}
+            )} />
             {canManage && (
               <AddProgramRow
                 loading={createProgramMut.isPending}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
+  ListChecks,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { usersApi } from '../../api/users'
@@ -597,7 +598,7 @@ export function SessionNotesModal({
   const [checklistNotes, setChecklistNotes]     = useState('')
   const [checklistLoaded, setChecklistLoaded]   = useState(false)
   const [checklistSearch, setChecklistSearch]   = useState('')
-  const [detailedOpen, setDetailedOpen]         = useState(false)
+  const [detailedOpen, setDetailedOpen]         = useState(true)
 
   useEffect(() => {
     if (feedback && !checklistLoaded) {
@@ -681,6 +682,9 @@ export function SessionNotesModal({
   // Filters the checklist as the therapist types: a header match keeps all its options,
   // otherwise only options whose own text matches are kept (header stays for context).
   const checklistSearchTerm = checklistSearch.trim().toLowerCase()
+  const answeredCount = feedback
+    ? feedback.template.filter(q => (checklistAnswers.get(q.id) ?? []).length > 0).length
+    : 0
   const visibleTemplate = feedback && checklistSearchTerm
     ? feedback.template
         .map(q => {
@@ -804,33 +808,34 @@ export function SessionNotesModal({
           />
         </div>
 
-        {/* Detailed Feedback Options — the checklist, additional to Performance Score/Rating above;
-            only shown when the session's program has a template configured, collapsed by default
-            since it's supplementary detail rather than something every save needs to touch. */}
+        {/* Additional Feedback — the checklist, additional to Performance Score/Rating above;
+            only shown when the session's program has a template configured. Open by default and
+            styled as a highlighted card so it isn't mistaken for optional fine print. */}
         {!feedbackLoading && feedback && feedback.template.length > 0 && (
-          <div className="rounded-xl overflow-hidden" style={{ border: border.card }}>
+          <div className="rounded-xl overflow-hidden"
+            style={{ border: `1.5px solid ${accentAlpha(0.45)}`, background: accentAlpha(0.04) }}>
             <button
               type="button"
               onClick={() => setDetailedOpen(o => !o)}
-              className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold transition-colors"
-              style={{ color: colors.text.primary, background: detailedOpen ? surface.filterStrip : surface.rowHover }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.08)}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = detailedOpen ? surface.filterStrip : surface.rowHover}
+              aria-expanded={detailedOpen}
+              className="w-full flex items-center justify-between gap-2 px-3 py-3 text-sm font-semibold transition-colors"
+              style={{ color: colors.text.heading, background: accentAlpha(detailedOpen ? 0.10 : 0.08) }}
             >
-              <span className="flex items-center gap-2">
-                Detailed Feedback Options
-                {!detailedOpen && (
-                  <span className="text-xs font-normal" style={{ color: colors.text.dim }}>
-                    ({feedback.template.length} question{feedback.template.length !== 1 ? 's' : ''})
-                  </span>
-                )}
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
+                <ListChecks size={16} style={{ color: colors.accent, flexShrink: 0 }} />
+                Additional Feedback
+                <span className="text-xs font-normal" style={{ color: colors.text.muted }}>
+                  ({feedback.template.length} question{feedback.template.length !== 1 ? 's' : ''}
+                  {' · '}{answeredCount} answered)
+                </span>
               </span>
               <ChevronRight
-                size={15}
+                size={16}
                 style={{
                   transform: detailedOpen ? 'rotate(90deg)' : 'rotate(0deg)',
                   transition: 'transform 0.15s ease',
                   flexShrink: 0,
+                  color: colors.accent,
                 }}
               />
             </button>
