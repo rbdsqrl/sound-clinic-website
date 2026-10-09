@@ -2204,6 +2204,13 @@ export interface EngagementOverviewResponse {
 }
 
 /** Dashboard Organisation Overview ring counts. */
+/** How many items wait on each needs-attention card — the lists load only when above zero. */
+export interface AttentionCountsResponse {
+  pendingReschedule: number
+  cancellationRequests: number
+  openConcerns: number
+}
+
 export interface OrgOverviewResponse {
   activeCases: number
   inactiveCases: number

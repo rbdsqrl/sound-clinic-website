@@ -2175,26 +2175,40 @@ export default function DashboardPage() {
     enabled: isStaff,
     staleTime: 2 * 60 * 1000,
   })
-  const { data: pendingReschedule = [], isLoading: loadingReschedule, refetch: refetchPending } = useQuery({
-    queryKey: ['sessions-pending-reschedule'],
-    queryFn: () => therapySessionsApi.list({ status: 'PENDING_RESCHEDULE' }),
-    enabled: canReschedule,
+  // The three needs-attention cards are usually empty, so ask for their counts first (one tiny
+  // call) and fetch a list only when its count is above zero.
+  const { data: attention } = useQuery({
+    queryKey: ['dashboard', 'attention-counts'],
+    queryFn: dashboardApi.attentionCounts,
+    enabled: isOwnerOrAdmin,
     staleTime: 2 * 60 * 1000,
   })
-  const { data: cancellationRequests = [], isLoading: loadingCancellation, refetch: refetchCancelRequests } = useQuery({
+  const { data: pendingReschedule = [], isLoading: loadingReschedule, refetch: refetchPendingList } = useQuery({
+    queryKey: ['sessions-pending-reschedule'],
+    queryFn: () => therapySessionsApi.list({ status: 'PENDING_RESCHEDULE' }),
+    enabled: canReschedule && (attention?.pendingReschedule ?? 0) > 0,
+    staleTime: 2 * 60 * 1000,
+  })
+  const { data: cancellationRequests = [], isLoading: loadingCancellation, refetch: refetchCancelList } = useQuery({
     queryKey: ['sessions-cancellation-requests'],
     queryFn: () => therapySessionsApi.list({ status: 'CANCELLATION_REQUESTED' }),
-    enabled: isOwnerOrAdmin,
+    enabled: isOwnerOrAdmin && (attention?.cancellationRequests ?? 0) > 0,
     staleTime: 2 * 60 * 1000,
   })
   // Parent-raised concerns, org-wide — Admin Roles only (Business Owner / Clinic Head /
   // Office Admin). Therapists already see concerns on their own patients' Case details page.
-  const { data: openConcerns = [], isLoading: loadingConcerns, refetch: refetchConcerns } = useQuery({
+  const { data: openConcerns = [], isLoading: loadingConcerns, refetch: refetchConcernsList } = useQuery({
     queryKey: ['enrollment-concerns-open'],
     queryFn: () => concernsApi.list({ status: 'OPEN' }),
-    enabled: isOwnerOrAdmin,
+    enabled: isOwnerOrAdmin && (attention?.openConcerns ?? 0) > 0,
     staleTime: 2 * 60 * 1000,
   })
+  // After a card's action, refresh its list and the counts that decide whether the card shows.
+  const refreshAttention = () => qc.invalidateQueries({ queryKey: ['dashboard', 'attention-counts'] })
+  const refetchPending       = () => { refetchPendingList();  refreshAttention() }
+  const refetchCancelRequests = () => { refetchCancelList();   refreshAttention() }
+  const refetchConcerns      = () => { refetchConcernsList(); refreshAttention() }
+
   // Still SCHEDULED but the session's own end time has already passed — nobody
   // marked it complete/missed or wrote it up. Only shows on the assigned
   // Therapist's own dashboard, since they're the one who has to act on it.
