@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Baby, ChevronRight, Clock, RefreshCw, UserCheck, AlertTriangle } from 'lucide-react'
+import { Baby, ChevronRight, Clock, UserCheck, AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { patientsApi } from '../../api/patients'
 import { therapySessionsApi } from '../../api/therapySessions'
@@ -16,7 +16,7 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
-import { colors, border, accentAlpha, palette, paletteStyle } from '../../theme'
+import { colors, border, accentAlpha, paletteStyle } from '../../theme'
 import { useTheme } from '../../contexts/ThemeContext'
 import { getAvatarColorStyles } from '../../lib/avatarColor'
 
@@ -90,8 +90,6 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
 }
 
 function ChildSessions({ childId }: { childId: string }) {
-  const qc = useQueryClient()
-  const { toast } = useToast()
   const [showAll, setShowAll] = useState(false)
 
   const { data: sessions = [], isLoading } = useQuery({
@@ -102,20 +100,8 @@ function ChildSessions({ childId }: { childId: string }) {
     }),
   })
 
-  const requestMutation = useMutation({
-    mutationFn: (sessionId: string) => therapySessionsApi.requestReschedule(sessionId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['child-sessions', childId] })
-      toast('Reschedule request sent to the clinic', 'success')
-    },
-    onError: (err) => toast(getApiError(err, 'Failed to send request'), 'error'),
-  })
-
   const upcoming = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
 
-  // Plan-level allowance, the same on every session of the plan.
-  const remaining = upcoming[0]?.parentReschedulesRemaining ?? null
-  const noneLeft  = remaining === 0
   const visible   = showAll ? upcoming : upcoming.slice(0, 3)
 
   return (
@@ -125,14 +111,6 @@ function ChildSessions({ childId }: { childId: string }) {
           <p className="text-[11.5px] font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>
             Upcoming Sessions
           </p>
-          {remaining !== null && (
-            <span className="text-[11.5px]"
-              style={{ color: noneLeft ? colors.status.warning : colors.text.dim }}>
-              {noneLeft
-                ? 'No reschedules left'
-                : `${remaining} reschedule${remaining === 1 ? '' : 's'} left`}
-            </span>
-          )}
         </div>
 
         {isLoading ? (
@@ -165,27 +143,13 @@ function ChildSessions({ childId }: { childId: string }) {
                   </div>
                 </div>
 
-                {s.status === 'PENDING_RESCHEDULE' ? (
+                {s.status === 'PENDING_RESCHEDULE' && (
                   <span
                     className="flex-shrink-0 text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
                     style={paletteStyle('amber', 0.10, 0.15)}
                   >
                     Rescheduling
                   </span>
-                ) : (
-                  <button
-                    onClick={() => requestMutation.mutate(s.id)}
-                    disabled={requestMutation.isPending || (noneLeft && !s.parentRescheduleRequested)}
-                    title={noneLeft && !s.parentRescheduleRequested
-                      ? 'You have used all the reschedules on this therapy plan — contact the clinic'
-                      : undefined}
-                    className="flex-shrink-0 flex items-center gap-1 text-[12.65px] font-medium px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
-                    style={paletteStyle('purple', 0.08, 0.12)}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = `rgba(${palette.purple.raw}, 0.14)`}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = `rgba(${palette.purple.raw}, 0.08)`}
-                  >
-                    <RefreshCw size={10} /> Reschedule
-                  </button>
                 )}
               </div>
             ))}

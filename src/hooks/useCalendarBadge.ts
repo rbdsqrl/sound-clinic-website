@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useIsFetching, useQuery } from '@tanstack/react-query'
 import { format, parseISO, isAfter } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../types'
@@ -7,12 +7,19 @@ import { inquiriesApi } from '../api/inquiries'
 import { leavesApi } from '../api/leaves'
 import { therapySessionsApi } from '../api/therapySessions'
 
+/** The queries this hook owns, which must not count as "the page is busy". */
+const BADGE_QUERY_KEYS = new Set(['inquiries', 'leaves'])
+/** Longest the badge waits for the page's own requests before loading anyway. */
+const BADGE_MAX_WAIT_MS = 5000
+/** Gives the page's own requests a moment to start before "nothing is fetching" is believed. */
+const BADGE_ARM_DELAY_MS = 800
+
 /**
  * Returns the count of calendar events happening TODAY.
  * Used by the Sidebar to show a badge on the Calendar nav item.
  *
- * Shares TanStack Query cache with CalendarPage — no duplicate API calls
- * when both are mounted at the same time.
+ * Loads after the page's own requests settle (see `settled`), using slim rows shared with the
+ * dashboard's Today's Sessions card. The Calendar page fetches its own data only when opened.
  */
 export function useCalendarBadge(): number {
   const { user } = useAuth()
@@ -25,24 +32,44 @@ export function useCalendarBadge(): number {
 
   const todayKey = format(new Date(), 'yyyy-MM-dd')
 
+  // The badge is decoration, so it waits for the page's own requests to finish — the dashboard
+  // fires a dozen at once, and these three would only join the queue. It counts only its own
+  // queries out of "busy", so it can't wait on itself, and gives up waiting after a few seconds
+  // in case some other request never settles.
+  const busy = useIsFetching({
+    predicate: q => q.queryKey[1] !== 'summary' && !BADGE_QUERY_KEYS.has(String(q.queryKey[0])),
+  }) > 0
+  // On the very first render nothing has started fetching yet, so "not busy" means nothing —
+  // hold off briefly (armed) so the page's own requests get under way and are seen as busy.
+  const [armed, setArmed] = useState(false)
+  const [waitedLongEnough, setWaitedLongEnough] = useState(false)
+  useEffect(() => {
+    const arm = setTimeout(() => setArmed(true), BADGE_ARM_DELAY_MS)
+    const giveUp = setTimeout(() => setWaitedLongEnough(true), BADGE_MAX_WAIT_MS)
+    return () => { clearTimeout(arm); clearTimeout(giveUp) }
+  }, [])
+  const settled = waitedLongEnough || (armed && !busy)
+
   const { data: inquiries = [] } = useQuery({
     queryKey: ['inquiries'],
     queryFn:  () => inquiriesApi.list(),
-    enabled:  canSeeInquiries,
+    enabled:  canSeeInquiries && settled,
     staleTime: 5 * 60 * 1000,
   })
 
   const { data: leaves = [] } = useQuery({
     queryKey: ['leaves'],
     queryFn:  () => leavesApi.list(),
-    enabled:  canSeeLeaves,
+    enabled:  canSeeLeaves && settled,
     staleTime: 5 * 60 * 1000,
   })
 
   const { data: sessions = [] } = useQuery({
-    queryKey: ['therapy-sessions-cal', { from: todayKey, to: todayKey }],
-    queryFn:  () => therapySessionsApi.list({ from: todayKey, to: todayKey }),
-    enabled:  canSeeSessions,
+    // Same slim rows and key as the dashboard's Today's Sessions card, so on the dashboard this
+    // is a cache hit rather than a second call.
+    queryKey: ['therapy-sessions-cal', 'summary', todayKey],
+    queryFn:  () => therapySessionsApi.summary(todayKey, todayKey),
+    enabled:  canSeeSessions && settled,
     staleTime: 60 * 1000,
   })
 

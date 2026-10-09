@@ -158,7 +158,7 @@ export default function ActivityDetailPage() {
 /** Assignments are fetched per-patient by the API, so this section resolves them by scanning
  *  each patient's assignment list rather than a dedicated "by activity" endpoint. */
 function PatientAssignmentsList({ activityId }: { activityId: string }) {
-  const { data: patients = [] } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
+  const { data: patients = [] } = useQuery({ queryKey: ['patients', 'compact'], queryFn: patientsApi.listCompact })
   const { data: allAssignments = [], isLoading } = useQuery({
     queryKey: ['activity-assignments-scan', activityId, patients.map((p) => p.id).join(',')],
     queryFn: async () => {

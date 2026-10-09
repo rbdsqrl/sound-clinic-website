@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, keepPreviousData, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, Repeat, ClipboardList, IndianRupee } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
@@ -16,7 +16,7 @@ import { usersApi } from '../api/users'
 import { Avatar } from '../components/shared/Avatar'
 import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
 import { MockRazorpayModal } from '../components/subscriptions/MockRazorpayModal'
-import { PageLoader } from '../components/ui/Spinner'
+import { PageLoader, Spinner } from '../components/ui/Spinner'
 import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
 import { StarRating } from './patients/ReviewMeetings'
 import { Modal } from '../components/ui/Modal'
@@ -33,7 +33,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr, formatDateStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionSummary, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse } from '../types'
 
 function formatINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -146,9 +146,9 @@ function TodaySessions({
   showTherapist,
   onSessionClick,
 }: {
-  sessions: TherapySessionResponse[]
+  sessions: TherapySessionSummary[]
   showTherapist: boolean
-  onSessionClick?: (s: TherapySessionResponse) => void
+  onSessionClick?: (s: TherapySessionSummary) => void
 }) {
   const [showAll, setShowAll] = useState(false)
   const sectionCard: React.CSSProperties = {
@@ -158,12 +158,12 @@ function TodaySessions({
 
   // Notes are only actually overdue once the session has finished — while it's
   // still running, "Notes overdue" would just be wrong.
-  const isOverdue = (s: TherapySessionResponse) =>
+  const isOverdue = (s: TherapySessionSummary) =>
     s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.endTime.slice(0, 5))
-  const isOngoing = (s: TherapySessionResponse) =>
+  const isOngoing = (s: TherapySessionSummary) =>
     s.status === 'SCHEDULED' && !isOverdue(s) && isPastDateTime(s.sessionDate, s.startTime.slice(0, 5))
 
-  const rowContent = (s: TherapySessionResponse) => (
+  const rowContent = (s: TherapySessionSummary) => (
     <>
       <span className="text-[11px] font-medium tabular-nums flex-shrink-0 w-12" style={{ color: colors.text.muted }}>
         {formatTimeStr(s.startTime)}
@@ -1299,12 +1299,19 @@ function OrgOverview({ counts }: { counts: OrgOverviewResponse }) {
 
 /** Cases added within a date range (last 7 days by default), filterable by therapist
  *  and therapy/program — Clinic Head / Office Admin / Business Owner only. */
-function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
+function RecentlyJoinedChildren() {
   const [showAll, setShowAll] = useState(false)
   const [from, setFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
   const [to, setTo] = useState(today)
   const [therapistId, setTherapistId] = useState('')
   const [therapyName, setTherapyName] = useState('')
+
+  // The date window is applied in SQL, so only cases that joined in it are loaded.
+  const { data: patients = [], isLoading } = useQuery({
+    queryKey: ['patients', 'joined', from, to],
+    queryFn: () => patientsApi.listJoined(from, to),
+    placeholderData: keepPreviousData,   // no skeleton flash while a date is being changed
+  })
 
   const therapistOptions = useMemo(() => {
     const byId = new Map<string, string>()
@@ -1374,6 +1381,8 @@ function RecentlyJoinedChildren({ patients }: { patients: PatientResponse[] }) {
       </span>
     </Link>
   )
+
+  if (isLoading) return <CardSkeleton />
 
   return (
     <>
@@ -1568,6 +1577,25 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
 }
 
 // ── Session update modal (therapist dashboard shortcut) ───────────────
+
+/** Fetches the full session when a row is clicked, so the dashboard list itself can stay slim. */
+function SessionUpdateModalLoader({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const { data: session, isError } = useQuery({
+    queryKey: ['therapy-session', sessionId],
+    queryFn: () => therapySessionsApi.get(sessionId),
+    gcTime: 0,   // always read fresh when reopened — never show stale notes or ratings
+  })
+
+  if (session) return <SessionUpdateModal session={session} onClose={onClose} />
+
+  return (
+    <Modal open title="Session" onClose={onClose} size="lg">
+      {isError
+        ? <p className="text-sm py-6 text-center" style={{ color: colors.status.danger }}>Couldn't load this session.</p>
+        : <div className="py-10 flex justify-center"><Spinner /></div>}
+    </Modal>
+  )
+}
 
 function SessionUpdateModal({
   session,
@@ -2118,13 +2146,13 @@ export default function DashboardPage() {
   // details page's ConcernsBanner canAct gating.
   const canActOnConcerns   = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
 
-  const [editingSession, setEditingSession] = useState<TherapySessionResponse | null>(null)
+  // Just the id — the modal fetches the full session (notes, rating, totals) when it opens.
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [mockPayTarget, setMockPayTarget] = useState<SubscriptionResponse | null>(null)
   const qc = useQueryClient()
 
   // Only RecentlyJoinedChildren (Admin Roles) renders from this list — the Organisation Overview
   // counts come from their own endpoint — so it isn't fetched at all for therapists.
-  const { data: patients,   isLoading: loadingPatients }  = useQuery({ queryKey: ['patients', 'all-statuses'], queryFn: patientsApi.listAllStatuses, enabled: isOwnerOrAdmin })
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
   // Next few sessions across all of this parent's children — widened to a 90-day window since
   // sessions can run weekly or less often, then trimmed client-side to the soonest 3 still live
@@ -2138,12 +2166,12 @@ export default function DashboardPage() {
   const upcomingSessions = upcomingSessionsRaw
     .filter(s => s.status !== 'CANCELLED' && s.status !== 'COMPLETED' && s.status !== 'NO_SHOW')
     .slice(0, PREVIEW)
-  // Same queryKey shape as useCalendarBadge (Sidebar) and CalendarPage's 'therapy-sessions-cal'
-  // cache — both request today's sessions with identical params, so sharing the key means one
-  // network call instead of two whenever the Sidebar and Dashboard are mounted together.
+  // Slim rows (names + times) — enough to draw the card and the Sidebar's calendar badge, which
+  // shares this key so one call serves both. The key sits under 'therapy-sessions-cal' so the
+  // existing invalidations after a session changes refresh it too.
   const { data: todaySessions = [], isLoading: loadingSessions } = useQuery({
-    queryKey: ['therapy-sessions-cal', { from: today, to: today }],
-    queryFn: () => therapySessionsApi.list({ from: today, to: today }),
+    queryKey: ['therapy-sessions-cal', 'summary', today],
+    queryFn: () => therapySessionsApi.summary(today, today),
     enabled: isStaff,
     staleTime: 2 * 60 * 1000,
   })
@@ -2343,7 +2371,7 @@ export default function DashboardPage() {
               <TodaySessions
                 sessions={todaySessions}
                 showTherapist={isOwnerOrAdmin}
-                onSessionClick={canUpdateSession ? setEditingSession : undefined}
+                onSessionClick={canUpdateSession ? (s) => setEditingSessionId(s.id) : undefined}
               />
             )}
 
@@ -2351,17 +2379,17 @@ export default function DashboardPage() {
             {isStaff && <MomPanel />}
 
             {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
-            {isOwnerOrAdmin && (loadingPatients ? <CardSkeleton /> : <RecentlyJoinedChildren patients={patients ?? []} />)}
+            {isOwnerOrAdmin && <RecentlyJoinedChildren />}
             {isOwnerOrAdmin && (loadingOrgOverview || !orgOverview ? <CardSkeleton /> : <OrgOverview counts={orgOverview} />)}
             <MyTasks userId={user?.id ?? ''} />
           </div>
         )
       })()}
 
-      {editingSession && (
-        <SessionUpdateModal
-          session={editingSession}
-          onClose={() => setEditingSession(null)}
+      {editingSessionId && (
+        <SessionUpdateModalLoader
+          sessionId={editingSessionId}
+          onClose={() => setEditingSessionId(null)}
         />
       )}
     </div>

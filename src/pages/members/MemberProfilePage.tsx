@@ -740,7 +740,6 @@ function ChildUpcomingSessions({ childId }: { childId: string }) {
   })
 
   const upcoming = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE')
-  const remaining = upcoming[0]?.parentReschedulesRemaining ?? null
   const visible = showAll ? upcoming : upcoming.slice(0, 3)
 
   return (
@@ -749,11 +748,6 @@ function ChildUpcomingSessions({ childId }: { childId: string }) {
         <p className="text-[11.5px] font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>
           Upcoming Sessions
         </p>
-        {remaining !== null && (
-          <span className="text-[11.5px]" style={{ color: colors.text.dim }}>
-            {remaining} reschedule{remaining === 1 ? '' : 's'} left
-          </span>
-        )}
       </div>
 
       {isLoading ? (

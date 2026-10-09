@@ -34,6 +34,20 @@ export const patientsApi = {
     client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params: { size: 1000 } })
       .then((r) => r.data.data.content),
 
+  /** Same as `list`, but parents/therapists come back as id-only stubs (blank names). Use for
+   *  pickers that only show the patient's own name — it skips resolving and sending every
+   *  parent/therapist, which is the heavy part of loading the full list. */
+  listCompact: () =>
+    client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', { params: { size: 1000, compact: true } })
+      .then((r) => r.data.data.content),
+
+  /** Cases created between `from` and `to` (yyyy-MM-dd, inclusive), any status — the date window
+   *  is applied in SQL, so only those cases are loaded. For the dashboard's Recently Joined card. */
+  listJoined: (from: string, to: string) =>
+    client.get<ApiResponse<PagedResponse<PatientResponse>>>('/patients', {
+      params: { size: 1000, status: '', joinedFrom: from || undefined, joinedTo: to || undefined },
+    }).then((r) => r.data.data.content),
+
   /** Every patient in the org regardless of status — for a view that legitimately needs
    *  discharged/inactive cases alongside active ones (e.g. reviewing a discharged case's
    *  historical analytics). Prefer `list` unless you specifically need this. */

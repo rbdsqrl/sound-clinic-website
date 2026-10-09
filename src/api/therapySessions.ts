@@ -3,6 +3,7 @@ import type {
   CreateAdHocSessionRequest,
   ApiResponse,
   TherapySessionResponse,
+  TherapySessionSummary,
   UpdateSessionStatusRequest,
   UpdateSessionNotesRequest,
   RescheduleSessionRequest,
@@ -23,6 +24,17 @@ export const therapySessionsApi = {
     status?: string
   }) =>
     client.get<ApiResponse<TherapySessionResponse[]>>('/therapy-sessions', { params })
+      .then(r => r.data.data),
+
+  /** Slim rows (names + times only) for a date range — for lists that just draw a row, so the
+   *  notes, feedback and plan totals aren't sent. Open one with `get`. */
+  summary: (from: string, to: string) =>
+    client.get<ApiResponse<TherapySessionSummary[]>>('/therapy-sessions/summary', { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** One session in full — notes, feedback, plan totals and the parent's remaining reschedules. */
+  get: (id: string) =>
+    client.get<ApiResponse<TherapySessionResponse>>(`/therapy-sessions/${id}`)
       .then(r => r.data.data),
 
   /** All sessions for a specific enrollment (used in patient detail page) */

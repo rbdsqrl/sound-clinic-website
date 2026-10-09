@@ -49,8 +49,8 @@ export default function AdHocSessionModal({
   const [error, setError]         = useState('')
 
   const { data: patients = [] } = useQuery({
-    queryKey: ['patients'],
-    queryFn:  () => patientsApi.list(),
+    queryKey: ['patients', 'compact'],
+    queryFn:  () => patientsApi.listCompact(),
     enabled:  !fixedPlan,
   })
 

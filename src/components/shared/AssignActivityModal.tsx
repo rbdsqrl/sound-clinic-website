@@ -29,7 +29,7 @@ export function AssignActivityModal({ activityId, activityTitle, onClose, onAssi
   const currentRole = activeRole ?? user?.role
   const isTherapist = currentRole === 'THERAPIST'
 
-  const { data: patients = [] } = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list })
+  const { data: patients = [] } = useQuery({ queryKey: ['patients', 'compact'], queryFn: patientsApi.listCompact })
   const { data: staff = [] } = useQuery({ queryKey: ['assignable'], queryFn: () => usersApi.listAssignable() })
   const therapists = staff.filter((u) => u.role === 'THERAPIST')
 

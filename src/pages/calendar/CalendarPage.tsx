@@ -1917,6 +1917,24 @@ function SessionEventModal({
 
   const cancellationRequested = canCancel && session.status === 'CANCELLATION_REQUESTED'
 
+  // A parent can ask the clinic to move a session. How many requests the plan has left isn't
+  // sent with the calendar list (it costs a query per plan), so it's fetched here, once, when
+  // this session is opened.
+  const canRequestReschedule = hideFeedback && !canReschedule
+    && session.status === 'SCHEDULED' && !session.awaitingPayment
+  const { data: fullSession } = useQuery({
+    queryKey: ['therapy-session', session.id],
+    queryFn: () => therapySessionsApi.get(session.id),
+    enabled: canRequestReschedule,
+    gcTime: 0,
+  })
+  const remaining = fullSession?.parentReschedulesRemaining
+  const noneLeft = remaining === 0 && !session.parentRescheduleRequested
+  const requestRescheduleMut = useMutation({
+    mutationFn: () => therapySessionsApi.requestReschedule(session.id),
+    onSuccess: invalidateAndClose,
+  })
+
   return (
     <>
       <SessionNotesModal
@@ -1926,7 +1944,16 @@ function SessionEventModal({
         hideFeedback={hideFeedback}
         enrollmentId={session.enrollmentId}
         onClose={onClose}
-        onReschedule={canReschedule && session.status === 'SCHEDULED' ? () => setRescheduleOpen(true) : undefined}
+        onReschedule={
+          canReschedule && session.status === 'SCHEDULED' ? () => setRescheduleOpen(true)
+          : canRequestReschedule ? () => requestRescheduleMut.mutate()
+          : undefined
+        }
+        rescheduleLabel={canRequestReschedule ? 'Request reschedule' : undefined}
+        rescheduleDisabled={canRequestReschedule && (remaining === undefined || noneLeft || requestRescheduleMut.isPending)}
+        rescheduleNote={canRequestReschedule && remaining !== undefined
+          ? (noneLeft ? 'No reschedules left' : `${remaining} reschedule${remaining === 1 ? '' : 's'} left`)
+          : undefined}
         cancellationRequested={cancellationRequested}
         onApproveCancellation={cancellationRequested ? () => approveCancellationMut.mutate() : undefined}
         onRejectCancellation={cancellationRequested ? () => rejectCancellationMut.mutate() : undefined}

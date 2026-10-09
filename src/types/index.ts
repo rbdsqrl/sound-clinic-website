@@ -836,6 +836,24 @@ export interface AvailableTherapistsQuery {
 export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE' | 'CANCELLATION_REQUESTED'
 export type RescheduleReason = 'THERAPIST_LEAVE' | 'PUBLIC_HOLIDAY' | 'PARENT_REQUEST'
 
+/** Slim session row from GET /therapy-sessions/summary — enough to draw a list row. Open the
+ *  full TherapySessionResponse with therapySessionsApi.get(id) when one is clicked. */
+export interface TherapySessionSummary {
+  id: string
+  enrollmentId: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  therapistId: string
+  therapistFirstName: string
+  therapistLastName: string
+  programName: string
+  sessionDate: string
+  startTime: string
+  endTime: string
+  status: TherapySessionStatus
+}
+
 export interface TherapySessionResponse {
   id: string
   enrollmentId: string

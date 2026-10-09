@@ -551,6 +551,9 @@ export function SessionNotesModal({
   enrollmentId,
   onClose,
   onReschedule,
+  rescheduleLabel = 'Reschedule',
+  rescheduleDisabled = false,
+  rescheduleNote,
   cancellationRequested,
   onApproveCancellation,
   onRejectCancellation,
@@ -566,6 +569,11 @@ export function SessionNotesModal({
   onClose: () => void
   /** Calendar-only: renders a "Reschedule session" action when provided. */
   onReschedule?: () => void
+  /** Wording and state for that action — a parent's is a request, and can run out. */
+  rescheduleLabel?: string
+  rescheduleDisabled?: boolean
+  /** Small hint beside the action, e.g. how many requests a parent has left. */
+  rescheduleNote?: string
   /** Calendar-only: renders the approve/reject block when true and handlers are provided. */
   cancellationRequested?: boolean
   onApproveCancellation?: () => void
@@ -705,16 +713,22 @@ export function SessionNotesModal({
       size="lg"
       variant="side"
       headerActions={onReschedule && session.status === 'SCHEDULED' ? (
-        <button
-          type="button"
-          onClick={onReschedule}
-          className="flex items-center gap-1 text-[11.5px] font-medium px-2 py-1.5 rounded-lg flex-shrink-0 transition-colors"
-          style={{ color: colors.accent }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-        >
-          <CalendarClock size={12} /> Reschedule
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {rescheduleNote && (
+            <span className="text-[11.5px]" style={{ color: colors.text.dim }}>{rescheduleNote}</span>
+          )}
+          <button
+            type="button"
+            onClick={onReschedule}
+            disabled={rescheduleDisabled}
+            className="flex items-center gap-1 text-[11.5px] font-medium px-2 py-1.5 rounded-lg flex-shrink-0 transition-colors disabled:opacity-50"
+            style={{ color: colors.accent }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+          >
+            <CalendarClock size={12} /> {rescheduleLabel}
+          </button>
+        </div>
       ) : undefined}
     >
       {/* Session info strip */}
