@@ -4,6 +4,7 @@ import type {
   ApiResponse,
   TherapySessionResponse,
   TherapySessionSummary,
+  OverdueNotesResponse,
   UpdateSessionStatusRequest,
   UpdateSessionNotesRequest,
   RescheduleSessionRequest,
@@ -30,6 +31,13 @@ export const therapySessionsApi = {
    *  notes, feedback and plan totals aren't sent. Open one with `get`. */
   summary: (from: string, to: string) =>
     client.get<ApiResponse<TherapySessionSummary[]>>('/therapy-sessions/summary', { params: { from, to } })
+      .then(r => r.data.data),
+
+  /** The caller's own sessions that have ended but are still SCHEDULED (last 90 days, judged on
+   *  the organisation's clock): the total plus the first `limit` rows, oldest first. Omit `limit`
+   *  for all of them. */
+  overdueNotes: (limit?: number) =>
+    client.get<ApiResponse<OverdueNotesResponse>>('/therapy-sessions/overdue-notes', { params: { limit } })
       .then(r => r.data.data),
 
   /** One session in full — notes, feedback, plan totals and the parent's remaining reschedules. */

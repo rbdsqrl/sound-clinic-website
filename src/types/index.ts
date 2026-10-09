@@ -836,6 +836,12 @@ export interface AvailableTherapistsQuery {
 export type TherapySessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_RESCHEDULE' | 'CANCELLATION_REQUESTED'
 export type RescheduleReason = 'THERAPIST_LEAVE' | 'PUBLIC_HOLIDAY' | 'PARENT_REQUEST'
 
+/** The caller's ended-but-unmarked sessions: the full total plus as many rows as were asked for. */
+export interface OverdueNotesResponse {
+  count: number
+  sessions: TherapySessionSummary[]
+}
+
 /** Slim session row from GET /therapy-sessions/summary — enough to draw a list row. Open the
  *  full TherapySessionResponse with therapySessionsApi.get(id) when one is clicked. */
 export interface TherapySessionSummary {
@@ -882,8 +888,6 @@ export interface TherapySessionResponse {
   rescheduleLeaveEndDate: string | null
   /** True once a parent has asked for this session to be moved. Never resets. */
   parentRescheduleRequested: boolean
-  /** Sessions of this plan the parent may still ask to move. */
-  parentReschedulesRemaining: number
   /** Booked by hand from the calendar rather than generated with the plan. */
   adHoc: boolean
   /** False when it is an extra, on top of the sessions the family paid for. */
@@ -1436,8 +1440,11 @@ export interface AttendanceResponse {
   userId: string
   userFirstName: string
   userLastName: string
-  clinicId: string
+  /** Null when the check-in was at the organisation's own location. */
+  clinicId: string | null
+  /** The clinic's name — or the organisation's, when `atOrganisation`. */
   clinicName: string
+  atOrganisation: boolean
   attendanceDate: string     // "YYYY-MM-DD"
   checkInTime: string | null
   checkOutTime: string | null
@@ -1452,7 +1459,10 @@ export interface AttendanceResponse {
 }
 
 export interface CheckInRequest {
-  clinicId: string
+  /** Required unless `atOrganisation`. */
+  clinicId?: string
+  /** Check in at the organisation's own location instead of a clinic — Business Owner only. */
+  atOrganisation?: boolean
   latitude?: number
   longitude?: number
   faceDescriptor?: number[]

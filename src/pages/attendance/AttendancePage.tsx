@@ -4,6 +4,7 @@ import * as faceapi from 'face-api.js'
 import { Camera, MapPin, CheckCircle, XCircle, Clock, LogIn, LogOut, UserCheck, AlertTriangle, RefreshCw } from 'lucide-react'
 import { attendanceApi } from '../../api/attendance'
 import { clinicsApi } from '../../api/clinics'
+import { organisationApi } from '../../api/organisation'
 import { useAuth } from '../../contexts/AuthContext'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
@@ -35,6 +36,9 @@ function VerifyBadge({ ok, label }: VerifyBadgeProps) {
     </span>
   )
 }
+
+/** The dropdown value for the organisation's own location (a Business Owner's alternative to a clinic). */
+const ORGANISATION_LOCATION = '__organisation__'
 
 function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
@@ -127,16 +131,32 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     queryFn: () => clinicsApi.list(),
   })
 
-  const clinicOptions = clinics.map(c => ({ value: c.id, label: c.name }))
+  // A Business Owner isn't tied to one clinic, so they can also check in at the organisation's
+  // own location. Everyone else picks a clinic.
+  const canPickOrganisation = user?.role === 'BUSINESS_OWNER'
+  const { data: organisation } = useQuery({
+    queryKey: ['organisation'],
+    queryFn: () => organisationApi.get(),
+    enabled: canPickOrganisation,
+  })
+  const clinicOptions = [
+    ...(canPickOrganisation
+      ? [{ value: ORGANISATION_LOCATION, label: `${organisation?.name ?? 'Organisation'} (Organisation)` }]
+      : []),
+    ...clinics.map(c => ({ value: c.id, label: c.name })),
+  ]
+  const atOrganisation = selectedClinicId === ORGANISATION_LOCATION
 
   useEffect(() => {
-    if (clinics.length > 0 && !selectedClinicId) {
+    if (!selectedClinicId && (clinics.length > 0 || canPickOrganisation)) {
+      // Owners start on the organisation — what they were always checked in against before.
+      if (canPickOrganisation) { setSelectedClinicId(ORGANISATION_LOCATION); return }
       const preferred = user?.clinicId
         ? clinics.find(c => c.id === user.clinicId)?.id
         : undefined
       setSelectedClinicId(preferred ?? clinics[0].id)
     }
-  }, [clinics, user?.clinicId, selectedClinicId])
+  }, [clinics, user?.clinicId, selectedClinicId, canPickOrganisation])
 
   // ── Face-api models ───────────────────────────────────────────────────────────
 
@@ -246,13 +266,17 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
   const checkedIn = today?.status === 'CHECKED_IN'
 
   // ── Live geo-fence preview ────────────────────────────────────────────────────
-  // Which clinic (or org, resolved server-side) the captured location is measured against —
-  // the one being checked into, or the existing record's clinic when fixing verification.
-  const previewClinicId = checkedIn ? today?.clinicId : selectedClinicId
+  // Which place the captured location is measured against — the one being checked into, or the
+  // existing record's place when fixing verification.
+  const previewAtOrganisation = checkedIn ? !!today?.atOrganisation : atOrganisation
+  const previewClinicId = checkedIn ? (today?.clinicId ?? undefined) : (atOrganisation ? undefined : selectedClinicId)
   const { data: geoCheck, isFetching: geoCheckLoading } = useQuery({
-    queryKey: ['attendance', 'geo-check', previewClinicId, location?.lat, location?.lon],
-    queryFn: () => attendanceApi.geoCheck({ clinicId: previewClinicId!, latitude: location!.lat, longitude: location!.lon }),
-    enabled: geoStatus === 'ok' && !!location && !!previewClinicId,
+    queryKey: ['attendance', 'geo-check', previewClinicId, previewAtOrganisation, location?.lat, location?.lon],
+    queryFn: () => attendanceApi.geoCheck({
+      clinicId: previewClinicId, atOrganisation: previewAtOrganisation,
+      latitude: location!.lat, longitude: location!.lon,
+    }),
+    enabled: geoStatus === 'ok' && !!location && (previewAtOrganisation || !!previewClinicId),
   })
 
   const checkInScan = useFaceScan(
@@ -283,7 +307,8 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
     mutationFn: async (force: boolean) => {
       if (!checkInScan.descriptor) throw new Error('No face detected')
       return attendanceApi.checkIn({
-        clinicId: selectedClinicId,
+        clinicId: atOrganisation ? undefined : selectedClinicId,
+        atOrganisation,
         latitude: location!.lat,
         longitude: location!.lon,
         faceDescriptor: checkInScan.descriptor,
@@ -484,7 +509,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
                 >
                   <AlertTriangle size={15} style={{ color: colors.status.error, flexShrink: 0, marginTop: 1 }} />
                   <span style={{ color: colors.text.primary }}>
-                    You're outside the clinic's geo-fence. Please move closer to the clinic and try again.
+                    You're outside the geo-fence for {geoCheck?.referenceLabel ?? 'this location'}. Please move closer and try again.
                   </span>
                 </div>
               )}
@@ -551,7 +576,7 @@ export default function AttendancePage({ asTab = false }: { asTab?: boolean }) {
           <div className="space-y-4">
             {!checkedIn && !enrollMode && (
               <Select
-                label="Clinic"
+                label={canPickOrganisation ? 'Location' : 'Clinic'}
                 value={selectedClinicId}
                 onChange={e => setSelectedClinicId(e.target.value)}
                 options={clinicOptions}

@@ -790,10 +790,17 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
   )
 }
 
-function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionResponse[] }) {
+/** `sessions` is just the preview; `count` is the full total. The rest load only when "View all"
+ *  is opened. */
+function PendingSessionNotesPanel({ count, sessions }: { count: number; sessions: TherapySessionSummary[] }) {
   const [showAll, setShowAll] = useState(false)
+  const { data: all, isLoading: loadingAll } = useQuery({
+    queryKey: ['therapy-sessions-cal', 'overdue-notes', 'all'],
+    queryFn: () => therapySessionsApi.overdueNotes(),
+    enabled: showAll,
+  })
 
-  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
+  const row = (s: TherapySessionSummary, i: number, arr: TherapySessionSummary[]) => (
     <Link
       key={s.id}
       to={ROUTES.enrollment(s.patientId, s.enrollmentId)}
@@ -850,7 +857,7 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
             </h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
               style={{ background: warningAlpha(0.09), color: colors.status.warning }}>
-              {sessions.length}
+              {count}
             </span>
           </div>
         </div>
@@ -861,23 +868,25 @@ function PendingSessionNotesPanel({ sessions }: { sessions: TherapySessionRespon
           </div>
         </div>
 
-        {sessions.length > PREVIEW && (
+        {count > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button
               onClick={() => setShowAll(true)}
               className="text-xs font-medium"
               style={{ color: colors.status.warning }}
             >
-              View all {sessions.length} sessions
+              View all {count} sessions
             </button>
           </div>
         )}
       </div>
 
       {showAll && (
-        <Modal open title={`Action Needed (${sessions.length})`} onClose={() => setShowAll(false)} size="lg">
+        <Modal open title={`Action Needed (${count})`} onClose={() => setShowAll(false)} size="lg">
           <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
-            {sessions.map((s, i) => row(s, i, sessions))}
+            {loadingAll || !all
+              ? <div className="py-10 flex justify-center"><Spinner /></div>
+              : all.sessions.map((s, i) => row(s, i, all.sessions))}
           </div>
         </Modal>
       )}
@@ -2209,21 +2218,16 @@ export default function DashboardPage() {
   const refetchCancelRequests = () => { refetchCancelList();   refreshAttention() }
   const refetchConcerns      = () => { refetchConcernsList(); refreshAttention() }
 
-  // Still SCHEDULED but the session's own end time has already passed — nobody
-  // marked it complete/missed or wrote it up. Only shows on the assigned
-  // Therapist's own dashboard, since they're the one who has to act on it.
-  // Scoped to their own caseload via the date-range endpoint — the status-only
-  // lookup ignores caller role entirely, so it can't be used here without
-  // leaking every other therapist's sessions.
-  const { data: scheduledSessions = [], isLoading: loadingScheduled } = useQuery({
-    queryKey: ['sessions-scheduled-all', activeRole],
-    queryFn: () => therapySessionsApi.list({ from: format(subDays(new Date(), 90), 'yyyy-MM-dd'), to: today }),
+  // Still SCHEDULED but the session's own end time has already passed — nobody marked it
+  // complete/missed or wrote it up. Only the assigned Therapist's own dashboard shows it, since
+  // they're the one who has to act. The server decides "passed" on the organisation's clock and
+  // returns the total plus just the preview rows; "View all" loads the rest on demand.
+  const { data: overdueNotes, isLoading: loadingScheduled } = useQuery({
+    queryKey: ['therapy-sessions-cal', 'overdue-notes', 'preview'],
+    queryFn: () => therapySessionsApi.overdueNotes(PREVIEW),
     enabled: isTherapistRole,
     staleTime: 2 * 60 * 1000,
   })
-  const pendingNotes = scheduledSessions
-    .filter(s => s.status === 'SCHEDULED')
-    .filter(s => isPastDateTime(s.sessionDate, s.endTime.slice(0, 5)))
 
   const { data: upcomingBirthdays = [], isLoading: loadingBirthdays } = useQuery({
     queryKey: ['upcoming-birthdays'],
@@ -2350,7 +2354,7 @@ export default function DashboardPage() {
       {(() => {
         const hasReschedule   = canReschedule && pendingReschedule.length > 0
         const hasCancellation = isOwnerOrAdmin && cancellationRequests.length > 0
-        const hasPendingNotes = isTherapistRole && pendingNotes.length > 0
+        const hasPendingNotes = isTherapistRole && (overdueNotes?.count ?? 0) > 0
         const hasConcerns     = isOwnerOrAdmin && openConcerns.length > 0
 
         return (
@@ -2378,7 +2382,7 @@ export default function DashboardPage() {
             ))}
 
             {isTherapistRole && (loadingScheduled ? <CardSkeleton /> : hasPendingNotes && (
-              <PendingSessionNotesPanel sessions={pendingNotes} />
+              <PendingSessionNotesPanel count={overdueNotes?.count ?? 0} sessions={overdueNotes?.sessions ?? []} />
             ))}
 
             {loadingSessions ? <CardSkeleton /> : (

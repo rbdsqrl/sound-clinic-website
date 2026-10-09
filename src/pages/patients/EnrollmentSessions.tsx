@@ -553,7 +553,6 @@ export function SessionNotesModal({
   onReschedule,
   rescheduleLabel = 'Reschedule',
   rescheduleDisabled = false,
-  rescheduleNote,
   cancellationRequested,
   onApproveCancellation,
   onRejectCancellation,
@@ -569,11 +568,9 @@ export function SessionNotesModal({
   onClose: () => void
   /** Calendar-only: renders a "Reschedule session" action when provided. */
   onReschedule?: () => void
-  /** Wording and state for that action — a parent's is a request, and can run out. */
+  /** Wording and state for that action — a parent's is a request rather than a move. */
   rescheduleLabel?: string
   rescheduleDisabled?: boolean
-  /** Small hint beside the action, e.g. how many requests a parent has left. */
-  rescheduleNote?: string
   /** Calendar-only: renders the approve/reject block when true and handlers are provided. */
   cancellationRequested?: boolean
   onApproveCancellation?: () => void
@@ -714,9 +711,6 @@ export function SessionNotesModal({
       variant="side"
       headerActions={onReschedule && session.status === 'SCHEDULED' ? (
         <div className="flex items-center gap-2 flex-shrink-0">
-          {rescheduleNote && (
-            <span className="text-[11.5px]" style={{ color: colors.text.dim }}>{rescheduleNote}</span>
-          )}
           <button
             type="button"
             onClick={onReschedule}

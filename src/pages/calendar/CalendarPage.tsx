@@ -33,6 +33,7 @@ import { Select } from '../../components/ui/Select'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
+import { useToast } from '../../hooks/useToast'
 import { saveBlob } from '../../lib/fileActions'
 import { colors, styles, border, surface, accentAlpha, borderAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
@@ -1898,6 +1899,7 @@ function SessionEventModal({
   onClose: () => void
 }) {
   const qc = useQueryClient()
+  const { toast } = useToast()
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
 
   const invalidateAndClose = () => {
@@ -1917,22 +1919,14 @@ function SessionEventModal({
 
   const cancellationRequested = canCancel && session.status === 'CANCELLATION_REQUESTED'
 
-  // A parent can ask the clinic to move a session. How many requests the plan has left isn't
-  // sent with the calendar list (it costs a query per plan), so it's fetched here, once, when
-  // this session is opened.
+  // A parent can ask the clinic to move a session. The server enforces how many requests a plan
+  // allows and says so if the limit is reached, so there's nothing to pre-check here.
   const canRequestReschedule = hideFeedback && !canReschedule
     && session.status === 'SCHEDULED' && !session.awaitingPayment
-  const { data: fullSession } = useQuery({
-    queryKey: ['therapy-session', session.id],
-    queryFn: () => therapySessionsApi.get(session.id),
-    enabled: canRequestReschedule,
-    gcTime: 0,
-  })
-  const remaining = fullSession?.parentReschedulesRemaining
-  const noneLeft = remaining === 0 && !session.parentRescheduleRequested
   const requestRescheduleMut = useMutation({
     mutationFn: () => therapySessionsApi.requestReschedule(session.id),
-    onSuccess: invalidateAndClose,
+    onSuccess: () => { toast('Reschedule request sent to the clinic', 'success'); invalidateAndClose() },
+    onError: (err) => toast(getApiError(err, 'Could not send the request'), 'error'),
   })
 
   return (
@@ -1950,10 +1944,7 @@ function SessionEventModal({
           : undefined
         }
         rescheduleLabel={canRequestReschedule ? 'Request reschedule' : undefined}
-        rescheduleDisabled={canRequestReschedule && (remaining === undefined || noneLeft || requestRescheduleMut.isPending)}
-        rescheduleNote={canRequestReschedule && remaining !== undefined
-          ? (noneLeft ? 'No reschedules left' : `${remaining} reschedule${remaining === 1 ? '' : 's'} left`)
-          : undefined}
+        rescheduleDisabled={canRequestReschedule && requestRescheduleMut.isPending}
         cancellationRequested={cancellationRequested}
         onApproveCancellation={cancellationRequested ? () => approveCancellationMut.mutate() : undefined}
         onRejectCancellation={cancellationRequested ? () => rejectCancellationMut.mutate() : undefined}

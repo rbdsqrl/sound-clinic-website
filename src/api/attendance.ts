@@ -6,7 +6,7 @@ export const attendanceApi = {
     client.post<ApiResponse<AttendanceResponse>>('/attendance/check-in', data).then(r => r.data.data),
 
   /** Live distance/verified preview against the check-in reference — no attendance record is touched. */
-  geoCheck: (params: { clinicId: string; latitude: number; longitude: number }) =>
+  geoCheck: (params: { clinicId?: string; atOrganisation?: boolean; latitude: number; longitude: number }) =>
     client.get<ApiResponse<GeoCheckResponse>>('/attendance/geo-check', { params }).then(r => r.data.data),
 
   checkOut: (data: CheckOutRequest) =>
