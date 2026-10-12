@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, keepPreviousData, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, Repeat, ClipboardList, IndianRupee } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, SlidersHorizontal, Repeat, ClipboardList, IndianRupee } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO, subDays, addDays, differenceInCalendarDays } from 'date-fns'
 import DOMPurify from 'dompurify'
@@ -1310,7 +1310,9 @@ function OrgOverview({ counts }: { counts: OrgOverviewResponse }) {
  *  and therapy/program — Clinic Head / Office Admin / Business Owner only. */
 function RecentlyJoinedChildren() {
   const [showAll, setShowAll] = useState(false)
-  const [from, setFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
+  const [showFilters, setShowFilters] = useState(false)
+  const defaultFrom = format(subDays(new Date(), 7), 'yyyy-MM-dd')
+  const [from, setFrom] = useState(defaultFrom)
   const [to, setTo] = useState(today)
   const [therapistId, setTherapistId] = useState('')
   const [therapyName, setTherapyName] = useState('')
@@ -1349,6 +1351,10 @@ function RecentlyJoinedChildren() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   const hasNonDateFilter = !!therapistId || !!therapyName
+  const filtersActive = hasNonDateFilter || from !== defaultFrom || to !== today
+  const activeFilterCount =
+    (from !== defaultFrom || to !== today ? 1 : 0) + (therapistId ? 1 : 0) + (therapyName ? 1 : 0)
+  const resetFilters = () => { setFrom(defaultFrom); setTo(today); setTherapistId(''); setTherapyName('') }
 
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -1412,31 +1418,28 @@ function RecentlyJoinedChildren() {
               {recentlyJoined.length}
             </span>
           </div>
-          {recentlyJoined.length > PREVIEW && (
-            <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
-              View all →
+          <div className="flex items-center gap-3">
+            {recentlyJoined.length > PREVIEW && (
+              <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
+                View all →
+              </button>
+            )}
+            <button
+              onClick={() => setShowFilters(true)}
+              aria-label="Filters"
+              title="Filters"
+              className="h-8 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+              style={{
+                width: filtersActive ? undefined : 32,
+                padding: filtersActive ? '0 8px' : 0,
+                color: filtersActive ? colors.accent : colors.text.muted,
+                background: filtersActive ? accentAlpha(0.12) : 'transparent',
+              }}
+            >
+              <SlidersHorizontal size={16} />
+              {filtersActive && <span className="text-xs font-bold">{activeFilterCount}</span>}
             </button>
-          )}
-        </div>
-
-        <div
-          className="px-4 sm:px-6 py-3 grid grid-cols-2 gap-2"
-          style={{ borderBottom: `1px solid ${border.divider}` }}
-        >
-          <Input type="date" label="From" value={from} onChange={e => setFrom(e.target.value)} />
-          <Input type="date" label="To" value={to} onChange={e => setTo(e.target.value)} />
-          <Select
-            value={therapistId}
-            onChange={e => setTherapistId(e.target.value)}
-            options={therapistOptions}
-            placeholder="All Therapists"
-          />
-          <Select
-            value={therapyName}
-            onChange={e => setTherapyName(e.target.value)}
-            options={therapyOptions}
-            placeholder="All Programs"
-          />
+          </div>
         </div>
 
         <div className="flex-1">
@@ -1465,6 +1468,40 @@ function RecentlyJoinedChildren() {
           </div>
         )}
       </div>
+
+      {showFilters && (
+        <Modal
+          open
+          title="Filter Recently Joined"
+          onClose={() => setShowFilters(false)}
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={resetFilters} disabled={!filtersActive}>Reset</Button>
+              <Button onClick={() => setShowFilters(false)}>Done</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="date" label="From" value={from} onChange={e => setFrom(e.target.value)} />
+              <Input type="date" label="To" value={to} onChange={e => setTo(e.target.value)} />
+            </div>
+            <Select
+              value={therapistId}
+              onChange={e => setTherapistId(e.target.value)}
+              options={therapistOptions}
+              placeholder="All Therapists"
+            />
+            <Select
+              value={therapyName}
+              onChange={e => setTherapyName(e.target.value)}
+              options={therapyOptions}
+              placeholder="All Programs"
+            />
+          </div>
+        </Modal>
+      )}
 
       {showAll && (
         <Modal open title={`Recently Joined (${recentlyJoined.length})`} onClose={() => setShowAll(false)} size="lg">
