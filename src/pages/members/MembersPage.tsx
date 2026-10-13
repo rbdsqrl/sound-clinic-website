@@ -272,6 +272,11 @@ export default function MembersPage() {
   const { user, activeRole } = useAuth()
   const isOwner = (activeRole ?? user?.role) === 'BUSINESS_OWNER'
   const isOfficeAdmin = (activeRole ?? user?.role) === 'OFFICE_ADMIN'
+  const isAdminRole = isOwner || isOfficeAdmin || (activeRole ?? user?.role) === 'CLINIC_HEAD'
+  // Only a Business Owner can deactivate another Business Owner.
+  const canDeleteMember = (m: StaffMemberResponse) => isAdminRole && m.isActive && (isOwner || m.role !== 'BUSINESS_OWNER')
+  // Reactivate / re-invite an archived member — same rule: only a Business Owner can restore a Business Owner.
+  const canRestoreMember = (m: StaffMemberResponse) => isAdminRole && !m.isActive && (isOwner || m.role !== 'BUSINESS_OWNER')
   // Office Admin can invite front-line staff, but not org leadership.
   const invitableRoles = isOfficeAdmin
     ? INVITABLE_ROLES.filter(r => r.value !== 'BUSINESS_OWNER' && r.value !== 'CLINIC_HEAD')
@@ -699,9 +704,9 @@ export default function MembersPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {shownMembers.map((m) => (
               <MemberCard key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
-                onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
-                onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
-                onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
+                onDelete={canDeleteMember(m) ? () => setDeleteTarget(m) : undefined}
+                onActivate={canRestoreMember(m) ? () => activateMemberMut.mutate(m.id) : undefined}
+                onReinvite={canRestoreMember(m) && tab !== 'parents' ? () => openReinvite(m) : undefined}
                 onSelect={() => navigate(ROUTES.member(m.id))} />
             ))}
           </div>
@@ -719,9 +724,9 @@ export default function MembersPage() {
               <tbody>
                 {shownMembers.map((m) => (
                   <MemberRow key={m.id} member={m} clinicName={m.clinicId ? (clinicMap[m.clinicId] ?? '') : ''}
-                    onDelete={isOwner && m.isActive ? () => setDeleteTarget(m) : undefined}
-                    onActivate={isOwner && !m.isActive ? () => activateMemberMut.mutate(m.id) : undefined}
-                    onReinvite={isOwner && !m.isActive && tab !== 'parents' ? () => openReinvite(m) : undefined}
+                    onDelete={canDeleteMember(m) ? () => setDeleteTarget(m) : undefined}
+                    onActivate={canRestoreMember(m) ? () => activateMemberMut.mutate(m.id) : undefined}
+                    onReinvite={canRestoreMember(m) && tab !== 'parents' ? () => openReinvite(m) : undefined}
                     onSelect={() => navigate(ROUTES.member(m.id))} />
                 ))}
               </tbody>

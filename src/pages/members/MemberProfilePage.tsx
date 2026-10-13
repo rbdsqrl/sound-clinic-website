@@ -30,6 +30,7 @@ import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
 import MemberDocumentsTab from './MemberDocumentsTab'
+import { ActivityLogPanel } from '../../components/shared/ActivityLogPanel'
 import { INVITABLE_ROLES } from './MembersPage'
 import { exportRowsAsCsv } from '../../lib/exportCsv'
 import { colors, border, surface, paletteStyle, accentAlpha, styles } from '../../theme'
@@ -78,8 +79,9 @@ export default function MemberProfilePage() {
   // Parent/Staff view switcher — only relevant once `profile` loads, but the hook has to sit
   // above the early-return guard below like every other hook in this component.
   const [viewMode, setViewMode] = useState<'PARENT' | 'STAFF' | null>(null)
-  // Staff view sub-tabs. Documents is HR-sensitive, so it's offered to canEdit (Business Owner / Clinic Head) only.
-  const [staffTab, setStaffTab] = useState<'overview' | 'documents'>('overview')
+  // Page sub-tabs. Documents is HR-sensitive, so it's offered to canEdit (Business Owner / Clinic Head)
+  // only; the Activity Log is Business Owner only, and its data is fetched only once the tab is opened.
+  const [pageTab, setPageTab] = useState<'overview' | 'documents' | 'activity'>('overview')
 
   useEffect(() => { if (assignOpen) setAssignError(null) }, [assignOpen])
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
@@ -232,6 +234,14 @@ export default function MemberProfilePage() {
   const hasOtherRole = heldRoles.some(r => r !== 'PARENT')
   const effectiveView = viewMode ?? (profile.role === 'PARENT' ? 'PARENT' : 'STAFF')
 
+  const pageTabs: (readonly ['overview' | 'documents' | 'activity', string])[] = [
+    ['overview', 'Overview'],
+    ...(canEdit && effectiveView === 'STAFF' ? [['documents', 'Documents'] as const] : []),
+    ...(activeRole === 'BUSINESS_OWNER' ? [['activity', 'Activity Log'] as const] : []),
+  ]
+  // Switching between the Parent and Staff views can leave a tab that doesn't exist in the other one.
+  const activePageTab = pageTabs.some(([key]) => key === pageTab) ? pageTab : 'overview'
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex items-center gap-1.5 text-sm" style={{ color: colors.text.dim }}>
@@ -373,19 +383,15 @@ export default function MemberProfilePage() {
         </div>
       )}
 
-      {effectiveView === 'PARENT' ? (
-        <ParentChildrenPanel parentId={id!} />
-      ) : (
-      <>
-      {canEdit && (
+      {pageTabs.length > 1 && (
         <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
-          {([['overview', 'Overview'], ['documents', 'Documents']] as const).map(([key, label]) => (
+          {pageTabs.map(([key, label]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setStaffTab(key)}
+              onClick={() => setPageTab(key)}
               className="flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium -mb-px transition-colors"
-              style={staffTab === key ? styles.tabActive : styles.tabInactive}
+              style={activePageTab === key ? styles.tabActive : styles.tabInactive}
             >
               {label}
             </button>
@@ -393,7 +399,13 @@ export default function MemberProfilePage() {
         </div>
       )}
 
-      {canEdit && staffTab === 'documents' ? (
+      {activePageTab === 'activity' ? (
+        <ActivityLogPanel subjectType="USER" subjectId={id!} />
+      ) : effectiveView === 'PARENT' ? (
+        <ParentChildrenPanel parentId={id!} />
+      ) : (
+      <>
+      {activePageTab === 'documents' ? (
         <MemberDocumentsTab memberId={id!} />
       ) : (
       <>

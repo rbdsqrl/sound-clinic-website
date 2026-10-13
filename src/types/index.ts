@@ -930,6 +930,17 @@ export interface SessionActivityResponse {
   createdAt: string
 }
 
+/** One entry in a member's, parent's or case's Activity Log (Business Owner only). */
+export interface AuditLogEntryResponse {
+  id: string
+  actorId: string | null
+  actorName: string
+  type: string
+  summary: string
+  changes: { field: string; from: string | null; to: string | null }[]
+  createdAt: string
+}
+
 /** One prior version of a session's notes, captured right before an edit overwrote it. */
 export interface SessionNotesHistoryResponse {
   id: string

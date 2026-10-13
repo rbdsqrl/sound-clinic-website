@@ -8,6 +8,7 @@ import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
 import SharedMediaTab from './SharedMediaTab'
+import { ActivityLogPanel } from '../../components/shared/ActivityLogPanel'
 import { CaseHistoryCard } from './CaseHistoryCard'
 import { ReviewMeetingsPanel, ScheduleModal } from './ReviewMeetings'
 import AdHocSessionModal from '../calendar/AdHocSessionModal'
@@ -1108,7 +1109,7 @@ function EnrollmentModal({
 
 // ── Tab config ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Media & Notes'] as const
+const TABS = ['Overview', 'Therapy', 'IEP', 'Activities', 'Assessments', 'Baseline Report', 'Media & Notes', 'Activity Log'] as const
 type Tab = typeof TABS[number]
 
 // ── Assessments tab (switched by an inner sub-tab) ───────────────────────────
@@ -1476,6 +1477,8 @@ export default function PatientDetailPage() {
     : isParentRole
     ? TABS.filter(t => t !== 'Baseline Report')
     : [...TABS]
+  // Activity Log (who changed what on this case) is for the Business Owner only.
+  const tabsForRole = visibleTabs.filter(t => t !== 'Activity Log' || currentRoleEarly === 'BUSINESS_OWNER')
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -1754,7 +1757,7 @@ export default function PatientDetailPage() {
 
       {/* ── Tab strip ────────────────────────────────────────────────────── */}
       <div className="flex gap-0 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ borderColor: border.divider }}>
-        {visibleTabs.map(tab => (
+        {tabsForRole.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -2437,6 +2440,8 @@ export default function PatientDetailPage() {
       )}
 
       {activeTab === 'Media & Notes' && <SharedMediaTab patientId={id!} readOnly={isDischarged} />}
+
+      {activeTab === 'Activity Log' && <ActivityLogPanel subjectType="CASE" subjectId={id!} />}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <Modal open={conditionModal} onClose={() => { setConditionModal(false); setSelectedConditionIds([]); conditionForm.reset() }} title="Add Condition" error={conditionError}>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useLayoutEffect, useEffect, type ReactNode } from 'react'
 import { useQuery, keepPreviousData, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cake, ListTodo, ChevronRight, Newspaper, Heart, MessageCircle, MessageSquareWarning, Eye, UserPlus, SlidersHorizontal, Repeat, ClipboardList, IndianRupee } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -44,6 +44,62 @@ const PREVIEW = 3
 
 /** Every dashboard tile shares this height so the 2-column grid lines up evenly. */
 const TILE_MIN_HEIGHT = 360
+
+/** Most rows a card will ever stack below its PREVIEW rows when it has room to spare. */
+const MAX_EXTRA_ROWS = 12
+
+/** Rows past PREVIEW that appear only in space the card already has (stretched to a taller
+ *  neighbour in the grid, or its minimum height). It takes no height of its own (flex-basis 0),
+ *  so it can never make a card taller or reflow the grid; any row that does not fit completely
+ *  is hidden instead of being cut in half. */
+function SpareRows({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const fit = () => {
+    const el = ref.current
+    if (!el) return
+    const limit = el.clientHeight
+    Array.from(el.children).forEach(c => {
+      const row = c as HTMLElement
+      row.style.visibility = row.offsetTop + row.offsetHeight <= limit ? '' : 'hidden'
+    })
+  }
+  useLayoutEffect(fit)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={ref} style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+      {children}
+    </div>
+  )
+}
+
+/** First PREVIEW rows always render; further rows fill whatever space is left in the card. */
+function PreviewRows<T>({ items, renderRow }: {
+  items: T[]
+  renderRow: (item: T, i: number, arr: T[]) => ReactNode
+}) {
+  const head = items.slice(0, PREVIEW)
+  const extra = items.slice(PREVIEW, PREVIEW + MAX_EXTRA_ROWS)
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div>{head.map((it, i) => renderRow(it, i, head))}</div>
+      {extra.length > 0 && (
+        <SpareRows>
+          {extra.map((it, i) => (
+            <div key={i} style={{ borderTop: `1px solid ${border.divider}` }}>
+              {renderRow(it, 0, [it])}
+            </div>
+          ))}
+        </SpareRows>
+      )}
+    </div>
+  )
+}
 
 const ROW_HOVER_IN  = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = surface.rowHover }
 const ROW_HOVER_OUT = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }
@@ -218,16 +274,17 @@ function TodaySessions({
           </Link>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {sessions.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-2">
+            <div className="flex-1 flex flex-col items-center justify-center gap-2">
               <CalendarDays size={28} style={{ color: colors.text.dim }} />
               <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
             </div>
           ) : (
-            <div>
-              {sessions.slice(0, PREVIEW).map((s, i) => {
-                const dividerStyle = i < sessions.slice(0, PREVIEW).length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
+            <PreviewRows
+              items={sessions}
+              renderRow={(s, i, arr) => {
+                const dividerStyle = i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
                 return onSessionClick ? (
                   <button
                     key={s.id}
@@ -251,8 +308,8 @@ function TodaySessions({
                     {rowContent(s)}
                   </Link>
                 )
-              })}
-            </div>
+              }}
+            />
           )}
         </div>
 
@@ -734,10 +791,10 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           </div>
         )}
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {otherSessions.length === 0 ? (
             leaveGroups.length === 0 && (
-              <div className="h-full flex flex-col justify-center">
+              <div className="flex-1 flex flex-col justify-center">
                 <EmptyState
                   icon={<AlertTriangle size={22} />}
                   title="Nothing to reschedule"
@@ -746,9 +803,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
               </div>
             )
           ) : (
-            <div>
-              {otherSessions.slice(0, PREVIEW).map((s, i) => rescheduleRow(s, i, otherSessions.slice(0, PREVIEW)))}
-            </div>
+            <PreviewRows items={otherSessions} renderRow={rescheduleRow} />
           )}
         </div>
 
@@ -862,10 +917,8 @@ function PendingSessionNotesPanel({ count, sessions }: { count: number; sessions
           </div>
         </div>
 
-        <div className="flex-1">
-          <div>
-            {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
-          </div>
+        <div className="flex-1 flex flex-col">
+          <PreviewRows items={sessions} renderRow={row} />
         </div>
 
         {count > PREVIEW && (
@@ -984,9 +1037,9 @@ function CancellationRequestsPanel({ sessions, onDone }: {
           <p className="text-xs" style={{ color: colors.text.muted }}>Awaiting your approval</p>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {sessions.length === 0 ? (
-            <div className="h-full flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center">
               <EmptyState
                 icon={<XCircle size={22} />}
                 title="No cancellation requests"
@@ -994,9 +1047,7 @@ function CancellationRequestsPanel({ sessions, onDone }: {
               />
             </div>
           ) : (
-            <div>
-              {sessions.slice(0, PREVIEW).map((s, i) => row(s, i, sessions.slice(0, PREVIEW)))}
-            </div>
+            <PreviewRows items={sessions} renderRow={row} />
           )}
         </div>
 
@@ -1114,9 +1165,9 @@ function ConcernsPanel({ concerns, canAct, onDone }: {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {concerns.length === 0 ? (
-            <div className="h-full flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center">
               <EmptyState
                 icon={<MessageSquareWarning size={22} />}
                 title="No open concerns"
@@ -1124,9 +1175,7 @@ function ConcernsPanel({ concerns, canAct, onDone }: {
               />
             </div>
           ) : (
-            <div>
-              {concerns.slice(0, PREVIEW).map((c, i) => row(c, i, concerns.slice(0, PREVIEW)))}
-            </div>
+            <PreviewRows items={concerns} renderRow={row} />
           )}
         </div>
 
@@ -1408,7 +1457,7 @@ function RecentlyJoinedChildren() {
         >
           <div className="flex items-center gap-2">
             <UserPlus size={16} style={{ color: colors.accent }} />
-            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>
+            <h2 className="text-base font-semibold whitespace-nowrap" style={{ color: colors.text.primary }}>
               Recently Joined
             </h2>
             <span
@@ -1419,11 +1468,6 @@ function RecentlyJoinedChildren() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {recentlyJoined.length > PREVIEW && (
-              <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
-                View all →
-              </button>
-            )}
             <button
               onClick={() => setShowFilters(true)}
               aria-label="Filters"
@@ -1442,9 +1486,9 @@ function RecentlyJoinedChildren() {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {recentlyJoined.length === 0 ? (
-            <div className="h-full flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center">
               <EmptyState
                 icon={<UserPlus size={22} />}
                 title="No cases found"
@@ -1454,9 +1498,7 @@ function RecentlyJoinedChildren() {
               />
             </div>
           ) : (
-            <div>
-              {recentlyJoined.slice(0, PREVIEW).map((p, i) => joinedRow(p, i, recentlyJoined.slice(0, PREVIEW)))}
-            </div>
+            <PreviewRows items={recentlyJoined} renderRow={joinedRow} />
           )}
         </div>
 
@@ -1579,26 +1621,19 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
           </div>
           <div className="flex items-center gap-3">
             <p className="text-xs" style={{ color: colors.text.muted }}>Next 30 days</p>
-            {birthdays.length > PREVIEW && (
-              <button onClick={() => setShowAll(true)} className="text-xs transition-colors" style={{ color: colors.accent }}>
-                View all →
-              </button>
-            )}
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {birthdays.length === 0 ? (
-            <div className="h-full flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center">
               <EmptyState
                 icon={<Cake size={22} />}
                 title="No birthdays coming up"
               />
             </div>
           ) : (
-            <div>
-              {birthdays.slice(0, PREVIEW).map((b, i) => birthdayRow(b, i, birthdays.slice(0, PREVIEW)))}
-            </div>
+            <PreviewRows items={birthdays} renderRow={birthdayRow} />
           )}
         </div>
 
@@ -1880,9 +1915,6 @@ function MyTasks({ userId }: { userId: string }) {
               {total}
             </span>
           </div>
-          <Link to="/tasks" className="text-xs transition-colors" style={{ color: colors.accent }}>
-            View all →
-          </Link>
         </div>
 
         <div className="flex-1">
@@ -2019,9 +2051,6 @@ function FeedPanel() {
               {total}
             </span>
           </div>
-          <Link to={ROUTES.feed} className="text-xs transition-colors" style={{ color: colors.accent }}>
-            View all →
-          </Link>
         </div>
 
         <div className="flex-1">
@@ -2135,9 +2164,6 @@ function MomPanel() {
               {total}
             </span>
           </div>
-          <Link to={`${ROUTES.feed}?tab=mom`} className="text-xs transition-colors" style={{ color: colors.accent }}>
-            View all →
-          </Link>
         </div>
 
         <div className="flex-1">
