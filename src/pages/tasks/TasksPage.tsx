@@ -222,7 +222,7 @@ function MemberPickerModal({
                   {m.firstName} {m.lastName}
                 </p>
                 <p className="text-xs" style={{ color: colors.text.muted }}>
-                  {roleLabel(m.role)}
+                  {roleLabel(m.role, m.customRole)}
                 </p>
               </div>
             </button>

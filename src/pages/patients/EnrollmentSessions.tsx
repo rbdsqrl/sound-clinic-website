@@ -197,9 +197,6 @@ export function SessionList({
                 style={{ width: `${pct}%`, background: colors.status.success }}
               />
             </div>
-            <span className="text-[11.5px] font-semibold tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
-              {pct}%
-            </span>
           </div>
         </div>
         <ScoreSparkline sessions={sessions} />

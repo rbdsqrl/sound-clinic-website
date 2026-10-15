@@ -263,7 +263,7 @@ function ParticipantList({ participants }: { participants: MeetingParticipant[] 
                 <span className="text-xs" style={{ color: colors.text.dim }}>organiser</span>
               )}
             </span>
-            <span className="flex-shrink-0">{roleBadge(p.role)}</span>
+            <span className="flex-shrink-0">{roleBadge(p.role, p.customRole)}</span>
           </div>
         ))}
       </div>
@@ -1850,7 +1850,7 @@ function NewMeetingModal({
                     {u.firstName} {u.lastName}
                   </span>
                   <span className="flex items-center gap-2 flex-shrink-0">
-                    {roleBadge(u.role)}
+                    {roleBadge(u.role, u.customRole)}
                     {on && <CheckCircle2 size={15} style={{ color: colors.accent }} />}
                   </span>
                 </button>
@@ -2395,7 +2395,7 @@ function EditReviewMeetingModal({
                     {u.firstName} {u.lastName}
                   </span>
                   <span className="flex items-center gap-2 flex-shrink-0">
-                    {roleBadge(u.role)}
+                    {roleBadge(u.role, u.customRole)}
                     {on && <CheckCircle2 size={15} style={{ color: colors.accent }} />}
                   </span>
                 </button>

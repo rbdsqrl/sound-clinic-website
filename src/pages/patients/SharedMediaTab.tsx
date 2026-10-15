@@ -293,7 +293,7 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
           <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{selected.uploadedByName}</p>
-              {selected.uploadedByRole && roleBadge(selected.uploadedByRole)}
+              {selected.uploadedByRole && roleBadge(selected.uploadedByRole, selected.uploadedByCustomRole)}
               {directionBadge(selected.direction)}
             </div>
             <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>

@@ -49,7 +49,7 @@ export default function LeaveBalancesView() {
 
   const exportCsv = () => exportRowsAsCsv(`leave-balances_${data.year}.csv`, data.people, [
     { header: 'Name', value: p => p.name },
-    { header: 'Role', value: p => roleLabel(p.role as never) },
+    { header: 'Role', value: p => roleLabel(p.role as never, p.customRole) },
     ...categories.flatMap((c, i) => [
       { header: `${c.categoryName} - Allocated`, value: (p: PersonLeaveBalances) => p.balances[i]?.allocated ?? 'No limit' },
       { header: `${c.categoryName} - Used`, value: (p: PersonLeaveBalances) => p.balances[i]?.used ?? 0 },
@@ -108,7 +108,7 @@ export default function LeaveBalancesView() {
                   <tr key={p.userId} style={{ borderTop: `1px solid ${border.divider}` }}>
                     <td className="px-5 py-3 align-top">
                       <p className="font-medium" style={{ color: colors.text.primary }}>{p.name}</p>
-                      <p className="text-xs" style={{ color: colors.text.dim }}>{roleLabel(p.role as never)}</p>
+                      <p className="text-xs" style={{ color: colors.text.dim }}>{roleLabel(p.role as never, p.customRole)}</p>
                     </td>
                     {p.balances.map(b => {
                       const low = b.remaining !== null && b.remaining <= 0

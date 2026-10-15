@@ -153,7 +153,7 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
               {member.firstName} {member.lastName}
             </p>
             <p className="text-sm truncate" style={{ color: colors.text.muted }}>
-              {roleLabel(member.role)}{clinicName && ` · ${clinicName}`}
+              {roleLabel(member.role, member.customRole)}{clinicName && ` · ${clinicName}`}
             </p>
           </div>
         </div>
@@ -461,7 +461,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
                       {stats.member.firstName} {stats.member.lastName}
                     </p>
                     <p className="text-xs truncate" style={{ color: colors.text.muted }}>
-                      {roleLabel(stats.member.role)}{stats.member.clinicId && ` · ${clinicMap[stats.member.clinicId] ?? ''}`}
+                      {roleLabel(stats.member.role, stats.member.customRole)}{stats.member.clinicId && ` · ${clinicMap[stats.member.clinicId] ?? ''}`}
                     </p>
                   </div>
                 </div>
@@ -522,7 +522,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
                           <p className="font-medium truncate" style={{ color: colors.text.primary }}>
                             {stats.member.firstName} {stats.member.lastName}
                           </p>
-                          <p className="text-xs truncate" style={{ color: colors.text.dim }}>{roleLabel(stats.member.role)}</p>
+                          <p className="text-xs truncate" style={{ color: colors.text.dim }}>{roleLabel(stats.member.role, stats.member.customRole)}</p>
                         </div>
                       </div>
                     </td>

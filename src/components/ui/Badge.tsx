@@ -26,7 +26,13 @@ const ROLE_LABELS: Record<string, string> = {
   PATIENT:        'Patient',
 }
 
-export function roleLabel(role: string): string {
+/**
+ * Display name for a role. A person's "Custom Role", when set, replaces the role name everywhere —
+ * pass it as the second argument wherever the person's record is to hand.
+ */
+export function roleLabel(role: string, customRole?: string | null): string {
+  const custom = customRole?.trim()
+  if (custom) return custom
   return ROLE_LABELS[role]
     ?? role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
@@ -49,7 +55,7 @@ export function sessionStatusLabel(status: string): string {
   return SESSION_STATUS_LABELS[status] ?? labelFromEnum(status)
 }
 
-export function roleBadge(role: string) {
+export function roleBadge(role: string, customRole?: string | null) {
   const roleColors = colors.role as Record<string, string>
   const color = roleColors[role] ?? '#6B8499'
   return (
@@ -57,7 +63,7 @@ export function roleBadge(role: string) {
       className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
       style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}
     >
-      {roleLabel(role)}
+      {roleLabel(role, customRole)}
     </span>
   )
 }

@@ -2318,7 +2318,7 @@ export default function DashboardPage() {
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}
             </span>
-            {activeRole && roleBadge(activeRole)}
+            {activeRole && roleBadge(activeRole, activeRole === user?.role ? user?.customRole : undefined)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
               {formatDateStr(new Date())}
             </span>
@@ -2402,7 +2402,7 @@ export default function DashboardPage() {
             <span className="text-sm font-semibold" style={{ color: colors.text.primary }}>
               {user?.firstName} {user?.lastName}
             </span>
-            {activeRole && roleBadge(activeRole)}
+            {activeRole && roleBadge(activeRole, activeRole === user?.role ? user?.customRole : undefined)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
               {formatDateStr(new Date())}
             </span>

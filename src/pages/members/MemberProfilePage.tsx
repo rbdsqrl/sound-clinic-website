@@ -269,7 +269,7 @@ export default function MemberProfilePage() {
           </div>
           <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end sm:flex-shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
-              {roleBadge(profile.role)}
+              {roleBadge(profile.role, profile.specialization)}
               {profile.additionalRoles.map(r => (
                 <span key={r} className="inline-flex items-center gap-1">
                   {roleBadge(r)}
@@ -1070,8 +1070,8 @@ function EditProfileModal({
         />
         <Input label="Qualification" value={qualification} onChange={e => setQualification(e.target.value)}
           placeholder="e.g. Diploma in Hearing, Language and Speech" />
-        <Input label="Specialization" value={specialization} onChange={e => setSpecialization(e.target.value)}
-          placeholder="Comma-separated, e.g. Speech Language Pathologist, ABA Therapist" />
+        <Input label="Custom Role" value={specialization} onChange={e => setSpecialization(e.target.value)}
+          placeholder="Shown instead of the role name everywhere, e.g. Speech Language Pathologist" />
         <MultiSelectChips
           label="Languages"
           options={languages.map(l => ({ value: l.id, label: l.name }))}

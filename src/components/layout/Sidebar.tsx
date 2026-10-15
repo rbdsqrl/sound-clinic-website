@@ -233,7 +233,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
         <div className="flex justify-center pb-3">
           <span
             className="h-2 w-2 rounded-full"
-            title={roleLabel(currentRole)}
+            title={roleLabel(currentRole, currentRole === user?.role ? user?.customRole : undefined)}
             style={{ background: ROLE_COLORS[currentRole] }}
           />
         </div>
@@ -356,7 +356,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
               onClick={() => setProfileMenuOpen(o => !o)}
               className="rounded-full cursor-pointer transition-all duration-150 hover:ring-2 hover:opacity-90"
               style={{ '--tw-ring-color': accentAlpha(0.35) } as React.CSSProperties}
-              title={`${user?.firstName} ${user?.lastName} · ${roleLabel(currentRole)}`}
+              title={`${user?.firstName} ${user?.lastName} · ${roleLabel(currentRole, currentRole === user?.role ? user?.customRole : undefined)}`}
               aria-label="Open profile menu"
             >
               <Avatar initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`} name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} />
@@ -387,7 +387,7 @@ export default function Sidebar({ onClose, collapsed = false, onToggleCollapse }
                 </p>
                 {!hasMultipleRoles && (
                   <p className="text-[11.5px] truncate" style={{ color: ROLE_COLORS[currentRole] }}>
-                    {roleLabel(currentRole)}
+                    {roleLabel(currentRole, currentRole === user?.role ? user?.customRole : undefined)}
                   </p>
                 )}
               </div>

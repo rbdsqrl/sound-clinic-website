@@ -414,7 +414,7 @@ function PostCard({ post, canManage, currentUserId, onEdit, onDelete }: {
             <span className="text-xs" style={{ color: colors.text.muted }}>
               {post.authorFirstName} {post.authorLastName}
             </span>
-            {roleBadge(post.authorRole)}
+            {roleBadge(post.authorRole, post.authorCustomRole)}
             <span className="text-xs" style={{ color: colors.text.dim }}>
               · {formatDateTimeStr(post.createdAt)}
             </span>

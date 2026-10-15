@@ -2185,7 +2185,7 @@ export default function PatientDetailPage() {
                                       : colors.text.dim,
                                 }}
                               >
-                                {sessionsCompleted}/{sub.numSessions} · {Math.round(progressPct)}%
+                                {sessionsCompleted}/{sub.numSessions}
                               </span>
                             )}
                             <ChevronRight
@@ -2562,7 +2562,7 @@ export default function PatientDetailPage() {
               <div className="rounded-xl p-4" style={{ background: surface.filterStrip }}>
                 <p className="text-sm" style={{ color: colors.text.primary }}>
                   <strong>{existingUserFound.firstName} {existingUserFound.lastName}</strong> already has an
-                  account in your organisation ({roleLabel(existingUserFound.role)}).
+                  account in your organisation ({roleLabel(existingUserFound.role, existingUserFound.customRole)}).
                 </p>
                 <p className="text-xs mt-1.5" style={{ color: colors.text.muted }}>
                   Link them as a parent of this case too? Their {roleLabel(existingUserFound.role)} access is

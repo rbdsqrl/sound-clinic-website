@@ -88,7 +88,7 @@ function MemberCard({
             className="inline-block text-[12.65px] font-medium px-2 py-0.5 rounded-full mt-0.5"
             style={{ background: accentAlpha(0.1), color: colors.accent }}
           >
-            {roleLabel(member.role)}
+            {roleLabel(member.role, member.customRole)}
           </span>
         </div>
         <div
@@ -202,7 +202,7 @@ function MemberRow({
       <td className="px-4 py-3 hidden sm:table-cell">
         <span className="text-[12.65px] font-medium px-2 py-0.5 rounded-full"
           style={{ background: accentAlpha(0.1), color: colors.accent }}>
-          {roleLabel(member.role)}
+          {roleLabel(member.role, member.customRole)}
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell text-xs truncate" style={{ color: colors.text.muted }}>

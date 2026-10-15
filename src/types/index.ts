@@ -165,6 +165,8 @@ export interface UserResponse {
   dateOfBirth: string | null
   gender: Gender | null
   role: Role
+  /** "Custom Role" — shown in place of the role name wherever set. */
+  customRole?: string | null
   additionalRoles: Role[]
   isActive: boolean
   faceEnrolled: boolean
@@ -177,6 +179,7 @@ export interface AssignableUser {
   firstName: string
   lastName: string
   role: Role
+  customRole?: string | null
 }
 
 export interface StaffMemberResponse {
@@ -190,6 +193,7 @@ export interface StaffMemberResponse {
   dateOfBirth: string | null
   gender: Gender | null
   role: Role
+  customRole?: string | null
   additionalRoles: Role[]
   isActive: boolean
   faceEnrolled: boolean
@@ -423,7 +427,7 @@ export interface InviteParentRequest {
 
 export interface InviteParentResponse {
   inviteLink: string | null
-  existingUser: { id: string; firstName: string; lastName: string; role: Role } | null
+  existingUser: { id: string; firstName: string; lastName: string; role: Role; customRole?: string | null } | null
 }
 
 export interface AssignTherapistRequest {
@@ -598,6 +602,7 @@ export interface PersonLeaveBalances {
   userId: string
   name: string
   role: string
+  customRole?: string | null
   balances: LeaveBalance[]
   pendingRequests: number
   approvedRequests: number
@@ -1159,6 +1164,7 @@ export interface SharedMediaResponse {
   uploadedById: string
   uploadedByName: string
   uploadedByRole: Role | null
+  uploadedByCustomRole?: string | null
   createdAt: string
 }
 
@@ -1361,6 +1367,7 @@ export interface FeedPostResponse {
   authorFirstName: string
   authorLastName: string
   authorRole: Role
+  authorCustomRole?: string | null
   title: string
   body: string | null
   type: FeedPostType
@@ -1896,6 +1903,7 @@ export interface MeetingParticipant {
   firstName: string
   lastName: string
   role: Role
+  customRole?: string | null
   isOrganiser: boolean
 }
 
