@@ -111,6 +111,8 @@ src/
 │   └── shared/                      # Reusable pieces used across 2+ pages — see "Shared Components" below
 │       ├── Avatar.tsx               # Initials circle (person avatar) — size/shape/color/bold props
 │       ├── CopyLinkBox.tsx          # Copy-to-clipboard invite/sign-up link box with "Copied" confirmation
+│       ├── CustomRoleField.tsx      # Edit Profile picker for a member's Custom Role — choose from the org list or type a new name and "Add" it
+│       ├── CustomRolesCard.tsx      # Organisation → Settings card: add/remove the org's Custom Role names (Admin Roles)
 │       └── LeaveStatusBadge.tsx     # Leave status pill + LEAVE_STATUS_META / LEAVE_TYPE_LABEL maps
 │
 └── pages/

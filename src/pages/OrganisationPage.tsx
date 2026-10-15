@@ -22,6 +22,7 @@ import { reviewMeetingsApi } from '../api/reviewMeetings'
 import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
 import IEPLibraryTab from './patients/IEPLibraryTab'
 import { EvidenceSettingsCard } from '../components/shared/EvidenceSettingsCard'
+import { CustomRolesCard } from '../components/shared/CustomRolesCard'
 import { LeavePolicyCard } from '../components/shared/LeavePolicyCard'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -1215,6 +1216,7 @@ export default function OrganisationPage() {
         <>
           <EvidenceSettingsCard canEdit={canManage} />
           <LeavePolicyCard canEdit={canManage} />
+          <CustomRolesCard canEdit={canManage} />
 
           {/* Public Holidays — collapsed by default; the list can run long and there's rarely
               a reason to look at it beyond adding/importing a new one. */}

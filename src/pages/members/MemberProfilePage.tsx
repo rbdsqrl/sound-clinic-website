@@ -27,6 +27,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
+import { CustomRoleField } from '../../components/shared/CustomRoleField'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
 import MemberDocumentsTab from './MemberDocumentsTab'
@@ -1070,8 +1071,7 @@ function EditProfileModal({
         />
         <Input label="Qualification" value={qualification} onChange={e => setQualification(e.target.value)}
           placeholder="e.g. Diploma in Hearing, Language and Speech" />
-        <Input label="Custom Role" value={specialization} onChange={e => setSpecialization(e.target.value)}
-          placeholder="Shown instead of the role name everywhere, e.g. Speech Language Pathologist" />
+        <CustomRoleField value={specialization} onChange={setSpecialization} />
         <MultiSelectChips
           label="Languages"
           options={languages.map(l => ({ value: l.id, label: l.name }))}
