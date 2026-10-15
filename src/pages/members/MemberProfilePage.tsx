@@ -624,7 +624,10 @@ export default function MemberProfilePage() {
       {reassignOpen && (
         <ReassignCasesModal
           therapistId={id!}
-          caseCount={selectedCaseIds.length}
+          cases={cases}
+          selectedIds={selectedCaseIds}
+          onToggleCase={(pid, on) => setSelectedCaseIds(prev =>
+            on ? (prev.includes(pid) ? prev : [...prev, pid]) : prev.filter(x => x !== pid))}
           pending={reassignMut.isPending}
           apiError={reassignError}
           initial={prefill ?? undefined}
@@ -859,10 +862,14 @@ function AddRoleModal({
 // ── Reassign selected cases ───────────────────────────────────────────────────
 
 function ReassignCasesModal({
-  therapistId, caseCount, pending, apiError, initial, onClose, onSubmit,
+  therapistId, cases, selectedIds, onToggleCase, pending, apiError, initial, onClose, onSubmit,
 }: {
   therapistId: string
-  caseCount: number
+  /** The member's cases — the modal lists the ones that were selected when it opened. */
+  cases: { id: string; firstName: string; lastName: string }[]
+  /** Currently selected case ids; unticking one here drops it from the reassignment. */
+  selectedIds: string[]
+  onToggleCase: (patientId: string, selected: boolean) => void
   pending: boolean
   apiError?: string | null
   /** Pre-fills the form — e.g. arriving from the Dashboard's "reassign for this leave" shortcut.
@@ -877,6 +884,11 @@ function ReassignCasesModal({
   const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [reason, setReason] = useState(initial?.reason ?? '')
   const [error, setError] = useState('')
+  // The cases shown are the ones selected when the modal opened, so unticking one leaves it in the list
+  // (and re-tickable) instead of it vanishing.
+  const [listedIds] = useState(selectedIds)
+  const listed = cases.filter(c => listedIds.includes(c.id))
+  const caseCount = selectedIds.length
 
   const { data: therapists = [] } = useQuery({
     queryKey: ['therapists'],
@@ -885,6 +897,7 @@ function ReassignCasesModal({
   const options = therapists.filter(t => t.id !== therapistId)
 
   const submit = () => {
+    if (caseCount === 0) { setError('Select at least one case to reassign'); return }
     if (!toTherapistId) { setError('Choose a therapist to reassign these cases to'); return }
     if (type === 'TEMPORARY' && !endDate) { setError('Pick an end date for the temporary window'); return }
     setError('')
@@ -900,6 +913,25 @@ function ReassignCasesModal({
   return (
     <Modal open title={`Reassign ${caseCount} case${caseCount === 1 ? '' : 's'}`} onClose={onClose}>
       <div className="flex flex-col gap-4">
+        <div>
+          <label className="form-label">Cases being reassigned ({caseCount} of {listed.length})</label>
+          <div className="rounded-lg overflow-y-auto max-h-48" style={{ border: `1px solid ${border.divider}` }}>
+            {listed.map((c, i) => (
+              <label key={c.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm"
+                style={{ borderTop: i > 0 ? `1px solid ${border.divider}` : undefined, color: colors.text.primary }}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  style={{ accentColor: colors.accent }}
+                  checked={selectedIds.includes(c.id)}
+                  onChange={e => onToggleCase(c.id, e.target.checked)}
+                />
+                <span className="truncate">{c.firstName} {c.lastName}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <Select
           label="New therapist"
           placeholder="Choose a therapist"
@@ -958,7 +990,7 @@ function ReassignCasesModal({
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" loading={pending} onClick={submit}>Reassign</Button>
+        <Button variant="primary" loading={pending} disabled={caseCount === 0} onClick={submit}>Reassign</Button>
       </div>
     </Modal>
   )
