@@ -3,7 +3,6 @@
   "compatibility_date": "2024-05-06",
   "assets": {
     "directory": "./dist",
-    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
   // Request logs stay visible in the dashboard's Logs tab, matching what was enabled there.
