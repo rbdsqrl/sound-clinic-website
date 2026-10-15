@@ -17,8 +17,7 @@ import { Avatar } from '../components/shared/Avatar'
 import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
 import { MockRazorpayModal } from '../components/subscriptions/MockRazorpayModal'
 import { PageLoader, Spinner } from '../components/ui/Spinner'
-import { PerformanceScoreSlider } from '../components/ui/PerformanceScore'
-import { StarRating } from './patients/ReviewMeetings'
+import { SessionEventModal } from '../components/shared/SessionEventModal'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -355,14 +354,18 @@ function TodaySessions({
 /** Parent dashboard's "Upcoming Sessions" tile — next few sessions across all of the parent's
  *  children, sorted soonest-first. Unlike TodaySessions (one calendar day, time-only rows), rows
  *  here span multiple days so each one shows its date too. */
-function UpcomingSessions({ sessions }: { sessions: TherapySessionResponse[] }) {
+function UpcomingSessions({ sessions, onSessionClick }: {
+  sessions: TherapySessionResponse[]
+  onSessionClick: (s: TherapySessionResponse) => void
+}) {
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
   const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
-    <Link
+    <button
+      type="button"
       key={s.id}
-      to={`/patients/${s.patientId}`}
-      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
+      onClick={() => onSessionClick(s)}
+      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left"
       style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}}
       onMouseEnter={ROW_HOVER_IN}
       onMouseLeave={ROW_HOVER_OUT}
@@ -392,7 +395,7 @@ function UpcomingSessions({ sessions }: { sessions: TherapySessionResponse[] }) 
         style={{ background: statusColor(s.status) + '18', color: statusColor(s.status) }}>
         {sessionStatusLabel(s.status)}
       </span>
-    </Link>
+    </button>
   )
 
   return (
@@ -847,7 +850,12 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
 
 /** `sessions` is just the preview; `count` is the full total. The rest load only when "View all"
  *  is opened. */
-function PendingSessionNotesPanel({ count, sessions }: { count: number; sessions: TherapySessionSummary[] }) {
+function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
+  count: number
+  sessions: TherapySessionSummary[]
+  /** Opens the session drawer, so notes can be added without leaving the dashboard. */
+  onSessionClick: (s: TherapySessionSummary) => void
+}) {
   const [showAll, setShowAll] = useState(false)
   const { data: all, isLoading: loadingAll } = useQuery({
     queryKey: ['therapy-sessions-cal', 'overdue-notes', 'all'],
@@ -856,10 +864,11 @@ function PendingSessionNotesPanel({ count, sessions }: { count: number; sessions
   })
 
   const row = (s: TherapySessionSummary, i: number, arr: TherapySessionSummary[]) => (
-    <Link
+    <button
+      type="button"
       key={s.id}
-      to={ROUTES.enrollment(s.patientId, s.enrollmentId)}
-      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors"
+      onClick={() => { setShowAll(false); onSessionClick(s) }}
+      className="flex items-center gap-4 px-4 sm:px-6 py-3.5 transition-colors w-full text-left"
       style={{
         ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
         transform: 'translateZ(0)',
@@ -894,7 +903,7 @@ function PendingSessionNotesPanel({ count, sessions }: { count: number; sessions
       >
         <AlertTriangle size={12} /> Notes overdue
       </span>
-    </Link>
+    </button>
   )
 
   return (
@@ -1657,143 +1666,39 @@ function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[
   )
 }
 
-// ── Session update modal (therapist dashboard shortcut) ───────────────
+// ── Session drawer ────────────────────────────────────────────────────
 
-/** Fetches the full session when a row is clicked, so the dashboard list itself can stay slim. */
-function SessionUpdateModalLoader({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+/** Fetches the full session when a row is clicked (so the dashboard lists stay slim) and opens the same
+ *  Session Notes side drawer the calendar uses — notes, progress report, score, checklist, attachments and
+ *  status — with the same access rules, so a therapist can add notes straight from the dashboard. */
+function SessionDrawerLoader({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const { user, activeRole } = useAuth()
   const { data: session, isError } = useQuery({
     queryKey: ['therapy-session', sessionId],
     queryFn: () => therapySessionsApi.get(sessionId),
     gcTime: 0,   // always read fresh when reopened — never show stale notes or ratings
   })
 
-  if (session) return <SessionUpdateModal session={session} onClose={onClose} />
+  if (session) {
+    const adminTier = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
+    return (
+      <SessionEventModal
+        key={session.id}
+        session={session}
+        canAccessNotes={adminTier || session.therapistId === user?.id}
+        canCancel={adminTier}
+        canReschedule={adminTier}
+        hideFeedback={activeRole === 'PARENT'}
+        onClose={onClose}
+      />
+    )
+  }
 
   return (
-    <Modal open title="Session" onClose={onClose} size="lg">
+    <Modal open title="Session" onClose={onClose} variant="side" size="lg">
       {isError
         ? <p className="text-sm py-6 text-center" style={{ color: colors.status.danger }}>Couldn't load this session.</p>
         : <div className="py-10 flex justify-center"><Spinner /></div>}
-    </Modal>
-  )
-}
-
-function SessionUpdateModal({
-  session,
-  onClose,
-}: {
-  session: TherapySessionResponse
-  onClose: () => void
-}) {
-  const qc = useQueryClient()
-  const { toast } = useToast()
-
-  const parsedRating = session.feedback ? parseInt(session.feedback, 10) : NaN
-  const [rating, setRating]             = useState(Number.isNaN(parsedRating) ? 0 : parsedRating)
-  const [score, setScore]               = useState<number | null>(session.performanceScore ?? null)
-  const [pendingAction, setPendingAction] = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      if (pendingAction === 'REQUEST_CANCEL') {
-        await therapySessionsApi.requestCancellation(session.id)
-      } else if (pendingAction) {
-        await therapySessionsApi.updateStatus(session.id, { status: pendingAction })
-      }
-      return therapySessionsApi.updateNotes(session.id, {
-        feedback: rating > 0 ? String(rating) : undefined,
-        ...(score !== null ? { performanceScore: score } : {}),
-      })
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
-      toast(pendingAction === 'REQUEST_CANCEL' ? 'Cancellation request sent' : 'Session saved', 'success')
-      onClose()
-    },
-    onError: (err) => setFormError(getApiError(err, 'Failed to save')),
-  })
-
-  const isScheduled = session.status === 'SCHEDULED'
-
-  return (
-    <Modal open title={`Session #${session.sessionNumber}`} onClose={onClose} size="lg" error={formError}>
-      {/* Info strip */}
-      <div className="flex items-center justify-between gap-3 mb-5 p-3 rounded-xl"
-        style={{ background: accentAlpha(0.05) }}>
-        <div>
-          <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>
-            {session.patientFirstName} {session.patientLastName}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {formatTimeStr(session.startTime)} · {session.programName} · #{session.sessionNumber}/{session.totalSessions}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[11.5px] font-semibold px-2 py-1 rounded-full"
-            style={{ background: statusColor(session.status) + '18', color: statusColor(session.status) }}>
-            {session.status.replace(/_/g, ' ')}
-          </span>
-          <Link
-            to={`/patients/${session.patientId}`}
-            className="text-[11.5px] font-medium px-2 py-1 rounded-full"
-            style={{ background: accentAlpha(0.10), color: colors.accent }}
-            onClick={onClose}
-          >
-            View case →
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        {/* Performance score */}
-        <PerformanceScoreSlider value={score} onChange={setScore} />
-
-        {/* Rating */}
-        <div>
-          <label className="form-label">Rating</label>
-          <StarRating value={rating} onChange={setRating} />
-        </div>
-      </div>
-
-      <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-        {isScheduled && (
-          <div className="mb-4">
-            <p className="form-label">Mark session as</p>
-            <div className="flex gap-2">
-              {([
-                { value: 'COMPLETED' as TherapySessionStatus, label: 'Completed', color: colors.status.success, alpha: successAlpha },
-                { value: 'NO_SHOW'   as TherapySessionStatus, label: 'No Show',   color: colors.status.warning, alpha: warningAlpha },
-                { value: 'REQUEST_CANCEL' as const, label: 'Request Cancel', color: colors.status.danger, alpha: dangerAlpha },
-              ]).map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setPendingAction(prev => prev === opt.value ? null : opt.value)}
-                  className="flex-1 text-xs font-semibold py-2.5 rounded-xl border transition-all"
-                  style={pendingAction === opt.value
-                    ? { background: opt.color, color: '#fff', border: `1px solid ${opt.color}` }
-                    : { background: opt.alpha(0.12), color: opt.color, border: `1px solid ${opt.alpha(0.35)}` }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {pendingAction && (
-              <p className="text-xs mt-2" style={{ color: colors.text.dim }}>
-                Will be {pendingAction === 'REQUEST_CANCEL' ? 'requested for cancellation' : `marked ${pendingAction.replace('_', ' ').toLowerCase()}`} when you save.
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-          <Button variant="primary" loading={saveMut.isPending} onClick={() => { setFormError(null); saveMut.mutate() }}>
-            Save
-          </Button>
-        </div>
-      </div>
     </Modal>
   )
 }
@@ -2218,7 +2123,7 @@ export default function DashboardPage() {
   // details page's ConcernsBanner canAct gating.
   const canActOnConcerns   = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD'
 
-  // Just the id — the modal fetches the full session (notes, rating, totals) when it opens.
+  // Just the id — the session drawer fetches the full session (notes, rating, totals) when it opens.
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [mockPayTarget, setMockPayTarget] = useState<SubscriptionResponse | null>(null)
   const qc = useQueryClient()
@@ -2372,7 +2277,7 @@ export default function DashboardPage() {
           <PendingPayments myChildren={myChildren} onPay={sub => setMockPayTarget(sub)} />
         )}
 
-        {loadingUpcoming ? <CardSkeleton /> : <UpcomingSessions sessions={upcomingSessions} />}
+        {loadingUpcoming ? <CardSkeleton /> : <UpcomingSessions sessions={upcomingSessions} onSessionClick={s => setEditingSessionId(s.id)} />}
 
         <FeedPanel />
 
@@ -2445,14 +2350,15 @@ export default function DashboardPage() {
             ))}
 
             {isTherapistRole && (loadingScheduled ? <CardSkeleton /> : hasPendingNotes && (
-              <PendingSessionNotesPanel count={overdueNotes?.count ?? 0} sessions={overdueNotes?.sessions ?? []} />
+              <PendingSessionNotesPanel count={overdueNotes?.count ?? 0} sessions={overdueNotes?.sessions ?? []}
+                onSessionClick={s => setEditingSessionId(s.id)} />
             ))}
 
             {loadingSessions ? <CardSkeleton /> : (
               <TodaySessions
                 sessions={todaySessions}
                 showTherapist={isOwnerOrAdmin}
-                onSessionClick={canUpdateSession ? (s) => setEditingSessionId(s.id) : undefined}
+                onSessionClick={(s) => setEditingSessionId(s.id)}
               />
             )}
 
@@ -2468,7 +2374,7 @@ export default function DashboardPage() {
       })()}
 
       {editingSessionId && (
-        <SessionUpdateModalLoader
+        <SessionDrawerLoader
           sessionId={editingSessionId}
           onClose={() => setEditingSessionId(null)}
         />

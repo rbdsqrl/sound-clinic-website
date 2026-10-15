@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, subDays } from 'date-fns'
 import {
   ClipboardCheck, StickyNote, Clapperboard, FileText, Image as ImageIcon, Video, ExternalLink,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { therapistActivityApi } from '../api/therapistActivity'
 import { usersApi } from '../api/users'
@@ -33,80 +34,140 @@ function NoteField({ label, value }: { label: string; value: string | null }) {
   )
 }
 
-function ChildGroupCard({ patientName, children }: { patientName: string; children: React.ReactNode }) {
+const PAGE_SIZE = 5
+
+/** One entry in a section's flat, newest-first list — the child it belongs to is shown on the entry itself. */
+function EntryCard({ patientName, children }: { patientName: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl p-3.5" style={{ background: surface.card, border: border.card }}>
       <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{patientName}</p>
-      <div className="mt-2 space-y-3">{children}</div>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  )
+}
+
+/** Flattens the per-child groups into one list, newest first. */
+function flatten<E>(
+  groups: { patientName: string; entries: E[] }[], when: (e: E) => string,
+): { patientName: string; entry: E }[] {
+  return groups
+    .flatMap(g => g.entries.map(entry => ({ patientName: g.patientName, entry, when: when(entry) })))
+    .sort((x, y) => (x.when < y.when ? 1 : x.when > y.when ? -1 : 0))
+    .map(({ patientName, entry }) => ({ patientName, entry }))
+}
+
+/** Five entries at a time. The parent keys the section on therapist + range, so it restarts on page one. */
+function usePaged<T>(items: T[]) {
+  const [page, setPage] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const current = Math.min(page, totalPages - 1)
+  return {
+    pageItems: items.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE),
+    page: current, totalPages, total: items.length, setPage,
+  }
+}
+
+function Pager({ page, totalPages, total, setPage, noun }: {
+  page: number; totalPages: number; total: number; setPage: (p: number) => void; noun: string
+}) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-between pt-3">
+      <p className="text-xs" style={{ color: colors.text.dim }}>
+        Page {page + 1} of {totalPages} · {total} {noun}{total !== 1 ? 's' : ''}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setPage(Math.max(0, page - 1))}
+          disabled={page === 0}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+          style={{ border: border.card, color: colors.text.primary }}
+        >
+          <ChevronLeft size={14} /> Previous
+        </button>
+        <button
+          onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+          disabled={page + 1 >= totalPages}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+          style={{ border: border.card, color: colors.text.primary }}
+        >
+          Next <ChevronRight size={14} />
+        </button>
+      </div>
     </div>
   )
 }
 
 function SessionNotesSection({ groups }: { groups: ChildSessionNotes[] }) {
+  // Newest session first; the start time breaks ties within a day.
+  const items = flatten(groups, e => `${e.sessionDate} ${e.startTime}`)
+  const { pageItems, ...pager } = usePaged(items)
   return (
     <Card>
       <CardHeader title="Therapy Session Notes" subtitle="From the session's own notes / progress report / feedback fields" />
-      {groups.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState icon={<ClipboardCheck size={28} />} title="No session notes"
           description="No session in this range had notes, a progress report or feedback filled in." />
       ) : (
-        <div className="space-y-3">
-          {groups.map(g => (
-            <ChildGroupCard key={g.patientId} patientName={g.patientName}>
-              {g.entries.map(e => (
-                <div key={e.sessionId} className="pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: `${colors.text.dim}20` }}>
-                  <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateStr(e.sessionDate)} · {formatTimeStr(e.startTime)}</p>
-                  <NoteField label="Notes" value={e.notes} />
-                  <NoteField label="Progress Report" value={e.progressReport} />
-                  <NoteField label="Feedback" value={e.feedback} />
-                </div>
-              ))}
-            </ChildGroupCard>
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {pageItems.map(({ patientName, entry: e }) => (
+              <EntryCard key={e.sessionId} patientName={patientName}>
+                <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateStr(e.sessionDate)} · {formatTimeStr(e.startTime)}</p>
+                <NoteField label="Notes" value={e.notes} />
+                <NoteField label="Progress Report" value={e.progressReport} />
+                <NoteField label="Feedback" value={e.feedback} />
+              </EntryCard>
+            ))}
+          </div>
+          <Pager {...pager} noun="note" />
+        </>
       )}
     </Card>
   )
 }
 
 function FreeTextNotesSection({ groups }: { groups: ChildFreeTextNotes[] }) {
+  const items = flatten(groups, e => e.createdAt)
+  const { pageItems, ...pager } = usePaged(items)
   return (
     <Card>
       <CardHeader title="Free-Text Notes" subtitle="From the Media & Notes channel" />
-      {groups.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState icon={<StickyNote size={28} />} title="No free-text notes"
           description="No note was shared through Media & Notes in this range." />
       ) : (
-        <div className="space-y-3">
-          {groups.map(g => (
-            <ChildGroupCard key={g.patientId} patientName={g.patientName}>
-              {g.entries.map(e => (
-                <div key={e.id} className="pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: `${colors.text.dim}20` }}>
-                  <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateTimeStr(e.createdAt)}</p>
-                  <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: colors.text.primary }}>{e.note}</p>
-                </div>
-              ))}
-            </ChildGroupCard>
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {pageItems.map(({ patientName, entry: e }) => (
+              <EntryCard key={e.id} patientName={patientName}>
+                <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateTimeStr(e.createdAt)}</p>
+                <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: colors.text.primary }}>{e.note}</p>
+              </EntryCard>
+            ))}
+          </div>
+          <Pager {...pager} noun="note" />
+        </>
       )}
     </Card>
   )
 }
 
 function MediaSection({ groups }: { groups: ChildMedia[] }) {
+  const items = flatten(groups, e => e.createdAt)
+  const { pageItems, ...pager } = usePaged(items)
   return (
     <Card>
       <CardHeader title="Media / Videos" subtitle="From the Media & Notes channel" />
-      {groups.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState icon={<Clapperboard size={28} />} title="No media uploaded"
           description="No video or file was shared through Media & Notes in this range." />
       ) : (
-        <div className="space-y-3">
-          {groups.map(g => (
-            <ChildGroupCard key={g.patientId} patientName={g.patientName}>
-              {g.entries.map(e => (
-                <div key={e.id} className="flex items-start justify-between gap-3 pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: `${colors.text.dim}20` }}>
+        <>
+          <div className="space-y-3">
+            {pageItems.map(({ patientName, entry: e }) => (
+              <EntryCard key={e.id} patientName={patientName}>
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5" style={{ color: colors.text.primary }}>
                       {fileKindIcon(e.contentType)}
@@ -125,10 +186,11 @@ function MediaSection({ groups }: { groups: ChildMedia[] }) {
                     </button>
                   )}
                 </div>
-              ))}
-            </ChildGroupCard>
-          ))}
-        </div>
+              </EntryCard>
+            ))}
+          </div>
+          <Pager {...pager} noun="file" />
+        </>
       )}
     </Card>
   )
@@ -196,9 +258,10 @@ export default function TherapistActivityPage() {
             <StatCard icon={<Clapperboard size={20} />} label="Media / Videos" value={activity.mediaCount} color="purple" />
           </div>
 
-          <SessionNotesSection groups={activity.therapySessionNotesByChild} />
-          <FreeTextNotesSection groups={activity.freeTextNotesByChild} />
-          <MediaSection groups={activity.mediaByChild} />
+          {/* Keyed on therapist + range so each section starts back on page one when they change. */}
+          <SessionNotesSection key={`s-${therapistId}-${from}-${to}`} groups={activity.therapySessionNotesByChild} />
+          <FreeTextNotesSection key={`f-${therapistId}-${from}-${to}`} groups={activity.freeTextNotesByChild} />
+          <MediaSection key={`m-${therapistId}-${from}-${to}`} groups={activity.mediaByChild} />
         </>
       ) : null}
     </div>
