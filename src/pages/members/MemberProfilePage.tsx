@@ -312,7 +312,7 @@ export default function MemberProfilePage() {
                   <UserCheck size={13} /> {activateMut.isPending ? 'Activating…' : 'Activate'}
                 </button>
               )}
-              {canEdit && (
+              {(canEdit || canReassign) && (
                 <button
                   onClick={() => setEditOpen(true)}
                   className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
@@ -647,7 +647,19 @@ export default function MemberProfilePage() {
       />
 
       {/* Edit profile */}
-      {editOpen && (
+      {editOpen && !canEdit && (
+        <CustomRoleModal
+          memberId={id!}
+          current={profile.specialization ?? ''}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ['member-profile', id] })
+            toast('Custom role updated', 'success')
+            setEditOpen(false)
+          }}
+        />
+      )}
+      {editOpen && canEdit && (
         <EditProfileModal
           memberId={id!}
           profile={profile}
@@ -1033,6 +1045,39 @@ function AssignCaseModal({
         <Button variant="primary" disabled={!patientId} loading={pending} onClick={() => onAssign(patientId)}>
           Assign
         </Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Custom Role only (Office Admin) ───────────────────────────────────────────
+
+/** What an Office Admin gets from Edit: just the member's Custom Role — contact and HR details stay with
+ *  the Business Owner / Clinic Head's full Edit Profile. */
+function CustomRoleModal({ memberId, current, onClose, onSaved }: {
+  memberId: string
+  current: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [customRole, setCustomRole] = useState(current)
+  const [error, setError] = useState('')
+
+  const mut = useMutation({
+    mutationFn: () => usersApi.setCustomRole(memberId, customRole.trim() || null),
+    onSuccess: onSaved,
+    onError: (err: unknown) => setError(getApiError(err, 'Could not save the custom role')),
+  })
+
+  return (
+    <Modal open title="Custom Role" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <CustomRoleField value={customRole} onChange={setCustomRole} />
+        {error && <p className="form-error">{error}</p>}
+      </div>
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" loading={mut.isPending} onClick={() => { setError(''); mut.mutate() }}>Save</Button>
       </div>
     </Modal>
   )

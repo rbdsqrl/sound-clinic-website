@@ -66,6 +66,10 @@ export const usersApi = {
   updateProfile: (id: string, data: UpdateMemberProfileRequest) =>
     client.patch<ApiResponse<MemberProfileResponse>>(`/users/${id}/profile`, data).then((r) => r.data.data),
 
+  /** Set (or, with null/blank, clear) a member's Custom Role — open to every Admin Role. */
+  setCustomRole: (id: string, customRole: string | null) =>
+    client.patch<ApiResponse<MemberProfileResponse>>(`/users/${id}/custom-role`, { customRole }).then((r) => r.data.data),
+
   addRole: (role: string) =>
     client.post<ApiResponse<UserResponse>>('/users/me/roles', { role }).then((r) => r.data.data),
 
