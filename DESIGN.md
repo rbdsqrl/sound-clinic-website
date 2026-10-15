@@ -45,7 +45,7 @@ colors.role = {
 ## 2. Border Rules (CRITICAL)
 
 `--border-card` and `--border-medium` are **full CSS shorthands** (`1px solid rgba(...)`).  
-`--border-divider`, `--border-sidebar` are **colour values only** (`rgba(...)`).
+`--border-divider`, `--border-control`, `--border-sidebar` are **colour values only** (`rgba(...)`).
 
 | Property | Correct token | Wrong |
 |----------|--------------|-------|
@@ -53,6 +53,7 @@ colors.role = {
 | `borderTop/Bottom/Left/Right:` | `border.card` or `border.medium` | – |
 | `borderColor:` | `border.divider` | ~~`border.card`~~ |
 | `style={{ borderColor: border.card }}` | **NEVER** — card is a shorthand, not a colour | – |
+| Option / selection buttons (radio, chips, toggles) — unselected state | `` `1px solid ${border.control}` `` | ~~`border.divider`~~ (too faint in light mode) |
 
 ### Row / list dividers
 

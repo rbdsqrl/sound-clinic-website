@@ -961,7 +961,7 @@ function ReassignCasesModal({
               className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
               style={type === 'PERMANENT'
                 ? { background: 'var(--color-accent)', color: '#fff', borderColor: 'var(--color-accent)' }
-                : { color: colors.text.primary, borderColor: border.divider }}
+                : { color: colors.text.primary, borderColor: border.control }}
             >
               Permanent
             </button>
@@ -971,7 +971,7 @@ function ReassignCasesModal({
               className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
               style={type === 'TEMPORARY'
                 ? { background: 'var(--color-accent)', color: '#fff', borderColor: 'var(--color-accent)' }
-                : { color: colors.text.primary, borderColor: border.divider }}
+                : { color: colors.text.primary, borderColor: border.control }}
             >
               For a time period
             </button>

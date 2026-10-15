@@ -300,7 +300,7 @@ function ItemInput({
                 className="text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
                 style={selected
                   ? { background: colors.accent, color: '#fff', border: `1px solid ${colors.accent}` }
-                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.card}` }}
+                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.control}` }}
               >
                 {opt.label}
               </button>
@@ -325,7 +325,7 @@ function ItemInput({
                 className="text-xs font-medium px-3 py-1.5 rounded-full border transition-all inline-flex items-center gap-1"
                 style={selected
                   ? { background: colors.accent, color: '#fff', border: `1px solid ${colors.accent}` }
-                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.card}` }}
+                  : { background: 'transparent', color: colors.text.muted, border: `1px solid ${border.control}` }}
               >
                 {selected && <Check size={11} />} {opt.label}
               </button>
@@ -344,7 +344,7 @@ function ItemInput({
       {item.itemType === 'FILE' && (
         <div className="flex items-center gap-2">
           <label className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border cursor-pointer transition-all"
-            style={{ color: colors.text.muted, border: `1px solid ${border.card}` }}>
+            style={{ color: colors.text.muted, border: `1px solid ${border.control}` }}>
             <Paperclip size={12} />
             {uploadMut.isPending ? 'Uploading…' : answer?.text ? 'Replace file' : 'Attach file'}
             <input

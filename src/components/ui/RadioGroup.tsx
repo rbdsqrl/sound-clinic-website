@@ -45,7 +45,7 @@ export function RadioGroup({ label, options, value, onChange, clearable = false 
               className="px-3 py-1.5 rounded-full text-sm font-medium transition-all min-h-[36px]"
               style={isSelected
                 ? { background: 'var(--color-accent)', color: '#fff' }
-                : { background: surface.card, color: colors.text.primary, border: `1px solid ${border.divider}` }
+                : { background: surface.card, color: colors.text.primary, border: `1px solid ${border.control}` }
               }
             >
               {opt.label}

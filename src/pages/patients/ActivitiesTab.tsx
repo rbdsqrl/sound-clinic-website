@@ -223,7 +223,7 @@ function LogAttemptModal({ assignment, onClose, onLogged }: {
                           className="px-3 py-1.5 rounded-full text-sm font-medium"
                           style={selected
                             ? { background: 'var(--color-accent)', color: '#fff' }
-                            : { background: 'transparent', color: colors.text.primary, border: `1px solid ${border.divider}` }}
+                            : { background: 'transparent', color: colors.text.primary, border: `1px solid ${border.control}` }}
                         >
                           {opt.optionText}
                         </button>

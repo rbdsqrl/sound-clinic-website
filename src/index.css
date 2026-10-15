@@ -50,10 +50,11 @@
   --surface-row-hover:     rgba(26, 115, 232, 0.04);
 
   /* ── Borders ────────────────────────────────────────────────────────────── */
-  --border-card:           1px solid rgba(0, 0, 0, 0.07);
+  --border-card:           1px solid rgba(0, 0, 0, 0.13);
   --border-divider:        rgba(0, 0, 0, 0.07);
+  --border-control:        rgba(0, 0, 0, 0.20);
   --border-sidebar:        rgba(26, 115, 232, 0.12);
-  --border-medium:         1px solid rgba(0, 0, 0, 0.10);
+  --border-medium:         1px solid rgba(0, 0, 0, 0.16);
   --border-drag:           rgba(0, 0, 0, 0.12);
   --border-raw:            0, 0, 0;
 
@@ -150,6 +151,7 @@
   /* Borders — defined, still quiet, no glow */
   --border-card:           1px solid rgba(255, 255, 255, 0.10);
   --border-divider:        rgba(255, 255, 255, 0.11);
+  --border-control:        rgba(255, 255, 255, 0.16);
   --border-sidebar:        rgba(63, 193, 204, 0.14);
   --border-medium:         1px solid rgba(255, 255, 255, 0.13);
   --border-drag:           rgba(255, 255, 255, 0.14);
@@ -228,8 +230,9 @@
   --surface-app:           #FFFFFF;
   --surface-card:          #FFFFFF;
   --surface-card-raw:      255, 255, 255;
-  --border-card:           1px solid rgba(0, 0, 0, 0.07);
+  --border-card:           1px solid rgba(0, 0, 0, 0.13);
   --border-divider:        rgba(0, 0, 0, 0.07);
+  --border-control:        rgba(0, 0, 0, 0.20);
   --shadow-card:           0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-glow:           0 0 20px rgba(26, 115, 232, 0.18);
   --shadow-glow-lg:        0 0 40px rgba(26, 115, 232, 0.22);

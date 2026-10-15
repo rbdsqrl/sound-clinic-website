@@ -115,6 +115,8 @@ export const border = {
   medium:       v('--border-medium'),
   /** Raw colour value only (for borderTop, borderBottom etc.) — auto-switches with mode */
   divider:      v('--border-divider'),
+  /** Border colour for option/selection buttons (radio, chips, toggles) — a step stronger than the divider so they stay visible in light mode. */
+  control:      v('--border-control'),
   /** Aliases — all resolve to the same adaptive divider */
   dividerDark:  v('--border-divider'),
   dividerLight: v('--border-sidebar'),
@@ -342,7 +344,7 @@ export const styles = {
   filterTabInactive: {
     background: 'transparent',
     color:      colors.text.muted,
-    border:     `1px solid ${borderAlpha(0.14)}`,
+    border:     `1px solid ${border.control}`,
   } as React.CSSProperties,
 
   /**
