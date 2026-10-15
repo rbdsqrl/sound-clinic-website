@@ -2215,18 +2215,6 @@ export default function PatientDetailPage() {
                                 sessions completed
                               </p>
                             </div>
-                            <p
-                              className="text-2xl font-bold leading-none mb-0.5"
-                              style={{
-                                color: progressPct >= 100
-                                  ? palette.green.text
-                                  : progressPct > 0
-                                    ? colors.accent
-                                    : colors.text.dim,
-                              }}
-                            >
-                              {Math.round(progressPct)}%
-                            </p>
                           </div>
                           <div className="h-2.5 rounded-full overflow-hidden" style={{ background: accentAlpha(0.10) }}>
                             <div
