@@ -20,6 +20,7 @@ import { PageLoader, Spinner } from '../components/ui/Spinner'
 import { SessionEventModal } from '../components/shared/SessionEventModal'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
+import { describeServerProblem } from '../lib/queryRetry'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -2146,7 +2147,7 @@ export default function DashboardPage() {
   // Slim rows (names + times) — enough to draw the card and the Sidebar's calendar badge, which
   // shares this key so one call serves both. The key sits under 'therapy-sessions-cal' so the
   // existing invalidations after a session changes refresh it too.
-  const { data: todaySessions = [], isLoading: loadingSessions } = useQuery({
+  const { data: todaySessions = [], isLoading: loadingSessions, isError: sessionsFailed, error: sessionsError, refetch: refetchSessions } = useQuery({
     queryKey: ['therapy-sessions-cal', 'summary', today],
     queryFn: () => therapySessionsApi.summary(today, today),
     enabled: isStaff,
@@ -2354,7 +2355,13 @@ export default function DashboardPage() {
                 onSessionClick={s => setEditingSessionId(s.id)} />
             ))}
 
-            {loadingSessions ? <CardSkeleton /> : (
+            {loadingSessions ? <CardSkeleton /> : sessionsFailed ? (
+              <div style={{ ...styles.card, minHeight: TILE_MIN_HEIGHT }} className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                <CalendarDays size={28} style={{ color: colors.text.dim }} />
+                <p className="text-sm" style={{ color: colors.text.muted }}>{describeServerProblem(sessionsError).headline} — today's sessions couldn't be loaded, they aren't missing.</p>
+                <Button size="sm" variant="secondary" onClick={() => refetchSessions()}>Retry</Button>
+              </div>
+            ) : (
               <TodaySessions
                 sessions={todaySessions}
                 showTherapist={isOwnerOrAdmin}

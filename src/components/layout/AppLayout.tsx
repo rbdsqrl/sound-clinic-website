@@ -6,6 +6,7 @@ import { colors, styles, surface, LOGO_SRC } from '../../theme'
 import { useInquiryBadge } from '../../hooks/useInquiryBadge'
 import { useCalendarBadge } from '../../hooks/useCalendarBadge'
 import { PullToRefresh } from '../shared/PullToRefresh'
+import { ConnectionBanner } from './ConnectionBanner'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen]   = useState(false)
@@ -75,6 +76,8 @@ export default function AppLayout() {
             </span>
           </div>
         </header>
+
+        <ConnectionBanner />
 
         {/* Page content */}
         <PullToRefresh>

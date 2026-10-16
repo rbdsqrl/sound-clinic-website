@@ -67,8 +67,14 @@ function activeRoleHeader(): string | null {
   }
 }
 
+const GET_TIMEOUT_MS = 30_000
+
 // ── Request: attach Bearer token + active role ─────────────────────────────────
 client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // A sleeping or restarting backend can leave a request hanging forever, which shows as endless loading and no
+  // explanation. Reads get a ceiling so the screen can say the server is slow; uploads and other writes are left
+  // alone since a large file legitimately takes longer.
+  if (config.method?.toLowerCase() === 'get' && !config.timeout) config.timeout = GET_TIMEOUT_MS
   const token = tokenStorage.getAccess()
   if (token) config.headers.Authorization = `Bearer ${token}`
   const activeRole = activeRoleHeader()

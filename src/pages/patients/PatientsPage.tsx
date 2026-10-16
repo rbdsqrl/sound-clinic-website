@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { Plus, Users, LayoutGrid, List, Search, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
+import { describeServerProblem } from '../../lib/queryRetry'
 import { clinicsApi } from '../../api/clinics'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -173,7 +174,7 @@ export default function PatientsPage() {
 
   const statusParam = activeFilters.size === 0 ? '' : Array.from(activeFilters).join(',')
 
-  const { data: patientsPage, isLoading, isFetching } = useQuery({
+  const { data: patientsPage, isLoading, isFetching, isError, error: patientsError, refetch } = useQuery({
     queryKey: ['patients', 'search', { page, tab, debouncedSearch, statusParam }],
     queryFn: () => patientsApi.search({
       page,
@@ -324,7 +325,15 @@ export default function PatientsPage() {
       </div>
 
       {/* ── Patient list ── */}
-      {filtered.length === 0 ? (
+      {isError && !patientsPage ? (
+        // A failed request must not read as an empty list — "no cases" and "couldn't load" look the same otherwise.
+        <EmptyState
+          icon={<Users size={32} />}
+          title={describeServerProblem(patientsError).headline}
+          description="Your cases couldn't be loaded because of a server problem, not because there are none. Your data is safe — please try again in a moment."
+          action={{ label: 'Retry', onClick: () => refetch() }}
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} />}
           title="No cases match your filters"

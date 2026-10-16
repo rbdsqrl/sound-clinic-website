@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Capacitor } from '@capacitor/core'
 import App from './App'
 import './index.css'
+import { shouldRetryQuery, queryRetryDelay } from './lib/queryRetry'
 
 // Lets plain CSS (which can't call Capacitor APIs) target one native platform specifically —
 // e.g. `.platform-ios` for a WebKit-only quirk, `.platform-android` for a WebView-only one —
@@ -14,7 +15,7 @@ if (Capacitor.isNativePlatform()) {
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1 },
+    queries: { staleTime: 30_000, retry: shouldRetryQuery, retryDelay: queryRetryDelay },
   },
 })
 
