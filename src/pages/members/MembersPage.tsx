@@ -20,6 +20,7 @@ import { Select } from '../../components/ui/Select'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { statusBadge, roleBadge, roleLabel } from '../../components/ui/Badge'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatDateStr, formatDateTimeStr } from '../../lib/format'
@@ -282,7 +283,7 @@ export default function MembersPage() {
     ? INVITABLE_ROLES.filter(r => r.value !== 'BUSINESS_OWNER' && r.value !== 'CLINIC_HEAD')
     : INVITABLE_ROLES
 
-  const [tab, setTab]               = useState<Tab>('members')
+  const [tab, setTab]               = useUrlTab<Tab>(['members', 'parents', 'invites', 'archived'], 'members')
   const [deleteTarget, setDeleteTarget] = useState<StaffMemberResponse | null>(null)
   const [viewMode, setViewMode]     = useState<ViewMode>('grid')
   const [search, setSearch]         = useState('')

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -28,7 +29,7 @@ const NUM_STRONG = { color: colors.text.primary, fontVariantNumeric: 'tabular-nu
  * tooling problems can be told apart from habits.
  */
 export default function EvidenceReport({ from, to }: { from: string; to: string }) {
-  const [view, setView] = useState<View>('therapist')
+  const [view, setView] = useUrlTab<View>(['therapist', 'monthly', 'child'], 'therapist', { param: 'report' })
 
   const therapistQ = useQuery({ queryKey: ['analytics', 'evidence', from, to], queryFn: () => analyticsApi.evidence(from, to), enabled: view === 'therapist' })
   const monthlyQ   = useQuery({ queryKey: ['analytics', 'evidence-monthly', from, to], queryFn: () => analyticsApi.evidenceMonthly(from, to), enabled: view === 'monthly' })

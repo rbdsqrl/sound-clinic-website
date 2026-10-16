@@ -23,6 +23,7 @@ import { skillsApi, languagesApi, propsApi } from '../api/activityLookups'
 import IEPLibraryTab from './patients/IEPLibraryTab'
 import { EvidenceSettingsCard } from '../components/shared/EvidenceSettingsCard'
 import { CustomRolesCard } from '../components/shared/CustomRolesCard'
+import { useUrlTab } from '../hooks/useUrlTab'
 import { LeavePolicyCard } from '../components/shared/LeavePolicyCard'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -646,7 +647,7 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function OrganisationPage() {
-  const [tab, setTab]               = useState<Tab>('information')
+  const [tab, setTab]               = useUrlTab<Tab>(['information', 'clinics', 'manage', 'settings', 'activity-library', 'iep-library'], 'information')
   const [editing, setEditing]       = useState(false)
   const [addingHoliday, setAddingHoliday] = useState(false)
   const [holidaysOpen, setHolidaysOpen] = useState(false)

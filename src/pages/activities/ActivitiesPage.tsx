@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { ClipboardList, Plus, Clock, Users2, Download, Globe, ChevronDown, FilePlus, UserPlus, Paperclip } from 'lucide-react'
@@ -107,7 +108,7 @@ function AddMenu({ onNewResource }: { onNewResource: () => void }) {
 }
 
 export default function ActivitiesPage() {
-  const [tab, setTab] = useState<Tab>('mine')
+  const [tab, setTab] = useUrlTab<Tab>(['mine', 'shared'], 'mine')
   const [search, setSearch] = useState('')
   const [difficulty, setDifficulty] = useState<ActivityDifficulty | ''>('')
   const [assignActivity, setAssignActivity] = useState<ActivityResponse | null>(null)

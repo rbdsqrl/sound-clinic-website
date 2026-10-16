@@ -21,6 +21,8 @@ export const ROUTES = {
   /** Deep-link a Workforce tab, e.g. workforceTab('leave-requests') */
   workforceTab:       (tab: string) => `/workforce?tab=${tab}`,
   members:            '/members',
+  /** Deep-link a Members tab: 'members' | 'parents' | 'invites' | 'archived'. */
+  membersTab:         (tab: string) => (tab === 'members' ? '/members' : `/members?tab=${tab}`),
   member:             (id: string) => `/members/${id}`,
   analytics:          '/analytics',
   therapistActivity:  '/therapist-activity',

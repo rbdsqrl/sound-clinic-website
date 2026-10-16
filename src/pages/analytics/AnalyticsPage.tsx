@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { analyticsApi } from '../../api/analytics'
@@ -98,7 +99,7 @@ export default function AnalyticsPage() {
   const { activeRole } = useAuth()
   const isParentUser = activeRole === 'PARENT'
 
-  const [tab, setTab] = useState<TabKey>('overview')
+  const [tab, setTab] = useUrlTab<TabKey>(TABS.map(t => t.key), 'overview')
   const [granularity, setGranularity] = useState<Granularity>('DAILY')
   const [domain, setDomain] = useState<string>('')
   const { names: customDomainNames } = useCustomDomains()

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarOff, CheckCircle2, XCircle } from 'lucide-react'
 import { leavesApi } from '../../api/leaves'
@@ -96,7 +97,7 @@ export default function LeaveManagementPage({ asTab = false }: { asTab?: boolean
   const qc = useQueryClient()
   const { toast } = useToast()
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | ''>('PENDING')
-  const [view, setView] = useState<'requests' | 'balances'>('requests')
+  const [view, setView] = useUrlTab<'requests' | 'balances'>(['requests', 'balances'], 'requests', { param: 'view' })
 
   const { data: leaves, isLoading } = useQuery({
     queryKey: ['leaves'],

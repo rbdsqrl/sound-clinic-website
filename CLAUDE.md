@@ -296,6 +296,10 @@ Higher-level pieces built from the `ui/` primitives above, factored out because 
 - **IEP domains**: the Domain picker (`components/shared/DomainField.tsx`, helpers in `lib/iepDomains.ts`) lists the built-in domains, the organisation's custom ones, and "+ Add a custom domain…" which reveals a name box; new names are saved to the organisation's list when the goal is saved. Used in the add-plan goal form, add/edit goal, and the IEP Library's template goal form; the analytics Domain filter includes the custom names. Turn the picker's value into an API request with `resolveDomainValue()`, and show a goal's domain with `domainLabel(domain, customDomain)`.
 - **Review meetings** no longer auto-invite the assigned therapist — scheduling one (from `ReviewMeetings.tsx`) requires picking at least one Clinic Head via `usersApi.listAssignable(false, 'CLINIC_HEAD')`; participants can be edited afterward from the Calendar (see above) via `reviewMeetingsApi.updateParticipants`.
 
+### Tabs live in the URL
+
+Page tabs and sub-tabs use `useUrlTab(allowedValues, fallback, { param?, reset? })` (`src/hooks/useUrlTab.ts`) instead of `useState`, so the active tab is `?tab=…` in the address: reloads, Back and shared links land on the same tab, and the default tab keeps a clean URL. Switching replaces the history entry. Use `reset` to drop a sub-tab param when its parent tab changes. A "back to the list" link should be `BackLink` (`components/shared/BackLink.tsx`) — it returns to the exact previous URL (tab and all) and falls back to its `to` when the page was opened directly. `ROUTES.membersTab('parents')` builds a deep link to a Members tab. Workforce, Feed and Resources predate the hook and read `?tab=` themselves.
+
 ### Adding a new API module
 1. Create `src/api/<feature>.ts`
 2. Import `client` from `./client` and response types from `../types`

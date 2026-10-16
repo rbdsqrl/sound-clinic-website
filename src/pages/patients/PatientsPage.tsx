@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -152,7 +153,7 @@ export default function PatientsPage() {
   const [showModal,     setShowModal]     = useState(false)
   const [formError,     setFormError]     = useState<string | null>(null)
   const [viewMode,      setViewMode]      = useState<'grid' | 'list'>('grid')
-  const [tab,           setTab]           = useState<'all' | 'mine'>('all')
+  const [tab,           setTab]           = useUrlTab<'all' | 'mine'>(['all', 'mine'], 'all')
   const [search,        setSearch]        = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['ACTIVE']))
   const [page,          setPage]          = useState(0)

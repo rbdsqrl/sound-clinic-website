@@ -10,6 +10,8 @@ import BaselineReportTab from './BaselineReportTab'
 import SharedMediaTab from './SharedMediaTab'
 import { ActivityLogPanel } from '../../components/shared/ActivityLogPanel'
 import { CaseHistoryCard } from './CaseHistoryCard'
+import { BackLink } from '../../components/shared/BackLink'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { ReviewMeetingsPanel, ScheduleModal } from './ReviewMeetings'
 import AdHocSessionModal from '../calendar/AdHocSessionModal'
 import { patientsApi } from '../../api/patients'
@@ -1128,7 +1130,7 @@ const ASSESSMENT_TABS: { type: AssessmentType; label: string; title: string; des
 ]
 
 function AssessmentsTab({ patientId, readOnly = false }: { patientId: string; readOnly?: boolean }) {
-  const [sub, setSub] = useState<AssessmentType>('ISAA')
+  const [sub, setSub] = useUrlTab<AssessmentType>(ASSESSMENT_TABS.map(t => t.type), 'ISAA', { param: 'assessment' })
   const active = ASSESSMENT_TABS.find(t => t.type === sub)!
 
   return (
@@ -1456,7 +1458,8 @@ export default function PatientDetailPage() {
       next.has(subId) ? next.delete(subId) : next.add(subId)
       return next
     })
-  const [activeTab,        setActiveTab]        = useState<Tab>('Overview')
+  // The tab (and the Assessments sub-tab) live in the URL, so a reload or Back lands on the same one.
+  const [tabParam,         setActiveTab]        = useUrlTab<Tab>(TABS, 'Overview', { reset: ['assessment'] })
   const [conditionsPage,   setConditionsPage]   = useState(0)
   const [sidebarSearch,    setSidebarSearch]    = useState('')
   const [dischargeModal,   setDischargeModal]   = useState(false)
@@ -1479,6 +1482,8 @@ export default function PatientDetailPage() {
     : [...TABS]
   // Activity Log (who changed what on this case) is for the Business Owner only.
   const tabsForRole = visibleTabs.filter(t => t !== 'Activity Log' || currentRoleEarly === 'BUSINESS_OWNER')
+  // A tab this role can't see (from a stale or shared link) falls back to the first one it can.
+  const activeTab: Tab = tabsForRole.includes(tabParam) ? tabParam : tabsForRole[0]
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patients', id],
@@ -1698,7 +1703,7 @@ export default function PatientDetailPage() {
       {/* Back link + patient switcher — replaces the old always-on list column,
           which sat mostly empty and ate a fixed slice of the page width. */}
       <div className="flex items-center justify-between gap-3">
-        <Link
+        <BackLink
           to="/patients"
           className="inline-flex items-center gap-1 text-sm transition-colors"
           style={{ color: colors.text.muted }}
@@ -1706,7 +1711,7 @@ export default function PatientDetailPage() {
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
         >
           <ArrowLeft size={14} /> Cases
-        </Link>
+        </BackLink>
 
         {!isParentRole && (
           <PatientSwitcher

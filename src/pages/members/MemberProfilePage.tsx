@@ -28,6 +28,8 @@ import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { roleBadge, statusBadge } from '../../components/ui/Badge'
 import { CustomRoleField } from '../../components/shared/CustomRoleField'
+import { BackLink } from '../../components/shared/BackLink'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { MultiSelectChips } from '../../components/ui/MultiSelectChips'
 import { Tile, Panel } from '../analytics/components'
 import MemberDocumentsTab from './MemberDocumentsTab'
@@ -79,10 +81,12 @@ export default function MemberProfilePage() {
   const [reassignError, setReassignError] = useState<string | null>(null)
   // Parent/Staff view switcher — only relevant once `profile` loads, but the hook has to sit
   // above the early-return guard below like every other hook in this component.
-  const [viewMode, setViewMode] = useState<'PARENT' | 'STAFF' | null>(null)
+  const [viewParam, setViewParam] = useUrlTab<'auto' | 'parent' | 'staff'>(['auto', 'parent', 'staff'], 'auto', { param: 'view' })
+  const viewMode = viewParam === 'parent' ? 'PARENT' : viewParam === 'staff' ? 'STAFF' : null
+  const setViewMode = (v: 'PARENT' | 'STAFF') => setViewParam(v === 'PARENT' ? 'parent' : 'staff')
   // Page sub-tabs. Documents is HR-sensitive, so it's offered to canEdit (Business Owner / Clinic Head)
   // only; the Activity Log is Business Owner only, and its data is fetched only once the tab is opened.
-  const [pageTab, setPageTab] = useState<'overview' | 'documents' | 'activity'>('overview')
+  const [pageTab, setPageTab] = useUrlTab<'overview' | 'documents' | 'activity'>(['overview', 'documents', 'activity'], 'overview')
 
   useEffect(() => { if (assignOpen) setAssignError(null) }, [assignOpen])
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
@@ -246,7 +250,9 @@ export default function MemberProfilePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex items-center gap-1.5 text-sm" style={{ color: colors.text.dim }}>
-        <Link to={ROUTES.members} className="hover:underline flex-shrink-0">Members</Link>
+        <BackLink to={ROUTES.membersTab(profile.role === 'PARENT' ? 'parents' : profile.isActive ? 'members' : 'archived')} className="hover:underline flex-shrink-0">
+          {profile.role === 'PARENT' ? 'Parents' : 'Members'}
+        </BackLink>
         <ChevronRight size={14} />
         <span>{profile.firstName} {profile.lastName}</span>
       </div>

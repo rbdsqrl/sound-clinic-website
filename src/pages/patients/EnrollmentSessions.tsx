@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
@@ -131,7 +132,7 @@ export function SessionList({
   hidePayment?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
-  const [tab, setTab] = useState<'completed' | 'upcoming'>('upcoming')
+  const [tab, setTab] = useUrlTab<'completed' | 'upcoming'>(['upcoming', 'completed'], 'upcoming', { param: 'sessions' })
   const [showAll, setShowAll] = useState(false)
   const [reschedulingSession, setReschedulingSession] = useState<TherapySessionResponse | null>(null)
   const qc = useQueryClient()
