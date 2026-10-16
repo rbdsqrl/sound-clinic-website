@@ -18,7 +18,14 @@ function formatAge(months: number | null): string {
   return `${months} M`
 }
 
-function PreviewColumn({ title, items, more }: { title: string; items: string[]; more?: number }) {
+const PREVIEW_LIMIT = 3
+
+/** Shows the first few items; "+N More" expands the column in place to the full list, "Show less" folds it back. */
+function PreviewColumn({ title, items }: { title: string; items: string[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const more = items.length - PREVIEW_LIMIT
+  const shown = expanded ? items : items.slice(0, PREVIEW_LIMIT)
+
   return (
     <div className="min-w-0">
       <p className="text-sm font-medium mb-2" style={{ color: colors.text.primary }}>{title}</p>
@@ -26,14 +33,24 @@ function PreviewColumn({ title, items, more }: { title: string; items: string[];
         <p className="text-xs" style={{ color: colors.text.dim }}>No data recorded</p>
       ) : (
         <ul className="space-y-1.5">
-          {items.map((item, i) => (
+          {shown.map((item, i) => (
             <li key={i} className="text-xs flex items-start gap-1.5" style={{ color: colors.text.muted }}>
               <span className="mt-1 h-1 w-1 rounded-full flex-shrink-0" style={{ background: colors.text.dim }} />
-              <span className="truncate">{item}</span>
+              <span className={expanded ? 'break-words' : 'truncate'}>{item}</span>
             </li>
           ))}
-          {!!more && more > 0 && (
-            <li className="text-xs font-semibold" style={{ color: colors.accent }}>+{more} More</li>
+          {more > 0 && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setExpanded(v => !v)}
+                aria-expanded={expanded}
+                className="text-xs font-semibold hover:underline"
+                style={{ color: colors.accent }}
+              >
+                {expanded ? 'Show less' : `+${more} More`}
+              </button>
+            </li>
           )}
         </ul>
       )}
@@ -96,7 +113,6 @@ export function CaseHistoryCard({ patientId, canEdit }: { patientId: string; can
     (m: MilestoneSkill) => m.ageInMonths !== null || m.status
   )
   const milestoneBullets = recordedMilestones
-    .slice(0, 3)
     .map((m: MilestoneSkill) => `${m.skill}: ${formatAge(m.ageInMonths)}`)
 
   return (
@@ -112,15 +128,11 @@ export function CaseHistoryCard({ patientId, canEdit }: { patientId: string; can
           }
         />
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-          <PreviewColumn title="Habits" items={caseHistory.habits.slice(0, 3)} more={caseHistory.habits.length - 3} />
-          <PreviewColumn title="Family History" items={familyBullets.slice(0, 3)} more={familyBullets.length - 3} />
+          <PreviewColumn title="Habits" items={caseHistory.habits} />
+          <PreviewColumn title="Family History" items={familyBullets} />
           <PreviewColumn title="Birth History" items={birthBullets} />
           <PreviewColumn title="School History" items={schoolBullets} />
-          <PreviewColumn
-            title="Milestones"
-            items={milestoneBullets}
-            more={recordedMilestones.length - milestoneBullets.length}
-          />
+          <PreviewColumn title="Milestones" items={milestoneBullets} />
         </div>
       </Card>
       {modalOpen && (
