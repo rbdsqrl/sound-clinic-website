@@ -66,6 +66,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string; icon: React.Element
     { to: ROUTES.patients,   label: 'Cases',      icon: Users },
     { to: ROUTES.activities, label: 'Activities', icon: ClipboardList },
     { to: ROUTES.analytics,  label: 'Analytics',  icon: TrendingUp },
+    { to: ROUTES.therapistActivity, label: 'Therapist Activity', icon: ClipboardCheck },
     { to: ROUTES.tasks,      label: 'Tasks',      icon: ListTodo },
     { to: ROUTES.calendar,   label: 'Calendar',   icon: CalendarDays },
     { to: ROUTES.workforce,  label: 'Workforce',  icon: Briefcase },
