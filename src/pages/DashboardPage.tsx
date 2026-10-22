@@ -671,6 +671,10 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
     [sessions]
   )
 
+  // Nothing actionable to show (e.g. only leave sessions that have no leave dates to group by) —
+  // render no card at all rather than an empty "Nothing to reschedule" one.
+  if (otherSessions.length === 0 && leaveGroups.length === 0) return null
+
   const goReassign = (group: (typeof leaveGroups)[number]) => {
     const patientIds = [...new Set(group.sessions.map(s => s.patientId))]
     const rangeLabel = group.start === group.end
