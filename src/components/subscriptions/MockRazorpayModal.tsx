@@ -28,7 +28,7 @@ export function MockRazorpayModal({
     setProcessing(true)
     try {
       await subscriptionsApi.recordPayment(subscription.id, {
-        discountPercent: 0,
+        discountPercent: subscription.discountPercent,
         amountPaid: subscription.totalAmount,
         paymentNotes: 'Paid via Razorpay',
       })

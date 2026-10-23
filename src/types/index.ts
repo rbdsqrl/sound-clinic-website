@@ -1198,6 +1198,8 @@ export interface SubscriptionResponse {
   paymentNotes: string | null
   notes: string | null
   createdAt: string
+  /** Set when an admin agreed a total for the whole plan (an ad hoc discount) — totalAmount is then this figure. */
+  totalOverride?: number | null
 }
 
 export interface CreateSubscriptionRequest {
@@ -1214,6 +1216,37 @@ export interface UpdatePaymentRequest {
   discountPercent: number
   amountPaid: number
   paymentNotes?: string
+}
+
+export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER'
+
+/** One payment taken against a plan — a negative amount is a correction to the running total. */
+export interface SubscriptionPaymentResponse {
+  id: string
+  subscriptionId: string
+  amount: number
+  paidOn: string
+  mode: PaymentMode | null
+  note: string | null
+  recordedById: string | null
+  recordedByName: string | null
+  createdAt: string
+}
+
+export interface AddPaymentRequest {
+  amount: number
+  paidOn?: string
+  mode?: PaymentMode
+  note?: string
+}
+
+export interface RenewEnrollmentRequest {
+  additionalSessions: number
+  /** First date the new sessions may land on — omit to continue after the last session. */
+  startDate?: string
+  /** The total for the whole plan after renewing — set lower than usual to give an ad hoc discount. */
+  planTotal?: number
+  payment?: AddPaymentRequest
 }
 
 // ── Programs ───────────────────────────────────────────────────────────────────

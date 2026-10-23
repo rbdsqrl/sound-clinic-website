@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Pencil, AlertTriangle, Trash2, Search, Download, LogOut, Mail } from 'lucide-react'
+import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban, CalendarDays, CalendarPlus, Clock, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, XCircle, Circle, Sparkles, CreditCard, ShieldCheck, ClipboardList, Pencil, RefreshCw, AlertTriangle, Trash2, Search, Download, LogOut, Mail } from 'lucide-react'
 import IEPTab from './IEPTab'
+import { RenewProgramModal } from './RenewProgramModal'
+import { PaymentHistory } from './PaymentEntry'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
@@ -461,7 +463,10 @@ function RecordPaymentModal({
   // Rounded to whole rupees to match the backend's payment-status comparison — otherwise a
   // payment that matches this preview exactly could still land a few paise short server-side
   // and never flip to Paid.
-  const total = Math.round(subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100))
+  // An agreed total (set when renewing) stands until the discount % is changed here.
+  const total = subscription.totalOverride != null && discountVal === subscription.discountPercent
+    ? Math.round(subscription.totalOverride)
+    : Math.round(subscription.perSessionCost * subscription.numSessions * (1 - discountVal / 100))
 
   const saveMut = useMutation({
     mutationFn: (data: UpdatePaymentRequest) => subscriptionsApi.recordPayment(subscription.id, data),
@@ -1448,6 +1453,7 @@ export default function PatientDetailPage() {
   const [reviewContinuation,  setReviewContinuation]  = useState(false)
   const [changeTherapistFor, setChangeTherapistFor] = useState<EnrollmentResponse | null>(null)
   const [editScheduleFor, setEditScheduleFor] = useState<EnrollmentResponse | null>(null)
+  const [renewFor, setRenewFor] = useState<{ enrollment: EnrollmentResponse; subscription: SubscriptionResponse } | null>(null)
   const [bookSessionFor,   setBookSessionFor]   = useState<EnrollmentResponse | null>(null)
   // Program cards start collapsed so more of them fit on screen at once — expanded
   // per-card by clicking its chevron.
@@ -2096,6 +2102,10 @@ export default function PatientDetailPage() {
                   const isEnrolled    = !!enrollment
                   const isCompleted   = !isEnrolled && enrollments.some(e => e.subscriptionId === sub.id && e.status === 'COMPLETED')
                   const isPaid        = sub.paymentStatus === 'PAID'
+                  // Renew works on a running program and on one marked completed (which it reopens) — not on
+                  // one a discharge closed, which is read-only history.
+                  const renewable     = enrollment
+                    ?? enrollments.find(e => e.subscriptionId === sub.id && e.status === 'COMPLETED' && !e.dischargedInRecordId)
                   const alreadyEnrolled = isEnrolled
                   // Payment is no longer a precondition for enrolling — sessions are generated
                   // immediately and held "awaiting payment" until this subscription is PAID.
@@ -2276,6 +2286,10 @@ export default function PatientDetailPage() {
                           )}
                         </div>
 
+                        {canRecordPayment && !isCancelled && (
+                          <PaymentHistory subscription={sub} onChanged={() => refetchSubs()} />
+                        )}
+
                         {/* Actions: primary left, destructive right (stacked on mobile) */}
                         {!isCancelled && (
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -2311,6 +2325,17 @@ export default function PatientDetailPage() {
                                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
                                 >
                                   <Pencil size={12} /> Edit Schedule
+                                </button>
+                              )}
+                              {renewable && canCreateEnrollment && !isCancelled && !isDischarged && (
+                                <button
+                                  onClick={() => setRenewFor({ enrollment: renewable, subscription: sub })}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                  style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                >
+                                  <RefreshCw size={12} /> Renew Program
                                 </button>
                               )}
                               {isEnrolled && enrollment && (
@@ -2725,6 +2750,21 @@ export default function PatientDetailPage() {
             queryClient.invalidateQueries({ queryKey: ['review-meetings'] })
             toast('Therapist changed — upcoming sessions moved across', 'success')
             setChangeTherapistFor(null)
+          }}
+        />
+      )}
+
+      {renewFor && (
+        <RenewProgramModal
+          enrollment={renewFor.enrollment}
+          subscription={renewFor.subscription}
+          onClose={() => setRenewFor(null)}
+          onRenewed={() => {
+            refetchSubs()
+            refetchEnrollments()
+            queryClient.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+            queryClient.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+            setRenewFor(null)
           }}
         />
       )}

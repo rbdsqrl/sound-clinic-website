@@ -4,6 +4,8 @@ import type {
   SubscriptionResponse,
   CreateSubscriptionRequest,
   UpdatePaymentRequest,
+  AddPaymentRequest,
+  SubscriptionPaymentResponse,
 } from '../types'
 
 export const subscriptionsApi = {
@@ -20,6 +22,14 @@ export const subscriptionsApi = {
   /** Record payment and discount (CLINIC_HEAD / BUSINESS_OWNER) */
   recordPayment: (id: string, data: UpdatePaymentRequest) =>
     client.patch<ApiResponse<SubscriptionResponse>>(`/subscriptions/${id}/payment`, data).then(r => r.data.data),
+
+  /** A plan's payments, newest first (admin roles) */
+  listPayments: (id: string) =>
+    client.get<ApiResponse<SubscriptionPaymentResponse[]>>(`/subscriptions/${id}/payments`).then(r => r.data.data),
+
+  /** Register one more payment — added to what has already been paid (admin roles) */
+  addPayment: (id: string, data: AddPaymentRequest) =>
+    client.post<ApiResponse<SubscriptionResponse>>(`/subscriptions/${id}/payments`, data).then(r => r.data.data),
 
   /** Cancel a subscription (BUSINESS_OWNER / CLINIC_HEAD) */
   cancel: (id: string) =>

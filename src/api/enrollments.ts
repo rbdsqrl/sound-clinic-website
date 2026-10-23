@@ -7,6 +7,7 @@ import type {
   AvailableTherapistsQuery,
   EnrollmentCareStatus,
   DayOfWeek,
+  RenewEnrollmentRequest,
 } from '../types'
 
 export const enrollmentsApi = {
@@ -45,6 +46,11 @@ export const enrollmentsApi = {
     client
       .patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/schedule`, data)
       .then(r => r.data.data),
+
+  /** Renew a program — add more sessions to the same plan, optionally with a payment (admin roles).
+   *  Reopens a program that was marked completed. */
+  renew: (id: string, data: RenewEnrollmentRequest) =>
+    client.post<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/renew`, data).then(r => r.data.data),
 
   /** Cancel an enrollment */
   cancel: (id: string) =>
