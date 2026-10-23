@@ -1,20 +1,22 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Paperclip, Upload, X, Trash2, FileVideo, Image as ImageIcon, FileText, Download, Pin, Play } from 'lucide-react'
+import { Paperclip, Upload, X, FileVideo, FileText, Pin, Play } from 'lucide-react'
 import { sharedMediaApi } from '../../api/sharedMedia'
 import { evidenceApi } from '../../api/evidence'
 import { iepApi } from '../../api/iep'
 import { GoalEvidenceDialog } from './GoalEvidence'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Badge, roleBadge } from '../../components/ui/Badge'
-import { Modal } from '../../components/ui/Modal'
+import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PageLoader } from '../../components/ui/Spinner'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { viewFile } from '../../lib/fileActions'
 import { formatDateTimeStr } from '../../lib/format'
+import {
+  SharedMediaDetailModal, ReadStatus, UnreadDot, useMarkSharedMediaRead,
+  directionBadge, fileKind, fileIcon, formatSize, isUnreadForViewer,
+} from '../../components/shared/SharedMediaDetail'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, styles } from '../../theme'
 import type { SharedMediaResponse } from '../../types'
@@ -42,31 +44,6 @@ const ACCEPTED_FILE_TYPES = [
   'text/plain', 'text/csv',
 ].join(',')
 
-function formatSize(bytes: number | null): string {
-  if (!bytes) return ''
-  const mb = bytes / (1024 * 1024)
-  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`
-}
-
-function directionBadge(direction: SharedMediaResponse['direction']) {
-  return direction === 'PARENT_TO_CLINIC'
-    ? <Badge variant="blue">Shared with clinic</Badge>
-    : <Badge variant="green">Shared with family</Badge>
-}
-
-function fileKind(contentType: string | null): 'video' | 'image' | 'document' {
-  if (contentType?.startsWith('video/')) return 'video'
-  if (contentType?.startsWith('image/')) return 'image'
-  return 'document'
-}
-
-function fileIcon(contentType: string | null) {
-  const kind = fileKind(contentType)
-  if (kind === 'video') return <FileVideo size={13} className="flex-shrink-0" />
-  if (kind === 'image') return <ImageIcon size={13} className="flex-shrink-0" />
-  return <FileText size={13} className="flex-shrink-0" />
-}
-
 /** Small deterministic tilt per note, so the board looks pinned rather than perfectly gridded. */
 function tiltFor(id: string): number {
   let hash = 0
@@ -85,6 +62,15 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
   const [selected, setSelected] = useState<BoardItem | null>(null)
   const [adHocOpen, setAdHocOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Opening a post the viewer is the recipient of records it as read; the modal then shows the read time.
+  const markRead = useMarkSharedMediaRead(updated =>
+    setSelected(cur => (cur && cur.id === updated.id ? { ...cur, readAt: updated.readAt, readById: updated.readById, readByName: updated.readByName } : cur)))
+  const openItem = (item: BoardItem) => {
+    setDeleteError(null)
+    setSelected(item)
+    if (!item.evidence && isUnreadForViewer(item, activeRole, user?.id)) markRead.mutate(item)
+  }
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['shared-media', patientId],
@@ -220,16 +206,18 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-8 pt-2">
           {board.map(item => {
             const kind = item.fileUrl ? fileKind(item.contentType) : null
+            const unread = !item.evidence && isUnreadForViewer(item, activeRole, user?.id)
             return (
               <div
                 key={item.id}
-                onClick={() => { setDeleteError(null); setSelected(item) }}
+                onClick={() => openItem(item)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') { setDeleteError(null); setSelected(item) } }}
+                onKeyDown={e => { if (e.key === 'Enter') openItem(item) }}
                 className="relative rounded-2xl p-4 pt-6 cursor-pointer transition-all hover:-translate-y-1"
                 style={{
                   ...styles.card,
+                  ...(unread ? { background: accentAlpha(0.14), border: `1px solid ${colors.accent}` } : {}),
                   transform: `rotate(${tiltFor(item.id)}deg) translateZ(0)`,
                   boxShadow: '0 8px 20px -8px rgba(0,0,0,0.35)',
                 }}
@@ -241,6 +229,10 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
                 >
                   <Pin size={10} fill="#fff" style={{ color: '#fff' }} />
                 </div>
+
+                {unread && (
+                  <span className="absolute top-3 right-3"><UnreadDot size={10} /></span>
+                )}
 
                 {item.evidence && (
                   <p className="text-xs font-semibold mb-1.5 line-clamp-2" style={{ color: colors.accent }}>{item.evidence.title}</p>
@@ -279,6 +271,7 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
                 <p className="text-[11px] mt-2.5" style={{ color: colors.text.dim }}>
                   {formatDateTimeStr(item.createdAt)}
                 </p>
+                {!item.evidence && <div className="mt-1"><ReadStatus item={item} /></div>}
               </div>
             )
           })}
@@ -286,66 +279,13 @@ export default function SharedMediaTab({ patientId, readOnly = false }: { patien
       )}
 
       {selected && (
-        <Modal open title={selected.evidence ? 'Video evidence' : 'Shared note'} onClose={() => setSelected(null)} size="md" error={deleteError}>
-          {selected.evidence && (
-            <p className="text-sm font-semibold mb-3" style={{ color: colors.accent }}>{selected.evidence.title}</p>
-          )}
-          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{selected.uploadedByName}</p>
-              {selected.uploadedByRole && roleBadge(selected.uploadedByRole, selected.uploadedByCustomRole)}
-              {directionBadge(selected.direction)}
-            </div>
-            <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
-              {formatDateTimeStr(selected.createdAt)}
-            </span>
-          </div>
-
-          {selected.fileUrl && fileKind(selected.contentType) === 'video' && (
-            <video controls className="w-full rounded-xl mb-3" style={{ maxHeight: 360, background: '#000' }}>
-              <source src={selected.fileUrl} type={selected.contentType ?? undefined} />
-            </video>
-          )}
-
-          {selected.fileUrl && fileKind(selected.contentType) === 'image' && (
-            <img
-              src={selected.fileUrl}
-              alt={selected.fileName ?? 'Shared image'}
-              className="w-full rounded-xl mb-3 object-contain"
-              style={{ maxHeight: 360, background: surface.filterStrip }}
-            />
-          )}
-
-          {selected.fileUrl && fileKind(selected.contentType) === 'document' && (
-            <button
-              type="button"
-              onClick={() => selected.fileUrl && viewFile(selected.fileUrl)}
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-3 transition-colors w-full text-left"
-              style={{ border: `1px solid ${border.divider}` }}
-            >
-              <FileText size={16} className="flex-shrink-0" style={{ color: colors.accent }} />
-              <span className="text-sm font-medium truncate flex-1" style={{ color: colors.text.primary }}>
-                {selected.fileName ?? 'Document'}
-              </span>
-              <span className="text-xs flex-shrink-0" style={{ color: colors.text.dim }}>
-                {formatSize(selected.fileSizeBytes)}
-              </span>
-              <Download size={13} className="flex-shrink-0" style={{ color: colors.text.muted }} />
-            </button>
-          )}
-
-          {selected.note && (
-            <p className="text-sm whitespace-pre-wrap" style={{ color: colors.text.primary }}>{selected.note}</p>
-          )}
-
-          {canDelete(selected) && (
-            <div className="flex justify-end mt-5 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
-              <Button variant="danger" loading={deleteMut.isPending} onClick={() => { setDeleteError(null); deleteMut.mutate(selected) }}>
-                <Trash2 size={14} /> Delete
-              </Button>
-            </div>
-          )}
-        </Modal>
+        <SharedMediaDetailModal
+          item={selected}
+          onClose={() => setSelected(null)}
+          error={deleteError}
+          onDelete={canDelete(selected) ? () => { setDeleteError(null); deleteMut.mutate(selected) } : undefined}
+          deleting={deleteMut.isPending}
+        />
       )}
 
       {adHocOpen && <AdHocEvidenceDialog patientId={patientId} onClose={() => setAdHocOpen(false)} />}

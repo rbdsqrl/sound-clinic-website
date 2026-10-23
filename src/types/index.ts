@@ -1166,6 +1166,17 @@ export interface SharedMediaResponse {
   uploadedByRole: Role | null
   uploadedByCustomRole?: string | null
   createdAt: string
+  /** When the intended recipient first opened it — null while unread. */
+  readAt?: string | null
+  readById?: string | null
+  readByName?: string | null
+  /** Only on dashboard inbox rows, where posts from several children are listed together. */
+  patientName?: string | null
+}
+
+export interface SharedMediaInboxResponse {
+  unreadCount: number
+  items: SharedMediaResponse[]
 }
 
 // ── Subscriptions ──────────────────────────────────────────────────────────────

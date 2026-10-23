@@ -13,11 +13,15 @@ import { therapySessionsApi } from '../api/therapySessions'
 import { subscriptionsApi } from '../api/subscriptions'
 import { concernsApi } from '../api/concerns'
 import { usersApi } from '../api/users'
+import { sharedMediaApi } from '../api/sharedMedia'
 import { Avatar } from '../components/shared/Avatar'
 import { ResolveConcernModal } from '../components/shared/ResolveConcernModal'
 import { MockRazorpayModal } from '../components/subscriptions/MockRazorpayModal'
 import { PageLoader, Spinner } from '../components/ui/Spinner'
 import { SessionEventModal } from '../components/shared/SessionEventModal'
+import {
+  SharedMediaDetailModal, ReadStatus, UnreadDot, useMarkSharedMediaRead, fileKind, isUnreadForViewer,
+} from '../components/shared/SharedMediaDetail'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { describeServerProblem } from '../lib/queryRetry'
@@ -31,9 +35,9 @@ import { getApiError } from '../lib/apiError'
 import { useToast } from '../hooks/useToast'
 import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
-import { formatTimeStr, formatDateStr } from '../lib/format'
+import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionSummary, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionSummary, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse, SharedMediaResponse } from '../types'
 
 function formatINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -855,6 +859,108 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
 
 /** `sessions` is just the preview; `count` is the full total. The rest load only when "View all"
  *  is opened. */
+/** Notes and files shared in a child's Media & Notes tab, surfaced on the dashboard of whoever they were
+ *  shared *with*: a parent sees what the care team posted about their children; an assigned therapist
+ *  sees what the children's families posted. Unread ones carry a dot; opening one marks it read. */
+function SharedNotesPanel({ role, items, unreadCount }: {
+  role: 'PARENT' | 'THERAPIST'
+  items: SharedMediaResponse[]
+  unreadCount: number
+}) {
+  const { user } = useAuth()
+  const [selected, setSelected] = useState<SharedMediaResponse | null>(null)
+  const [showAll, setShowAll] = useState(false)
+  const markRead = useMarkSharedMediaRead(updated =>
+    setSelected(cur => (cur && cur.id === updated.id ? { ...cur, readAt: updated.readAt, readById: updated.readById, readByName: updated.readByName } : cur)))
+
+  const open = (item: SharedMediaResponse) => {
+    setShowAll(false)
+    setSelected(item)
+    if (isUnreadForViewer(item, role, user?.id)) markRead.mutate(item)
+  }
+
+  const row = (item: SharedMediaResponse, i: number, arr: SharedMediaResponse[]) => {
+    const unread = isUnreadForViewer(item, role, user?.id)
+    const preview = item.note ?? (item.fileName ? `${fileKind(item.contentType) === 'video' ? 'Video' : fileKind(item.contentType) === 'image' ? 'Image' : 'Document'}: ${item.fileName}` : '')
+    return (
+      <button
+        type="button"
+        key={item.id}
+        onClick={() => open(item)}
+        className="flex items-start gap-3 px-4 sm:px-6 py-3.5 transition-colors w-full text-left"
+        style={{
+          ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+          background: unread ? accentAlpha(0.14) : 'transparent',
+          boxShadow: unread ? `inset 3px 0 0 ${colors.accent}` : undefined,
+          transform: 'translateZ(0)',
+        }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = unread ? accentAlpha(0.14) : 'transparent'}
+      >
+        <span className="w-2.5 flex-shrink-0 pt-1.5">{unread && <UnreadDot />}</span>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm truncate ${unread ? 'font-semibold' : 'font-medium'}`} style={{ color: colors.text.primary }}>
+            {item.patientName}
+            <span className="font-normal" style={{ color: colors.text.dim }}>{' · '}{item.uploadedByName}</span>
+          </p>
+          <p className="text-xs truncate" style={{ color: colors.text.muted }}>{preview}</p>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] tabular-nums" style={{ color: colors.text.dim }}>{formatDateTimeStr(item.createdAt)}</span>
+            <ReadStatus item={item} />
+          </div>
+        </div>
+      </button>
+    )
+  }
+
+  const title = role === 'PARENT' ? 'From the Care Team' : 'Notes from Families'
+
+  return (
+    <>
+      <div style={{
+        ...styles.card, overflow: 'hidden', padding: 0, borderLeft: `3px solid ${colors.accent}`,
+        minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
+      }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <MessageCircle size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>{title}</h2>
+            {unreadCount > 0 && (
+              <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+                style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                {unreadCount} new
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col">
+          <PreviewRows items={items} renderRow={row} />
+        </div>
+
+        {items.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {items.length}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showAll && (
+        <Modal open title={title} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">
+            {items.map((it, i) => row(it, i, items))}
+          </div>
+        </Modal>
+      )}
+
+      {selected && <SharedMediaDetailModal item={selected} onClose={() => setSelected(null)} />}
+    </>
+  )
+}
+
 function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
   count: number
   sessions: TherapySessionSummary[]
@@ -881,7 +987,7 @@ function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
       onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
     >
-      <div className="flex-shrink-0 w-24 sm:w-28">
+      <div className="flex-shrink-0 w-14 sm:w-16">
         <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
           {format(new Date(s.sessionDate), 'MMM d')}
         </p>
@@ -890,6 +996,8 @@ function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
         </p>
       </div>
 
+      {/* Three lines, like the Needs Rescheduling rows — a plain coloured line rather than a pill, since a
+          pill's width squeezed the child's name and program down to "Diya …" / "Spee…" in this narrow column. */}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate" style={{ color: colors.text.primary }}>
           {s.patientFirstName} {s.patientLastName}
@@ -900,14 +1008,10 @@ function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
             {' · '}{s.therapistFirstName} {s.therapistLastName}
           </span>
         </p>
+        <p className="text-[11px] font-medium truncate mt-0.5 flex items-center gap-1" style={{ color: colors.status.warning }}>
+          <AlertTriangle size={11} className="flex-shrink-0" /> Notes overdue
+        </p>
       </div>
-
-      <span
-        className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg"
-        style={{ background: warningAlpha(0.09), color: colors.status.warning }}
-      >
-        <AlertTriangle size={12} /> Notes overdue
-      </span>
     </button>
   )
 
@@ -2136,6 +2240,14 @@ export default function DashboardPage() {
   // Only RecentlyJoinedChildren (Admin Roles) renders from this list — the Organisation Overview
   // counts come from their own endpoint — so it isn't fetched at all for therapists.
   const { data: myChildren, isLoading: loadingChildren }  = useQuery({ queryKey: ['my-children'], queryFn: patientsApi.myChildren, enabled: isParentView })
+  // Notes/files shared in a child's Media & Notes tab with whoever is viewing: a parent's from the care
+  // team, an assigned therapist's from families. Nobody else gets this card.
+  const { data: sharedInbox } = useQuery({
+    queryKey: ['shared-media-inbox'],
+    queryFn: sharedMediaApi.inbox,
+    enabled: isParentView || isTherapistRole,
+    staleTime: 60 * 1000,
+  })
   // Next few sessions across all of this parent's children — widened to a 90-day window since
   // sessions can run weekly or less often, then trimmed client-side to the soonest 3 still live
   // (skips CANCELLED/COMPLETED/NO_SHOW; the backend already sorts ascending by date then time).
@@ -2282,6 +2394,10 @@ export default function DashboardPage() {
           <PendingPayments myChildren={myChildren} onPay={sub => setMockPayTarget(sub)} />
         )}
 
+        {sharedInbox && sharedInbox.items.length > 0 && (
+          <SharedNotesPanel role="PARENT" items={sharedInbox.items} unreadCount={sharedInbox.unreadCount} />
+        )}
+
         {loadingUpcoming ? <CardSkeleton /> : <UpcomingSessions sessions={upcomingSessions} onSessionClick={s => setEditingSessionId(s.id)} />}
 
         <FeedPanel />
@@ -2358,6 +2474,10 @@ export default function DashboardPage() {
               <PendingSessionNotesPanel count={overdueNotes?.count ?? 0} sessions={overdueNotes?.sessions ?? []}
                 onSessionClick={s => setEditingSessionId(s.id)} />
             ))}
+
+            {isTherapistRole && sharedInbox && sharedInbox.items.length > 0 && (
+              <SharedNotesPanel role="THERAPIST" items={sharedInbox.items} unreadCount={sharedInbox.unreadCount} />
+            )}
 
             {loadingSessions ? <CardSkeleton /> : sessionsFailed ? (
               <div style={{ ...styles.card, minHeight: TILE_MIN_HEIGHT }} className="flex flex-col items-center justify-center gap-3 p-6 text-center">
