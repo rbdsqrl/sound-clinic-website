@@ -2597,6 +2597,10 @@ export interface FreeTextNoteEntry {
   id: string
   createdAt: string
   note: string | null
+  direction: SharedMediaDirection
+  /** When the family / care team opened it — null while unread. */
+  readAt: string | null
+  readByName: string | null
 }
 
 export interface ChildFreeTextNotes {
@@ -2612,6 +2616,10 @@ export interface MediaEntry {
   fileName: string | null
   contentType: string | null
   note: string | null
+  fileSizeBytes: number | null
+  direction: SharedMediaDirection
+  readAt: string | null
+  readByName: string | null
 }
 
 export interface ChildMedia {

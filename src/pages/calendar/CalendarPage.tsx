@@ -228,14 +228,21 @@ function toSessionEvent(s: TherapySessionResponse): CalendarEvent {
   }
 }
 
+/** The Clinic Head(s) a review meeting is with — its staff participants, never the parents. The treating
+ *  therapist isn't part of a review, so they're deliberately not shown or used anywhere for it. */
+function reviewClinicHeads(m: ReviewMeetingResponse) {
+  return (m.participants ?? []).filter(p => p.role !== 'PARENT' && p.role !== 'PATIENT')
+}
+
 function toReviewEvent(m: ReviewMeetingResponse): CalendarEvent {
+  const heads = reviewClinicHeads(m).map(p => `${p.firstName} ${p.lastName}`)
   return {
     id: `review-${m.id}`,
     date: m.meetingDate,
     time: m.startTime.substring(0, 5),
     kind: 'review',
     title: `Review — ${m.patientName}`,
-    subtitle: `${m.therapistName} · Review ${m.meetingNumber}`,
+    subtitle: `${heads.length > 0 ? heads.join(', ') + ' · ' : ''}Review ${m.meetingNumber}`,
     status: m.status,
     isAllDay: false,
     raw: m,
@@ -377,7 +384,8 @@ function allDayEventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[] 
 function eventOwnerIds(ev: CalendarEvent): string[] {
   if (ev.kind === 'session') return [(ev.raw as TherapySessionResponse).therapistId]
   if (ev.kind === 'leave')   return [(ev.raw as LeaveResponse).therapistId]
-  if (ev.kind === 'review')  return [(ev.raw as ReviewMeetingResponse).therapistId]
+  // A review meeting belongs to the Clinic Head(s) it's with (and the parent), not the therapist being reviewed.
+  if (ev.kind === 'review')  return reviewClinicHeads(ev.raw as ReviewMeetingResponse).map(p => p.id)
   if (ev.kind === 'meeting') return (ev.raw as MeetingResponse).participants.map(p => p.id)
   return [] // consultations and holidays aren't owned by a specific therapist
 }
@@ -459,7 +467,8 @@ function agendaPdfColumns(ev: CalendarEvent): { therapist: string; program: stri
   }
   if (ev.kind === 'review') {
     const r = ev.raw as ReviewMeetingResponse
-    return { therapist: `${r.therapistName} (Review)`, program: '', child: '' }
+    const heads = reviewClinicHeads(r).map(p => `${p.firstName} ${p.lastName}`).join(', ')
+    return { therapist: `${heads || 'Review'} (Review)`, program: '', child: '' }
   }
   if (ev.kind === 'meeting') {
     const m = ev.raw as MeetingResponse

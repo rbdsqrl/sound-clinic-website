@@ -12,10 +12,11 @@ import { Select } from '../components/ui/Select'
 import { DateInput } from '../components/ui/DateInput'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
-import { viewFile } from '../lib/fileActions'
+import { SharedMediaDetailModal } from '../components/shared/SharedMediaDetail'
+import { SessionDrawerLoader } from '../components/shared/SessionDrawerLoader'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../lib/format'
 import { colors, border, surface } from '../theme'
-import type { ChildFreeTextNotes, ChildMedia, ChildSessionNotes } from '../types'
+import type { ChildFreeTextNotes, ChildMedia, ChildSessionNotes, FreeTextNoteEntry, MediaEntry, SharedMediaResponse } from '../types'
 
 function fileKindIcon(contentType: string | null) {
   if (contentType?.startsWith('video/')) return <Video size={14} />
@@ -36,24 +37,63 @@ function NoteField({ label, value }: { label: string; value: string | null }) {
 
 const PAGE_SIZE = 5
 
-/** One entry in a section's flat, newest-first list — the child it belongs to is shown on the entry itself. */
-function EntryCard({ patientName, children }: { patientName: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl p-3.5" style={{ background: surface.card, border: border.card }}>
-      <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{patientName}</p>
+/** One entry in a section's flat, newest-first list — the child it belongs to is shown on the entry itself.
+ *  With `onOpen` the whole card is a button that opens the entry. */
+function EntryCard({ patientName, onOpen, openLabel, children }: {
+  patientName: string
+  onOpen?: () => void
+  openLabel?: string
+  children: React.ReactNode
+}) {
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold" style={{ color: colors.text.heading }}>{patientName}</p>
+        {onOpen && (
+          <span className="flex items-center gap-1 text-xs font-medium flex-shrink-0" style={{ color: colors.accent }}>
+            <ExternalLink size={12} /> {openLabel ?? 'Open'}
+          </span>
+        )}
+      </div>
       <div className="mt-1.5">{children}</div>
-    </div>
+    </>
+  )
+  const style = { background: surface.card, border: border.card }
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className="w-full text-left rounded-xl p-3.5 transition-colors"
+      style={style}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = surface.card}>
+      {body}
+    </button>
+  ) : (
+    <div className="rounded-xl p-3.5" style={style}>{body}</div>
   )
 }
 
 /** Flattens the per-child groups into one list, newest first. */
 function flatten<E>(
-  groups: { patientName: string; entries: E[] }[], when: (e: E) => string,
-): { patientName: string; entry: E }[] {
+  groups: { patientId: string; patientName: string; entries: E[] }[], when: (e: E) => string,
+): { patientId: string; patientName: string; entry: E }[] {
   return groups
-    .flatMap(g => g.entries.map(entry => ({ patientName: g.patientName, entry, when: when(entry) })))
+    .flatMap(g => g.entries.map(entry => ({ patientId: g.patientId, patientName: g.patientName, entry, when: when(entry) })))
     .sort((x, y) => (x.when < y.when ? 1 : x.when > y.when ? -1 : 0))
-    .map(({ patientName, entry }) => ({ patientName, entry }))
+    .map(({ patientId, patientName, entry }) => ({ patientId, patientName, entry }))
+}
+
+/** Shapes an activity entry like a Media & Notes post, so it opens in the same note popup. */
+function toSharedPost(
+  e: FreeTextNoteEntry | MediaEntry, patientId: string, patientName: string,
+  therapist: { id: string; name: string },
+): SharedMediaResponse {
+  const media = 'fileUrl' in e ? e : null
+  return {
+    id: e.id, patientId, patientName, direction: e.direction,
+    fileName: media?.fileName ?? null, fileUrl: media?.fileUrl ?? null,
+    contentType: media?.contentType ?? null, fileSizeBytes: media?.fileSizeBytes ?? null,
+    note: e.note, uploadedById: therapist.id, uploadedByName: therapist.name, uploadedByRole: 'THERAPIST',
+    createdAt: e.createdAt, readAt: e.readAt, readByName: e.readByName,
+  }
 }
 
 /** Five entries at a time. The parent keys the section on therapist + range, so it restarts on page one. */
@@ -98,7 +138,7 @@ function Pager({ page, totalPages, total, setPage, noun }: {
   )
 }
 
-function SessionNotesSection({ groups }: { groups: ChildSessionNotes[] }) {
+function SessionNotesSection({ groups, onOpen }: { groups: ChildSessionNotes[]; onOpen: (sessionId: string) => void }) {
   // Newest session first; the start time breaks ties within a day.
   const items = flatten(groups, e => `${e.sessionDate} ${e.startTime}`)
   const { pageItems, ...pager } = usePaged(items)
@@ -112,7 +152,7 @@ function SessionNotesSection({ groups }: { groups: ChildSessionNotes[] }) {
         <>
           <div className="space-y-3">
             {pageItems.map(({ patientName, entry: e }) => (
-              <EntryCard key={e.sessionId} patientName={patientName}>
+              <EntryCard key={e.sessionId} patientName={patientName} onOpen={() => onOpen(e.sessionId)} openLabel="Open session">
                 <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateStr(e.sessionDate)} · {formatTimeStr(e.startTime)}</p>
                 <NoteField label="Notes" value={e.notes} />
                 <NoteField label="Progress Report" value={e.progressReport} />
@@ -127,7 +167,7 @@ function SessionNotesSection({ groups }: { groups: ChildSessionNotes[] }) {
   )
 }
 
-function FreeTextNotesSection({ groups }: { groups: ChildFreeTextNotes[] }) {
+function FreeTextNotesSection({ groups, onOpen }: { groups: ChildFreeTextNotes[]; onOpen: (item: FreeTextNoteEntry, patientId: string, patientName: string) => void }) {
   const items = flatten(groups, e => e.createdAt)
   const { pageItems, ...pager } = usePaged(items)
   return (
@@ -139,8 +179,8 @@ function FreeTextNotesSection({ groups }: { groups: ChildFreeTextNotes[] }) {
       ) : (
         <>
           <div className="space-y-3">
-            {pageItems.map(({ patientName, entry: e }) => (
-              <EntryCard key={e.id} patientName={patientName}>
+            {pageItems.map(({ patientId, patientName, entry: e }) => (
+              <EntryCard key={e.id} patientName={patientName} onOpen={() => onOpen(e, patientId, patientName)} openLabel="Open note">
                 <p className="text-xs" style={{ color: colors.text.muted }}>{formatDateTimeStr(e.createdAt)}</p>
                 <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: colors.text.primary }}>{e.note}</p>
               </EntryCard>
@@ -153,7 +193,7 @@ function FreeTextNotesSection({ groups }: { groups: ChildFreeTextNotes[] }) {
   )
 }
 
-function MediaSection({ groups }: { groups: ChildMedia[] }) {
+function MediaSection({ groups, onOpen }: { groups: ChildMedia[]; onOpen: (item: MediaEntry, patientId: string, patientName: string) => void }) {
   const items = flatten(groups, e => e.createdAt)
   const { pageItems, ...pager } = usePaged(items)
   return (
@@ -165,27 +205,15 @@ function MediaSection({ groups }: { groups: ChildMedia[] }) {
       ) : (
         <>
           <div className="space-y-3">
-            {pageItems.map(({ patientName, entry: e }) => (
-              <EntryCard key={e.id} patientName={patientName}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5" style={{ color: colors.text.primary }}>
-                      {fileKindIcon(e.contentType)}
-                      <span className="text-sm truncate">{e.fileName ?? 'Untitled file'}</span>
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{formatDateTimeStr(e.createdAt)}</p>
-                    {e.note && <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: colors.text.primary }}>{e.note}</p>}
-                  </div>
-                  {e.fileUrl && (
-                    <button
-                      onClick={() => viewFile(e.fileUrl!)}
-                      className="flex items-center gap-1 text-xs font-medium flex-shrink-0"
-                      style={{ color: colors.accent }}
-                    >
-                      <ExternalLink size={12} /> View
-                    </button>
-                  )}
+            {pageItems.map(({ patientId, patientName, entry: e }) => (
+              <EntryCard key={e.id} patientName={patientName} onOpen={() => onOpen(e, patientId, patientName)}
+                openLabel={e.contentType?.startsWith('video/') ? 'Play video' : 'Open file'}>
+                <div className="flex items-center gap-1.5" style={{ color: colors.text.primary }}>
+                  {fileKindIcon(e.contentType)}
+                  <span className="text-sm truncate">{e.fileName ?? 'Untitled file'}</span>
                 </div>
+                <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>{formatDateTimeStr(e.createdAt)}</p>
+                {e.note && <p className="text-sm mt-1 whitespace-pre-wrap line-clamp-3" style={{ color: colors.text.primary }}>{e.note}</p>}
               </EntryCard>
             ))}
           </div>
@@ -201,6 +229,8 @@ export default function TherapistActivityPage() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const [from, setFrom] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'))
   const [to, setTo] = useState(today)
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null)
+  const [openPost, setOpenPost] = useState<SharedMediaResponse | null>(null)
 
   const { data: therapists = [] } = useQuery({
     queryKey: ['users', 'therapists'],
@@ -259,11 +289,17 @@ export default function TherapistActivityPage() {
           </div>
 
           {/* Keyed on therapist + range so each section starts back on page one when they change. */}
-          <SessionNotesSection key={`s-${therapistId}-${from}-${to}`} groups={activity.therapySessionNotesByChild} />
-          <FreeTextNotesSection key={`f-${therapistId}-${from}-${to}`} groups={activity.freeTextNotesByChild} />
-          <MediaSection key={`m-${therapistId}-${from}-${to}`} groups={activity.mediaByChild} />
+          <SessionNotesSection key={`s-${therapistId}-${from}-${to}`} groups={activity.therapySessionNotesByChild}
+            onOpen={setOpenSessionId} />
+          <FreeTextNotesSection key={`f-${therapistId}-${from}-${to}`} groups={activity.freeTextNotesByChild}
+            onOpen={(e, pid, pname) => setOpenPost(toSharedPost(e, pid, pname, { id: activity.therapistId, name: activity.therapistName }))} />
+          <MediaSection key={`m-${therapistId}-${from}-${to}`} groups={activity.mediaByChild}
+            onOpen={(e, pid, pname) => setOpenPost(toSharedPost(e, pid, pname, { id: activity.therapistId, name: activity.therapistName }))} />
         </>
       ) : null}
+
+      {openPost && <SharedMediaDetailModal item={openPost} onClose={() => setOpenPost(null)} />}
+      {openSessionId && <SessionDrawerLoader sessionId={openSessionId} onClose={() => setOpenSessionId(null)} />}
     </div>
   )
 }
