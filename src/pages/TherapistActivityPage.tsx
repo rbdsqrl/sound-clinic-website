@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, subDays } from 'date-fns'
 import {
@@ -237,6 +237,11 @@ export default function TherapistActivityPage() {
     queryFn: () => usersApi.listTherapists(),
   })
   const therapistOptions = therapists.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))
+
+  // Start on the first therapist in the list rather than an empty "Select a therapist" screen.
+  useEffect(() => {
+    if (!therapistId && therapists.length > 0) setTherapistId(therapists[0].id)
+  }, [therapists, therapistId])
 
   const { data: activity, isLoading } = useQuery({
     queryKey: ['therapist-activity', therapistId, from, to],
