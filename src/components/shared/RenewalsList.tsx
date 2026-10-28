@@ -66,14 +66,14 @@ export function RenewalsList({ items, stacked = false }: { items: RenewalDue[]; 
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 flex-shrink-0">
+            <div className="flex flex-wrap gap-1.5 flex-shrink-0">
               {ACTIONS.map(a => (
                 <button
                   key={a.outcome}
                   type="button"
                   disabled={busy}
                   onClick={() => mut.mutate({ id: r.enrollmentId, outcome: a.outcome })}
-                  className="text-xs font-semibold px-3 py-2 rounded-lg transition-opacity disabled:opacity-50"
+                  className="text-[11.5px] font-semibold px-2 py-1 rounded-md whitespace-nowrap transition-opacity disabled:opacity-50"
                   style={paletteStyle(a.tone, 0.12, 0.2)}
                 >
                   {a.label}
