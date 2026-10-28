@@ -9,6 +9,8 @@ import type {
   DayOfWeek,
   RenewEnrollmentRequest,
   ProgramStatus,
+  RenewalDue,
+  RenewalOutcome,
 } from '../types'
 
 export const enrollmentsApi = {
@@ -57,6 +59,14 @@ export const enrollmentsApi = {
    *  the renewal reminder emails. */
   setProgramStatus: (id: string, status: ProgramStatus) =>
     client.patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/program-status`, { status }).then(r => r.data.data),
+
+  /** Programs in their last week that still need a decision (admin roles) */
+  renewalsDue: () =>
+    client.get<ApiResponse<RenewalDue[]>>('/enrollments/renewals-due').then(r => r.data.data),
+
+  /** Decide a program in its last week — Completed, Discontinued or Needs Renewal (admin roles). Takes it off the list. */
+  setRenewalOutcome: (id: string, outcome: RenewalOutcome) =>
+    client.post<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/renewal-outcome`, { outcome }).then(r => r.data.data),
 
   /** Cancel an enrollment */
   cancel: (id: string) =>

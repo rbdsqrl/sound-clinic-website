@@ -6,6 +6,9 @@ import {
   ListTodo, Search, Check, Users, Pencil, Activity,
 } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
+import { enrollmentsApi } from '../../api/enrollments'
+import { RenewalsList, RENEWALS_KEY } from '../../components/shared/RenewalsList'
+import { useUrlTab } from '../../hooks/useUrlTab'
 import { usersApi } from '../../api/users'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -1051,12 +1054,22 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
 // ── TasksPage ──────────────────────────────────────────────────────────────────
 
 export default function TasksPage() {
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
   const qc = useQueryClient()
   const { toast } = useToast()
 
+  // The Renewals tab follows the role being worn now (like the dashboard), so a person with an extra admin role sees it.
+  const showRenewals = activeRole === 'BUSINESS_OWNER' || activeRole === 'CLINIC_HEAD' || activeRole === 'OFFICE_ADMIN'
   const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD' || user?.role === 'OFFICE_ADMIN'
 
+  const [pageTab, setPageTab] = useUrlTab<'tasks' | 'renewals'>(['tasks', 'renewals'], 'tasks')
+  // Programs in their last week — admin roles only; the count rides on the tab so it's visible from Tasks.
+  const { data: renewals = [], isLoading: loadingRenewals } = useQuery({
+    queryKey: RENEWALS_KEY,
+    queryFn: enrollmentsApi.renewalsDue,
+    enabled: showRenewals,
+    staleTime: 60 * 1000,
+  })
   const [showCreate, setShowCreate]     = useState(false)
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null)
   const [mobileTab, setMobileTab]       = useState<TaskStatus>('OPEN')
@@ -1134,8 +1147,44 @@ export default function TasksPage() {
         </Button>
       </div>
 
+      {showRenewals && (
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-5">
+          {([
+            { key: 'tasks' as const,    label: 'Tasks',    count: null },
+            { key: 'renewals' as const, label: 'Renewals', count: renewals.length },
+          ]).map(t => (
+            <button key={t.key} type="button" onClick={() => setPageTab(t.key)}
+              className="flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-all"
+              style={pageTab === t.key ? styles.filterTabActive : styles.filterTabInactive}>
+              {t.label}{t.count != null ? ` (${t.count})` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showRenewals && pageTab === 'renewals' && (
+        <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>
+          <div className="px-4 sm:px-6 py-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
+            <p className="text-xs" style={{ color: colors.text.muted }}>
+              Programs in their last 5 days. Mark each as Completed, Discontinued or Needs Renewal — once you do, it
+              leaves this list. Completed and Discontinued stop the renewal reminders to parents.
+            </p>
+          </div>
+          {loadingRenewals ? (
+            <div className="py-10"><PageLoader /></div>
+          ) : renewals.length === 0 ? (
+            <div className="flex flex-col items-center py-12 gap-2">
+              <CheckCircle2 size={32} style={{ color: colors.text.dim }} />
+              <p className="text-sm" style={{ color: colors.text.dim }}>No programs are reaching the end of their sessions.</p>
+            </div>
+          ) : (
+            <RenewalsList items={renewals} />
+          )}
+        </div>
+      )}
+
       {/* ── Desktop kanban ── */}
-      <div className="hidden lg:grid grid-cols-3 gap-4">
+      <div className={`${pageTab === 'tasks' || !showRenewals ? 'hidden lg:grid' : 'hidden'} grid-cols-3 gap-4`}>
         {COLUMNS.map(col => (
           <KanbanColumn key={col.status} status={col.status} label={col.label}
             tasks={grouped[col.status] ?? []} canManage={canManage} currentUserId={user?.id ?? ''}
@@ -1151,7 +1200,7 @@ export default function TasksPage() {
       </div>
 
       {/* ── Mobile ── */}
-      <div className="lg:hidden">
+      <div className={pageTab === 'tasks' || !showRenewals ? 'lg:hidden' : 'hidden'}>
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 mb-4">
           {COLUMNS.map(col => {
             const count = grouped[col.status]?.length ?? 0

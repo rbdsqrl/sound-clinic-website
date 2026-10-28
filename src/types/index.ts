@@ -2291,6 +2291,26 @@ export interface AttentionCountsResponse {
   pendingReschedule: number
   cancellationRequests: number
   openConcerns: number
+  /** Programs in their last week still waiting for a decision. */
+  renewalsDue: number
+}
+
+/** What an admin decides for a program in its last week — taking it off the Renewals list. */
+export type RenewalOutcome = 'COMPLETED' | 'DISCONTINUED' | 'NEEDS_RENEWAL'
+
+/** A program in its last week — one row of the admin Renewals list. */
+export interface RenewalDue {
+  enrollmentId: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  programName: string
+  therapistFirstName: string
+  therapistLastName: string
+  endDate: string          // "YYYY-MM-DD"
+  /** Days until the last session — negative once it has passed. */
+  daysLeft: number
+  sessionsLeft: number
 }
 
 export interface OrgOverviewResponse {

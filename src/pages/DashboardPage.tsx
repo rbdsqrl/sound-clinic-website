@@ -7,6 +7,8 @@ import DOMPurify from 'dompurify'
 import { dashboardApi } from '../api/dashboard'
 import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
+import { enrollmentsApi } from '../api/enrollments'
+import { RenewalsList, RENEWALS_KEY } from '../components/shared/RenewalsList'
 import { feedApi } from '../api/feed'
 import { patientsApi } from '../api/patients'
 import { therapySessionsApi } from '../api/therapySessions'
@@ -1795,6 +1797,52 @@ function dueDateLabel(dueDate: string | null): { label: string; color: string } 
   return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
 }
 
+/** Programs in their last week waiting for a Completed / Discontinued / Needs Renewal decision — admin roles.
+ *  Sits beside My Tasks; the same list lives on the Tasks page's Renewals tab. */
+function RenewalsPanel({ count }: { count: number }) {
+  const [showAll, setShowAll] = useState(false)
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: RENEWALS_KEY,
+    queryFn: enrollmentsApi.renewalsDue,
+    enabled: count > 0,
+    staleTime: 60 * 1000,
+  })
+  if (count === 0) return null
+  if (isLoading) return <CardSkeleton />
+
+  const shown = items.slice(0, PREVIEW)
+  return (
+    <>
+      <div style={{ ...styles.card, overflow: 'hidden', padding: 0 }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <RefreshCw size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Renewals</h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {items.length}
+            </span>
+          </div>
+          <Link to="/tasks?tab=renewals" className="text-xs transition-colors" style={{ color: colors.accent }}>Open in Tasks →</Link>
+        </div>
+        <RenewalsList items={shown} />
+        {items.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {items.length} programs
+            </button>
+          </div>
+        )}
+      </div>
+      {showAll && (
+        <Modal open title={`Renewals (${items.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5"><RenewalsList items={items} /></div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 /** My open/in-progress tasks, assigned server-side (not sliced client-side from a full fetch) so
  *  the initial load only pulls PREVIEW rows; "View all" fetches the fuller list on demand. */
 function MyTasks({ userId }: { userId: string }) {
@@ -2464,6 +2512,7 @@ export default function DashboardPage() {
             {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
             {isOwnerOrAdmin && <RecentlyJoinedChildren />}
             {isOwnerOrAdmin && (loadingOrgOverview || !orgOverview ? <CardSkeleton /> : <OrgOverview counts={orgOverview} />)}
+            {isOwnerOrAdmin && <RenewalsPanel count={attention?.renewalsDue ?? 0} />}
             <MyTasks userId={user?.id ?? ''} />
           </div>
         )
