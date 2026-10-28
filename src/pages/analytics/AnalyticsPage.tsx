@@ -1138,9 +1138,20 @@ export default function AnalyticsPage() {
               // outcome yet, so it shouldn't dilute a rate that's supposed to describe outcomes.
               hint={(() => {
                 const finalised = totals.sessionsCompleted + totals.sessionsNoShow + totals.sessionsCancelled
-                return finalised > 0
-                  ? `${Math.round((totals.sessionsNoShow / finalised) * 100)}% no-show · ${Math.round((totals.sessionsCancelled / finalised) * 100)}% cancelled`
-                  : 'No finalised sessions in this window'
+                // The rest of the total: still ahead, awaiting notes, or awaiting a reschedule decision.
+                const open = Math.max(0, totals.sessionsScheduled - finalised)
+                return (
+                  <>
+                    <span className="block">
+                      {finalised > 0
+                        ? `${Math.round((totals.sessionsNoShow / finalised) * 100)}% no-show · ${Math.round((totals.sessionsCancelled / finalised) * 100)}% cancelled`
+                        : 'No finalised sessions in this window'}
+                    </span>
+                    <span className="block" title="Scheduled sessions still ahead, awaiting notes, or awaiting a reschedule decision">
+                      {totals.sessionsCompleted} done + {totals.sessionsNoShow} no-show + {totals.sessionsCancelled} cancelled + {open} not yet finalised
+                    </span>
+                  </>
+                )
               })()}
             />
             <Tile

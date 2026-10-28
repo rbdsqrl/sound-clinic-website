@@ -10,7 +10,7 @@ import { colors, border, paletteStyle, type PaletteKey } from '../../theme'
 import type { RenewalDue, RenewalOutcome } from '../../types'
 
 const ACTIONS: { outcome: RenewalOutcome; label: string; tone: PaletteKey; done: string }[] = [
-  { outcome: 'COMPLETED',     label: 'Completed',     tone: 'green', done: 'Marked completed — renewal reminders stopped' },
+  { outcome: 'COMPLETED',     label: 'Completed',     tone: 'green', done: 'Marked completed — it stays Active and shows as Completed after its last session; renewal reminders stopped' },
   { outcome: 'DISCONTINUED',  label: 'Discontinued',  tone: 'slate', done: 'Marked discontinued — renewal reminders stopped' },
   { outcome: 'NEEDS_RENEWAL', label: 'Needs Renewal', tone: 'amber', done: 'Marked as needing renewal — parents keep getting reminders until it is renewed' },
 ]
