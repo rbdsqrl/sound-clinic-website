@@ -1166,8 +1166,8 @@ export default function TasksPage() {
         <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>
           <div className="px-4 sm:px-6 py-3" style={{ borderBottom: `1px solid ${border.divider}` }}>
             <p className="text-xs" style={{ color: colors.text.muted }}>
-              Programs in their last 5 days. Mark each as Completed, Discontinued or Needs Renewal — once you do, it
-              leaves this list. Completed and Discontinued stop the renewal reminders to parents.
+              Programs ending within 5 days, or that ended in the last 5 days. Mark each as Completed, Discontinued or Needs Renewal — once you do, it
+              leaves this list. Needs Renewal starts the renewal reminders to parents; Completed and Discontinued stop them.
             </p>
           </div>
           {loadingRenewals ? (

@@ -52,8 +52,8 @@ export function ProgramStatusControl({ enrollment }: { enrollment: EnrollmentRes
         onChange={e => mut.mutate(e.target.value as ProgramStatus)}
       />
       <p className="text-[11.5px] mt-1" style={{ color: colors.text.dim }}>
-        Renewal reminders go to the parents twice a day from 3 days before the program ends, until it is renewed or
-        marked Completed / Discontinued.
+        Only programs marked Renewal Due get renewal reminders: parents are emailed twice a day from 3 days before the
+        program ends, until it is renewed or marked Completed / Discontinued.
       </p>
     </div>
   )
