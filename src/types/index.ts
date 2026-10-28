@@ -624,6 +624,9 @@ export interface ReviewLeaveRequest {
 export type EnrollmentStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
 export type EnrollmentCareStatus = 'ON_TRACK' | 'NEEDS_ATTENTION' | 'REVIEW' | 'PROGRAM_COMPLETED'
 
+/** Admin-managed lifecycle label — Completed/Discontinued stops the renewal reminder emails. */
+export type ProgramStatus = 'ACTIVE' | 'RENEWAL_DUE' | 'COMPLETED_DISCONTINUED'
+
 export interface EnrollmentResponse {
   id: string
   subscriptionId: string
@@ -649,6 +652,12 @@ export interface EnrollmentResponse {
   therapistSignoffNotes: string | null
   sessionsCompleted: number
   totalSessions: number
+  /** The calendar month ("YYYY-MM") the program is in now, with that month's own counts — what every
+   *  screen quotes instead of a running total across renewals. */
+  currentMonth: string
+  currentMonthCompleted: number
+  currentMonthTotal: number
+  programStatus: ProgramStatus
   createdAt: string
   /** Set only when this enrollment was closed by a patient discharge — null on a program that
    *  was force-completed via the care-status override, which is the only case "Reactivate" applies to. */

@@ -6,6 +6,8 @@ import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
 import { analyticsApi } from '../../api/analytics'
 import { SessionList, SessionNotesModal } from './EnrollmentSessions'
+import { ProgramStatusBadge, ProgramStatusControl } from '../../components/shared/ProgramStatus'
+import { monthName } from '../../lib/sessionMonths'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -177,8 +179,9 @@ export default function EnrollmentDetailPage() {
 
   const careStatus = CARE_STATUS_VARIANT[enrollment.careStatus] ?? CARE_STATUS_VARIANT.ON_TRACK
 
-  const progressPct = enrollment.totalSessions > 0
-    ? Math.min(100, (enrollment.sessionsCompleted / enrollment.totalSessions) * 100)
+  // Counts are per calendar month — a renewal starts a fresh month rather than growing one running total.
+  const progressPct = enrollment.currentMonthTotal > 0
+    ? Math.min(100, (enrollment.currentMonthCompleted / enrollment.currentMonthTotal) * 100)
     : 0
 
   const status = STATUS_VARIANT[enrollment.status] ?? STATUS_VARIANT.ACTIVE
@@ -344,13 +347,13 @@ export default function EnrollmentDetailPage() {
           <div className="flex items-end justify-between mb-2">
             <div>
               <p className="leading-none" style={{ color: colors.text.heading }}>
-                <span className="text-3xl font-bold">{enrollment.sessionsCompleted}</span>
+                <span className="text-3xl font-bold">{enrollment.currentMonthCompleted}</span>
                 <span className="text-lg font-medium ml-1.5" style={{ color: colors.text.muted }}>
-                  / {enrollment.totalSessions}
+                  / {enrollment.currentMonthTotal}
                 </span>
               </p>
               <p className="text-[11.5px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
-                sessions completed
+                {monthName(enrollment.currentMonth)} sessions completed
               </p>
             </div>
           </div>
@@ -359,9 +362,19 @@ export default function EnrollmentDetailPage() {
               style={{
                 width: `${progressPct}%`,
                 background: progressPct >= 100 ? palette.green.text : colors.accent,
-                minWidth: enrollment.sessionsCompleted > 0 ? '6px' : '0',
+                minWidth: enrollment.currentMonthCompleted > 0 ? '6px' : '0',
               }} />
           </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11.5px] uppercase tracking-wider" style={{ color: colors.text.dim }}>Program status</span>
+            <ProgramStatusBadge status={enrollment.programStatus} />
+          </div>
+          {isAdminTier && enrollment.status !== 'CANCELLED' && !enrollment.dischargedInRecordId && (
+            <ProgramStatusControl enrollment={enrollment} />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: colors.text.muted }}>

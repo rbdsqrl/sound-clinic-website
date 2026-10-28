@@ -8,6 +8,7 @@ import type {
   EnrollmentCareStatus,
   DayOfWeek,
   RenewEnrollmentRequest,
+  ProgramStatus,
 } from '../types'
 
 export const enrollmentsApi = {
@@ -51,6 +52,11 @@ export const enrollmentsApi = {
    *  Reopens a program that was marked completed. */
   renew: (id: string, data: RenewEnrollmentRequest) =>
     client.post<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/renew`, data).then(r => r.data.data),
+
+  /** Set the program's status — Active, Renewal Due or Completed/Discontinued (admin roles). The last stops
+   *  the renewal reminder emails. */
+  setProgramStatus: (id: string, status: ProgramStatus) =>
+    client.patch<ApiResponse<EnrollmentResponse>>(`/enrollments/${id}/program-status`, { status }).then(r => r.data.data),
 
   /** Cancel an enrollment */
   cancel: (id: string) =>

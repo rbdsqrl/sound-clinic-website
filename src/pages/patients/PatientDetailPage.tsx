@@ -48,6 +48,8 @@ import { todayStr } from '../../lib/schedule'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
+import { ProgramStatusBadge, ProgramStatusControl, monthCountLabel } from '../../components/shared/ProgramStatus'
+import { monthName } from '../../lib/sessionMonths'
 import type {
   AssignTherapistRequest,
   LinkParentRequest,
@@ -1913,7 +1915,7 @@ export default function PatientDetailPage() {
                           </span>
                         </div>
                         <span className="text-xs font-medium flex-shrink-0" style={{ color: colors.text.muted }}>
-                          {e.sessionsCompleted}/{e.totalSessions} sessions
+                          {monthCountLabel(e)} sessions
                         </span>
                       </Link>
                     ))}
@@ -2111,9 +2113,13 @@ export default function PatientDetailPage() {
                   // immediately and held "awaiting payment" until this subscription is PAID.
                   const canEnroll     = canCreateEnrollment && !alreadyEnrolled && !isCancelled
 
-                  const sessionsCompleted = enrollment?.sessionsCompleted ?? 0
-                  const progressPct       = sub.numSessions > 0
-                    ? Math.min(100, (sessionsCompleted / sub.numSessions) * 100)
+                  // A running program quotes its current calendar month only — a renewal starts a fresh month
+                  // instead of growing one total. A plan not yet enrolled has no months, so it shows its size.
+                  const sessionsCompleted = enrollment?.currentMonthCompleted ?? 0
+                  const sessionsTotal     = enrollment ? enrollment.currentMonthTotal : sub.numSessions
+                  const monthLabel        = enrollment ? monthName(enrollment.currentMonth) : null
+                  const progressPct       = sessionsTotal > 0
+                    ? Math.min(100, (sessionsCompleted / sessionsTotal) * 100)
                     : 0
                   const isExpanded = expandedSubs.has(sub.id)
 
@@ -2177,6 +2183,9 @@ export default function PatientDetailPage() {
                                   {enrollment.therapistFirstName} {enrollment.therapistLastName}
                                 </p>
                               )}
+                              {enrollment && (
+                                <div className="mt-1"><ProgramStatusBadge status={enrollment.programStatus} /></div>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -2200,7 +2209,7 @@ export default function PatientDetailPage() {
                                       : colors.text.dim,
                                 }}
                               >
-                                {sessionsCompleted}/{sub.numSessions}
+                                {monthLabel ? `${monthLabel} ` : ''}{sessionsCompleted}/{sessionsTotal}
                               </span>
                             )}
                             <ChevronRight
@@ -2223,11 +2232,11 @@ export default function PatientDetailPage() {
                               <p className="leading-none" style={{ color: colors.text.heading }}>
                                 <span className="text-3xl font-bold">{sessionsCompleted}</span>
                                 <span className="text-lg font-medium ml-1.5" style={{ color: colors.text.muted }}>
-                                  / {sub.numSessions}
+                                  / {sessionsTotal}
                                 </span>
                               </p>
                               <p className="text-[11.5px] uppercase tracking-wider mt-1.5" style={{ color: colors.text.dim }}>
-                                sessions completed
+                                {monthLabel ? `${monthLabel} sessions completed` : 'sessions completed'}
                               </p>
                             </div>
                           </div>
@@ -2242,6 +2251,12 @@ export default function PatientDetailPage() {
                             />
                           </div>
                         </div>
+
+                        {enrollment && canCreateEnrollment && (
+                          <div className="mb-4 pb-4 border-b" style={{ borderColor: border.divider }}>
+                            <ProgramStatusControl enrollment={enrollment} />
+                          </div>
+                        )}
 
                         {/* Details strip: schedule + payment inline */}
                         <div

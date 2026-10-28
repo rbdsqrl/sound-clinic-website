@@ -19,6 +19,8 @@ import { formatTimeStr, formatDateStr } from '../../lib/format'
 import { colors, border, accentAlpha, paletteStyle } from '../../theme'
 import { useTheme } from '../../contexts/ThemeContext'
 import { getAvatarColorStyles } from '../../lib/avatarColor'
+import { ProgramStatusBadge, monthCountLabel } from '../../components/shared/ProgramStatus'
+import { ROUTES } from '../../lib/routes'
 
 function RaiseConcernModal({ childId, childName, onClose }: { childId: string; childName: string; onClose: () => void }) {
   const qc = useQueryClient()
@@ -86,6 +88,40 @@ function RaiseConcernModal({ childId, childName, onClose }: { childId: string; c
         </div>
       )}
     </Modal>
+  )
+}
+
+/** The child's programs with this month's own session count — the same figures the therapist and admin see. */
+function ChildPrograms({ childId }: { childId: string }) {
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ['enrollments', childId],
+    queryFn: () => enrollmentsApi.listForPatient(childId),
+  })
+  const programs = enrollments.filter(e => e.status !== 'CANCELLED')
+  if (programs.length === 0) return null
+
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${border.divider}` }}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: colors.text.dim }}>Programs</p>
+      <div className="flex flex-col gap-2">
+        {programs.map(e => (
+          <Link
+            key={e.id}
+            to={ROUTES.enrollment(childId, e.id)}
+            className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors"
+            style={{ background: accentAlpha(0.05) }}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>{e.programName}</p>
+              <div className="mt-1"><ProgramStatusBadge status={e.programStatus} /></div>
+            </div>
+            <span className="text-xs font-semibold tabular-nums flex-shrink-0" style={{ color: colors.accent }}>
+              {monthCountLabel(e)}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -264,6 +300,8 @@ export default function MyChildrenPage() {
                   )}
                 </div>
               </div>
+
+              <ChildPrograms childId={child.id} />
 
               {/* Sessions — always visible */}
               <ChildSessions childId={child.id} />

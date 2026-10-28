@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useUrlTab } from '../../hooks/useUrlTab'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
@@ -19,6 +18,7 @@ import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { isPastDateTime, todayStr } from '../../lib/schedule'
+import { groupSessionsByMonth } from '../../lib/sessionMonths'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
 import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
@@ -110,8 +110,6 @@ function sessionRowStatusLabel(status: string): string {
 
 // ── SessionList (row-based, lazy-loaded per enrollment) ───────────────────────
 
-const SESSION_PREVIEW = 5
-
 export function SessionList({
   enrollmentId,
   canUpdate,
@@ -132,8 +130,8 @@ export function SessionList({
   hidePayment?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
-  const [tab, setTab] = useUrlTab<'completed' | 'upcoming'>(['upcoming', 'completed'], 'upcoming', { param: 'sessions' })
-  const [showAll, setShowAll] = useState(false)
+  // Which months are expanded. null until the person toggles one — then only the current month is open.
+  const [openMonths, setOpenMonths] = useState<Set<string> | null>(null)
   const [reschedulingSession, setReschedulingSession] = useState<TherapySessionResponse | null>(null)
   const qc = useQueryClient()
 
@@ -150,11 +148,19 @@ export function SessionList({
     </div>
   )
 
-  const completed = sessions.filter(s => s.status === 'COMPLETED').length
-  const missed    = sessions.filter(s => s.status === 'NO_SHOW' || s.status === 'CANCELLED').length
-  const upcoming  = sessions.filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE' || s.status === 'CANCELLATION_REQUESTED').length
-  const total     = sessions.length
+  // Sessions are shown month by month — each month keeps its own count and the previous months stay as history,
+  // so a renewal never merges into one running total.
+  const months = groupSessionsByMonth(sessions, todayStr())
+  const currentMonth = months.find(m => m.state === 'current')
+  const { completed, missed, total } = currentMonth ?? { completed: 0, missed: 0, total: 0 }
+  const upcoming  = currentMonth?.open ?? 0
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
+  const isOpen    = (key: string) => (openMonths ?? new Set(currentMonth ? [currentMonth.key] : [])).has(key)
+  const toggleMonth = (key: string) => {
+    const next = new Set(openMonths ?? (currentMonth ? [currentMonth.key] : []))
+    if (next.has(key)) next.delete(key); else next.add(key)
+    setOpenMonths(next)
+  }
 
   // A SCHEDULED session whose own end time has already passed — nobody marked it
   // done/missed or wrote it up yet. Based on end time, not start, so a session
@@ -163,84 +169,9 @@ export function SessionList({
     s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.endTime.slice(0, 5))
   const pendingNotesCount = sessions.filter(isOverdue).length
 
-  // Sorted by the session's actual date, not its sessionNumber — an ad-hoc session is numbered
-  // after the generated block regardless of when it falls, so ordering by number would always
-  // push it to the end even when its date sits in the middle of the plan.
-  const completedRows = sessions
-    .filter(s => s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE' && s.status !== 'CANCELLATION_REQUESTED')
-    .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate) || b.sessionNumber - a.sessionNumber)
-
-  const upcomingRows = sessions
-    .filter(s => s.status === 'SCHEDULED' || s.status === 'PENDING_RESCHEDULE' || s.status === 'CANCELLATION_REQUESTED')
-    .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate) || a.sessionNumber - b.sessionNumber)
-
-  const rowsForTab  = tab === 'completed' ? completedRows : upcomingRows
-  const displayRows = showAll ? rowsForTab : rowsForTab.slice(0, SESSION_PREVIEW)
-  const hiddenCount = rowsForTab.length - displayRows.length
-
-  return (
-    <div style={{ borderTop: `1px solid ${border.divider}` }}>
-      {/* Stats header */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <MiniDonut done={completed} total={total} />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
-            <span className="text-xs font-medium" style={{ color: colors.status.success }}>{completed} done</span>
-            {missed > 0 && (
-              <span className="text-xs font-medium" style={{ color: colors.status.danger }}>{missed} missed</span>
-            )}
-            <span className="text-xs" style={{ color: colors.text.dim }}>{upcoming} upcoming</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: colors.status.success }}
-              />
-            </div>
-          </div>
-        </div>
-        <ScoreSparkline sessions={sessions} />
-      </div>
-
-      {pendingNotesCount > 0 && (
-        <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg px-3 py-2"
-          style={{ background: warningAlpha(0.09) }}>
-          <AlertTriangle size={13} className="flex-shrink-0" style={{ color: colors.status.warning }} />
-          <p className="text-xs font-medium" style={{ color: colors.status.warning }}>
-            {pendingNotesCount} session{pendingNotesCount !== 1 ? 's' : ''} past its scheduled time still {pendingNotesCount !== 1 ? 'need' : 'needs'} notes
-          </p>
-        </div>
-      )}
-
-      {/* Completed / Upcoming tabs */}
-      <div className="flex gap-2 px-4 pb-3">
-        {([
-          { key: 'upcoming' as const,  label: 'Upcoming',  count: upcomingRows.length },
-          { key: 'completed' as const, label: 'Completed', count: completedRows.length },
-        ]).map(t => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => { setTab(t.key); setShowAll(false) }}
-            className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
-            style={tab === t.key ? styles.filterTabActive : styles.filterTabInactive}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
-      </div>
-
-      {/* Session rows */}
-      {displayRows.length === 0 ? (
-        <div className="px-4 py-6 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
-          <p className="text-xs" style={{ color: colors.text.dim }}>
-            {tab === 'completed' ? 'No completed sessions yet.' : 'No upcoming sessions.'}
-          </p>
-        </div>
-      ) : (
-        <div style={{ borderTop: `1px solid ${border.divider}` }}>
-          {displayRows.map((s, i) => {
+  const renderRows = (list: TherapySessionResponse[]) => (
+    <div>
+      {list.map((s, i) => {
             const hasNotes  = !!(s.feedback || s.progressReport || s.notes)
             const isCompletedRow = s.status !== 'SCHEDULED' && s.status !== 'PENDING_RESCHEDULE' && s.status !== 'CANCELLATION_REQUESTED'
             const clickable = canUpdate || (canView && isCompletedRow)
@@ -250,7 +181,7 @@ export function SessionList({
                 onClick={() => clickable && onOpenNotes(s)}
                 className="flex items-center gap-3 px-4 py-2.5 transition-colors"
                 style={{
-                  borderBottom: i < displayRows.length - 1 ? `1px solid ${border.divider}` : 'none',
+                  borderBottom: i < list.length - 1 ? `1px solid ${border.divider}` : 'none',
                   cursor: clickable ? 'pointer' : 'default',
                 }}
                 onMouseEnter={e => { if (clickable) (e.currentTarget as HTMLElement).style.background = surface.rowHover }}
@@ -333,16 +264,97 @@ export function SessionList({
                 )}
               </div>
             )
-          })}
+      })}
+    </div>
+  )
+
+  return (
+    <div style={{ borderTop: `1px solid ${border.divider}` }}>
+      {/* Stats header — the current month only */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <MiniDonut done={completed} total={total} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: colors.text.dim }}>
+            {currentMonth ? `${currentMonth.label} · this month` : 'No sessions'}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-2">
+            <span className="text-xs font-medium" style={{ color: colors.status.success }}>{completed} done</span>
+            {missed > 0 && (
+              <span className="text-xs font-medium" style={{ color: colors.status.danger }}>{missed} missed</span>
+            )}
+            <span className="text-xs" style={{ color: colors.text.dim }}>{upcoming} upcoming</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: surface.filterStrip }}>
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, background: colors.status.success }}
+              />
+            </div>
+          </div>
+        </div>
+        <ScoreSparkline sessions={sessions} />
+      </div>
+
+      {pendingNotesCount > 0 && (
+        <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg px-3 py-2"
+          style={{ background: warningAlpha(0.09) }}>
+          <AlertTriangle size={13} className="flex-shrink-0" style={{ color: colors.status.warning }} />
+          <p className="text-xs font-medium" style={{ color: colors.status.warning }}>
+            {pendingNotesCount} session{pendingNotesCount !== 1 ? 's' : ''} past its scheduled time still {pendingNotesCount !== 1 ? 'need' : 'needs'} notes
+          </p>
         </div>
       )}
 
-      {/* Show all / show less */}
-      {(hiddenCount > 0 || showAll) && (
-        <div className="px-4 py-3 flex justify-center" style={{ borderTop: `1px solid ${border.divider}` }}>
-          <Button variant="secondary" size="sm" onClick={() => setShowAll(v => !v)}>
-            {showAll ? 'Show less' : `Show all ${rowsForTab.length} sessions`}
-          </Button>
+      {/* Month-wise accordion — the current month is open, earlier months are inactive history */}
+      {months.length === 0 ? (
+        <div className="px-4 py-6 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+          <p className="text-xs" style={{ color: colors.text.dim }}>No sessions yet.</p>
+        </div>
+      ) : (
+        <div>
+          {months.map(m => {
+            const expanded = isOpen(m.key)
+            const inactive = m.state === 'past'
+            const badge = m.state === 'current'
+              ? { text: 'Current', style: { background: accentAlpha(0.12), color: colors.accent } }
+              : m.state === 'future'
+                ? { text: 'Upcoming', style: { background: surface.filterStrip, color: colors.text.muted } }
+                : m.open > 0
+                  ? { text: `${m.open} pending`, style: { background: warningAlpha(0.14), color: colors.status.warning } }
+                  : { text: 'Completed', style: { background: surface.filterStrip, color: colors.text.dim } }
+            return (
+              <div key={m.key} style={{ borderTop: `1px solid ${border.divider}` }}>
+                <button
+                  type="button"
+                  onClick={() => toggleMonth(m.key)}
+                  aria-expanded={expanded}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                  style={{ opacity: inactive && !expanded ? 0.75 : 1 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surface.rowHover}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                >
+                  <ChevronRight size={15} className="flex-shrink-0"
+                    style={{ color: colors.text.muted, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                  <span className="text-sm font-semibold" style={{ color: inactive ? colors.text.muted : colors.text.heading }}>
+                    {m.label}
+                  </span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={badge.style}>
+                    {badge.text}
+                  </span>
+                  <span className="flex-1" />
+                  <span className="text-xs font-medium tabular-nums flex-shrink-0" style={{ color: colors.text.muted }}>
+                    {m.completed}/{m.total} sessions
+                  </span>
+                </button>
+                {expanded && (
+                  <div style={{ borderTop: `1px solid ${border.divider}` }}>
+                    {renderRows(m.sessions)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
