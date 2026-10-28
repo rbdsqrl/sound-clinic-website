@@ -26,7 +26,7 @@ export function endsLabel(daysLeft: number): { text: string; overdue: boolean } 
 export const RENEWALS_KEY = ['enrollments', 'renewals-due'] as const
 
 /** Programs in their last week, each with Completed / Discontinued / Needs Renewal. Acting on a row removes it. */
-export function RenewalsList({ items }: { items: RenewalDue[] }) {
+export function RenewalsList({ items, stacked = false }: { items: RenewalDue[]; stacked?: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
 
@@ -49,7 +49,7 @@ export function RenewalsList({ items }: { items: RenewalDue[] }) {
         return (
           <div
             key={r.enrollmentId}
-            className="flex flex-col gap-3 px-4 sm:px-6 py-3 sm:flex-row sm:items-center"
+            className={`flex flex-col gap-3 px-4 sm:px-6 py-3 ${stacked ? '' : 'lg:flex-row lg:items-center'}`}
             style={i < items.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : undefined}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -59,7 +59,7 @@ export function RenewalsList({ items }: { items: RenewalDue[] }) {
                   style={{ color: colors.text.primary }}>
                   {r.patientFirstName} {r.patientLastName} · {r.programName}
                 </Link>
-                <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+                <p className="text-xs" style={{ color: colors.text.muted }}>
                   {r.therapistFirstName} {r.therapistLastName} ·{' '}
                   <span style={{ color: ends.overdue ? colors.status.danger : colors.status.warning, fontWeight: 600 }}>{ends.text}</span>
                   {' '}({format(new Date(`${r.endDate}T00:00:00`), 'd MMM')}) · {r.sessionsLeft} session{r.sessionsLeft === 1 ? '' : 's'} left

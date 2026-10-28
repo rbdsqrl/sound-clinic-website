@@ -213,6 +213,8 @@ function TodaySessions({
   onSessionClick?: (s: TherapySessionSummary) => void
 }) {
   const [showAll, setShowAll] = useState(false)
+  // Nothing today — no card at all rather than an empty one.
+  if (sessions.length === 0) return null
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
@@ -365,6 +367,7 @@ function UpcomingSessions({ sessions, onSessionClick }: {
   sessions: TherapySessionResponse[]
   onSessionClick: (s: TherapySessionResponse) => void
 }) {
+  if (sessions.length === 0) return null
   const sectionCard: React.CSSProperties = { ...styles.card, overflow: 'hidden', padding: 0 }
 
   const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
@@ -1524,6 +1527,8 @@ function RecentlyJoinedChildren() {
   const activeFilterCount =
     (from !== defaultFrom || to !== today ? 1 : 0) + (therapistId ? 1 : 0) + (therapyName ? 1 : 0)
   const resetFilters = () => { setFrom(defaultFrom); setTo(today); setTherapistId(''); setTherapyName('') }
+  // Nobody joined in the default window — hide the card, but never while a filter is set, or the filters would vanish with it.
+  if (!isLoading && recentlyJoined.length === 0 && !filtersActive) return null
 
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -1678,6 +1683,7 @@ function RecentlyJoinedChildren() {
 
 function UpcomingBirthdays({ birthdays }: { birthdays: UpcomingBirthdayResponse[] }) {
   const [showAll, setShowAll] = useState(false)
+  if (birthdays.length === 0) return null
 
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -1825,7 +1831,7 @@ function RenewalsPanel({ count }: { count: number }) {
           </div>
           <Link to="/tasks?tab=renewals" className="text-xs transition-colors" style={{ color: colors.accent }}>Open in Tasks →</Link>
         </div>
-        <RenewalsList items={shown} />
+        <RenewalsList items={shown} stacked />
         {items.length > PREVIEW && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
@@ -1836,7 +1842,7 @@ function RenewalsPanel({ count }: { count: number }) {
       </div>
       {showAll && (
         <Modal open title={`Renewals (${items.length})`} onClose={() => setShowAll(false)} size="lg">
-          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5"><RenewalsList items={items} /></div>
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5"><RenewalsList items={items} stacked /></div>
         </Modal>
       )}
     </>
@@ -1867,6 +1873,7 @@ function MyTasks({ userId }: { userId: string }) {
 
   const shown = previewPage?.content ?? []
   const total = previewPage?.totalElements ?? 0
+  if (total === 0) return null
   const all = allPage?.content ?? []
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -2027,6 +2034,7 @@ function FeedPanel() {
 
   const shown = previewPage?.content ?? []
   const total = previewPage?.totalElements ?? 0
+  if (total === 0) return null
   const all = allPage?.content ?? []
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -2140,6 +2148,7 @@ function MomPanel() {
 
   const shown = previewPage?.content ?? []
   const total = previewPage?.totalElements ?? 0
+  if (total === 0) return null
   const all = allPage?.content ?? []
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
@@ -2509,11 +2518,12 @@ export default function DashboardPage() {
             <FeedPanel />
             {isStaff && <MomPanel />}
 
+            {isOwnerOrAdmin && <RenewalsPanel count={attention?.renewalsDue ?? 0} />}
+            <MyTasks userId={user?.id ?? ''} />
+
             {loadingBirthdays ? <CardSkeleton /> : <UpcomingBirthdays birthdays={upcomingBirthdays} />}
             {isOwnerOrAdmin && <RecentlyJoinedChildren />}
             {isOwnerOrAdmin && (loadingOrgOverview || !orgOverview ? <CardSkeleton /> : <OrgOverview counts={orgOverview} />)}
-            {isOwnerOrAdmin && <RenewalsPanel count={attention?.renewalsDue ?? 0} />}
-            <MyTasks userId={user?.id ?? ''} />
           </div>
         )
       })()}
