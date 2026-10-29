@@ -916,6 +916,9 @@ export interface TherapySessionResponse {
    *  locked from completion/notes/reschedule-request until then. Status stays SCHEDULED
    *  throughout; this flag alone drives the "Payment pending" badge/lock. */
   awaitingPayment: boolean
+  /** Who raised the open cancellation / reschedule request, and their role — null when none is open. */
+  requestedByName?: string | null
+  requestedByRole?: Role | null
 }
 
 export interface UpdateSessionStatusRequest {

@@ -1070,9 +1070,11 @@ function PendingSessionNotesPanel({ count, sessions, onSessionClick }: {
   )
 }
 
-function CancellationRequestsPanel({ sessions, onDone }: {
+function CancellationRequestsPanel({ sessions, onDone, onSessionClick }: {
   sessions: TherapySessionResponse[]
   onDone: () => void
+  /** Opens the session the request is about, so the approver can see its details first. */
+  onSessionClick?: (s: TherapySessionResponse) => void
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -1107,19 +1109,29 @@ function CancellationRequestsPanel({ sessions, onDone }: {
         ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
         transform: 'translateZ(0)',
       }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-2.5">
+        <button
+          type="button"
+          onClick={() => { onSessionClick?.(s); setShowAll(false) }}
+          className="w-full min-w-0 text-left rounded-lg transition-colors"
+          title="Open session details"
+          onMouseEnter={ROW_HOVER_IN}
+          onMouseLeave={ROW_HOVER_OUT}
+        >
           <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-            {s.patientFirstName} {s.patientLastName}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {formatTimeStr(s.startTime)} · {s.programName}
+            {s.programName}
           </p>
           <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
-            {s.therapistFirstName} {s.therapistLastName}
+            {s.patientFirstName} {s.patientLastName} · {s.therapistFirstName} {s.therapistLastName}
           </p>
-        </div>
-        <div className="flex gap-2 flex-shrink-0">
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {formatTimeStr(s.startTime)}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            Requested by {s.requestedByName ?? 'unknown'}
+          </p>
+        </button>
+        <div className="flex gap-2">
           <button
             disabled={approveMut.isPending || rejectMut.isPending}
             onClick={() => approveMut.mutate(s.id)}
@@ -2481,6 +2493,7 @@ export default function DashboardPage() {
               <CancellationRequestsPanel
                 sessions={cancellationRequests}
                 onDone={() => refetchCancelRequests()}
+                onSessionClick={s => setEditingSessionId(s.id)}
               />
             ))}
 
