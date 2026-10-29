@@ -593,6 +593,9 @@ function EventChip({
 }) {
   const s = colorOverride ?? kindStyle(event.kind, event.status, sessionAwaitingPayment(event))
   const secondLine = showTherapist ? sessionTherapistName(event) : showPatient ? sessionPatientName(event) : undefined
+  const showTime = !compact && !event.isAllDay && !!event.time
+  // With a name on the second line the time leads it ("4:30 PM · Om Godbole"); with none, it stays beside the title.
+  const timeInSecondLine = showTime && !!secondLine
 
   const buttonRef  = useRef<HTMLButtonElement>(null)
   const showTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -633,13 +636,13 @@ function EventChip({
           {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
           {event.kind === 'orgBlock' && <Clock size={9} className="inline mr-1 opacity-90" />}
           <span className="truncate">{event.title}</span>
-          {!compact && !event.isAllDay && event.time && (
+          {showTime && !timeInSecondLine && (
             <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
           )}
         </div>
         {secondLine && (
           <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
-            {secondLine}
+            {timeInSecondLine ? `${formatTimeStr(event.time)} · ${secondLine}` : secondLine}
           </div>
         )}
       </button>
