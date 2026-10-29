@@ -594,6 +594,10 @@ function EventChip({
   const s = colorOverride ?? kindStyle(event.kind, event.status, sessionAwaitingPayment(event))
   const secondLine = showTherapist ? sessionTherapistName(event) : showPatient ? sessionPatientName(event) : undefined
   const showTime = !compact && !event.isAllDay && !!event.time
+  // Month view: a timed event is one plain line — a ring, the time, the title — in the chip's own colour (the
+  // therapist's colour in the staff view, else the kind/status colour), with no filled card. All-day events
+  // (holidays) keep their pill.
+  const monthRow = compact && !event.isAllDay && !!event.time
   // With a name on the second line the time leads it ("4:30 PM · Om Godbole"); with none, it stays beside the title.
   const timeInSecondLine = showTime && !!secondLine
 
@@ -631,7 +635,16 @@ function EventChip({
         onMouseEnter={handleEnter}
         onMouseLeave={handleLeave}
         className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-75"
-        style={{ ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
+        style={monthRow
+          ? { color: s.color, fontSize: 11.5, fontWeight: 500 }
+          : { ...s, fontSize: compact ? 11.5 : 12.65, fontWeight: 600 }}>
+        {monthRow ? (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="flex-shrink-0 rounded-full" style={{ width: 8, height: 8, border: '2px solid currentColor' }} />
+            <span className="flex-shrink-0 tabular-nums">{formatTimeStr(event.time)}</span>
+            <span className="truncate">{event.title}</span>
+          </div>
+        ) : (
         <div className="truncate">
           {!compact && event.isAllDay && <CalendarOff size={9} className="inline mr-1 opacity-70" />}
           {event.kind === 'orgBlock' && <Clock size={9} className="inline mr-1 opacity-90" />}
@@ -640,7 +653,8 @@ function EventChip({
             <span className="ml-1 opacity-60 font-normal">{formatTimeStr(event.time)}</span>
           )}
         </div>
-        {secondLine && (
+        )}
+        {!monthRow && secondLine && (
           <div className="truncate font-normal opacity-75" style={{ fontSize: compact ? 10.5 : 11 }}>
             {timeInSecondLine ? `${formatTimeStr(event.time)} · ${secondLine}` : secondLine}
           </div>
@@ -818,12 +832,12 @@ function MonthView({
                 </span>
               </div>
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                {sorted.slice(0, 2).map(ev => (
+                {sorted.slice(0, 3).map(ev => (
                   <EventChip key={ev.id} event={ev} onClick={() => onSelect(ev)} compact colorOverride={colorFn?.(ev)} showTherapist={showTherapist} />
                 ))}
-                {sorted.length > 2 && (
+                {sorted.length > 3 && (
                   <p className="text-[11.5px] pl-1" style={{ color: colors.text.muted }}>
-                    +{sorted.length - 2} more
+                    {sorted.length - 3} more
                   </p>
                 )}
               </div>
