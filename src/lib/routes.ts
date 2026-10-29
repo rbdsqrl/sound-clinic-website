@@ -6,6 +6,7 @@ export const ROUTES = {
   resetPassword:      '/reset-password',
   dashboard:          '/dashboard',
   organisation:       '/organisation',
+  organisationTab:    (tab: string) => `/organisation?tab=${tab}`,
   clinics:            '/clinics',
   clinic:             (id: string) => `/clinics/${id}`,
   patients:           '/patients',

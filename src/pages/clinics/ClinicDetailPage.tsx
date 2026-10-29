@@ -14,6 +14,7 @@ import { getApiError } from '../../lib/apiError'
 import { colors } from '../../theme'
 import type { CreateClinicRequest } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
+import { ROUTES } from '../../lib/routes'
 
 export default function ClinicDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -66,7 +67,8 @@ export default function ClinicDetailPage() {
     <div className="space-y-6">
       <div>
         <Link
-          to="/clinics"
+          // Admin roles reach a clinic from Organisation → Clinics; a therapist has no Organisation page, only the Clinics list.
+          to={canEditClinic ? ROUTES.organisationTab('clinics') : ROUTES.clinics}
           className="mb-4 inline-flex items-center gap-1 text-sm transition-colors"
           style={{ color: colors.text.muted }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
@@ -95,9 +97,12 @@ export default function ClinicDetailPage() {
               ['Timezone', clinic.timezone],
               ['Address', clinic.address],
               ['Status', clinic.isActive ? 'Active' : 'Inactive'],
-              ['Latitude', clinic.latitude != null ? String(clinic.latitude) : null],
-              ['Longitude', clinic.longitude != null ? String(clinic.longitude) : null],
-              ['Geo-fence Radius (m)', clinic.geoFenceRadiusMeters != null ? String(clinic.geoFenceRadiusMeters) : null],
+              // Attendance geo-fence details are for admin roles only — a therapist doesn't see them.
+              ...(canEditClinic ? [
+                ['Latitude', clinic.latitude != null ? String(clinic.latitude) : null],
+                ['Longitude', clinic.longitude != null ? String(clinic.longitude) : null],
+                ['Geo-fence Radius (m)', clinic.geoFenceRadiusMeters != null ? String(clinic.geoFenceRadiusMeters) : null],
+              ] : []),
             ].map(([label, value]) => (
               <div key={label as string}>
                 <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
