@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
-  ListChecks,
+  ListChecks, MessageSquare,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
+import { parentFeedbackApi } from '../../api/parentFeedback'
+import { ParentFeedbackModal } from './ParentFeedbackModal'
+import { useAuth } from '../../contexts/AuthContext'
 import { usersApi } from '../../api/users'
 import { PerformanceScoreSlider, ScorePill, scoreColor } from '../../components/ui/PerformanceScore'
 import { StarRating } from './ReviewMeetings'
@@ -21,7 +24,7 @@ import { isPastDateTime, todayStr } from '../../lib/schedule'
 import { groupSessionsByMonth } from '../../lib/sessionMonths'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
 import { format, parseISO } from 'date-fns'
-import type { TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
+import type { ParentFeedback, TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
 
@@ -116,6 +119,8 @@ export function SessionList({
   canReschedule = false,
   canView = false,
   hidePayment = false,
+  hideScore = false,
+  canGiveFeedback = false,
   onOpenNotes,
 }: {
   enrollmentId: string
@@ -128,12 +133,26 @@ export function SessionList({
   canView?: boolean
   /** Therapists never see payment/charge info — hides the ad-hoc session's "Payment due"/"No charge" badge. */
   hidePayment?: boolean
+  /** Parents don't see the session performance score (the % pill on a completed session, or the score trend). */
+  hideScore?: boolean
+  /** A parent can leave feedback on a completed session of their own child. */
+  canGiveFeedback?: boolean
   onOpenNotes: (s: TherapySessionResponse) => void
 }) {
   // Which months are expanded. null until the person toggles one — then only the current month is open.
   const [openMonths, setOpenMonths] = useState<Set<string> | null>(null)
   const [reschedulingSession, setReschedulingSession] = useState<TherapySessionResponse | null>(null)
+  const [feedbackFor, setFeedbackFor] = useState<TherapySessionResponse | null>(null)
   const qc = useQueryClient()
+
+  // The parent's own feedback on this plan, so a session shows "Feedback sent" and can be edited.
+  const { data: myFeedback = [] } = useQuery({
+    queryKey: ['parent-feedback', 'mine', enrollmentId],
+    queryFn: () => parentFeedbackApi.mine(enrollmentId),
+    enabled: canGiveFeedback,
+    staleTime: 60 * 1000,
+  })
+  const feedbackBySession = new Map(myFeedback.map(f => [f.sessionId, f]))
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', 'enrollment', enrollmentId],
@@ -231,6 +250,19 @@ export function SessionList({
 
                 <span className="flex-1" />
 
+                {canGiveFeedback && s.status === 'COMPLETED' && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setFeedbackFor(s) }}
+                    className="flex items-center gap-1 text-[11.5px] font-medium px-2 py-1 rounded-lg flex-shrink-0 transition-colors"
+                    style={{ color: colors.accent }}
+                    onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = accentAlpha(0.10)}
+                    onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
+                    <MessageSquare size={12} /> {feedbackBySession.has(s.id) ? 'Your feedback' : 'Feedback'}
+                  </button>
+                )}
+
                 {isOverdue(s) ? (
                   <span className="flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                     style={{ background: warningAlpha(0.14), color: colors.status.warning }}
@@ -244,7 +276,7 @@ export function SessionList({
                   </span>
                 )}
 
-                {s.performanceScore != null && <ScorePill score={s.performanceScore} />}
+                {!hideScore && s.performanceScore != null && <ScorePill score={s.performanceScore} />}
 
                 {hasNotes && (
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.accent }} />
@@ -293,7 +325,7 @@ export function SessionList({
             </div>
           </div>
         </div>
-        <ScoreSparkline sessions={sessions} />
+        {!hideScore && <ScoreSparkline sessions={sessions} />}
       </div>
 
       {pendingNotesCount > 0 && (
@@ -356,6 +388,15 @@ export function SessionList({
             )
           })}
         </div>
+      )}
+
+      {feedbackFor && (
+        <ParentFeedbackModal
+          session={feedbackFor}
+          existing={feedbackBySession.get(feedbackFor.id)}
+          enrollmentId={enrollmentId}
+          onClose={() => setFeedbackFor(null)}
+        />
       )}
 
       {reschedulingSession && (
@@ -553,6 +594,88 @@ function SessionActivityPanel({ sessionId }: { sessionId: string }) {
   )
 }
 
+/** The Parent Feedback tab of the session details. What is listed was already filtered by the server for this viewer. */
+function SessionParentFeedbackPanel({ session, enrollmentId, items, isAdminViewer, isParentViewer }: {
+  session: TherapySessionResponse
+  enrollmentId: string
+  items: ParentFeedback[]
+  isAdminViewer: boolean
+  isParentViewer: boolean
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const [editing, setEditing] = useState(false)
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['parent-feedback'] })
+    qc.invalidateQueries({ queryKey: ['dashboard', 'attention-counts'] })
+  }
+  const shareMut = useMutation({
+    mutationFn: (id: string) => parentFeedbackApi.share(id),
+    onSuccess: () => { toast('Shared with the therapist', 'success'); refresh() },
+    onError: err => toast(getApiError(err, 'Could not share the feedback'), 'error'),
+  })
+  const readMut = useMutation({
+    mutationFn: (id: string) => parentFeedbackApi.review(id),
+    onSuccess: () => refresh(),
+    onError: err => toast(getApiError(err, 'Could not update the feedback'), 'error'),
+  })
+
+  if (items.length === 0) {
+    return (
+      <div className="py-8 text-center space-y-3">
+        <p className="text-sm" style={{ color: colors.text.dim }}>
+          {isParentViewer ? "You haven't given feedback on this session yet." : 'No parent feedback on this session.'}
+        </p>
+        {isParentViewer && session.status === 'COMPLETED' && (
+          <Button size="sm" onClick={() => setEditing(true)}>Give feedback</Button>
+        )}
+        {editing && <ParentFeedbackModal session={session} enrollmentId={enrollmentId} onClose={() => setEditing(false)} />}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {items.map(f => (
+        <div key={f.id} className="rounded-xl p-3 flex flex-col gap-2" style={{ background: surface.filterStrip }}>
+          <p className="text-sm whitespace-pre-wrap break-words" style={{ color: colors.text.primary }}>{f.message}</p>
+          <p className="text-xs" style={{ color: colors.text.muted }}>
+            {isParentViewer ? 'You' : `${f.parentFirstName} ${f.parentLastName}`} · {formatDateTimeStr(f.updatedAt)}
+            {f.sharedWithTherapist && !isParentViewer ? ' · shared with the therapist' : ''}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {isParentViewer && (
+              <button type="button" onClick={() => setEditing(true)}
+                className="text-[11.5px] font-semibold px-2 py-1 rounded-md"
+                style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                Edit feedback
+              </button>
+            )}
+            {isAdminViewer && !f.sharedWithTherapist && (
+              <button type="button" disabled={shareMut.isPending} onClick={() => shareMut.mutate(f.id)}
+                className="text-[11.5px] font-semibold px-2 py-1 rounded-md disabled:opacity-50"
+                style={{ background: accentAlpha(0.12), color: colors.accent }}>
+                Share with therapist
+              </button>
+            )}
+            {isAdminViewer && !f.reviewed && (
+              <button type="button" disabled={readMut.isPending} onClick={() => readMut.mutate(f.id)}
+                className="text-[11.5px] font-semibold px-2 py-1 rounded-md disabled:opacity-50"
+                style={{ background: surface.card, color: colors.text.muted }}>
+                Mark as read
+              </button>
+            )}
+          </div>
+          {editing && isParentViewer && (
+            <ParentFeedbackModal session={session} existing={f} enrollmentId={enrollmentId} onClose={() => setEditing(false)} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function SessionNotesModal({
   session,
   canEdit: canEditProp,
@@ -595,7 +718,22 @@ export function SessionNotesModal({
   const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
   const [score, setScore]                   = useState<number | null>(session.performanceScore ?? null)
   const [pendingAction, setPendingAction]   = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
-  const [notesTab, setNotesTab]             = useState<'notes' | 'history'>('notes')
+  // A parent never sees the clinical write-up, so their only tab is their own feedback.
+  const [notesTab, setNotesTab]             = useState<'notes' | 'history' | 'parent-feedback'>(hideFeedback ? 'parent-feedback' : 'notes')
+  const { activeRole } = useAuth()
+  const isAdminViewer  = activeRole === 'CLINIC_HEAD' || activeRole === 'BUSINESS_OWNER' || activeRole === 'OFFICE_ADMIN'
+  const isParentViewer = activeRole === 'PARENT'
+
+  // Parent feedback on this session — the server returns only what this viewer may see (admin roles: all; the
+  // therapist: what was shared with them; a parent: their own).
+  const { data: parentFeedback = [] } = useQuery({
+    queryKey: ['parent-feedback', 'session', session.id],
+    queryFn: () => parentFeedbackApi.forSession(session.id),
+    enabled: session.status === 'COMPLETED',
+    staleTime: 30 * 1000,
+    retry: false,
+  })
+  const showFeedbackTab = session.status === 'COMPLETED' && (isAdminViewer || isParentViewer || parentFeedback.length > 0)
 
   const { data: attachments = [], isLoading: attLoading } = useQuery({
     queryKey: ['session-attachments', session.id],
@@ -761,12 +899,16 @@ export function SessionNotesModal({
         )}
       </div>
 
-      {/* Notes / Activity Log tabs — both hidden entirely when feedback is off-limits to this viewer. */}
-      {!hideFeedback && (
+      {/* Notes / Activity Log tabs are hidden when the write-up is off-limits to this viewer (a parent); the Parent
+          Feedback tab shows for whoever may see feedback on this session. */}
+      {(!hideFeedback || showFeedbackTab) && (
         <div className="flex gap-0 border-b mb-4" style={{ borderColor: border.divider }}>
           {([
-            { key: 'notes' as const,   label: 'Notes' },
-            { key: 'history' as const, label: 'Activity Log', icon: <History size={13} /> },
+            ...(!hideFeedback ? [
+              { key: 'notes' as const,   label: 'Notes', icon: undefined },
+              { key: 'history' as const, label: 'Activity Log', icon: <History size={13} /> },
+            ] : []),
+            ...(showFeedbackTab ? [{ key: 'parent-feedback' as const, label: isParentViewer ? 'Your Feedback' : 'Parent Feedback', icon: <MessageSquare size={13} /> }] : []),
           ]).map(t => (
             <button
               key={t.key}
@@ -781,10 +923,20 @@ export function SessionNotesModal({
         </div>
       )}
 
-      {hideFeedback && (
+      {hideFeedback && !showFeedbackTab && (
         <p className="text-sm text-center py-10" style={{ color: colors.text.dim }}>
           Feedback for this session isn't shown here.
         </p>
+      )}
+
+      {showFeedbackTab && notesTab === 'parent-feedback' && (
+        <SessionParentFeedbackPanel
+          session={session}
+          enrollmentId={enrollmentId}
+          items={parentFeedback}
+          isAdminViewer={isAdminViewer}
+          isParentViewer={isParentViewer}
+        />
       )}
 
       {!hideFeedback && notesTab === 'history' && <SessionActivityPanel sessionId={session.id} />}

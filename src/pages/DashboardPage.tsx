@@ -7,6 +7,7 @@ import DOMPurify from 'dompurify'
 import { dashboardApi } from '../api/dashboard'
 import { slotsApi } from '../api/appointments'
 import { tasksApi } from '../api/tasks'
+import { parentFeedbackApi } from '../api/parentFeedback'
 import { enrollmentsApi } from '../api/enrollments'
 import { RenewalsList, RENEWALS_KEY } from '../components/shared/RenewalsList'
 import { feedApi } from '../api/feed'
@@ -39,7 +40,7 @@ import { ROUTES } from '../lib/routes'
 import { isPastDateTime } from '../lib/schedule'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../lib/format'
 import AttendanceWidget from './attendance/AttendanceWidget'
-import type { TherapySessionResponse, TherapySessionSummary, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse, SharedMediaResponse } from '../types'
+import type { TherapySessionResponse, TherapySessionSummary, TherapySessionStatus, UpcomingBirthdayResponse, TaskResponse, TaskPriority, RescheduleReason, SlotResponse, DayOfWeek, FeedPostResponse, PatientResponse, OrgOverviewResponse, ConcernResponse, SubscriptionResponse, SharedMediaResponse, ParentFeedback } from '../types'
 
 function formatINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -1815,6 +1816,126 @@ function dueDateLabel(dueDate: string | null): { label: string; color: string } 
   return { label: `Due ${format(due, 'MMM d')}`, color: colors.text.dim }
 }
 
+/** Parent feedback on sessions. Admin roles see each new one first and can share it with the therapist or mark it read;
+ *  a therapist sees only what an admin shared with them, and marks it seen. Each leaves the card once acted on. */
+function ParentFeedbackPanel({ mode, count, onSessionClick }: {
+  mode: 'admin' | 'therapist'
+  count?: number
+  /** Opens the session the feedback is about. */
+  onSessionClick?: (sessionId: string) => void
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const [showAll, setShowAll] = useState(false)
+  const PREVIEW = 3
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['parent-feedback', mode],
+    queryFn: mode === 'admin' ? parentFeedbackApi.unreviewed : parentFeedbackApi.shared,
+    enabled: mode === 'therapist' || (count ?? 0) > 0,
+    staleTime: 60 * 1000,
+  })
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['parent-feedback'] })
+    qc.invalidateQueries({ queryKey: ['dashboard', 'attention-counts'] })
+  }
+  const shareMut = useMutation({
+    mutationFn: (id: string) => parentFeedbackApi.share(id),
+    onSuccess: () => { toast('Shared with the therapist', 'success'); refresh() },
+    onError: err => toast(getApiError(err, 'Could not share the feedback'), 'error'),
+  })
+  const readMut = useMutation({
+    mutationFn: (id: string) => (mode === 'admin' ? parentFeedbackApi.review(id) : parentFeedbackApi.seen(id)),
+    onSuccess: () => refresh(),
+    onError: err => toast(getApiError(err, 'Could not update the feedback'), 'error'),
+  })
+
+  if (mode === 'admin' && (count ?? 0) === 0) return null
+  if (isLoading) return <CardSkeleton />
+  if (items.length === 0) return null
+
+  const busy = shareMut.isPending || readMut.isPending
+  const row = (f: ParentFeedback, i: number, arr: ParentFeedback[]) => (
+    <div key={f.id} className="px-4 sm:px-6 py-3 flex flex-col gap-2"
+      style={i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : undefined}>
+      <button
+        type="button"
+        onClick={() => { onSessionClick?.(f.sessionId); setShowAll(false) }}
+        className="flex flex-col gap-2 w-full text-left rounded-lg transition-colors"
+        title="Open session details"
+        onMouseEnter={ROW_HOVER_IN}
+        onMouseLeave={ROW_HOVER_OUT}
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{f.programName}</p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
+            {f.patientFirstName} {f.patientLastName} · {f.therapistFirstName} {f.therapistLastName}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
+            Session #{f.sessionNumber} · {format(parseISO(f.sessionDate), 'EEE d MMM')}
+          </p>
+        </div>
+        <p className="text-sm whitespace-pre-wrap break-words rounded-lg px-3 py-2 w-full"
+          style={{ background: surface.filterStrip, color: colors.text.primary }}>
+          {f.message}
+        </p>
+        <p className="text-xs" style={{ color: colors.text.muted }}>
+          From {f.parentFirstName} {f.parentLastName} · {format(parseISO(f.createdAt), 'd MMM')}
+          {mode === 'admin' && f.sharedWithTherapist ? ' · shared with the therapist' : ''}
+        </p>
+      </button>
+      <div className="flex flex-wrap gap-1.5">
+        {mode === 'admin' && !f.sharedWithTherapist && (
+          <button disabled={busy} onClick={() => shareMut.mutate(f.id)}
+            className="text-[11.5px] font-semibold px-2 py-1 rounded-md disabled:opacity-50"
+            style={{ background: accentAlpha(0.12), color: colors.accent }}>
+            Share with therapist
+          </button>
+        )}
+        <button disabled={busy} onClick={() => readMut.mutate(f.id)}
+          className="text-[11.5px] font-semibold px-2 py-1 rounded-md disabled:opacity-50"
+          style={{ background: surface.filterStrip, color: colors.text.muted }}>
+          {mode === 'admin' ? 'Mark as read' : 'Mark as seen'}
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div style={{ ...styles.card, overflow: 'hidden', padding: 0 }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${border.divider}` }}>
+          <div className="flex items-center gap-2">
+            <MessageCircle size={16} style={{ color: colors.accent }} />
+            <h2 className="text-base font-semibold" style={{ color: colors.text.primary }}>Parent Feedback</h2>
+            <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
+              style={{ background: accentAlpha(0.12), color: colors.accent }}>
+              {items.length}
+            </span>
+          </div>
+          <p className="text-xs" style={{ color: colors.text.muted }}>
+            {mode === 'admin' ? 'New from parents' : 'Shared with you'}
+          </p>
+        </div>
+        {items.slice(0, PREVIEW).map((f, i, arr) => row(f, i, arr))}
+        {items.length > PREVIEW && (
+          <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
+            <button onClick={() => setShowAll(true)} className="text-xs font-medium" style={{ color: colors.accent }}>
+              View all {items.length} feedback
+            </button>
+          </div>
+        )}
+      </div>
+      {showAll && (
+        <Modal open title={`Parent Feedback (${items.length})`} onClose={() => setShowAll(false)} size="lg">
+          <div className="overflow-y-auto max-h-[70vh] -mx-5 -mb-5">{items.map((f, i, arr) => row(f, i, arr))}</div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 /** Programs in their last week waiting for a Completed / Discontinued / Needs Renewal decision — admin roles.
  *  Sits beside My Tasks; the same list lives on the Tasks page's Renewals tab. */
 function RenewalsPanel({ count }: { count: number }) {
@@ -2496,6 +2617,9 @@ export default function DashboardPage() {
                 onSessionClick={s => setEditingSessionId(s.id)}
               />
             ))}
+
+            {isOwnerOrAdmin && <ParentFeedbackPanel mode="admin" count={attention?.parentFeedback ?? 0} onSessionClick={setEditingSessionId} />}
+            {isTherapistRole && <ParentFeedbackPanel mode="therapist" onSessionClick={setEditingSessionId} />}
 
             {isOwnerOrAdmin && (loadingConcerns ? <CardSkeleton /> : hasConcerns && (
               <ConcernsPanel

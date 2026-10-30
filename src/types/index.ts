@@ -2296,6 +2296,31 @@ export interface AttentionCountsResponse {
   openConcerns: number
   /** Programs in their last week still waiting for a decision. */
   renewalsDue: number
+  /** Parent feedback on sessions that no admin has read yet. */
+  parentFeedback: number
+}
+
+/** A parent's feedback on one completed session. Admin roles see it first; they can share it with the therapist. */
+export interface ParentFeedback {
+  id: string
+  sessionId: string
+  sessionNumber: number
+  sessionDate: string        // "YYYY-MM-DD"
+  programName: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  therapistFirstName: string
+  therapistLastName: string
+  parentFirstName: string
+  parentLastName: string
+  message: string
+  createdAt: string
+  updatedAt: string
+  sharedWithTherapist: boolean
+  sharedAt: string | null
+  /** True once an admin has read or shared it. */
+  reviewed: boolean
 }
 
 /** What an admin decides for a program in its last week — taking it off the Renewals list. */
