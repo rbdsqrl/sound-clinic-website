@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
-  ListChecks, MessageSquare,
+  ListChecks, MessageSquare, Pencil, Check,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { parentFeedbackApi } from '../../api/parentFeedback'
@@ -752,6 +752,7 @@ export function SessionNotesModal({
   const [checklistLoaded, setChecklistLoaded]   = useState(false)
   const [checklistSearch, setChecklistSearch]   = useState('')
   const [detailedOpen, setDetailedOpen]         = useState(true)
+  const [checklistEditing, setChecklistEditing] = useState(false)
 
   useEffect(() => {
     if (feedback && !checklistLoaded) {
@@ -770,6 +771,22 @@ export function SessionNotesModal({
         : [...current, optionId])
       return next
     })
+  }
+
+  // Once a checklist has been saved it is shown as just the chosen options, with an Edit button —
+  // the full list of boxes only comes back when the therapist chooses to change it.
+  const hasSavedChecklist = !!feedback && (
+    feedback.answers.some(a => a.selectedOptionIds.length > 0) || !!feedback.checklistNotes?.trim()
+  )
+  const showChecklistSummary = hasSavedChecklist && !checklistEditing
+
+  const cancelChecklistEdit = () => {
+    if (feedback) {
+      setChecklistAnswers(new Map(feedback.answers.map(a => [a.questionId, a.selectedOptionIds])))
+      setChecklistNotes(feedback.checklistNotes ?? '')
+    }
+    setChecklistSearch('')
+    setChecklistEditing(false)
   }
 
   const saveMut = useMutation({
@@ -1012,6 +1029,56 @@ export function SessionNotesModal({
 
             {detailedOpen && (
               <div className="flex flex-col gap-4 px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
+                {showChecklistSummary ? (
+                  <>
+                    {canEdit && (
+                      <div className="flex justify-end mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setChecklistEditing(true)}
+                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: colors.accent, background: accentAlpha(0.08) }}
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+                      </div>
+                    )}
+                    {feedback.template
+                      .map(q => ({ q, picked: q.options.filter(o => (checklistAnswers.get(q.id) ?? []).includes(o.id)) }))
+                      .filter(x => x.picked.length > 0)
+                      .map(({ q, picked }) => (
+                        <div key={q.id}>
+                          <p className="text-sm font-semibold mb-2" style={{ color: colors.text.primary }}>{q.questionText}</p>
+                          <div className="flex flex-col gap-1.5 pl-1">
+                            {picked.map(o => (
+                              <p key={o.id} className="flex items-center gap-2 text-sm" style={{ color: colors.text.muted }}>
+                                <Check size={14} className="flex-shrink-0" style={{ color: colors.accent }} />
+                                {o.optionText}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    {checklistNotes.trim() && (
+                      <div>
+                        <p className="form-label">Additional Notes</p>
+                        <p className="text-sm whitespace-pre-wrap" style={{ color: colors.text.muted }}>{checklistNotes}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (<>
+                {hasSavedChecklist && canEdit && (
+                  <div className="flex justify-end mt-2">
+                    <button
+                      type="button"
+                      onClick={cancelChecklistEdit}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: colors.text.muted, background: accentAlpha(0.06) }}
+                    >
+                      Cancel editing
+                    </button>
+                  </div>
+                )}
                 <div className="relative mt-2">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.text.dim }} />
                   <input
@@ -1059,6 +1126,7 @@ export function SessionNotesModal({
                     readOnly={!canEdit}
                   />
                 </div>
+                </>)}
               </div>
             )}
           </div>
