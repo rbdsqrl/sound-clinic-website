@@ -6,7 +6,7 @@ import { enrollmentsApi } from '../../api/enrollments'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { ROUTES } from '../../lib/routes'
-import { colors, border, paletteStyle, type PaletteKey } from '../../theme'
+import { colors, border, surface, paletteStyle, type PaletteKey } from '../../theme'
 import type { RenewalDue, RenewalOutcome } from '../../types'
 
 const ACTIONS: { outcome: RenewalOutcome; label: string; tone: PaletteKey; done: string }[] = [
@@ -52,20 +52,26 @@ export function RenewalsList({ items, stacked = false }: { items: RenewalDue[]; 
             className={`flex flex-col gap-3 px-4 sm:px-6 py-3 ${stacked ? '' : 'lg:flex-row lg:items-center'}`}
             style={i < items.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : undefined}
           >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* The whole info area opens the case's therapy card; the decision buttons beside it stay separate. */}
+            <Link
+              to={ROUTES.enrollment(r.patientId, r.enrollmentId)}
+              title="Open therapy card"
+              className="flex items-center gap-3 flex-1 min-w-0 rounded-lg transition-colors"
+              onMouseEnter={e => { e.currentTarget.style.background = surface.rowHover }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
               <RefreshCw size={14} className="flex-shrink-0" style={{ color: colors.text.dim }} />
               <div className="min-w-0">
-                <Link to={ROUTES.enrollment(r.patientId, r.enrollmentId)} className="text-sm font-medium truncate block"
-                  style={{ color: colors.text.primary }}>
+                <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
                   {r.patientFirstName} {r.patientLastName} · {r.programName}
-                </Link>
+                </p>
                 <p className="text-xs" style={{ color: colors.text.muted }}>
                   {r.therapistFirstName} {r.therapistLastName} ·{' '}
                   <span style={{ color: ends.overdue ? colors.status.danger : colors.status.warning, fontWeight: 600 }}>{ends.text}</span>
                   {' '}({format(new Date(`${r.endDate}T00:00:00`), 'd MMM')}) · {r.sessionsLeft} session{r.sessionsLeft === 1 ? '' : 's'} left
                 </p>
               </div>
-            </div>
+            </Link>
             <div className="flex flex-wrap gap-1.5 flex-shrink-0">
               {ACTIONS.map(a => (
                 <button

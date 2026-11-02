@@ -625,9 +625,10 @@ function rescheduleReasonLabel(s: TherapySessionResponse) {
   return 'Needs rescheduling'
 }
 
-function PendingReschedulePanel({ sessions, onRescheduled }: {
+function PendingReschedulePanel({ sessions, onRescheduled, onSessionClick }: {
   sessions: TherapySessionResponse[]
   onRescheduled: () => void
+  onSessionClick?: (s: TherapySessionResponse) => void
 }) {
   const [selected, setSelected] = useState<TherapySessionResponse | null>(null)
   const [showAll, setShowAll] = useState(false)
@@ -728,6 +729,16 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
         transform: 'translateZ(0)',
       }}
     >
+      {/* Everything but the Reschedule icon opens the session details. A sibling button, not a
+          wrapper, since a button can't contain another button. */}
+      <button
+        type="button"
+        onClick={() => { setShowAll(false); onSessionClick?.(s) }}
+        title="Open session details"
+        className="flex-1 min-w-0 flex items-center gap-3 text-left rounded-lg transition-colors"
+        onMouseEnter={ROW_HOVER_IN}
+        onMouseLeave={ROW_HOVER_OUT}
+      >
       {/* Date */}
       <div className="flex-shrink-0 w-14 sm:w-16">
         <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
@@ -756,6 +767,7 @@ function PendingReschedulePanel({ sessions, onRescheduled }: {
           {rescheduleReasonLabel(s)}
         </p>
       </div>
+      </button>
 
       {/* Action */}
       <button
@@ -2607,6 +2619,7 @@ export default function DashboardPage() {
               <PendingReschedulePanel
                 sessions={pendingReschedule}
                 onRescheduled={() => refetchPending()}
+                onSessionClick={s => setEditingSessionId(s.id)}
               />
             ))}
 
