@@ -214,8 +214,21 @@ function TodaySessions({
   onSessionClick?: (s: TherapySessionSummary) => void
 }) {
   const [showAll, setShowAll] = useState(false)
+  // The card lists what is still ahead: sessions starting from the current time rounded to the nearest hour
+  // (3:15 → 3 PM onwards, 3:45 → 4 PM onwards). The clock re-reads every minute so the list moves on by itself.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
   // Nothing today — no card at all rather than an empty one.
   if (sessions.length === 0) return null
+  const fromMinutes = Math.round((now.getHours() * 60 + now.getMinutes()) / 60) * 60
+  const startMinutes = (s: TherapySessionSummary) => {
+    const [h, m] = s.startTime.split(':').map(Number)
+    return h * 60 + m
+  }
+  const upcoming = sessions.filter(s => startMinutes(s) >= fromMinutes)
   const sectionCard: React.CSSProperties = {
     ...styles.card, overflow: 'hidden', padding: 0,
     minHeight: TILE_MIN_HEIGHT, display: 'flex', flexDirection: 'column',
@@ -275,7 +288,7 @@ function TodaySessions({
             </h2>
             <span className="text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
               style={{ background: accentAlpha(0.12), color: colors.accent }}>
-              {sessions.length}
+              {upcoming.length}
             </span>
           </div>
           <Link to="/calendar" className="text-xs transition-colors" style={{ color: colors.accent }}>
@@ -284,14 +297,14 @@ function TodaySessions({
         </div>
 
         <div className="flex-1 flex flex-col">
-          {sessions.length === 0 ? (
+          {upcoming.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2">
               <CalendarDays size={28} style={{ color: colors.text.dim }} />
-              <p className="text-sm" style={{ color: colors.text.muted }}>No sessions scheduled for today</p>
+              <p className="text-sm" style={{ color: colors.text.muted }}>No more sessions today</p>
             </div>
           ) : (
             <PreviewRows
-              items={sessions}
+              items={upcoming}
               renderRow={(s, i, arr) => {
                 const dividerStyle = i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}
                 return onSessionClick ? (
@@ -322,7 +335,7 @@ function TodaySessions({
           )}
         </div>
 
-        {sessions.length > PREVIEW && (
+        {(upcoming.length > PREVIEW || sessions.length > upcoming.length) && (
           <div className="px-4 sm:px-6 py-2.5 text-center" style={{ borderTop: `1px solid ${border.divider}` }}>
             <button
               onClick={() => setShowAll(true)}
