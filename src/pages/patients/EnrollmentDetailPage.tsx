@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, BookOpen, CalendarDays, Clock, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowLeft, BookOpen, CalendarDays, CalendarPlus, Clock, CheckCircle2, Circle, Pencil, RefreshCw, UserCheck } from 'lucide-react'
 import { patientsApi } from '../../api/patients'
 import { enrollmentsApi } from '../../api/enrollments'
+import { subscriptionsApi } from '../../api/subscriptions'
 import { analyticsApi } from '../../api/analytics'
 import { SessionList, SessionNotesModal } from './EnrollmentSessions'
+import { ChangeTherapistModal, EditScheduleModal } from './PatientDetailPage'
+import { RenewProgramModal } from './RenewProgramModal'
+import AdHocSessionModal from '../calendar/AdHocSessionModal'
 import { ProgramStatusBadge, ProgramStatusControl } from '../../components/shared/ProgramStatus'
 import { monthName } from '../../lib/sessionMonths'
 import { Card } from '../../components/ui/Card'
@@ -18,8 +22,9 @@ import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { ROUTES } from '../../lib/routes'
+import { getApiError } from '../../lib/apiError'
 import { formatTimeStr } from '../../lib/format'
-import { colors, accentAlpha, paletteStyle, palette, border } from '../../theme'
+import { colors, accentAlpha, paletteStyle, palette, border, surface } from '../../theme'
 import type { TherapySessionResponse, EnrollmentCareStatus } from '../../types'
 
 const STATUS_VARIANT: Record<string, { label: string; style: React.CSSProperties }> = {
@@ -62,6 +67,10 @@ export default function EnrollmentDetailPage() {
   const [confirmingReactivate, setConfirmingReactivate] = useState(false)
   const [completeError, setCompleteError] = useState<string | null>(null)
   const [reactivateError, setReactivateError] = useState<string | null>(null)
+  const [changeTherapistOpen, setChangeTherapistOpen] = useState(false)
+  const [editScheduleOpen, setEditScheduleOpen] = useState(false)
+  const [renewOpen, setRenewOpen] = useState(false)
+  const [bookSessionOpen, setBookSessionOpen] = useState(false)
 
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -153,6 +162,34 @@ export default function EnrollmentDetailPage() {
 
   const enrollment = enrollments?.find(e => e.id === enrollmentId)
 
+  // The plan this program was bought under — needed for Renew Program and Cancel Plan.
+  const { data: subscriptions = [] } = useQuery({
+    queryKey: ['subscriptions', patientId],
+    queryFn: () => subscriptionsApi.listForPatient(patientId!),
+    enabled: !!patientId,
+  })
+  const subscription = subscriptions.find(sub => sub.id === enrollment?.subscriptionId)
+
+  const refreshPlan = () => {
+    qc.invalidateQueries({ queryKey: ['enrollments', patientId] })
+    qc.invalidateQueries({ queryKey: ['subscriptions', patientId] })
+    qc.invalidateQueries({ queryKey: ['sessions', 'enrollment'] })
+    qc.invalidateQueries({ queryKey: ['therapy-sessions-enrollment'] })
+    qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+    qc.invalidateQueries({ queryKey: ['review-meetings'] })
+  }
+
+  const cancelEnrollmentMut = useMutation({
+    mutationFn: () => enrollmentsApi.cancel(enrollmentId!),
+    onSuccess: () => { refreshPlan(); toast('Enrollment cancelled', 'success') },
+    onError: err => toast(getApiError(err, 'Failed to cancel enrollment'), 'error'),
+  })
+  const cancelPlanMut = useMutation({
+    mutationFn: () => subscriptionsApi.cancel(subscription!.id),
+    onSuccess: () => { refreshPlan(); toast('Subscription cancelled', 'success') },
+    onError: err => toast(getApiError(err, 'Failed to cancel subscription'), 'error'),
+  })
+
   if (isLoading) return <PageLoader />
 
   if (!enrollment) {
@@ -172,6 +209,15 @@ export default function EnrollmentDetailPage() {
   const canViewSessions = currentRole === 'PARENT'
 
   const isAdminTier = ['CLINIC_HEAD', 'BUSINESS_OWNER', 'OFFICE_ADMIN'].includes(currentRole ?? '')
+
+  // Same rules as the plan card on the case page: admin roles only; a discharged case is read-only
+  // history, and a cancelled plan has nothing left to change.
+  const isDischarged = patient?.stage === 'DISCHARGED'
+  const planCancelled = subscription?.status === 'CANCELLED' || enrollment.status === 'CANCELLED'
+  const isRunning = enrollment.status === 'ACTIVE'
+  // Renew works on a running program and on one marked completed (which it reopens), never on a discharged one.
+  const canRenew = isRunning || (enrollment.status === 'COMPLETED' && !enrollment.dischargedInRecordId)
+  const showPlanActions = isAdminTier && !planCancelled
 
   const canUpdateCareStatus = currentRole === 'THERAPIST'
     ? user?.id === enrollment.therapistId
@@ -387,6 +433,83 @@ export default function EnrollmentDetailPage() {
             {formatTimeStr(enrollment.startTime)} · {enrollment.sessionDurationMinutes}min
           </span>
         </div>
+
+        {/* Plan actions — primary left, destructive right (stacked on mobile), as on the case page. */}
+        {showPlanActions && (
+          <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+            style={{ borderColor: border.divider }}>
+            <div className="flex flex-wrap items-center gap-2">
+              {isRunning && (
+                <button
+                  onClick={() => setChangeTherapistOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                >
+                  <UserCheck size={12} /> Change Therapist
+                </button>
+              )}
+              {isRunning && (
+                <button
+                  onClick={() => setEditScheduleOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                >
+                  <Pencil size={12} /> Edit Schedule
+                </button>
+              )}
+              {canRenew && !isDischarged && subscription && (
+                <button
+                  onClick={() => setRenewOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ color: colors.accent, background: accentAlpha(0.10) }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                >
+                  <RefreshCw size={12} /> Renew Program
+                </button>
+              )}
+              {isRunning && patient && (
+                <button
+                  onClick={() => setBookSessionOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                  style={{ color: colors.text.muted, background: surface.filterStrip }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.accent}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.text.muted}
+                >
+                  <CalendarPlus size={12} /> Book Session
+                </button>
+              )}
+            </div>
+            {!isDischarged && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {isRunning && (
+                  <button
+                    onClick={() => cancelEnrollmentMut.mutate()}
+                    disabled={cancelEnrollmentMut.isPending}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+                    style={{ color: colors.status.error }}
+                  >
+                    Cancel Enrollment
+                  </button>
+                )}
+                {subscription && (
+                  <button
+                    onClick={() => cancelPlanMut.mutate()}
+                    disabled={cancelPlanMut.isPending}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+                    style={{ color: colors.status.error }}
+                  >
+                    Cancel Plan
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       <Card padding={false}>
@@ -413,6 +536,58 @@ export default function EnrollmentDetailPage() {
           enrollmentId={enrollment.id}
           hideFeedback={currentRole === 'PARENT'}
           onClose={() => setNotesState(null)}
+        />
+      )}
+
+      {changeTherapistOpen && (
+        <ChangeTherapistModal
+          enrollment={enrollment}
+          onClose={() => setChangeTherapistOpen(false)}
+          onSaved={() => {
+            refreshPlan()
+            toast('Therapist changed — upcoming sessions moved across', 'success')
+            setChangeTherapistOpen(false)
+          }}
+        />
+      )}
+
+      {editScheduleOpen && (
+        <EditScheduleModal
+          enrollment={enrollment}
+          onClose={() => setEditScheduleOpen(false)}
+          onSaved={() => {
+            refreshPlan()
+            toast('Schedule updated', 'success')
+            setEditScheduleOpen(false)
+          }}
+        />
+      )}
+
+      {renewOpen && subscription && (
+        <RenewProgramModal
+          enrollment={enrollment}
+          subscription={subscription}
+          onClose={() => setRenewOpen(false)}
+          onRenewed={() => { refreshPlan(); setRenewOpen(false) }}
+        />
+      )}
+
+      {bookSessionOpen && patient && (
+        <AdHocSessionModal
+          fixedPlan={{
+            enrollmentId: enrollment.id,
+            patientName: `${patient.firstName} ${patient.lastName}`,
+            programName: enrollment.programName,
+            therapistId: enrollment.therapistId,
+            therapistFirstName: enrollment.therapistFirstName,
+            therapistLastName: enrollment.therapistLastName,
+          }}
+          onClose={() => setBookSessionOpen(false)}
+          onDone={() => {
+            refreshPlan()
+            toast('Session booked', 'success')
+            setBookSessionOpen(false)
+          }}
         />
       )}
 

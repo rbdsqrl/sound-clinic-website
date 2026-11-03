@@ -2889,7 +2889,7 @@ export default function PatientDetailPage() {
 
 // ── Change therapist on an ongoing plan ───────────────────────────────────────
 
-function ChangeTherapistModal({
+export function ChangeTherapistModal({
   enrollment, onClose, onSaved,
 }: {
   enrollment: EnrollmentResponse
@@ -2972,7 +2972,7 @@ function ChangeTherapistModal({
 
 // ── Edit an ongoing plan's schedule ───────────────────────────────────────────
 
-function EditScheduleModal({
+export function EditScheduleModal({
   enrollment, onClose, onSaved,
 }: {
   enrollment: EnrollmentResponse
