@@ -2588,8 +2588,9 @@ export default function CalendarPage() {
     for (const s of sessions) {
       // A session auto-cancelled by marking its patient's case inactive shouldn't clutter the
       // calendar as a cancelled chip — unlike a one-off cancel (leave, manual), which still
-      // needs to show so the freed-up slot and the reason stay visible.
-      if (!s.cancelledByCaseInactive) out.push(toSessionEvent(s))
+      // needs to show so the freed-up slot and the reason stay visible. Same for a session cancelled along with
+      // its whole program (cancelled enrollment/plan, discharge) — the program is gone, so are its sessions.
+      if (!s.cancelledByCaseInactive && !s.cancelledWithProgram) out.push(toSessionEvent(s))
     }
     for (const h of publicHolidays) out.push(toHolidayEvent(h))
     for (const m of reviewMeetings) {

@@ -912,6 +912,7 @@ export interface TherapySessionResponse {
    *  calendar hides these rather than showing a cancelled chip for every session an inactive
    *  case would otherwise have had. */
   cancelledByCaseInactive: boolean
+  cancelledWithProgram: boolean
   /** True until the plan's subscription is paid in full — session is real and scheduled, just
    *  locked from completion/notes/reschedule-request until then. Status stays SCHEDULED
    *  throughout; this flag alone drives the "Payment pending" badge/lock. */
