@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
-  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft,
+  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { eachDayOfInterval, format as formatDate, parseISO } from 'date-fns'
 import { attendanceApi } from '../../api/attendance'
@@ -10,19 +10,20 @@ import { usersApi } from '../../api/users'
 import { clinicsApi } from '../../api/clinics'
 import { organisationApi } from '../../api/organisation'
 import { publicHolidaysApi } from '../../api/publicHolidays'
+import { leavesApi } from '../../api/leaves'
 import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Avatar } from '../../components/shared/Avatar'
-import AttendanceTrendChart, { type AttendanceTrendPoint } from '../../components/charts/AttendanceTrendChart'
+import AttendanceHoursChart, { type AttendanceHoursDay } from '../../components/charts/AttendanceHoursChart'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { formatTime } from '../../lib/format'
 import { roleLabel } from '../../components/ui/Badge'
-import { colors, styles, warningAlpha, successAlpha, dangerAlpha, palette } from '../../theme'
-import type { AttendanceResponse, DayOfWeek, StaffMemberResponse } from '../../types'
+import { colors, styles, border, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
+import type { AttendanceResponse, DayOfWeek, LeaveResponse, StaffMemberResponse } from '../../types'
 
 const JS_TO_DOW: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
 
@@ -74,19 +75,6 @@ interface EmployeeStats {
   avgHours: number | null
 }
 
-function minutesSinceMidnight(iso: string): number {
-  const d = new Date(iso)
-  return d.getHours() * 60 + d.getMinutes()
-}
-
-function minutesToLabel(mins: number): string {
-  const h = Math.floor(mins / 60)
-  const m = Math.round(mins % 60)
-  const period = h < 12 ? 'AM' : 'PM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`
-}
-
 function hoursWorked(r: AttendanceResponse): number | null {
   if (!r.checkInTime || !r.checkOutTime) return null
   return (new Date(r.checkOutTime).getTime() - new Date(r.checkInTime).getTime()) / 3_600_000
@@ -98,8 +86,9 @@ function hoursWorked(r: AttendanceResponse): number | null {
 // employees" link brings it back. Keeps the loaded detail directly where you were
 // looking instead of appended below a list that can run long.
 
-function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
-  stats: EmployeeStats; from: string; to: string; clinicName: string; onBack: () => void
+function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holidayNames, leaves, onBack }: {
+  stats: EmployeeStats; from: string; to: string; clinicName: string
+  weeklyOffSet: Set<string>; holidayNames: Map<string, string>; leaves: LeaveResponse[]; onBack: () => void
 }) {
   const { member, records, present, absent, verified, avgHours } = stats
 
@@ -112,18 +101,41 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
     [records]
   )
 
-  const hoursPoints: AttendanceTrendPoint[] = dayRange.map(d => {
-    const key = formatDate(d, 'yyyy-MM-dd')
-    const r = recordsByDate.get(key)
-    return { date: key, label: formatDate(d, 'd MMM'), value: r ? hoursWorked(r) : null }
-  })
+  // Daily records are paged a week at a time, newest week first. Weeks are 7-day blocks counted back from the end
+  // of the chosen range, so the default "last seven days" view is exactly one page.
+  const [weekIdx, setWeekIdx] = useState(0)
+  useEffect(() => { setWeekIdx(0) }, [from, to])
+  const weeks = useMemo(() => {
+    const out: { start: string; end: string }[] = []
+    for (let i = dayRange.length - 1; i >= 0; i -= 7) {
+      out.push({
+        start: formatDate(dayRange[Math.max(0, i - 6)], 'yyyy-MM-dd'),
+        end: formatDate(dayRange[i], 'yyyy-MM-dd'),
+      })
+    }
+    return out
+  }, [dayRange])
+  const week = weeks[Math.min(weekIdx, weeks.length - 1)]
+  const weekRecords = week
+    ? [...records].reverse().filter(r => r.attendanceDate >= week.start && r.attendanceDate <= week.end)
+    : []
 
-  const checkInPoints: AttendanceTrendPoint[] = dayRange.map(d => {
+  // One bar per calendar day. A day that isn't an ordinary working day is tagged so the chart can shade it:
+  // a public holiday first, then the org's weekly off day, then this person's approved leave.
+  const hoursDays: AttendanceHoursDay[] = dayRange.map(d => {
     const key = formatDate(d, 'yyyy-MM-dd')
     const r = recordsByDate.get(key)
+    const leave = leaves.find(l => l.leaveDate <= key && key <= l.endDate)
+    const holiday = holidayNames.get(key)
+    const kind: AttendanceHoursDay['kind'] =
+      holiday !== undefined ? 'holiday' : weeklyOffSet.has(JS_TO_DOW[d.getDay()]) ? 'weeklyOff' : leave ? 'leave' : null
     return {
       date: key, label: formatDate(d, 'd MMM'),
-      value: r?.checkInTime ? minutesSinceMidnight(r.checkInTime) : null,
+      hours: r ? hoursWorked(r) : null,
+      checkIn: r?.checkInTime ?? null,
+      checkOut: r?.checkOutTime ?? null,
+      kind,
+      kindNote: kind === 'holiday' ? holiday : kind === 'leave' ? (leave?.categoryName ?? undefined) : undefined,
     }
   })
 
@@ -171,25 +183,10 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
           />
         </div>
 
-        {/* Charts */}
+        {/* Hours worked per day — histogram; hover shows check-in/out too */}
         <div>
           <h3 className="text-sm font-semibold mb-2" style={{ color: colors.text.heading }}>Hours worked per day</h3>
-          <AttendanceTrendChart
-            points={hoursPoints}
-            valueLabel="Hours"
-            formatValue={v => `${v.toFixed(1)}h`}
-            accentColor={palette.teal.text}
-          />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold mb-2" style={{ color: colors.text.heading }}>Check-in time per day</h3>
-          <AttendanceTrendChart
-            points={checkInPoints}
-            valueLabel="Check-in"
-            formatValue={minutesToLabel}
-            accentColor={palette.purple.text}
-            padLeft={70}
-          />
+          <AttendanceHoursChart days={hoursDays} />
         </div>
 
         {/* Daily records */}
@@ -199,7 +196,35 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, onBack }: {
             <p className="text-sm" style={{ color: colors.text.dim }}>No attendance records in this period.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {[...records].reverse().map(r => (
+              {weeks.length > 1 && week && (
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-xs" style={{ color: colors.text.dim }}>
+                    Week {weekIdx + 1} of {weeks.length} · {formatDate(parseISO(week.start), 'd MMM')} – {formatDate(parseISO(week.end), 'd MMM')}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setWeekIdx(i => Math.max(0, i - 1))}
+                      disabled={weekIdx === 0}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                      style={{ border: border.card, color: colors.text.primary }}
+                    >
+                      <ChevronLeft size={14} /> Newer
+                    </button>
+                    <button
+                      onClick={() => setWeekIdx(i => Math.min(weeks.length - 1, i + 1))}
+                      disabled={weekIdx >= weeks.length - 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                      style={{ border: border.card, color: colors.text.primary }}
+                    >
+                      Older <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {weekRecords.length === 0 && (
+                <p className="text-sm" style={{ color: colors.text.dim }}>No attendance records this week.</p>
+              )}
+              {weekRecords.map(r => (
                 <div key={r.id} className="rounded-xl p-3" style={styles.card}>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
@@ -279,7 +304,15 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
     queryFn: publicHolidaysApi.list,
   })
   const holidayDates = useMemo(() => new Set(holidays.map(h => h.holidayDate)), [holidays])
+  const holidayNames = useMemo(() => new Map(holidays.map(h => [h.holidayDate, h.name] as [string, string])), [holidays])
   const weeklyOffSet = useMemo(() => new Set(weeklyOffDays), [weeklyOffDays])
+
+  // Approved leave, only needed to shade an employee's day-off days in their detail chart.
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ['leaves', 'APPROVED'],
+    queryFn: () => leavesApi.list('APPROVED'),
+    enabled: selectedId !== null,
+  })
 
   const reviewMut = useMutation({
     mutationFn: ({ id, approved }: { id: string; approved: boolean }) =>
@@ -435,6 +468,9 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
           from={from}
           to={to}
           clinicName={selectedStats.member.clinicId ? (clinicMap[selectedStats.member.clinicId] ?? '') : ''}
+          weeklyOffSet={weeklyOffSet}
+          holidayNames={holidayNames}
+          leaves={approvedLeaves.filter(l => l.therapistId === selectedStats.member.id)}
           onBack={() => setSelectedId(null)}
         />
       ) : employeeStats.length === 0 ? (

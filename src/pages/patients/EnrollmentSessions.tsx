@@ -711,7 +711,12 @@ export function SessionNotesModal({
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const canEdit = canEditProp && !hideFeedback
+  // A session already marked Completed / No Show / Cancelled opens read-only; whoever may edit it gets an explicit
+  // Edit button to unlock the fields. `mayEdit` is the permission, `canEdit` is "the fields are unlocked right now".
+  const mayEdit = canEditProp && !hideFeedback
+  const isFinalised = session.status === 'COMPLETED' || session.status === 'NO_SHOW' || session.status === 'CANCELLED'
+  const [editingNotes, setEditingNotes] = useState(false)
+  const canEdit = mayEdit && (!isFinalised || editingNotes)
 
   const parsedRating = session.feedback ? parseInt(session.feedback, 10) : NaN
   const [rating, setRating]                 = useState(Number.isNaN(parsedRating) ? 0 : parsedRating)
@@ -787,6 +792,18 @@ export function SessionNotesModal({
     }
     setChecklistSearch('')
     setChecklistEditing(false)
+  }
+
+  const startEditingNotes = () => {
+    setEditingNotes(true)
+    setChecklistEditing(true)   // the saved checklist opens as the full form, not its summary
+  }
+  const cancelEditingNotes = () => {
+    setRating(Number.isNaN(parsedRating) ? 0 : parsedRating)
+    setProgressReport(session.progressReport ?? '')
+    setScore(session.performanceScore ?? null)
+    cancelChecklistEdit()
+    setEditingNotes(false)
   }
 
   const saveMut = useMutation({
@@ -960,6 +977,31 @@ export function SessionNotesModal({
 
       {!hideFeedback && notesTab === 'notes' && (
       <div className="flex flex-col gap-4">
+        {/* Finalised sessions are read-only until Edit is pressed */}
+        {mayEdit && isFinalised && (
+          <div className="flex justify-end -mb-2">
+            {editingNotes ? (
+              <button
+                type="button"
+                onClick={cancelEditingNotes}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.text.muted, background: accentAlpha(0.06) }}
+              >
+                Cancel editing
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditingNotes}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.accent, background: accentAlpha(0.08) }}
+              >
+                <Pencil size={12} /> Edit
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Performance Score */}
         <PerformanceScoreSlider value={score} onChange={setScore} disabled={!canEdit} required={fieldsRequired} />
 
@@ -1031,7 +1073,7 @@ export function SessionNotesModal({
               <div className="flex flex-col gap-4 px-3 pb-3 pt-1" style={{ borderTop: `1px solid ${border.divider}` }}>
                 {showChecklistSummary ? (
                   <>
-                    {canEdit && (
+                    {canEdit && !isFinalised && (
                       <div className="flex justify-end mt-2">
                         <button
                           type="button"
@@ -1067,7 +1109,7 @@ export function SessionNotesModal({
                     )}
                   </>
                 ) : (<>
-                {hasSavedChecklist && canEdit && (
+                {hasSavedChecklist && canEdit && !isFinalised && (
                   <div className="flex justify-end mt-2">
                     <button
                       type="button"
