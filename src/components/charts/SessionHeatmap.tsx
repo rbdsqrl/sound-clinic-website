@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { colors, border, accentAlpha } from '../../theme'
 import { formatDateStr } from '../../lib/format'
 import type { TrendPoint } from '../../types'
 
-const CELL = 11
-const GAP = 3
 const MONTH_LABEL_H = 16
+const WEEKDAY_LABEL_W = 30
+const MIN_PITCH = 14        // narrowest a week column gets before the grid scrolls sideways instead of shrinking
+const MAX_CELL_H = 32       // tallest a day cell gets, so a short range widens the cells rather than towering
+const WEEKDAY_NAMES = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
 /**
  * GitHub-style calendar heatmap — one cell per day, coloured by session count, grouped into
@@ -14,6 +16,20 @@ const MONTH_LABEL_H = 16
  */
 export default function SessionHeatmap({ points, from, to }: { points: TrendPoint[]; from: string; to: string }) {
   const [hover, setHover] = useState<string | null>(null)
+
+  // The grid fills whatever width the panel gives it: week columns split the width, so a short range gets wide
+  // cells and a long one gets narrow cells (scrolling sideways only below MIN_PITCH per week).
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [available, setAvailable] = useState(640)
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const update = () => setAvailable(el.clientWidth || 640)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const countByDate = useMemo(() => {
     const m = new Map<string, number>()
@@ -33,8 +49,13 @@ export default function SessionHeatmap({ points, from, to }: { points: TrendPoin
   const totalDays = Math.ceil((rangeEnd.getTime() - gridStart.getTime()) / 86400000) + 1
   const weeks = Math.ceil(totalDays / 7)
 
-  const width = weeks * (CELL + GAP)
-  const height = MONTH_LABEL_H + 7 * (CELL + GAP)
+  const width = Math.max(available, WEEKDAY_LABEL_W + weeks * MIN_PITCH)
+  const pitchX = (width - WEEKDAY_LABEL_W) / weeks
+  const gap = Math.min(6, Math.max(3, pitchX * 0.12))
+  const cellW = pitchX - gap
+  const cellH = Math.min(MAX_CELL_H, Math.max(12, cellW))
+  const pitchY = cellH + gap
+  const height = MONTH_LABEL_H + 7 * pitchY
 
   const cells: { x: number; y: number; date: string; count: number; inRange: boolean }[] = []
   const monthLabels: { x: number; label: string }[] = []
@@ -49,7 +70,7 @@ export default function SessionHeatmap({ points, from, to }: { points: TrendPoin
       cells.push({ x: w, y: d, date: iso, count: countByDate.get(iso) ?? 0, inRange })
       if (inRange && d === 0 && date.getMonth() !== lastMonth) {
         lastMonth = date.getMonth()
-        monthLabels.push({ x: w * (CELL + GAP), label: date.toLocaleString('en', { month: 'short' }) })
+        monthLabels.push({ x: WEEKDAY_LABEL_W + w * pitchX, label: date.toLocaleString('en', { month: 'short' }) })
       }
     }
   }
@@ -65,33 +86,10 @@ export default function SessionHeatmap({ points, from, to }: { points: TrendPoin
   const hoveredCell = cells.find(c => c.date === hover)
 
   return (
-    <div className="flex items-start gap-4 flex-wrap">
-      <div className="overflow-x-auto">
-        <svg width={width} height={height + 4} role="img" aria-label="Sessions per day, across the selected range">
-          {monthLabels.map((m, i) => (
-            <text key={i} x={m.x} y={11} fontSize={10} fill={colors.text.dim}>{m.label}</text>
-          ))}
-          {cells.map((c, i) => (
-            <rect
-              key={i}
-              x={c.x * (CELL + GAP)}
-              y={MONTH_LABEL_H + c.y * (CELL + GAP)}
-              width={CELL}
-              height={CELL}
-              rx={2}
-              fill={tint(c.count, c.inRange)}
-              stroke={hover === c.date ? colors.accent : 'transparent'}
-              strokeWidth={1.5}
-              onMouseEnter={() => c.inRange && setHover(c.date)}
-              onMouseLeave={() => setHover(null)}
-            />
-          ))}
-        </svg>
-      </div>
-      {/* Fixed-width side panel, always mounted, so hovering cells only swaps its text instead
-          of mounting/unmounting a line below the grid — that used to shift the layout and made
-          the label flicker as the mouse moved across cells. */}
-      <div className="flex-shrink-0 min-w-[150px] text-xs pt-1" style={{ color: colors.text.muted }}>
+    <div ref={wrapRef} className="w-full">
+      {/* Fixed-height line above the grid, always mounted, so hovering cells only swaps its text instead of
+          shifting the layout. */}
+      <div className="h-5 mb-1 text-xs" style={{ color: colors.text.muted }}>
         {hoveredCell ? (
           <>
             {formatDateStr(hoveredCell.date)}
@@ -100,6 +98,31 @@ export default function SessionHeatmap({ points, from, to }: { points: TrendPoin
         ) : (
           <span style={{ color: colors.text.dim }}>Hover a day for details</span>
         )}
+      </div>
+      <div className="overflow-x-auto">
+        <svg width={width} height={height + 4} role="img" aria-label="Sessions per day, across the selected range">
+          {monthLabels.map((m, i) => (
+            <text key={i} x={m.x} y={11} fontSize={10} fill={colors.text.dim}>{m.label}</text>
+          ))}
+          {WEEKDAY_NAMES.map((name, d) => name && (
+            <text key={name} x={0} y={MONTH_LABEL_H + d * pitchY + cellH / 2 + 3} fontSize={10} fill={colors.text.dim}>{name}</text>
+          ))}
+          {cells.map((c, i) => (
+            <rect
+              key={i}
+              x={WEEKDAY_LABEL_W + c.x * pitchX}
+              y={MONTH_LABEL_H + c.y * pitchY}
+              width={cellW}
+              height={cellH}
+              rx={3}
+              fill={tint(c.count, c.inRange)}
+              stroke={hover === c.date ? colors.accent : 'transparent'}
+              strokeWidth={1.5}
+              onMouseEnter={() => c.inRange && setHover(c.date)}
+              onMouseLeave={() => setHover(null)}
+            />
+          ))}
+        </svg>
       </div>
     </div>
   )
