@@ -7,7 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import DOMPurify from 'dompurify'
 import {
   Newspaper, ClipboardList, Plus, Pencil, Trash2, Bold, Italic, List, ListOrdered,
-  ImagePlus, X, Heart, MessageCircle, Eye, Send, Users, Globe,
+  ImagePlus, X, Heart, MessageCircle, Eye, Send, Users, Globe, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { feedApi } from '../../api/feed'
@@ -495,6 +495,8 @@ function groupByDay(entries: FeedPostResponse[]): { day: string; entries: FeedPo
 
 type Tab = 'feed' | 'mom'
 
+const MOM_PAGE_SIZE = 5
+
 export default function FeedPage() {
   const { user, activeRole } = useAuth()
   const qc = useQueryClient()
@@ -520,22 +522,30 @@ export default function FeedPage() {
     enabled: tab === 'feed',
   })
 
-  const { data: momPage, isLoading: momLoading } = useQuery({
-    queryKey: ['feed-mom'],
-    queryFn: () => feedApi.listMom({ size: 1000 }),
+  const [momPageNo, setMomPageNo] = useState(0)
+  const { data: momPage, isLoading: momLoading, isFetching: momFetching } = useQuery({
+    queryKey: ['feed-mom', momPageNo],
+    queryFn: () => feedApi.listMom({ page: momPageNo, size: MOM_PAGE_SIZE }),
     enabled: tab === 'mom' && isStaff,
+    placeholderData: (prev) => prev,
   })
+  // Deleting the last entry of the last page leaves that page empty — step back to the new last one.
+  useEffect(() => {
+    if (momPage && momPage.totalPages > 0 && momPageNo >= momPage.totalPages) setMomPageNo(momPage.totalPages - 1)
+  }, [momPage, momPageNo])
   const momEntries = momPage?.content ?? []
   const momByDay = groupByDay(momEntries)
 
+  // The header count is the total across all pages, not just the five on screen.
+  const momTotal = momPage?.totalElements ?? 0
   const list = tab === 'mom' ? momEntries : posts
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => feedApi.delete(id),
     onSuccess: (_, id) => {
       qc.setQueryData<FeedPostResponse[]>(['feed'], prev => prev?.filter(p => p.id !== id) ?? [])
-      qc.setQueryData<{ content: FeedPostResponse[] }>(['feed-mom'], prev =>
-        prev ? { ...prev, content: prev.content.filter(p => p.id !== id) } : prev)
+      // A paged list can't just drop the row — the next page's first entry has to slide up.
+      qc.invalidateQueries({ queryKey: ['feed-mom'] })
       setDeleting(null)
       toast(`${deleting?.type === 'MOM' ? 'MoM' : 'Post'} deleted`, 'success')
     },
@@ -553,7 +563,7 @@ export default function FeedPage() {
           <h1 className="text-xl font-bold" style={{ color: colors.text.heading }}>{tab === 'mom' ? 'Minutes of Meeting' : 'Feed'}</h1>
           <span className="text-sm font-medium px-2 py-0.5 rounded-full"
             style={{ background: accentAlpha(0.08), color: colors.accent }}>
-            {list.length}
+            {tab === 'mom' ? momTotal : list.length}
           </span>
         </div>
         {canPost && (
@@ -610,6 +620,31 @@ export default function FeedPage() {
                   </div>
                 </div>
               ))}
+              {momPage && momPage.totalPages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs" style={{ color: colors.text.dim }}>
+                    Page {momPage.page + 1} of {momPage.totalPages} · {momPage.totalElements} minutes
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setMomPageNo(p => Math.max(0, p - 1))}
+                      disabled={momPageNo === 0 || momFetching}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                      style={{ border: border.card, color: colors.text.primary }}
+                    >
+                      <ChevronLeft size={14} /> Previous
+                    </button>
+                    <button
+                      onClick={() => setMomPageNo(p => Math.min(momPage.totalPages - 1, p + 1))}
+                      disabled={momPageNo + 1 >= momPage.totalPages || momFetching}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                      style={{ border: border.card, color: colors.text.primary }}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )
         ) : posts.length === 0 ? (
