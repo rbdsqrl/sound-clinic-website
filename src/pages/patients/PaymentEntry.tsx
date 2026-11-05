@@ -153,11 +153,11 @@ export function PaymentHistory({ subscription, onChanged }: {
           {formatDateStr(p.paidOn)}
           {p.mode && <span style={{ color: colors.text.muted }}> · {PAYMENT_MODE_LABEL[p.mode]}</span>}
         </p>
-        {p.periodStart && p.periodEnd && (
-          <p className="text-[11px]" style={{ color: colors.text.muted }}>
-            Program {format(parseISO(p.periodStart), 'd MMM yyyy')} – {format(parseISO(p.periodEnd), 'd MMM yyyy')}
-          </p>
-        )}
+        <p className="text-[11px]" style={{ color: colors.text.muted }}>
+          {p.periodStart && p.periodEnd
+            ? `Program ${format(parseISO(p.periodStart), 'd MMM yyyy')} – ${format(parseISO(p.periodEnd), 'd MMM yyyy')}`
+            : 'Program dates not set yet'}
+        </p>
         {(p.note || p.recordedByName) && (
           <p className="text-[11px] truncate" style={{ color: colors.text.dim }}>
             {[p.note, p.recordedByName && `by ${p.recordedByName}`].filter(Boolean).join(' · ')}

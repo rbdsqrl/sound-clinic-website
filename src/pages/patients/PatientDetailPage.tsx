@@ -2267,7 +2267,7 @@ export default function PatientDetailPage() {
                             <>
                               <span className="flex items-center gap-1.5">
                                 <CalendarDays size={11} style={{ color: colors.text.dim }} />
-                                {enrollment.startDate}
+                                {enrollment.startDate}{enrollment.endDate ? ` – ${enrollment.endDate}` : ''}
                               </span>
                               <span className="flex items-center gap-1.5">
                                 <Clock size={11} style={{ color: colors.text.dim }} />
