@@ -1035,7 +1035,7 @@ export default function InquiriesPage() {
   // Routes are not role-guarded, so gate the action rather than relying on the
   // sidebar to keep other roles off this page.
   const canAddInquiry = !!user &&
-    (hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD'))
+    (hasRole(user, 'BUSINESS_OWNER') || hasRole(user, 'CLINIC_HEAD') || hasRole(user, 'OFFICE_ADMIN'))
 
   const [mainTab,       setMainTab]       = useState<'list' | 'analytics'>('list')
   const [pageView,      setPageView]      = useState<'list' | 'calendar'>('list')
