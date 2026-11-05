@@ -25,7 +25,7 @@ import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlph
 import { isPastDateTime, todayStr } from '../../lib/schedule'
 import { groupSessionsByMonth } from '../../lib/sessionMonths'
 import { formatTimeStr, formatDateStr, formatDateTimeStr } from '../../lib/format'
-import { format, parseISO } from 'date-fns'
+import { addDays, format, parseISO } from 'date-fns'
 import type { ParentFeedback, TherapySessionResponse, TherapySessionStatus, SessionAttachmentResponse, SessionFeedbackAnswerInput, UserResponse } from '../../types'
 
 // ── Session helpers ────────────────────────────────────────────────────────────
@@ -678,6 +678,94 @@ function SessionParentFeedbackPanel({ session, enrollmentId, items, isAdminViewe
   )
 }
 
+// ── MoveSessionModal — reopen a wrongly completed session on a later date ─────
+
+function MoveSessionModal({ session, enrollmentId, onClose, onMoved }: {
+  session: TherapySessionResponse
+  enrollmentId: string
+  onClose: () => void
+  onMoved: () => void
+}) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  // The day after the session's own date, and never in the past.
+  const earliest = (() => {
+    const next = format(addDays(parseISO(session.sessionDate), 1), 'yyyy-MM-dd')
+    return next > todayStr() ? next : todayStr()
+  })()
+  const [date, setDate]     = useState('')
+  const [time, setTime]     = useState(session.startTime.substring(0, 5))
+  const [reason, setReason] = useState('')
+  const [error, setError]   = useState('')
+
+  const mut = useMutation({
+    mutationFn: () => therapySessionsApi.moveCompleted(session.id, {
+      newDate: date,
+      newStartTime: time !== session.startTime.substring(0, 5) ? time : undefined,
+      reason: reason.trim() || undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', 'enrollment', enrollmentId] })
+      qc.invalidateQueries({ queryKey: ['enrollments'] })
+      qc.invalidateQueries({ queryKey: ['therapy-sessions-cal'] })
+      toast(`Session moved to ${formatDateStr(date)}`, 'success')
+      onMoved()
+    },
+    onError: (err: unknown) => setError(getApiError(err, 'Could not move the session')),
+  })
+
+  return (
+    <Modal open title="Move to a later date" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl px-3 py-2.5 text-sm" style={{ background: surface.rowHover, color: colors.text.muted }}>
+          Session #{session.sessionNumber} was marked completed on{' '}
+          <span style={{ color: colors.text.primary, fontWeight: 600 }}>
+            {formatDateStr(session.sessionDate)} at {formatTimeStr(session.startTime)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">New date</label>
+            <input type="date" value={date} min={earliest} onChange={e => setDate(e.target.value)} className="form-input w-full" />
+          </div>
+          <TimePicker label="Time" value={time} onChange={setTime} />
+        </div>
+
+        <Input
+          label="Reason (optional)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Marked completed by mistake — the session did not take place"
+        />
+
+        <p className="text-xs" style={{ color: colors.text.dim }}>
+          This session is cancelled — its notes stay on it for the record — and a new, empty session #{session.sessionNumber}
+          is created on the new date with the same therapist and length, on the same program and renewal.
+        </p>
+
+        {error && <p className="form-error">{error}</p>}
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (!date) { setError('Pick the new date'); return }
+            if (date < earliest) { setError('The new date must be after the session’s own date and not in the past'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Move session
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 export function SessionNotesModal({
   session,
   canEdit: canEditProp,
@@ -721,6 +809,7 @@ export function SessionNotesModal({
   const mayEdit = canEditProp && !hideFeedback
   const isFinalised = session.status === 'COMPLETED' || session.status === 'NO_SHOW' || session.status === 'CANCELLED'
   const [editingNotes, setEditingNotes] = useState(false)
+  const [movingSession, setMovingSession] = useState(false)
   const canEdit = mayEdit && (!isFinalised || editingNotes)
 
   const parsedRating = session.feedback ? parseInt(session.feedback, 10) : NaN
@@ -735,6 +824,8 @@ export function SessionNotesModal({
   const { activeRole } = useAuth()
   const isAdminViewer  = activeRole === 'CLINIC_HEAD' || activeRole === 'BUSINESS_OWNER' || activeRole === 'OFFICE_ADMIN'
   const isParentViewer = activeRole === 'PARENT'
+  // Admin roles can undo a wrongly completed session by moving it to a later date (it is cancelled, a new one created).
+  const canMoveSession = session.status === 'COMPLETED' && !hideFeedback && isAdminViewer
 
   // Parent feedback on this session — the server returns only what this viewer may see (admin roles: all; the
   // therapist: what was shared with them; a parent: their own).
@@ -997,9 +1088,20 @@ export function SessionNotesModal({
       {!hideFeedback && notesTab === 'notes' && (
       <div className="flex flex-col gap-4">
         {/* Finalised sessions are read-only until Edit is pressed */}
-        {mayEdit && isFinalised && (
-          <div className="flex justify-end -mb-2">
-            {editingNotes ? (
+        {isFinalised && (mayEdit || canMoveSession) && (
+          <div className="flex justify-end items-center gap-2 -mb-2">
+            {canMoveSession && !editingNotes && (
+              <button
+                type="button"
+                onClick={() => setMovingSession(true)}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: colors.text.muted, background: accentAlpha(0.06) }}
+                title="Marked completed by mistake? Cancel it and reopen it on a later date"
+              >
+                <CalendarClock size={12} /> Move to a later date
+              </button>
+            )}
+            {!mayEdit ? null : editingNotes ? (
               <button
                 type="button"
                 onClick={cancelEditingNotes}
@@ -1343,6 +1445,15 @@ export function SessionNotesModal({
           </div>
         )}
       </div>
+
+      {movingSession && (
+        <MoveSessionModal
+          session={session}
+          enrollmentId={enrollmentId}
+          onClose={() => setMovingSession(false)}
+          onMoved={() => { setMovingSession(false); onClose() }}
+        />
+      )}
 
       {pendingAction && (
         <Modal open title="Confirm" onClose={() => setPendingAction(null)} size="sm">

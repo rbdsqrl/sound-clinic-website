@@ -72,6 +72,11 @@ export const therapySessionsApi = {
       data,
     ).then(r => r.data.data),
 
+  /** Move a session marked completed by mistake to a later date — it is cancelled and a new one is created (admin roles) */
+  moveCompleted: (id: string, data: { newDate: string; newStartTime?: string; reason?: string }) =>
+    client.post<ApiResponse<TherapySessionResponse>>(`/therapy-sessions/${id}/move`, data)
+      .then(r => r.data.data),
+
   /** Book a one-off session from the calendar (BUSINESS_OWNER / CLINIC_HEAD) */
   createAdHoc: (data: CreateAdHocSessionRequest) =>
     client.post<ApiResponse<TherapySessionResponse>>('/therapy-sessions/ad-hoc', data)
