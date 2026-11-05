@@ -924,6 +924,8 @@ export interface TherapySessionResponse {
   /** Who raised the open cancellation / reschedule request, and their role — null when none is open. */
   requestedByName?: string | null
   requestedByRole?: Role | null
+  /** Why a cancellation was requested — null on requests raised before a reason was required. */
+  cancellationReason?: string | null
 }
 
 export interface UpdateSessionStatusRequest {

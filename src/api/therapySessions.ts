@@ -83,10 +83,11 @@ export const therapySessionsApi = {
       `/therapy-sessions/${id}/reschedule-request`,
     ).then(r => r.data.data),
 
-  /** Request cancellation of a SCHEDULED session (therapist) — requires admin approval */
-  requestCancellation: (id: string) =>
+  /** Request cancellation of a SCHEDULED session (therapist) — requires admin approval and a reason */
+  requestCancellation: (id: string, reason: string) =>
     client.post<ApiResponse<TherapySessionResponse>>(
       `/therapy-sessions/${id}/cancellation-request`,
+      { reason },
     ).then(r => r.data.data),
 
   /** Approve a cancellation request — sets status to CANCELLED (admin/owner only) */

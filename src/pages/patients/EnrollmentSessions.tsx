@@ -728,6 +728,8 @@ export function SessionNotesModal({
   const [progressReport, setProgressReport] = useState(session.progressReport ?? '')
   const [score, setScore]                   = useState<number | null>(session.performanceScore ?? null)
   const [pendingAction, setPendingAction]   = useState<TherapySessionStatus | 'REQUEST_CANCEL' | null>(null)
+  // A cancellation request must say why — the approver reads it before deciding.
+  const [cancelReason, setCancelReason]     = useState('')
   // A parent never sees the clinical write-up, so their only tab is their own feedback.
   const [notesTab, setNotesTab]             = useState<'notes' | 'history' | 'parent-feedback'>(hideFeedback ? 'parent-feedback' : 'notes')
   const { activeRole } = useAuth()
@@ -814,7 +816,7 @@ export function SessionNotesModal({
   const saveMut = useMutation({
     mutationFn: async () => {
       if (pendingAction === 'REQUEST_CANCEL') {
-        await therapySessionsApi.requestCancellation(session.id)
+        await therapySessionsApi.requestCancellation(session.id, cancelReason.trim())
       } else if (pendingAction) {
         await therapySessionsApi.updateStatus(session.id, { status: pendingAction })
       }
@@ -1295,6 +1297,9 @@ export function SessionNotesModal({
         {cancellationRequested && onApproveCancellation && onRejectCancellation && (
           <div className="mb-4">
             <p className="form-label" style={{ color: colors.status.danger }}>Cancellation requested</p>
+            <p className="text-xs mb-2" style={{ color: colors.text.muted }}>
+              {session.cancellationReason ? <>Reason: {session.cancellationReason}</> : 'No reason was given with this request.'}
+            </p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={onApproveCancellation}
@@ -1346,6 +1351,20 @@ export function SessionNotesModal({
               ? 'Send a cancellation request for this session?'
               : `Mark this session as ${pendingAction.replace('_', ' ').toLowerCase()}?`}
           </p>
+          {pendingAction === 'REQUEST_CANCEL' && (
+            <div className="mt-3">
+              <label className="form-label">Reason for cancelling <span style={{ color: colors.status.danger }}>*</span></label>
+              <textarea
+                className="form-input w-full"
+                rows={3}
+                maxLength={500}
+                autoFocus
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                placeholder="Why does this session need to be cancelled?"
+              />
+            </div>
+          )}
           {saveMut.isError && (
             <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm mt-3"
               style={{ background: dangerAlpha(0.08), border: `1px solid ${dangerAlpha(0.2)}` }}>
@@ -1357,7 +1376,9 @@ export function SessionNotesModal({
           )}
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="ghost" onClick={() => setPendingAction(null)}>Cancel</Button>
-            <Button variant="primary" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+            <Button variant="primary" loading={saveMut.isPending}
+              disabled={pendingAction === 'REQUEST_CANCEL' && cancelReason.trim() === ''}
+              onClick={() => saveMut.mutate()}>
               Confirm
             </Button>
           </div>

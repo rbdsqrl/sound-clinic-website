@@ -1156,6 +1156,9 @@ function CancellationRequestsPanel({ sessions, onDone, onSessionClick }: {
           <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
             Requested by {s.requestedByName ?? 'unknown'}
           </p>
+          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.dim }}>
+            {s.cancellationReason ? `Reason: ${s.cancellationReason}` : 'No reason given'}
+          </p>
         </button>
         <div className="flex gap-2">
           <button
