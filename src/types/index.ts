@@ -662,6 +662,8 @@ export interface EnrollmentResponse {
   /** Set only when this enrollment was closed by a patient discharge — null on a program that
    *  was force-completed via the care-status override, which is the only case "Reactivate" applies to. */
   dischargedInRecordId: string | null
+  /** Date of the program's last session still on the calendar (cancelled and extra sessions excluded). */
+  lastSessionDate: string | null
 }
 
 // ── Enrollment Concerns ──────────────────────────────────────────────────────
@@ -1244,6 +1246,9 @@ export interface SubscriptionPaymentResponse {
   recordedById: string | null
   recordedByName: string | null
   createdAt: string
+  /** The program run (first to last session date) this payment was made for — null when unknown. */
+  periodStart: string | null
+  periodEnd: string | null
 }
 
 export interface AddPaymentRequest {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, XCircle, AlertTriangle, Circle, Upload, X, FileText, Search, ChevronRight, CalendarClock, History,
-  ListChecks, MessageSquare, Pencil, Check,
+  ListChecks, MessageSquare, Pencil, Check, ExternalLink,
 } from 'lucide-react'
 import { therapySessionsApi } from '../../api/therapySessions'
 import { parentFeedbackApi } from '../../api/parentFeedback'
@@ -18,6 +19,7 @@ import { Select } from '../../components/ui/Select'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { ROUTES } from '../../lib/routes'
 import { viewFile } from '../../lib/fileActions'
 import { colors, border, surface, accentAlpha, paletteStyle, styles, successAlpha, warningAlpha, dangerAlpha } from '../../theme'
 import { isPastDateTime, todayStr } from '../../lib/schedule'
@@ -711,6 +713,9 @@ export function SessionNotesModal({
 }) {
   const qc = useQueryClient()
   const { toast } = useToast()
+  // "Case details" shortcut — hidden when this modal is already open on that case's own pages.
+  const { pathname } = useLocation()
+  const onThisCase = pathname.startsWith(ROUTES.patient(session.patientId))
   // A session already marked Completed / No Show / Cancelled opens read-only; whoever may edit it gets an explicit
   // Edit button to unlock the fields. `mayEdit` is the permission, `canEdit` is "the fields are unlocked right now".
   const mayEdit = canEditProp && !hideFeedback
@@ -918,14 +923,26 @@ export function SessionNotesModal({
             {session.patientFirstName} {session.patientLastName} · {session.therapistFirstName} {session.therapistLastName}
           </p>
         </div>
-        <span className="text-[11.5px] px-2 py-1 rounded-full font-medium"
-          style={
-            session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
-            : session.status === 'CANCELLED' || session.status === 'NO_SHOW' || session.status === 'CANCELLATION_REQUESTED' ? paletteStyle('red', 0.12, 0)
-            : paletteStyle('blue', 0.10, 0)
-          }>
-          {session.status.replace('_', ' ')}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="text-[11.5px] px-2 py-1 rounded-full font-medium"
+            style={
+              session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
+              : session.status === 'CANCELLED' || session.status === 'NO_SHOW' || session.status === 'CANCELLATION_REQUESTED' ? paletteStyle('red', 0.12, 0)
+              : paletteStyle('blue', 0.10, 0)
+            }>
+            {session.status.replace('_', ' ')}
+          </span>
+          {!onThisCase && (
+            <Link
+              to={ROUTES.patient(session.patientId)}
+              onClick={onClose}
+              className="inline-flex items-center gap-1 text-xs font-medium transition-colors"
+              style={{ color: colors.accent }}
+            >
+              <ExternalLink size={12} /> Case details
+            </Link>
+          )}
+        </div>
         {session.awaitingPayment && (
           <span className="text-[11.5px] px-2 py-1 rounded-full font-medium" style={paletteStyle('amber', 0.14, 0)}>
             Payment pending

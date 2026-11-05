@@ -8,6 +8,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
+import { format, parseISO } from 'date-fns'
 import { formatDateStr } from '../../lib/format'
 import { colors, border, accentAlpha, surface } from '../../theme'
 import type { AddPaymentRequest, PaymentMode, SubscriptionPaymentResponse, SubscriptionResponse } from '../../types'
@@ -152,6 +153,11 @@ export function PaymentHistory({ subscription, onChanged }: {
           {formatDateStr(p.paidOn)}
           {p.mode && <span style={{ color: colors.text.muted }}> · {PAYMENT_MODE_LABEL[p.mode]}</span>}
         </p>
+        {p.periodStart && p.periodEnd && (
+          <p className="text-[11px]" style={{ color: colors.text.muted }}>
+            Program {format(parseISO(p.periodStart), 'd MMM yyyy')} – {format(parseISO(p.periodEnd), 'd MMM yyyy')}
+          </p>
+        )}
         {(p.note || p.recordedByName) && (
           <p className="text-[11px] truncate" style={{ color: colors.text.dim }}>
             {[p.note, p.recordedByName && `by ${p.recordedByName}`].filter(Boolean).join(' · ')}

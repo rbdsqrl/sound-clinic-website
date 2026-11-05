@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { addDays, format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { enrollmentsApi } from '../../api/enrollments'
 import { Input } from '../../components/ui/Input'
@@ -29,6 +30,14 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
   const [payment, setPayment] = useState<PaymentEntryValue>(emptyPayment())
   const [errors, setErrors] = useState<{ sessions?: string; payment?: string; startDate?: string; total?: string }>({})
   const [formError, setFormError] = useState<string | null>(null)
+
+  // New sessions can't start before today, nor on or before the program's last scheduled session — they would
+  // land on days that already have one. (The server enforces the same.)
+  const lastEnds = enrollment.lastSessionDate
+  const earliestStart = lastEnds && addDays(parseISO(lastEnds), 1) > parseISO(todayStr())
+    ? format(addDays(parseISO(lastEnds), 1), 'yyyy-MM-dd')
+    : todayStr()
+  const niceDate = (d: string) => format(parseISO(d), 'd MMM yyyy')
 
   const n = parseInt(sessions, 10)
   const validN = !isNaN(n) && n >= 1
@@ -66,7 +75,11 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
     if (!validN) e.sessions = 'Enter how many sessions to add'
     else if (n > 200) e.sessions = 'At most 200 sessions at a time'
     if (amountInput !== null && amountInput.trim() !== '' && (isNaN(typedAmount) || typedAmount < 0)) e.total = 'Enter a valid amount'
-    if (startDate && startDate < todayStr()) e.startDate = "The new sessions can't start in the past"
+    if (startDate && startDate < earliestStart) {
+      e.startDate = lastEnds && startDate >= todayStr()
+        ? `The program's last session is on ${niceDate(lastEnds)} — start on ${niceDate(earliestStart)} or later`
+        : "The new sessions can't start in the past"
+    }
     if (withPayment) e.payment = toPaymentRequest(payment).error
     setErrors(e)
     if (Object.values(e).some(Boolean)) return
@@ -106,13 +119,19 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
           />
           <Input
             label="Start from (optional)"
-            type="date" min={todayStr()}
+            type="date" min={earliestStart}
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
             error={errors.startDate}
             hint="Leave empty to continue after the last session"
           />
         </div>
+        {lastEnds && (
+          <p className="text-xs rounded-lg px-3 py-2" style={{ background: accentAlpha(0.08), color: colors.text.primary }}>
+            This program's current sessions end on <b>{niceDate(lastEnds)}</b>. New sessions can start from{' '}
+            <b>{niceDate(earliestStart)}</b>.
+          </p>
+        )}
         <p className="text-xs" style={{ color: colors.text.dim }}>
           New sessions keep the same therapist, time and days as this program.
         </p>
