@@ -664,6 +664,8 @@ export interface EnrollmentResponse {
   dischargedInRecordId: string | null
   /** Date of the program's last session still on the calendar (cancelled and extra sessions excluded). */
   lastSessionDate: string | null
+  /** The program's runs — the original and each renewal — with their own dates; empty with no sessions. */
+  runs: EnrollmentRun[]
 }
 
 // ── Enrollment Concerns ──────────────────────────────────────────────────────
@@ -1236,6 +1238,14 @@ export interface UpdatePaymentRequest {
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER'
 
 /** One payment taken against a plan — a negative amount is a correction to the running total. */
+export interface EnrollmentRun {
+  /** 1 = the original run, 2 = the first renewal, … */
+  number: number
+  startDate: string
+  endDate: string
+  sessionCount: number
+}
+
 export interface SubscriptionPaymentResponse {
   id: string
   subscriptionId: string

@@ -9,6 +9,7 @@ import { analyticsApi } from '../../api/analytics'
 import { SessionList, SessionNotesModal } from './EnrollmentSessions'
 import { ChangeTherapistModal, EditScheduleModal } from './PatientDetailPage'
 import { RenewProgramModal } from './RenewProgramModal'
+import { ProgramRunsList } from './ProgramRunsList'
 import AdHocSessionModal from '../calendar/AdHocSessionModal'
 import { ProgramStatusBadge, ProgramStatusControl } from '../../components/shared/ProgramStatus'
 import { monthName } from '../../lib/sessionMonths'
@@ -433,6 +434,12 @@ export default function EnrollmentDetailPage() {
             {formatTimeStr(enrollment.startTime)} · {enrollment.sessionDurationMinutes}min
           </span>
         </div>
+
+        {enrollment.runs.length > 1 && (
+          <div className="mt-3">
+            <ProgramRunsList runs={enrollment.runs} />
+          </div>
+        )}
 
         {/* Plan actions — primary left, destructive right (stacked on mobile), as on the case page. */}
         {showPlanActions && (

@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, X, UserCheck, Heart, Users, BookOpen, IndianRupee, Ban
 import IEPTab from './IEPTab'
 import { RenewProgramModal } from './RenewProgramModal'
 import { PaymentHistory } from './PaymentEntry'
+import { ProgramRunsList } from './ProgramRunsList'
 import ActivitiesTab from './ActivitiesTab'
 import AssessmentTab from './AssessmentTab'
 import BaselineReportTab from './BaselineReportTab'
@@ -2301,8 +2302,10 @@ export default function PatientDetailPage() {
                           )}
                         </div>
 
+                        <ProgramRunsList runs={(enrollment ?? renewable)?.runs} />
+
                         {canRecordPayment && !isCancelled && (
-                          <PaymentHistory subscription={sub} onChanged={() => refetchSubs()} />
+                          <PaymentHistory subscription={sub} runs={(enrollment ?? renewable)?.runs} onChanged={() => refetchSubs()} />
                         )}
 
                         {/* Actions: primary left, destructive right (stacked on mobile) */}

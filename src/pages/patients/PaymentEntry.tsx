@@ -11,7 +11,8 @@ import { getApiError } from '../../lib/apiError'
 import { format, parseISO } from 'date-fns'
 import { formatDateStr } from '../../lib/format'
 import { colors, border, accentAlpha, surface } from '../../theme'
-import type { AddPaymentRequest, PaymentMode, SubscriptionPaymentResponse, SubscriptionResponse } from '../../types'
+import { runLabel } from './ProgramRunsList'
+import type { AddPaymentRequest, EnrollmentRun, PaymentMode, SubscriptionPaymentResponse, SubscriptionResponse } from '../../types'
 
 const rupees = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 
@@ -127,8 +128,10 @@ export function AddPaymentModal({ subscription, onClose, onSaved }: {
 }
 
 /** A plan's payments as a collapsible list, with an "Add payment" shortcut — admin roles only. */
-export function PaymentHistory({ subscription, onChanged }: {
+export function PaymentHistory({ subscription, runs, onChanged }: {
   subscription: SubscriptionResponse
+  /** The program's runs, used to label each payment's period as the original run or a renewal. */
+  runs?: EnrollmentRun[]
   /** Called after a payment is added so the plan's totals refetch. */
   onChanged: () => void
 }) {
@@ -155,7 +158,8 @@ export function PaymentHistory({ subscription, onChanged }: {
         </p>
         <p className="text-[11px]" style={{ color: colors.text.muted }}>
           {p.periodStart && p.periodEnd
-            ? `Program ${format(parseISO(p.periodStart), 'd MMM yyyy')} – ${format(parseISO(p.periodEnd), 'd MMM yyyy')}`
+            ? `${runs && runs.length > 1 && runs.find(r => r.startDate === p.periodStart)
+                ? `${runLabel(runs.find(r => r.startDate === p.periodStart)!.number)} · ` : ''}${format(parseISO(p.periodStart), 'd MMM yyyy')} – ${format(parseISO(p.periodEnd), 'd MMM yyyy')}`
             : 'Program dates not set yet'}
         </p>
         {(p.note || p.recordedByName) && (
