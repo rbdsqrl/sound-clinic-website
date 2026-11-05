@@ -1129,56 +1129,67 @@ function CancellationRequestsPanel({ sessions, onDone, onSessionClick }: {
     onError: (err) => toast(getApiError(err, 'Failed to reject cancellation'), 'error'),
   })
 
-  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => (
-    <div key={s.id} className="px-4 sm:px-6 py-3"
-      style={{
-        ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
-        transform: 'translateZ(0)',
-      }}>
-      <div className="flex flex-col gap-2.5">
+  const busy = approveMut.isPending || rejectMut.isPending
+
+  // One compact row — date, who/what, and the reason on a single line — with Approve / Reject stacked on the right,
+  // so a request takes about as much room as a row of the other cards instead of seven lines.
+  const row = (s: TherapySessionResponse, i: number, arr: TherapySessionResponse[]) => {
+    const by = s.requestedByName ?? 'Unknown'
+    const why = s.cancellationReason ?? 'No reason given'
+    return (
+      <div key={s.id} className="flex items-center gap-3 px-4 sm:px-6 py-2.5"
+        style={{
+          ...(i < arr.length - 1 ? { borderBottom: `1px solid ${border.divider}` } : {}),
+          transform: 'translateZ(0)',
+        }}>
         <button
           type="button"
           onClick={() => { onSessionClick?.(s); setShowAll(false) }}
-          className="w-full min-w-0 text-left rounded-lg transition-colors"
           title="Open session details"
+          className="flex-1 min-w-0 flex items-center gap-3 text-left rounded-lg transition-colors"
           onMouseEnter={ROW_HOVER_IN}
           onMouseLeave={ROW_HOVER_OUT}
         >
-          <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
-            {s.programName}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: colors.text.dim }}>
-            {s.patientFirstName} {s.patientLastName} · {s.therapistFirstName} {s.therapistLastName}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            {format(parseISO(s.sessionDate), 'EEE d MMM')} · {formatTimeStr(s.startTime)}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
-            Requested by {s.requestedByName ?? 'unknown'}
-          </p>
-          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.text.dim }}>
-            {s.cancellationReason ? `Reason: ${s.cancellationReason}` : 'No reason given'}
-          </p>
+          <div className="flex-shrink-0 w-14 sm:w-16">
+            <p className="text-xs font-medium tabular-nums" style={{ color: colors.text.muted }}>
+              {format(parseISO(s.sessionDate), 'MMM d')}
+            </p>
+            <p className="text-xs tabular-nums" style={{ color: colors.text.dim }}>{formatTimeStr(s.startTime)}</p>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate" style={{ color: colors.text.primary }}>
+              {s.patientFirstName} {s.patientLastName}
+            </p>
+            <p className="text-xs truncate" style={{ color: colors.text.muted }}>
+              {s.programName}
+              <span style={{ color: colors.text.dim }}>{' · '}{s.therapistFirstName} {s.therapistLastName}</span>
+            </p>
+            <p className="text-[11px] truncate mt-0.5" style={{ color: colors.text.dim }} title={`${by}: ${why}`}>
+              {by} — {why}
+            </p>
+          </div>
         </button>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-1 flex-shrink-0">
           <button
-            disabled={approveMut.isPending || rejectMut.isPending}
+            disabled={busy}
             onClick={() => approveMut.mutate(s.id)}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+            title="Approve — cancel the session"
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50"
             style={{ background: dangerAlpha(0.09), color: colors.status.danger }}>
             Approve
           </button>
           <button
-            disabled={approveMut.isPending || rejectMut.isPending}
+            disabled={busy}
             onClick={() => rejectMut.mutate(s.id)}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+            title="Reject — keep the session scheduled"
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50"
             style={{ background: successAlpha(0.09), color: colors.status.success }}>
             Reject
           </button>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
