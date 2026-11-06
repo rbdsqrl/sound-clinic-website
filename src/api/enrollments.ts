@@ -4,6 +4,7 @@ import type {
   EnrollmentResponse,
   CreateEnrollmentRequest,
   AvailableTherapistResponse,
+  SchedulePreview,
   AvailableTherapistsQuery,
   EnrollmentCareStatus,
   DayOfWeek,
@@ -24,6 +25,12 @@ export const enrollmentsApi = {
   getAvailableTherapists: (params: AvailableTherapistsQuery) =>
     client.get<ApiResponse<AvailableTherapistResponse[]>>('/enrollments/available-therapists', {
       params,
+    }).then(r => r.data.data),
+
+  /** How many sessions a schedule produces (holidays, weekly offs and weekdays applied) — give `sessions` or `endDate`. */
+  schedulePreview: (params: { startDate: string; sessionDays: DayOfWeek[]; sessions?: number; endDate?: string }) =>
+    client.get<ApiResponse<SchedulePreview>>('/enrollments/schedule-preview', {
+      params: { ...params, sessionDays: params.sessionDays.join(',') },
     }).then(r => r.data.data),
 
   /** Create an enrollment (CLINIC_HEAD / BUSINESS_OWNER) */

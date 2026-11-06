@@ -45,7 +45,7 @@ import { getApiError } from '../../lib/apiError'
 import { viewFile } from '../../lib/fileActions'
 import { ROUTES } from '../../lib/routes'
 import { formatTimeStr, formatDateStr } from '../../lib/format'
-import { todayStr } from '../../lib/schedule'
+import { endOfMonthStr, todayStr } from '../../lib/schedule'
 import { useAuth } from '../../contexts/AuthContext'
 import { colors, border, surface, accentAlpha, dangerAlpha, successAlpha, warningAlpha, paletteStyle, styles, palette, type PaletteKey } from '../../theme'
 import { format } from 'date-fns'
@@ -282,11 +282,17 @@ function CreateSubscriptionModal({
 }) {
   const [programId, setProgramId] = useState('')
   const [numSessions, setNumSessions] = useState('')
+  // How long the program runs: a number of sessions, or from a start date to the end of a chosen month. Either way the
+  // weekdays and start date are chosen here, before payment, so the session count and the price are known up front.
+  const [mode, setMode] = useState<'sessions' | 'months'>('sessions')
+  const [startDate, setStartDate] = useState(todayStr())
+  const [endMonth, setEndMonth] = useState(todayStr().slice(0, 7))
+  const [sessionDays, setSessionDays] = useState<DayOfWeek[]>(WEEK_DAYS.map(d => d.value))
   const [notes, setNotes] = useState('')
   // Defaults to the program's own price whenever the program changes — editable per case
   // without touching the program's price for anyone else.
   const [perSessionCost, setPerSessionCost] = useState('')
-  const [errors, setErrors] = useState<{ programId?: string; numSessions?: string; perSessionCost?: string }>({})
+  const [errors, setErrors] = useState<{ programId?: string; numSessions?: string; perSessionCost?: string; startDate?: string; days?: string }>({})
   const [formError, setFormError] = useState<string | null>(null)
 
   const { data: programs = [], isLoading: loadingPrograms } = useQuery({
@@ -301,8 +307,32 @@ function CreateSubscriptionModal({
     onError: (err) => setFormError(getApiError(err, 'Failed to create subscription')),
   })
 
+  // A day the org has marked as a weekly off would never generate a session — start without it and disable its chip.
+  const { data: weeklyOffDays = [] } = useQuery({
+    queryKey: ['organisation', 'weekly-off-days'],
+    queryFn: organisationApi.getWeeklyOffDays,
+  })
+  useEffect(() => {
+    setSessionDays(prev => (prev.length !== WEEK_DAYS.length ? prev : WEEK_DAYS.map(d => d.value).filter(d => !weeklyOffDays.includes(d))))
+  }, [weeklyOffDays])
+
+  const typedSessions = parseInt(numSessions)
+  const monthBeforeStart = mode === 'months' && !!startDate && !!endMonth && endMonth < startDate.slice(0, 7)
+  // Same rules enrollment uses to place sessions, asked of the server so the quoted count is the real one.
+  const previewParams =
+    startDate && sessionDays.length > 0
+      ? mode === 'months'
+        ? (endMonth && !monthBeforeStart ? { startDate, sessionDays, endDate: endOfMonthStr(endMonth) } : null)
+        : (typedSessions >= 1 ? { startDate, sessionDays, sessions: typedSessions } : null)
+      : null
+  const { data: preview, isFetching: previewing, error: previewError } = useQuery({
+    queryKey: ['schedule-preview', previewParams],
+    queryFn: () => enrollmentsApi.schedulePreview(previewParams!),
+    enabled: !!previewParams,
+  })
+
   const selectedProgram = programs.find(p => p.id === programId)
-  const sessions = parseInt(numSessions) || 0
+  const sessions = !previewParams ? 0 : mode === 'months' ? (preview?.sessionCount ?? 0) : (typedSessions || 0)
   const feePerSession = perSessionCost === '' ? (selectedProgram?.totalCost ?? 0) : Number(perSessionCost)
   const previewTotal = selectedProgram ? formatINR(feePerSession * sessions) : null
 
@@ -314,8 +344,18 @@ function CreateSubscriptionModal({
   const validate = () => {
     const e: typeof errors = {}
     if (!programId) e.programId = 'Select a program'
-    const n = parseInt(numSessions)
-    if (!numSessions || isNaN(n) || n < 1) e.numSessions = 'Enter at least 1 session'
+    if (!startDate) e.startDate = 'Select a start date'
+    if (sessionDays.length === 0) e.days = 'Select at least one day'
+    if (mode === 'sessions') {
+      const n = parseInt(numSessions)
+      if (!numSessions || isNaN(n) || n < 1) e.numSessions = 'Enter at least 1 session'
+    } else if (!endMonth) {
+      e.numSessions = 'Select the month the program runs until'
+    } else if (monthBeforeStart) {
+      e.numSessions = 'The ending month is before the start date'
+    } else if (!preview || preview.sessionCount < 1) {
+      e.numSessions = 'No sessions fall in that period — change the dates or days'
+    }
     if (perSessionCost !== '' && (isNaN(Number(perSessionCost)) || Number(perSessionCost) < 0)) {
       e.perSessionCost = 'Enter a valid fee'
     }
@@ -328,8 +368,10 @@ function CreateSubscriptionModal({
     setFormError(null)
     if (!validate()) return
     createMut.mutate({
-      patientId, programId, numSessions: parseInt(numSessions), notes: notes || undefined,
+      patientId, programId, numSessions: sessions, notes: notes || undefined,
       perSessionCost: perSessionCost !== '' ? Number(perSessionCost) : undefined,
+      plannedStartDate: startDate,
+      plannedSessionDays: sessionDays,
     })
   }
 
@@ -373,19 +415,95 @@ function CreateSubscriptionModal({
             {errors.programId && <p className="form-error">{errors.programId}</p>}
           </div>
 
-          {/* Sessions */}
+          {/* How long it runs — a number of sessions, or from the start date to the end of a month */}
           <div>
-            <label className="form-label">Number of Sessions</label>
-            <input
-              type="number"
-              min="1"
-              value={numSessions}
-              onChange={e => setNumSessions(e.target.value)}
-              placeholder="12"
-              className="form-input w-full"
-            />
+            <label className="form-label">Program length</label>
+            <div className="flex gap-1.5 mb-3">
+              {([['sessions', 'Number of sessions'], ['months', 'By months']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMode(key)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                  style={mode === key ? styles.filterTabActive : styles.filterTabInactive}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Start date</label>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                {errors.startDate && <p className="form-error">{errors.startDate}</p>}
+              </div>
+              {mode === 'sessions' ? (
+                <div>
+                  <label className="form-label">Number of sessions</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={numSessions}
+                    onChange={e => setNumSessions(e.target.value)}
+                    placeholder="12"
+                    className="form-input w-full"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="form-label">Runs until the end of</label>
+                  <input
+                    type="month"
+                    value={endMonth}
+                    min={startDate ? startDate.slice(0, 7) : undefined}
+                    onChange={e => setEndMonth(e.target.value)}
+                    className="form-input w-full"
+                  />
+                </div>
+              )}
+            </div>
             {errors.numSessions && <p className="form-error">{errors.numSessions}</p>}
           </div>
+
+          {/* Session days — which weekdays sessions land on; holidays and the org's own weekly off days are always skipped */}
+          <div>
+            <label className="form-label">Session days</label>
+            <div className="flex flex-wrap gap-1.5">
+              {WEEK_DAYS.map(d => {
+                const active = sessionDays.includes(d.value)
+                const isWeeklyOff = weeklyOffDays.includes(d.value)
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    disabled={isWeeklyOff}
+                    onClick={() => setSessionDays(prev => prev.includes(d.value) ? prev.filter(x => x !== d.value) : [...prev, d.value])}
+                    title={isWeeklyOff ? 'Weekly off day for this organisation' : undefined}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={active ? styles.filterTabActive : styles.filterTabInactive}
+                  >
+                    {d.label}
+                  </button>
+                )
+              })}
+            </div>
+            {errors.days && <p className="form-error">{errors.days}</p>}
+          </div>
+
+          {/* What those dates produce */}
+          {previewParams && (
+            <p className="text-xs rounded-lg px-3 py-2" style={{ background: surface.filterStrip, color: colors.text.muted }}>
+              {previewError
+                ? getApiError(previewError, 'Could not work out the sessions for these dates')
+                : previewing && !preview
+                  ? 'Counting sessions…'
+                  : preview && preview.sessionCount > 0
+                    ? <><b style={{ color: colors.text.primary }}>{preview.sessionCount} session{preview.sessionCount === 1 ? '' : 's'}</b>
+                        {preview.firstDate && preview.lastDate && <> · {formatDateStr(preview.firstDate)} – {formatDateStr(preview.lastDate)}</>}
+                        {' '}(holidays and weekly off days skipped)</>
+                    : 'No sessions fall in that period — change the dates or days.'}
+            </p>
+          )}
 
           {/* Fee per session — defaults to the program's price, editable for this case only */}
           {selectedProgram && (
@@ -767,10 +885,14 @@ function EnrollmentModal({
     preselectedSub?.id ?? subscriptions.find(s => s.status === 'ACTIVE')?.id ?? ''
   )
   const [duration, setDuration]                 = useState<number>(45)
-  const [startDate, setStartDate]               = useState('')
+  // A plan created with its schedule up front (start date and weekdays, chosen before payment) carries it here; the
+  // session count and price it was quoted were worked out from it, so it stays as chosen.
+  const [startDate, setStartDate]               = useState(preselectedSub?.plannedStartDate ?? '')
   const [startTime, setStartTime]               = useState('')
   // Defaults to every day — same behaviour as before this existed — and the caller narrows it.
-  const [sessionDays, setSessionDays]           = useState<DayOfWeek[]>(WEEK_DAYS.map(d => d.value))
+  const [sessionDays, setSessionDays]           = useState<DayOfWeek[]>(
+    preselectedSub?.plannedSessionDays?.length ? preselectedSub.plannedSessionDays : WEEK_DAYS.map(d => d.value))
+  const scheduleLocked = !!preselectedSub?.plannedStartDate && (preselectedSub.plannedSessionDays?.length ?? 0) > 0
   const [step, setStep]                         = useState<1 | 2>(1)
 
   // A day the org has marked as a weekly off would never generate a session anyway (see
@@ -782,12 +904,13 @@ function EnrollmentModal({
   })
   useEffect(() => {
     setSessionDays(prev => {
+      if (scheduleLocked) return prev
       // Only while every day is still selected — the moment the caller deselects
       // one themselves, stop overwriting their choice.
       if (prev.length !== WEEK_DAYS.length) return prev
       return WEEK_DAYS.map(d => d.value).filter(d => !weeklyOffDays.includes(d))
     })
-  }, [weeklyOffDays])
+  }, [weeklyOffDays, scheduleLocked])
 
   const [availableTherapists, setAvailableTherapists] = useState<AvailableTherapistResponse[]>([])
   const [selectedTherapistId, setSelectedTherapistId] = useState('')
@@ -1005,7 +1128,8 @@ function EnrollmentModal({
               {/* Start date — the plan's end is derived from this plus the session count */}
               <div>
                 <label className="form-label">Start Date</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-input w-full" />
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} disabled={scheduleLocked}
+                  className="form-input w-full disabled:opacity-70" />
                 {step1Errors.date && <p className="form-error">{step1Errors.date}</p>}
               </div>
             </div>
@@ -1022,7 +1146,7 @@ function EnrollmentModal({
                     <button
                       key={d.value}
                       type="button"
-                      disabled={isWeeklyOff}
+                      disabled={isWeeklyOff || scheduleLocked}
                       onClick={() => toggleSessionDay(d.value)}
                       title={isWeeklyOff ? 'Weekly off day for this organisation' : undefined}
                       className="rounded-full px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1034,6 +1158,12 @@ function EnrollmentModal({
                 })}
               </div>
               {step1Errors.days && <p className="form-error">{step1Errors.days}</p>}
+              {scheduleLocked && (
+                <p className="text-xs mt-1.5" style={{ color: colors.text.dim }}>
+                  The start date and days were chosen when the program was created, and the session count and price
+                  were worked out from them. Use Edit Schedule on the plan afterwards to change them.
+                </p>
+              )}
             </div>
 
             <p className="text-[12.65px] -mt-1" style={{ color: colors.text.dim }}>

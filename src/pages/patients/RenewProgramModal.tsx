@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { addDays, format, parseISO } from 'date-fns'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { enrollmentsApi } from '../../api/enrollments'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
@@ -8,6 +8,8 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
 import { colors, border, surface, accentAlpha } from '../../theme'
+import { endOfMonthStr } from '../../lib/schedule'
+import { styles } from '../../theme'
 import { PaymentEntryFields, emptyPayment, toPaymentRequest, todayStr, type PaymentEntryValue } from './PaymentEntry'
 import type { EnrollmentResponse, SubscriptionResponse } from '../../types'
 
@@ -26,6 +28,9 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
   const [sessions, setSessions] = useState('')
   const [amountInput, setAmountInput] = useState<string | null>(null)   // null = follow the usual amount
   const [startDate, setStartDate] = useState('')
+  // Add a number of sessions, or run from the start date to the end of a chosen month (the count is worked out).
+  const [mode, setMode] = useState<'sessions' | 'months'>('sessions')
+  const [endMonth, setEndMonth] = useState('')
   const [withPayment, setWithPayment] = useState(false)
   const [payment, setPayment] = useState<PaymentEntryValue>(emptyPayment())
   const [errors, setErrors] = useState<{ sessions?: string; payment?: string; startDate?: string; total?: string }>({})
@@ -39,7 +44,20 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
     : todayStr()
   const niceDate = (d: string) => format(parseISO(d), 'd MMM yyyy')
 
-  const n = parseInt(sessions, 10)
+  // By months: from the start date (the day after the last session unless chosen) to the end of the chosen month,
+  // on this program's own weekdays — the server counts the sessions with the same rules it uses to place them.
+  const effectiveStart = startDate || earliestStart
+  const monthBeforeStart = mode === 'months' && !!endMonth && endMonth < effectiveStart.slice(0, 7)
+  const previewParams = mode === 'months' && endMonth && !monthBeforeStart
+    ? { startDate: effectiveStart, sessionDays: enrollment.sessionDays ?? [], endDate: endOfMonthStr(endMonth) }
+    : null
+  const { data: preview, isFetching: previewing, error: previewError } = useQuery({
+    queryKey: ['schedule-preview', previewParams],
+    queryFn: () => enrollmentsApi.schedulePreview(previewParams!),
+    enabled: !!previewParams,
+  })
+
+  const n = mode === 'months' ? (preview?.sessionCount ?? NaN) : parseInt(sessions, 10)
   const validN = !isNaN(n) && n >= 1
   const factor = 1 - subscription.discountPercent / 100
   const addedCost = validN ? Math.round(subscription.perSessionCost * n * factor) : 0
@@ -55,7 +73,7 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
       const paid = withPayment ? toPaymentRequest(payment).request : undefined
       return enrollmentsApi.renew(enrollment.id, {
         additionalSessions: n,
-        startDate: startDate || undefined,
+        startDate: mode === 'months' ? effectiveStart : (startDate || undefined),
         // The plan keeps one total for all its sessions: what it is now plus what was agreed for the new ones.
         planTotal: adjustment !== 0 ? Math.round(subscription.totalAmount) + renewalAmount : undefined,
         payment: paid,
@@ -72,7 +90,11 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
   const submit = () => {
     setFormError(null)
     const e: typeof errors = {}
-    if (!validN) e.sessions = 'Enter how many sessions to add'
+    if (mode === 'months') {
+      if (!endMonth) e.sessions = 'Pick the month the renewal runs until'
+      else if (monthBeforeStart) e.sessions = 'The ending month is before the start date'
+      else if (!validN) e.sessions = 'No sessions fall in that period — change the dates'
+    } else if (!validN) e.sessions = 'Enter how many sessions to add'
     else if (n > 200) e.sessions = 'At most 200 sessions at a time'
     if (amountInput !== null && amountInput.trim() !== '' && (isNaN(typedAmount) || typedAmount < 0)) e.total = 'Enter a valid amount'
     if (startDate && startDate < earliestStart) {
@@ -108,15 +130,40 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
       </p>
 
       <div className="space-y-4">
+        <div className="flex gap-1.5">
+          {([['sessions', 'Number of sessions'], ['months', 'By months']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMode(key)}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={mode === key ? styles.filterTabActive : styles.filterTabInactive}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input
-            label="Sessions to add"
-            type="number" min="1" max="200" step="1"
-            value={sessions}
-            onChange={e => setSessions(e.target.value)}
-            error={errors.sessions}
-            autoFocus
-          />
+          {mode === 'sessions' ? (
+            <Input
+              label="Sessions to add"
+              type="number" min="1" max="200" step="1"
+              value={sessions}
+              onChange={e => setSessions(e.target.value)}
+              error={errors.sessions}
+              autoFocus
+            />
+          ) : (
+            <Input
+              label="Runs until the end of"
+              type="month"
+              min={effectiveStart.slice(0, 7)}
+              value={endMonth}
+              onChange={e => setEndMonth(e.target.value)}
+              error={errors.sessions}
+              autoFocus
+            />
+          )}
           <Input
             label="Start from (optional)"
             type="date" min={earliestStart}
@@ -135,6 +182,19 @@ export function RenewProgramModal({ enrollment, subscription, onClose, onRenewed
         <p className="text-xs" style={{ color: colors.text.dim }}>
           New sessions keep the same therapist, time and days as this program.
         </p>
+        {mode === 'months' && previewParams && (
+          <p className="text-xs rounded-lg px-3 py-2" style={{ background: surface.filterStrip, color: colors.text.muted }}>
+            {previewError
+              ? getApiError(previewError, 'Could not work out the sessions for these dates')
+              : previewing && !preview
+                ? 'Counting sessions…'
+                : preview && preview.sessionCount > 0
+                  ? <><b style={{ color: colors.text.primary }}>{preview.sessionCount} session{preview.sessionCount === 1 ? '' : 's'}</b>
+                      {preview.firstDate && preview.lastDate && <> · {niceDate(preview.firstDate)} – {niceDate(preview.lastDate)}</>}
+                      {' '}(holidays and weekly off days skipped)</>
+                  : 'No sessions fall in that period — change the dates.'}
+          </p>
+        )}
 
         {/* Where the plan stands today — kept visually apart from what the renewal will change */}
         <div className="rounded-xl p-3 space-y-1.5" style={{ background: surface.filterStrip, border: `1px solid ${border.divider}` }}>

@@ -1219,6 +1219,16 @@ export interface SubscriptionResponse {
   createdAt: string
   /** Set when an admin agreed a total for the whole plan (an ad hoc discount) — totalAmount is then this figure. */
   totalOverride?: number | null
+  /** Start date and weekdays chosen when the program was created — null on plans made before they were asked up front. */
+  plannedStartDate?: string | null
+  plannedSessionDays?: DayOfWeek[] | null
+}
+
+/** How many sessions a schedule produces, from `GET /enrollments/schedule-preview`. */
+export interface SchedulePreview {
+  sessionCount: number
+  firstDate: string | null
+  lastDate: string | null
 }
 
 export interface CreateSubscriptionRequest {
@@ -1229,6 +1239,9 @@ export interface CreateSubscriptionRequest {
   /** Overrides the program's own per-session price for this one case. Omit to use the
    *  program's price (with tax) as before — the program itself is never changed. */
   perSessionCost?: number
+  /** The start date and weekdays chosen up front, kept so the enrollment step starts from them. */
+  plannedStartDate?: string
+  plannedSessionDays?: DayOfWeek[]
 }
 
 export interface UpdatePaymentRequest {

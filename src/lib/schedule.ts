@@ -1,4 +1,4 @@
-import { format } from 'date-fns'
+import { endOfMonth, format, parseISO } from 'date-fns'
 
 /** Today's date in the browser's local timezone, as YYYY-MM-DD — for `<input type="date" min=...>`. */
 export function todayStr(): string {
@@ -16,4 +16,9 @@ export function addMinutesToTime(time: string, minutes: number): string {
   const [h, m] = time.split(':').map(Number)
   const total = Math.min((h || 0) * 60 + (m || 0) + minutes, 23 * 60 + 45)
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** Last day of a month given as "yyyy-MM" (what `<input type="month">` holds), as YYYY-MM-DD. */
+export function endOfMonthStr(month: string): string {
+  return format(endOfMonth(parseISO(`${month}-01`)), 'yyyy-MM-dd')
 }
