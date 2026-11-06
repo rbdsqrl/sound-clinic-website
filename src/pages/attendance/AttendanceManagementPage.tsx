@@ -262,7 +262,10 @@ function reportRows(
     const date = formatDate(d, 'yyyy-MM-dd')
     const record = byDate.get(date) ?? null
     let status: string
-    if (record?.checkInTime) status = 'Present'
+    if (record?.checkInTime) {
+      // A past day with a login but no logout is flagged — the hours can't be worked out for it.
+      status = !record.checkOutTime && date < formatDate(new Date(), 'yyyy-MM-dd') ? 'Present - no logout recorded' : 'Present'
+    }
     else if (holidayNames.has(date)) status = `Holiday - ${holidayNames.get(date)}`
     else if (weeklyOffSet.has(JS_TO_DOW[d.getDay()])) status = 'Weekly off'
     else if (leaves.some(l => l.leaveDate <= date && date <= l.endDate)) status = 'Leave'
@@ -476,7 +479,18 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-4 text-xs" style={{ color: colors.text.muted }}>
                     <span>In {formatTime(r.checkInTime)}</span>
-                    <span>Out {formatTime(r.checkOutTime)}</span>
+                    {r.checkInTime && !r.checkOutTime ? (
+                      // No logout: on a past day that is a gap to fix (Edit above); today it just means they are still in.
+                      r.attendanceDate < formatDate(new Date(), 'yyyy-MM-dd') ? (
+                        <span className="flex items-center gap-1 font-semibold" style={{ color: colors.status.warning }}>
+                          <AlertTriangle size={12} /> No logout recorded
+                        </span>
+                      ) : (
+                        <span style={{ color: colors.text.dim }}>Out — still checked in</span>
+                      )
+                    ) : (
+                      <span>Out {formatTime(r.checkOutTime)}</span>
+                    )}
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.geoVerified} /> Geo</span>
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.faceVerified} /> Face</span>
                     {r.checkInTime && (
