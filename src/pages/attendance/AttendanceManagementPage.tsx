@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
-  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft, ChevronLeft, ChevronRight, Pencil, MapPin, Download,
+  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft, ChevronLeft, ChevronRight, Pencil, MapPin, Download, Building2,
 } from 'lucide-react'
 import { eachDayOfInterval, format as formatDate, parseISO } from 'date-fns'
 import { attendanceApi } from '../../api/attendance'
@@ -77,12 +77,15 @@ interface EmployeeStats {
   avgHours: number | null
 }
 
-/** Where the employee was when they checked in — coordinates with a link that opens the spot on a map. */
-function CheckInLocation({ lat, lon }: { lat: number | null; lon: number | null }) {
+/**
+ * Where the employee was when they checked in — the coordinates, linking to the spot on a map. When the check-in fell
+ * outside the geo-fence it is flagged in the warning colour, since that is when the coordinates are worth a look.
+ */
+function CheckInLocation({ lat, lon, mismatch = false }: { lat: number | null; lon: number | null; mismatch?: boolean }) {
   if (lat == null || lon == null) {
     return (
-      <span className="flex items-center gap-1" style={{ color: colors.text.dim }}>
-        <MapPin size={12} /> Location not captured
+      <span className="flex items-center gap-1" style={{ color: mismatch ? colors.status.warning : colors.text.dim }}>
+        <MapPin size={12} /> {mismatch ? 'Outside geo-fence · location not captured' : 'Location not captured'}
       </span>
     )
   }
@@ -91,11 +94,11 @@ function CheckInLocation({ lat, lon }: { lat: number | null; lon: number | null 
       href={`https://www.google.com/maps?q=${lat},${lon}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-1 transition-colors"
-      style={{ color: colors.accent }}
+      className={`flex items-center gap-1 transition-colors ${mismatch ? 'font-semibold' : ''}`}
+      style={{ color: mismatch ? colors.status.warning : colors.accent }}
       title="Open the check-in location on a map"
     >
-      <MapPin size={12} /> {lat.toFixed(5)}, {lon.toFixed(5)}
+      <MapPin size={12} /> {mismatch ? 'Outside geo-fence · ' : ''}{lat.toFixed(5)}, {lon.toFixed(5)}
     </a>
   )
 }
@@ -476,7 +479,12 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
                     <span>Out {formatTime(r.checkOutTime)}</span>
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.geoVerified} /> Geo</span>
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.faceVerified} /> Face</span>
-                    <CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} />
+                    {r.checkInTime && (
+                      <span className="flex items-center gap-1" style={{ color: colors.text.primary }}>
+                        <Building2 size={12} style={{ color: colors.text.dim }} /> {r.clinicName || '—'}
+                      </span>
+                    )}
+                    <CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} mismatch={!!r.checkInTime && !r.geoVerified} />
                   </div>
                 </div>
               ))}
@@ -696,7 +704,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
                   <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
                     {r.clinicName} · {new Date(r.attendanceDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {formatTime(r.checkInTime)}
                   </p>
-                  <div className="text-xs mt-1"><CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} /></div>
+                  <div className="text-xs mt-1"><CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} mismatch={!r.geoVerified} /></div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <Button
