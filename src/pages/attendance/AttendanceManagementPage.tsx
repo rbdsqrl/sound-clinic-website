@@ -26,7 +26,11 @@ import { formatTime, formatDateTimeStr } from '../../lib/format'
 import { exportRowsAsCsv, type CsvColumn } from '../../lib/exportCsv'
 import { roleLabel } from '../../components/ui/Badge'
 import { colors, styles, border, surface, accentAlpha, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
-import type { AttendanceEditEntry, AttendanceResponse, DayOfWeek, LeaveResponse, StaffMemberResponse } from '../../types'
+import type { AttendanceEditEntry, AttendanceResponse, DayOfWeek, LeaveResponse, Role, StaffMemberResponse } from '../../types'
+
+/** The office roles this page reports on — parents and children are never part of staff attendance. */
+const STAFF_ROLES: Role[] = ['THERAPIST', 'OFFICE_ADMIN', 'CLINIC_HEAD', 'BUSINESS_OWNER']
+const holdsRole = (m: StaffMemberResponse, role: Role) => m.role === role || (m.additionalRoles ?? []).includes(role)
 
 const JS_TO_DOW: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
 
@@ -543,8 +547,14 @@ function PunchReport({ rows, from, to, weeklyOffSet, holidayNames, leaves, clini
     return m
   }, [leaves])
 
-  const stickyBase: React.CSSProperties = { position: 'sticky', background: surface.card, zIndex: 1 }
-  const headCell: React.CSSProperties = { background: surface.filterStrip, borderBottom: `1px solid ${border.divider}` }
+  const stickyBase: React.CSSProperties = { position: 'sticky', backgroundColor: surface.card, zIndex: 1 }
+  // The header tint is translucent, so the sticky headers get a solid card colour underneath it — otherwise the date
+  // headers scrolling beneath them show straight through.
+  const headCell: React.CSSProperties = {
+    backgroundColor: surface.card,
+    backgroundImage: `linear-gradient(${surface.filterStrip}, ${surface.filterStrip})`,
+    borderBottom: `1px solid ${border.divider}`,
+  }
   const NAME_W = 190
 
   return (
@@ -684,6 +694,8 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   const [to, setTo]     = useState(today)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [branchId, setBranchId]     = useState('')
+  // Therapists by default — the group whose attendance is checked most; '' shows every office role.
+  const [roleFilter, setRoleFilter] = useState<Role | ''>('THERAPIST')
   const [editingRecord, setEditingRecord] = useState<AttendanceResponse | null>(null)
 
   useEffect(() => {
@@ -764,7 +776,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
       byUser.set(r.userId, list)
     }
     return members
-      .filter(m => m.isActive)
+      .filter(m => m.isActive && STAFF_ROLES.some(r => holdsRole(m, r)))
       .map(member => {
         const recs = (byUser.get(member.id) ?? []).slice().sort((a, b) => a.attendanceDate.localeCompare(b.attendanceDate))
         const present = recs.filter(r => r.checkInTime).length
@@ -782,11 +794,12 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
 
   const selectedStats = employeeStats.find(e => e.member.id === selectedId) ?? null
 
-  // Branch filter: staff based at the chosen clinic, plus anyone who checked in there during the range.
+  // Role filter (office roles only), then branch: staff based at the chosen clinic plus anyone who checked in there.
   const visibleStats = useMemo(
-    () => !branchId ? employeeStats
-      : employeeStats.filter(e => e.member.clinicId === branchId || e.records.some(r => r.clinicId === branchId)),
-    [employeeStats, branchId],
+    () => employeeStats
+      .filter(e => !roleFilter || holdsRole(e.member, roleFilter))
+      .filter(e => !branchId || e.member.clinicId === branchId || e.records.some(r => r.clinicId === branchId)),
+    [employeeStats, branchId, roleFilter],
   )
 
   // Org-wide report: every employee shown (all branches, or the chosen one), every day in the range. Approved leave is
@@ -824,13 +837,20 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
       <Input label="" type="date" value={toDraft} onChange={e => setToDraft(e.target.value)} className="text-sm" />
       <Select
         label=""
+        value={roleFilter}
+        onChange={e => setRoleFilter(e.target.value as Role | '')}
+        placeholder="All office roles"
+        options={STAFF_ROLES.map(r => ({ value: r, label: roleLabel(r) }))}
+      />
+      <Select
+        label=""
         value={branchId}
         onChange={e => setBranchId(e.target.value)}
         placeholder="All branches"
         options={clinics.map(c => ({ value: c.id, label: c.name }))}
       />
       <Button variant="secondary" onClick={downloadAll} loading={downloading} disabled={visibleStats.length === 0}>
-        <Download size={14} /> Download all staff
+        <Download size={14} /> Download staff report
       </Button>
     </div>
   )
@@ -930,8 +950,10 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
           leaves={approvedLeaves.filter(l => l.therapistId === selectedStats.member.id)}
           onBack={() => setSelectedId(null)}
         />
-      ) : employeeStats.length === 0 ? (
-        <EmptyState icon={<ClipboardList size={32} />} title="No active staff" description="No active staff members to show attendance for" />
+      ) : visibleStats.length === 0 ? (
+        <EmptyState icon={<ClipboardList size={32} />}
+          title={employeeStats.length === 0 ? 'No active staff' : 'No staff match these filters'}
+          description={employeeStats.length === 0 ? 'No active staff members to show attendance for' : 'Try another role or branch.'} />
       ) : (
         <PunchReport
           rows={visibleStats}
