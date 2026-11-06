@@ -17,9 +17,9 @@ const TABS_BY_ROLE: Partial<Record<Role, { key: TabKey; label: string }[]>> = {
     { key: 'my-leave',         label: 'My Leave' },
     { key: 'leave-requests',   label: 'Leave Requests' },
   ],
+  // Staff Attendance (all employees' records, GPS-verified times, corrections) is the Business Owner's alone.
   CLINIC_HEAD: [
     { key: 'my-attendance',    label: 'My Attendance' },
-    { key: 'staff-attendance', label: 'Staff Attendance' },
     { key: 'my-leave',         label: 'My Leave' },
     { key: 'leave-requests',   label: 'Leave Requests' },
   ],

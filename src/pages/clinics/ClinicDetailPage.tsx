@@ -24,6 +24,8 @@ export default function ClinicDetailPage() {
   const queryClient = useQueryClient()
   const { user, activeRole } = useAuth()
   const canEditClinic = (activeRole ?? user?.role) !== 'THERAPIST'
+  // GPS settings (location and geo-fence radius) belong to the Business Owner alone.
+  const isOwner = !!user && (user.role === 'BUSINESS_OWNER' || user.additionalRoles.includes('BUSINESS_OWNER'))
 
   const { data: clinic, isLoading } = useQuery({
     queryKey: ['clinics', id],
@@ -97,8 +99,8 @@ export default function ClinicDetailPage() {
               ['Timezone', clinic.timezone],
               ['Address', clinic.address],
               ['Status', clinic.isActive ? 'Active' : 'Inactive'],
-              // Attendance geo-fence details are for admin roles only — a therapist doesn't see them.
-              ...(canEditClinic ? [
+              // Attendance geo-fence details (GPS settings) are the Business Owner's alone.
+              ...(isOwner ? [
                 ['Latitude', clinic.latitude != null ? String(clinic.latitude) : null],
                 ['Longitude', clinic.longitude != null ? String(clinic.longitude) : null],
                 ['Geo-fence Radius (m)', clinic.geoFenceRadiusMeters != null ? String(clinic.geoFenceRadiusMeters) : null],
@@ -113,12 +115,13 @@ export default function ClinicDetailPage() {
             ))}
           </dl>
         ) : (
-          <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+          <form onSubmit={handleSubmit((d) => mutation.mutate(isOwner ? d : { ...d, latitude: undefined, longitude: undefined, geoFenceRadiusMeters: undefined }))} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input label="Name"     {...register('name')} />
               <Input label="Email"    type="email" {...register('email')} />
               <Input label="Phone"    {...register('phone')} />
               <Input label="Timezone" {...register('timezone')} />
+              {isOwner && (<>
               <Input label="Latitude"  type="number" step="any" placeholder="e.g. 12.9716" {...register('latitude', { valueAsNumber: true })} />
               <Input label="Longitude" type="number" step="any" placeholder="e.g. 77.5946" {...register('longitude', { valueAsNumber: true })} />
               <div className="sm:col-span-2 flex items-center gap-3">
@@ -130,6 +133,7 @@ export default function ClinicDetailPage() {
                 </span>
               </div>
               <Input label="Geo-fence Radius (metres)" type="number" placeholder="200" {...register('geoFenceRadiusMeters', { valueAsNumber: true })} />
+              </>)}
             </div>
             <Input label="Address" {...register('address')} />
             <div className="flex gap-3">

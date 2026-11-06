@@ -676,6 +676,8 @@ export default function OrganisationPage() {
   const { toast } = useToast()
   const qc = useQueryClient()
   const { user } = useAuth()
+  // GPS settings (location and geo-fence radius) belong to the Business Owner alone.
+  const isOwner = !!user && (user.role === 'BUSINESS_OWNER' || user.additionalRoles.includes('BUSINESS_OWNER'))
   const canManage = user?.role === 'BUSINESS_OWNER' || user?.role === 'CLINIC_HEAD' || user?.role === 'OFFICE_ADMIN'
 
   // ── Queries ──────────────────────────────────────────────────────────────────
@@ -1160,9 +1162,11 @@ export default function OrganisationPage() {
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[['Name', org?.name], ['Email', org?.contactEmail],
                   ['Phone', org?.contactPhone], ['Timezone', org?.timezone], ['Address', org?.address],
-                  ['Latitude', org?.latitude != null ? String(org.latitude) : null],
-                  ['Longitude', org?.longitude != null ? String(org.longitude) : null],
-                  ['Geo-fence Radius (m)', org?.geoFenceRadiusMeters != null ? String(org.geoFenceRadiusMeters) : null],
+                  ...(isOwner ? [
+                    ['Latitude', org?.latitude != null ? String(org.latitude) : null],
+                    ['Longitude', org?.longitude != null ? String(org.longitude) : null],
+                    ['Geo-fence Radius (m)', org?.geoFenceRadiusMeters != null ? String(org.geoFenceRadiusMeters) : null],
+                  ] : []),
                 ].map(([label, value]) => (
                   <div key={label as string}>
                     <dt className="text-xs font-medium uppercase tracking-wider" style={{ color: colors.text.dim }}>{label}</dt>
@@ -1171,12 +1175,13 @@ export default function OrganisationPage() {
                 ))}
               </dl>
             ) : (
-              <form onSubmit={handleSubmit((d) => orgMut.mutate(d))} className="space-y-4">
+              <form onSubmit={handleSubmit((d) => orgMut.mutate(isOwner ? d : { ...d, latitude: undefined, longitude: undefined, geoFenceRadiusMeters: undefined }))} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Input label="Name" error={errors.name?.message} {...register('name')} />
                   <Input label="Contact Email" type="email" {...register('contactEmail')} />
                   <Input label="Contact Phone" {...register('contactPhone')} />
                   <Input label="Timezone" {...register('timezone')} />
+                  {isOwner && (<>
                   <Input label="Latitude"  type="number" step="any" placeholder="e.g. 12.9716" {...register('latitude', { valueAsNumber: true })} />
                   <Input label="Longitude" type="number" step="any" placeholder="e.g. 77.5946" {...register('longitude', { valueAsNumber: true })} />
                   <div className="sm:col-span-2 flex items-center gap-3">
@@ -1188,6 +1193,7 @@ export default function OrganisationPage() {
                     </span>
                   </div>
                   <Input label="Geo-fence Radius (metres)" type="number" placeholder="200" {...register('geoFenceRadiusMeters', { valueAsNumber: true })} />
+                  </>)}
                 </div>
                 <Input label="Address" {...register('address')} />
                 <Input label="Logo URL" type="url" {...register('logoUrl')} />

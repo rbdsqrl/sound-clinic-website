@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
-  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft, ChevronLeft, ChevronRight,
+  CalendarCheck, CalendarX, Fingerprint, Timer, ArrowLeft, ChevronLeft, ChevronRight, Pencil, MapPin, Download,
 } from 'lucide-react'
 import { eachDayOfInterval, format as formatDate, parseISO } from 'date-fns'
 import { attendanceApi } from '../../api/attendance'
@@ -14,16 +14,18 @@ import { leavesApi } from '../../api/leaves'
 import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Avatar } from '../../components/shared/Avatar'
 import AttendanceHoursChart, { type AttendanceHoursDay } from '../../components/charts/AttendanceHoursChart'
 import { useToast } from '../../hooks/useToast'
 import { getApiError } from '../../lib/apiError'
-import { formatTime } from '../../lib/format'
+import { formatTime, formatDateTimeStr } from '../../lib/format'
+import { exportRowsAsCsv, type CsvColumn } from '../../lib/exportCsv'
 import { roleLabel } from '../../components/ui/Badge'
-import { colors, styles, border, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
-import type { AttendanceResponse, DayOfWeek, LeaveResponse, StaffMemberResponse } from '../../types'
+import { colors, styles, border, surface, accentAlpha, warningAlpha, successAlpha, dangerAlpha } from '../../theme'
+import type { AttendanceEditEntry, AttendanceResponse, DayOfWeek, LeaveResponse, StaffMemberResponse } from '../../types'
 
 const JS_TO_DOW: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
 
@@ -75,10 +77,218 @@ interface EmployeeStats {
   avgHours: number | null
 }
 
+/** Where the employee was when they checked in — coordinates with a link that opens the spot on a map. */
+function CheckInLocation({ lat, lon }: { lat: number | null; lon: number | null }) {
+  if (lat == null || lon == null) {
+    return (
+      <span className="flex items-center gap-1" style={{ color: colors.text.dim }}>
+        <MapPin size={12} /> Location not captured
+      </span>
+    )
+  }
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${lat},${lon}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1 transition-colors"
+      style={{ color: colors.accent }}
+      title="Open the check-in location on a map"
+    >
+      <MapPin size={12} /> {lat.toFixed(5)}, {lon.toFixed(5)}
+    </a>
+  )
+}
+
+/** "HH:mm" in the browser's local time, for a time input. */
+const toHHmm = (iso: string | null) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+const minutesOf = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+const fromMinutes = (mins: number) =>
+  `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+/** A time on the record's own day, as the ISO instant the server stores. */
+const atDay = (date: string, hhmm: string) => new Date(`${date}T${hhmm}:00`).toISOString()
+
+/**
+ * Business Owner only: correct a record's login / logout time or its working hours. The hours and the two times move
+ * together (changing the hours moves the logout time). Every save is kept in the record's edit history, shown below.
+ */
+function EditAttendanceModal({ record, onClose }: { record: AttendanceResponse; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  const [inTime, setInTime]   = useState(toHHmm(record.checkInTime))
+  const [outTime, setOutTime] = useState(toHHmm(record.checkOutTime))
+  const hoursOf = (i: string, o: string) => (i && o && minutesOf(o) > minutesOf(i) ? ((minutesOf(o) - minutesOf(i)) / 60).toFixed(2) : '')
+  const [hours, setHours]     = useState(hoursOf(toHHmm(record.checkInTime), toHHmm(record.checkOutTime)))
+  const [note, setNote]       = useState('')
+  const [error, setError]     = useState('')
+
+  const { data: history = [], isLoading: historyLoading } = useQuery({
+    queryKey: ['attendance-history', record.id],
+    queryFn: () => attendanceApi.history(record.id),
+  })
+
+  const changeIn = (v: string) => { setInTime(v); setHours(hoursOf(v, outTime)) }
+  const changeOut = (v: string) => { setOutTime(v); setHours(hoursOf(inTime, v)) }
+  const changeHours = (v: string) => {
+    setHours(v)
+    const h = parseFloat(v)
+    if (inTime && !isNaN(h) && h > 0) {
+      const out = minutesOf(inTime) + Math.round(h * 60)
+      if (out < 24 * 60) setOutTime(fromMinutes(out))
+    }
+  }
+
+  const mut = useMutation({
+    mutationFn: () => attendanceApi.editTimes(record.id, {
+      checkInTime: atDay(record.attendanceDate, inTime),
+      checkOutTime: outTime ? atDay(record.attendanceDate, outTime) : null,
+      note: note.trim() || undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+      qc.invalidateQueries({ queryKey: ['attendance-history', record.id] })
+      toast('Attendance corrected', 'success')
+      onClose()
+    },
+    onError: (err) => setError(getApiError(err, 'Could not save the correction')),
+  })
+
+  const unchanged = inTime === toHHmm(record.checkInTime) && outTime === toHHmm(record.checkOutTime)
+
+  return (
+    <Modal open title="Correct attendance" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm" style={{ color: colors.text.muted }}>
+          <span className="font-semibold" style={{ color: colors.text.primary }}>{record.userFirstName} {record.userLastName}</span>
+          {' · '}{new Date(record.attendanceDate + 'T00:00:00').toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Input label="Login time" type="time" value={inTime} onChange={e => changeIn(e.target.value)} />
+          <Input label="Logout time" type="time" value={outTime} onChange={e => changeOut(e.target.value)} />
+          <Input label="Working hours" type="number" min="0" step="0.25" value={hours} onChange={e => changeHours(e.target.value)} />
+        </div>
+        <p className="text-xs -mt-2" style={{ color: colors.text.dim }}>
+          Change the login or logout time and the hours follow; change the hours and the logout time moves. Leave the logout
+          time empty if the employee has not logged out.
+        </p>
+
+        <Input label="Reason (optional)" value={note} onChange={e => setNote(e.target.value)}
+          placeholder="Forgot to log out; left at 6 PM" />
+
+        {error && <p className="form-error">{error}</p>}
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: colors.text.dim }}>Edit history</p>
+          {historyLoading ? (
+            <p className="text-xs" style={{ color: colors.text.dim }}>Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="text-xs" style={{ color: colors.text.dim }}>This record has not been edited.</p>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+              {history.map((h: AttendanceEditEntry) => (
+                <div key={h.id} className="rounded-lg px-3 py-2 text-xs" style={{ background: surface.filterStrip }}>
+                  <p className="font-medium" style={{ color: colors.text.primary }}>
+                    {formatDateTimeStr(h.editedAt)}{h.editedByName ? ` · ${h.editedByName}` : ''}
+                  </p>
+                  {h.changes.map(c => (
+                    <p key={c.field} style={{ color: colors.text.muted }}>{c.field}: {c.from} → {c.to}</p>
+                  ))}
+                  {h.note && <p style={{ color: colors.text.dim }}>“{h.note}”</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2 justify-end mt-6 pt-4" style={{ borderTop: `1px solid ${border.divider}` }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          loading={mut.isPending}
+          onClick={() => {
+            if (!inTime) { setError('Enter the login time'); return }
+            if (outTime && minutesOf(outTime) <= minutesOf(inTime)) { setError('The logout time must be after the login time'); return }
+            if (unchanged) { setError('Change the login time, the logout time or the working hours'); return }
+            setError('')
+            mut.mutate()
+          }}
+        >
+          Save correction
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 function hoursWorked(r: AttendanceResponse): number | null {
   if (!r.checkInTime || !r.checkOutTime) return null
   return (new Date(r.checkOutTime).getTime() - new Date(r.checkInTime).getTime()) / 3_600_000
 }
+
+// ── CSV reports ───────────────────────────────────────────────────────────────
+
+interface ReportRow {
+  employee: string
+  role: string
+  date: string
+  status: string
+  record: AttendanceResponse | null
+}
+
+/**
+ * One row per calendar day in the range for one employee: the day's record when they checked in, otherwise why there
+ * is none — public holiday, the organisation's weekly off, approved leave, or Absent. Rows for days with no record
+ * are what make the file usable for payroll, where the days not worked matter as much as the hours.
+ */
+function reportRows(
+  member: StaffMemberResponse, records: AttendanceResponse[], leaves: LeaveResponse[],
+  from: string, to: string, weeklyOffSet: Set<string>, holidayNames: Map<string, string>,
+): ReportRow[] {
+  const byDate = new Map(records.map(r => [r.attendanceDate, r]))
+  const name = `${member.firstName} ${member.lastName}`.trim()
+  return eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }).map(d => {
+    const date = formatDate(d, 'yyyy-MM-dd')
+    const record = byDate.get(date) ?? null
+    let status: string
+    if (record?.checkInTime) status = 'Present'
+    else if (holidayNames.has(date)) status = `Holiday - ${holidayNames.get(date)}`
+    else if (weeklyOffSet.has(JS_TO_DOW[d.getDay()])) status = 'Weekly off'
+    else if (leaves.some(l => l.leaveDate <= date && date <= l.endDate)) status = 'Leave'
+    else status = 'Absent'
+    return { employee: name, role: roleLabel(member.role, member.customRole), date, status, record }
+  })
+}
+
+const REPORT_COLUMNS: CsvColumn<ReportRow>[] = [
+  { header: 'Employee', value: r => r.employee },
+  { header: 'Role', value: r => r.role },
+  { header: 'Date', value: r => r.date },
+  { header: 'Day', value: r => formatDate(parseISO(r.date), 'EEE') },
+  { header: 'Status', value: r => r.status },
+  { header: 'Clinic / Location', value: r => r.record?.clinicName },
+  { header: 'Login time', value: r => toHHmm(r.record?.checkInTime ?? null) },
+  { header: 'Logout time', value: r => toHHmm(r.record?.checkOutTime ?? null) },
+  { header: 'Working hours', value: r => {
+    const h = r.record ? hoursWorked(r.record) : null
+    return h === null ? '' : h.toFixed(2)
+  } },
+  { header: 'Geo verified', value: r => (r.record?.checkInTime ? (r.record.geoVerified ? 'Yes' : 'No') : '') },
+  { header: 'Face verified', value: r => (r.record?.checkInTime ? (r.record.faceVerified ? 'Yes' : 'No') : '') },
+  { header: 'Check-in latitude', value: r => r.record?.checkInLatitude },
+  { header: 'Check-in longitude', value: r => r.record?.checkInLongitude },
+  { header: 'Manually edited', value: r => (r.record?.manuallyEdited ? 'Yes' : '') },
+]
+
+const fileSafe = (s: string) => s.trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 // ── Employee detail panel ────────────────────────────────────────────────────
 // Rendered in place of the employee list (not a modal/drawer) — same pattern as
@@ -91,6 +301,7 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
   weeklyOffSet: Set<string>; holidayNames: Map<string, string>; leaves: LeaveResponse[]; onBack: () => void
 }) {
   const { member, records, present, absent, verified, avgHours } = stats
+  const [editingRecord, setEditingRecord] = useState<AttendanceResponse | null>(null)
 
   const dayRange = useMemo(
     () => eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }),
@@ -168,6 +379,18 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
               {roleLabel(member.role, member.customRole)}{clinicName && ` · ${clinicName}`}
             </p>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-auto flex-shrink-0"
+            onClick={() => exportRowsAsCsv(
+              `attendance_${fileSafe(`${member.firstName} ${member.lastName}`)}_${from}_to_${to}.csv`,
+              reportRows(member, records, leaves, from, to, weeklyOffSet, holidayNames),
+              REPORT_COLUMNS,
+            )}
+          >
+            <Download size={14} /> Download report
+          </Button>
         </div>
 
         {/* Stats */}
@@ -230,13 +453,30 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
                     <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
                       {new Date(r.attendanceDate + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
-                    {r.faceOverride && <OverrideBadge approved={r.overrideApproved} />}
+                    <div className="flex items-center gap-2">
+                      {r.manuallyEdited && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: warningAlpha(0.12), color: colors.status.warning }}>
+                          Edited
+                        </span>
+                      )}
+                      {r.faceOverride && <OverrideBadge approved={r.overrideApproved} />}
+                      <button
+                        type="button"
+                        onClick={() => setEditingRecord(r)}
+                        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors"
+                        style={{ color: colors.accent, background: accentAlpha(0.08) }}
+                        title="Correct the login / logout time or working hours"
+                      >
+                        <Pencil size={11} /> Edit
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-4 text-xs" style={{ color: colors.text.muted }}>
                     <span>In {formatTime(r.checkInTime)}</span>
                     <span>Out {formatTime(r.checkOutTime)}</span>
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.geoVerified} /> Geo</span>
                     <span className="flex items-center gap-1"><VerifyIcon ok={r.faceVerified} /> Face</span>
+                    <CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} />
                   </div>
                 </div>
               ))}
@@ -244,6 +484,8 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
           )}
         </div>
       </div>
+
+      {editingRecord && <EditAttendanceModal record={editingRecord} onClose={() => setEditingRecord(null)} />}
     </Card>
   )
 }
@@ -363,6 +605,26 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
 
   const selectedStats = employeeStats.find(e => e.member.id === selectedId) ?? null
 
+  // Org-wide report: every active employee, every day in the range. Approved leave is fetched when the button is
+  // pressed (it is otherwise only needed in an employee's detail view) so a leave day isn't reported as Absent.
+  const [downloading, setDownloading] = useState(false)
+  const downloadAll = async () => {
+    setDownloading(true)
+    try {
+      let leaves: LeaveResponse[] = []
+      try {
+        leaves = await qc.fetchQuery({ queryKey: ['leaves', 'APPROVED'], queryFn: () => leavesApi.list('APPROVED'), staleTime: 60_000 })
+      } catch {
+        toast('Leave days could not be loaded — they will show as Absent in this file', 'error')
+      }
+      const rows = employeeStats.flatMap(e =>
+        reportRows(e.member, e.records, leaves.filter(l => l.therapistId === e.member.id), from, to, weeklyOffSet, holidayNames))
+      exportRowsAsCsv(`attendance_all-staff_${from}_to_${to}.csv`, rows, REPORT_COLUMNS)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const pendingOverrides = records.filter(r => r.faceOverride && r.overrideApproved === null)
 
   // Only the roster gates the full-page loader — records use placeholderData above, so a date
@@ -372,10 +634,13 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   if (isLoading) return <PageLoader />
 
   const DateFilters = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Input label="" type="date" value={fromDraft} onChange={e => setFromDraft(e.target.value)} className="text-sm" />
       <span className="text-sm" style={{ color: colors.text.muted }}>to</span>
       <Input label="" type="date" value={toDraft} onChange={e => setToDraft(e.target.value)} className="text-sm" />
+      <Button variant="secondary" onClick={downloadAll} loading={downloading} disabled={employeeStats.length === 0}>
+        <Download size={14} /> Download all staff
+      </Button>
     </div>
   )
 
@@ -431,6 +696,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
                   <p className="text-xs mt-0.5" style={{ color: colors.text.muted }}>
                     {r.clinicName} · {new Date(r.attendanceDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {formatTime(r.checkInTime)}
                   </p>
+                  <div className="text-xs mt-1"><CheckInLocation lat={r.checkInLatitude} lon={r.checkInLongitude} /></div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <Button

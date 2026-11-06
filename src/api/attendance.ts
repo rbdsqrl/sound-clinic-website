@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, AttendanceResponse, CheckInRequest, CheckOutRequest, EnrollFaceRequest, GeoCheckResponse, VerifyAttendanceRequest } from '../types'
+import type { ApiResponse, AttendanceEditEntry, AttendanceResponse, CheckInRequest, EditAttendanceTimesRequest, CheckOutRequest, EnrollFaceRequest, GeoCheckResponse, VerifyAttendanceRequest } from '../types'
 
 export const attendanceApi = {
   checkIn: (data: CheckInRequest) =>
@@ -31,4 +31,12 @@ export const attendanceApi = {
 
   reviewOverride: (id: string, approved: boolean) =>
     client.patch<ApiResponse<AttendanceResponse>>(`/attendance/${id}/review-override`, { approved }).then(r => r.data.data),
+
+  /** Correct a record's login / logout time — Business Owner only; kept in the record's edit history. */
+  editTimes: (id: string, data: EditAttendanceTimesRequest) =>
+    client.patch<ApiResponse<AttendanceResponse>>(`/attendance/${id}/times`, data).then(r => r.data.data),
+
+  /** The manual corrections made to a record, newest first — Business Owner only. */
+  history: (id: string) =>
+    client.get<ApiResponse<AttendanceEditEntry[]>>(`/attendance/${id}/history`).then(r => r.data.data),
 }

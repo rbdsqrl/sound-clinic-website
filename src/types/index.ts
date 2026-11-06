@@ -1548,6 +1548,28 @@ export interface AttendanceResponse {
   overrideReviewedAt: string | null
   status: AttendanceStatus
   createdAt: string
+  /** Where the employee was when they checked in — null when location wasn't available. */
+  checkInLatitude: number | null
+  checkInLongitude: number | null
+  /** True once the Business Owner has corrected this record's login / logout time by hand. */
+  manuallyEdited: boolean
+}
+
+/** One manual correction of an attendance record, from its edit history. */
+export interface AttendanceEditEntry {
+  id: string
+  editedById: string | null
+  editedByName: string | null
+  editedAt: string
+  note: string | null
+  changes: { field: string; from: string; to: string }[]
+}
+
+export interface EditAttendanceTimesRequest {
+  checkInTime: string          // ISO instant
+  /** Null = the employee has not logged out. */
+  checkOutTime: string | null
+  note?: string
 }
 
 export interface CheckInRequest {
