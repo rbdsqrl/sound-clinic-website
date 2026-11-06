@@ -13,6 +13,7 @@ import { publicHolidaysApi } from '../../api/publicHolidays'
 import { leavesApi } from '../../api/leaves'
 import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { PageLoader } from '../../components/ui/Spinner'
@@ -512,6 +513,159 @@ function EmployeeDetailPanel({ stats, from, to, clinicName, weeklyOffSet, holida
   )
 }
 
+// ── Daily punch report (the employee × day matrix) ───────────────────────────
+
+const PUNCH_FMT = 'hh:mm a'
+const punchTime = (iso: string) => formatDate(new Date(iso), PUNCH_FMT)
+
+/**
+ * One row per employee, one column per day in the range, each cell the login time above the logout time. A past day
+ * with a login but no logout is shaded with a warning mark; a geo mismatch and a manual edit get their own marks. A day
+ * with no record says why — holiday, weekly off, leave — or shows a dash for absent. The employee and role columns stay
+ * put while the days scroll sideways; clicking a time opens that record to correct, clicking the name opens the employee.
+ */
+function PunchReport({ rows, from, to, weeklyOffSet, holidayNames, leaves, clinicMap, onOpenEmployee, onEditRecord }: {
+  rows: EmployeeStats[]
+  from: string
+  to: string
+  weeklyOffSet: Set<string>
+  holidayNames: Map<string, string>
+  leaves: LeaveResponse[]
+  clinicMap: Record<string, string>
+  onOpenEmployee: (memberId: string) => void
+  onEditRecord: (record: AttendanceResponse) => void
+}) {
+  const days = useMemo(() => eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }), [from, to])
+  const todayKey = formatDate(new Date(), 'yyyy-MM-dd')
+  const leavesByUser = useMemo(() => {
+    const m = new Map<string, LeaveResponse[]>()
+    for (const l of leaves) m.set(l.therapistId, [...(m.get(l.therapistId) ?? []), l])
+    return m
+  }, [leaves])
+
+  const stickyBase: React.CSSProperties = { position: 'sticky', background: surface.card, zIndex: 1 }
+  const headCell: React.CSSProperties = { background: surface.filterStrip, borderBottom: `1px solid ${border.divider}` }
+  const NAME_W = 190
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={styles.card}>
+      <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2" style={{ borderBottom: `1px solid ${border.divider}` }}>
+        <h2 className="text-base font-semibold" style={{ color: colors.text.heading }}>Daily Punch Report</h2>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]" style={{ color: colors.text.muted }}>
+          <span className="flex items-center gap-1"><AlertTriangle size={11} style={{ color: colors.status.warning }} /> No logout recorded</span>
+          <span className="flex items-center gap-1"><MapPin size={11} style={{ color: colors.status.warning }} /> Outside geo-fence</span>
+          <span className="flex items-center gap-1"><Pencil size={10} style={{ color: colors.text.dim }} /> Edited</span>
+          <span style={{ color: colors.text.dim }}>Click a time to correct it</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: '100%' }}>
+          <thead>
+            <tr>
+              <th className="text-left py-2.5 px-4 text-xs font-semibold" style={{ ...stickyBase, ...headCell, left: 0, minWidth: NAME_W, width: NAME_W, zIndex: 2, color: colors.text.heading }}>
+                Employee
+              </th>
+              <th className="hidden md:table-cell text-left py-2.5 px-4 text-xs font-semibold"
+                style={{ ...stickyBase, ...headCell, left: NAME_W, minWidth: 190, zIndex: 2, color: colors.text.heading, borderRight: `1px solid ${border.divider}` }}>
+                Role
+              </th>
+              {days.map(d => (
+                <th key={d.toISOString()} className="text-left py-2.5 px-3 text-xs font-semibold whitespace-nowrap" style={{ ...headCell, minWidth: 112, color: colors.text.heading }}>
+                  <div>{formatDate(d, 'dd-MM-yyyy')}</div>
+                  <div className="font-normal" style={{ color: colors.text.muted }}>{formatDate(d, 'EEEE')}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(stats => {
+              const m = stats.member
+              const byDate = new Map(stats.records.map(r => [r.attendanceDate, r]))
+              const myLeaves = leavesByUser.get(m.id) ?? []
+              return (
+                <tr key={m.id}>
+                  <td className="py-2.5 px-4 align-top" style={{ ...stickyBase, left: 0, minWidth: NAME_W, width: NAME_W, borderBottom: `1px solid ${border.divider}` }}>
+                    <button type="button" onClick={() => onOpenEmployee(m.id)} className="text-left" title="Open this employee's attendance">
+                      <p className="font-semibold text-sm" style={{ color: colors.text.primary }}>{m.firstName} {m.lastName}</p>
+                    </button>
+                    <p className="text-[11px] mt-0.5" style={{ color: colors.text.dim }}>
+                      <span style={{ color: colors.status.success }}>{stats.present} present</span>
+                      {' · '}<span style={{ color: stats.absent > 0 ? colors.status.error : colors.text.dim }}>{stats.absent} absent</span>
+                      {stats.avgHours !== null && <> · {stats.avgHours.toFixed(1)}h avg</>}
+                    </p>
+                    <p className="md:hidden text-[11px]" style={{ color: colors.text.muted }}>{roleLabel(m.role, m.customRole)}</p>
+                  </td>
+                  <td className="hidden md:table-cell py-2.5 px-4 align-top"
+                    style={{ ...stickyBase, left: NAME_W, minWidth: 190, borderBottom: `1px solid ${border.divider}`, borderRight: `1px solid ${border.divider}` }}>
+                    <p className="text-sm font-medium" style={{ color: colors.text.primary }}>{roleLabel(m.role, m.customRole)}</p>
+                    {m.clinicId && <p className="text-[11px]" style={{ color: colors.text.dim }}>{clinicMap[m.clinicId] ?? ''}</p>}
+                  </td>
+                  {days.map(d => {
+                    const date = formatDate(d, 'yyyy-MM-dd')
+                    const rec = byDate.get(date)
+                    const cellStyle: React.CSSProperties = { borderBottom: `1px solid ${border.divider}`, minWidth: 112 }
+
+                    if (rec?.checkInTime) {
+                      const missingOut = !rec.checkOutTime && date < todayKey
+                      const offGeo = !rec.geoVerified
+                      return (
+                        <td key={date} className="p-0 align-top" style={{ ...cellStyle, background: missingOut ? warningAlpha(0.10) : undefined }}>
+                          <button
+                            type="button"
+                            onClick={() => onEditRecord(rec)}
+                            className="w-full text-left px-3 py-2.5 transition-colors"
+                            title={[
+                              rec.clinicName,
+                              missingOut ? 'No logout recorded' : undefined,
+                              offGeo ? 'Check-in was outside the geo-fence' : undefined,
+                              rec.manuallyEdited ? 'Times were corrected by hand' : undefined,
+                              'Click to correct',
+                            ].filter(Boolean).join(' · ')}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = accentAlpha(0.06)}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                          >
+                            <span className="flex items-center gap-1.5 text-xs tabular-nums underline" style={{ color: colors.text.primary }}>
+                              {punchTime(rec.checkInTime)}
+                              {missingOut && <AlertTriangle size={13} style={{ color: colors.status.warning }} />}
+                              {offGeo && <MapPin size={12} style={{ color: colors.status.warning }} />}
+                              {rec.manuallyEdited && <Pencil size={10} style={{ color: colors.text.dim }} />}
+                            </span>
+                            {rec.checkOutTime ? (
+                              <span className="block text-xs tabular-nums underline mt-0.5" style={{ color: colors.text.primary }}>{punchTime(rec.checkOutTime)}</span>
+                            ) : !missingOut ? (
+                              <span className="block text-[11px] mt-0.5" style={{ color: colors.text.dim }}>still in</span>
+                            ) : null}
+                          </button>
+                        </td>
+                      )
+                    }
+
+                    // No record: say why, or a dash for absent.
+                    const holiday = holidayNames.get(date)
+                    const weeklyOff = weeklyOffSet.has(JS_TO_DOW[d.getDay()])
+                    const onLeave = myLeaves.some(l => l.leaveDate <= date && date <= l.endDate)
+                    const [text, color, bg] = holiday !== undefined ? ['Holiday', colors.status.warning, warningAlpha(0.06)]
+                      : weeklyOff ? ['Off', colors.text.dim, surface.filterStrip]
+                      : onLeave ? ['Leave', colors.accent, accentAlpha(0.06)]
+                      : ['–', colors.text.dim, undefined]
+                    return (
+                      <td key={date} className="px-3 py-2.5 align-top text-xs" style={{ ...cellStyle, color, background: bg }}
+                        title={holiday ?? (weeklyOff ? 'Weekly off' : onLeave ? 'On approved leave' : 'No attendance recorded')}>
+                        {text}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AttendanceManagementPage({ asTab = false }: { asTab?: boolean }) {
@@ -529,6 +683,8 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   const [from, setFrom] = useState(sevenDaysAgo)
   const [to, setTo]     = useState(today)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [branchId, setBranchId]     = useState('')
+  const [editingRecord, setEditingRecord] = useState<AttendanceResponse | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setFrom(fromDraft), 600)
@@ -571,11 +727,10 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   const holidayNames = useMemo(() => new Map(holidays.map(h => [h.holidayDate, h.name] as [string, string])), [holidays])
   const weeklyOffSet = useMemo(() => new Set(weeklyOffDays), [weeklyOffDays])
 
-  // Approved leave, only needed to shade an employee's day-off days in their detail chart.
+  // Approved leave — marks leave days in the punch report and in an employee's detail chart.
   const { data: approvedLeaves = [] } = useQuery({
     queryKey: ['leaves', 'APPROVED'],
     queryFn: () => leavesApi.list('APPROVED'),
-    enabled: selectedId !== null,
   })
 
   const reviewMut = useMutation({
@@ -627,8 +782,15 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
 
   const selectedStats = employeeStats.find(e => e.member.id === selectedId) ?? null
 
-  // Org-wide report: every active employee, every day in the range. Approved leave is fetched when the button is
-  // pressed (it is otherwise only needed in an employee's detail view) so a leave day isn't reported as Absent.
+  // Branch filter: staff based at the chosen clinic, plus anyone who checked in there during the range.
+  const visibleStats = useMemo(
+    () => !branchId ? employeeStats
+      : employeeStats.filter(e => e.member.clinicId === branchId || e.records.some(r => r.clinicId === branchId)),
+    [employeeStats, branchId],
+  )
+
+  // Org-wide report: every employee shown (all branches, or the chosen one), every day in the range. Approved leave is
+  // read through the query cache so a leave day isn't reported as Absent.
   const [downloading, setDownloading] = useState(false)
   const downloadAll = async () => {
     setDownloading(true)
@@ -639,7 +801,7 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
       } catch {
         toast('Leave days could not be loaded — they will show as Absent in this file', 'error')
       }
-      const rows = employeeStats.flatMap(e =>
+      const rows = visibleStats.flatMap(e =>
         reportRows(e.member, e.records, leaves.filter(l => l.therapistId === e.member.id), from, to, weeklyOffSet, holidayNames))
       exportRowsAsCsv(`attendance_all-staff_${from}_to_${to}.csv`, rows, REPORT_COLUMNS)
     } finally {
@@ -660,7 +822,14 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
       <Input label="" type="date" value={fromDraft} onChange={e => setFromDraft(e.target.value)} className="text-sm" />
       <span className="text-sm" style={{ color: colors.text.muted }}>to</span>
       <Input label="" type="date" value={toDraft} onChange={e => setToDraft(e.target.value)} className="text-sm" />
-      <Button variant="secondary" onClick={downloadAll} loading={downloading} disabled={employeeStats.length === 0}>
+      <Select
+        label=""
+        value={branchId}
+        onChange={e => setBranchId(e.target.value)}
+        placeholder="All branches"
+        options={clinics.map(c => ({ value: c.id, label: c.name }))}
+      />
+      <Button variant="secondary" onClick={downloadAll} loading={downloading} disabled={visibleStats.length === 0}>
         <Download size={14} /> Download all staff
       </Button>
     </div>
@@ -764,108 +933,20 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
       ) : employeeStats.length === 0 ? (
         <EmptyState icon={<ClipboardList size={32} />} title="No active staff" description="No active staff members to show attendance for" />
       ) : (
-        <>
-          {/* Mobile card list */}
-          <div className="flex flex-col gap-3 md:hidden">
-            {employeeStats.map(stats => (
-              <button
-                key={stats.member.id}
-                onClick={() => setSelectedId(stats.member.id)}
-                className="text-left rounded-xl p-4 w-full"
-                style={styles.card}
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar
-                    initials={`${stats.member.firstName[0] ?? ''}${stats.member.lastName[0] ?? ''}`}
-                    name={`${stats.member.firstName} ${stats.member.lastName}`}
-                    bold
-                  />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ color: colors.text.primary }}>
-                      {stats.member.firstName} {stats.member.lastName}
-                    </p>
-                    <p className="text-xs truncate" style={{ color: colors.text.muted }}>
-                      {roleLabel(stats.member.role, stats.member.customRole)}{stats.member.clinicId && ` · ${clinicMap[stats.member.clinicId] ?? ''}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: colors.status.success }}>{stats.present}</p>
-                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Present</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: colors.status.error }}>{stats.absent}</p>
-                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Absent</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: colors.accent }}>{stats.verified}</p>
-                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Verified</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: colors.text.primary }}>
-                      {stats.avgHours === null ? '—' : stats.avgHours.toFixed(1)}
-                    </p>
-                    <p className="text-[11px]" style={{ color: colors.text.dim }}>Avg hrs</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto rounded-xl" style={styles.card}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${colors.text.dim}20` }}>
-                  {['Employee', 'Clinic', 'Present', 'Absent', 'Biometric Verified', 'Avg Hours'].map(h => (
-                    <th key={h} className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.text.dim }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {employeeStats.map(stats => (
-                  <tr
-                    key={stats.member.id}
-                    onClick={() => setSelectedId(stats.member.id)}
-                    className="cursor-pointer transition-colors"
-                    style={{ borderBottom: `1px solid ${colors.text.dim}10` }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = warningAlpha(0.03)}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar
-                          initials={`${stats.member.firstName[0] ?? ''}${stats.member.lastName[0] ?? ''}`}
-                          name={`${stats.member.firstName} ${stats.member.lastName}`}
-                          size="sm" bold
-                        />
-                        <div className="min-w-0">
-                          <p className="font-medium truncate" style={{ color: colors.text.primary }}>
-                            {stats.member.firstName} {stats.member.lastName}
-                          </p>
-                          <p className="text-xs truncate" style={{ color: colors.text.dim }}>{roleLabel(stats.member.role, stats.member.customRole)}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4" style={{ color: colors.text.muted }}>
-                      {stats.member.clinicId ? (clinicMap[stats.member.clinicId] ?? '—') : '—'}
-                    </td>
-                    <td className="py-3 px-4 font-medium" style={{ color: colors.status.success }}>{stats.present}</td>
-                    <td className="py-3 px-4 font-medium" style={{ color: colors.status.error }}>{stats.absent}</td>
-                    <td className="py-3 px-4 font-medium" style={{ color: colors.accent }}>{stats.verified}</td>
-                    <td className="py-3 px-4" style={{ color: colors.text.primary }}>
-                      {stats.avgHours === null ? '—' : `${stats.avgHours.toFixed(1)}h`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <PunchReport
+          rows={visibleStats}
+          from={from}
+          to={to}
+          weeklyOffSet={weeklyOffSet}
+          holidayNames={holidayNames}
+          leaves={approvedLeaves}
+          clinicMap={clinicMap}
+          onOpenEmployee={setSelectedId}
+          onEditRecord={setEditingRecord}
+        />
       )}
+
+      {editingRecord && <EditAttendanceModal record={editingRecord} onClose={() => setEditingRecord(null)} />}
     </div>
   )
 }
