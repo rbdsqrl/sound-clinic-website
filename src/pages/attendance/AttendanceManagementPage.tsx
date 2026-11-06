@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle, XCircle, ClipboardList, AlertTriangle, Clock,
@@ -692,7 +693,24 @@ export default function AttendanceManagementPage({ asTab = false }: { asTab?: bo
   const [toDraft, setToDraft]     = useState(today)
   const [from, setFrom] = useState(sevenDaysAgo)
   const [to, setTo]     = useState(today)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The open employee lives in the address (?employee=…), so the browser's Back button returns from an employee to the
+  // list — a plain piece of state would send Back out of the Workforce page altogether.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedId = searchParams.get('employee')
+  const setSelectedId = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) {
+      next.set('employee', id)
+      setSearchParams(next, { state: { fromList: true } })        // a new history entry, so Back comes back to the list
+    } else if ((location.state as { fromList?: boolean } | null)?.fromList) {
+      navigate(-1)                                                  // opened from the list in this visit: step back
+    } else {
+      next.delete('employee')                                       // opened from a link: just drop it
+      setSearchParams(next, { replace: true })
+    }
+  }
   const [branchId, setBranchId]     = useState('')
   // Therapists by default — the group whose attendance is checked most; '' shows every office role.
   const [roleFilter, setRoleFilter] = useState<Role | ''>('THERAPIST')
