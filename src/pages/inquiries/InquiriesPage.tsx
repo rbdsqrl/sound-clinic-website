@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   Inbox, Phone, Mail, Clock, CheckCircle2, XCircle, RefreshCw,
   ChevronRight, CalendarDays, X, Trash2,
@@ -126,7 +126,7 @@ function StatusBadge({ status }: { status: InquiryStatus }) {
 
 // ── Activity Timeline ──────────────────────────────────────────────────────────
 
-function ActivityTimeline({ logs }: { logs: InquiryLogResponse[] }) {
+function ActivityTimeline({ logs, onNavigate }: { logs: InquiryLogResponse[]; onNavigate?: () => void }) {
   if (logs.length === 0) {
     return (
       <div className="flex flex-col items-center py-6 gap-1">
@@ -177,6 +177,16 @@ function ActivityTimeline({ logs }: { logs: InquiryLogResponse[] }) {
                     {log.notes && (
                       <p className="text-sm mt-0.5" style={{ color: colors.text.muted }}>{log.notes}</p>
                     )}
+                    {log.logType === 'CONVERTED' && (() => {
+                      const m = log.notes?.match(/patient ID:\s*([0-9a-f-]{36})/i)
+                      return m ? (
+                        <Link to={`/patients/${m[1]}`} onClick={onNavigate}
+                          className="inline-flex items-center gap-1 text-sm mt-1 font-medium hover:underline"
+                          style={{ color: colors.accent }}>
+                          View case details <ArrowRightCircle size={13} />
+                        </Link>
+                      ) : null
+                    })()}
                   </div>
                 </div>
               )
@@ -845,7 +855,7 @@ function InquiryModal({ inquiry, onClose }: { inquiry: InquiryResponse; onClose:
         {/* Activity Log */}
         <div>
           <h4 className="text-sm font-semibold mb-3" style={{ color: colors.text.primary }}>Activity Log</h4>
-          <ActivityTimeline logs={logs} />
+          <ActivityTimeline logs={logs} onNavigate={onClose} />
 
           {/* Add activity */}
           <div className="mt-4 rounded-xl p-3"
