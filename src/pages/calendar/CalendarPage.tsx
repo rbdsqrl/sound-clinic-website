@@ -35,7 +35,7 @@ import { Button } from '../../components/ui/Button'
 import { getApiError } from '../../lib/apiError'
 import { useToast } from '../../hooks/useToast'
 import { saveBlob } from '../../lib/fileActions'
-import { colors, styles, border, surface, accentAlpha, borderAlpha, dangerAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
+import { colors, styles, border, surface, accentAlpha, borderAlpha, dangerAlpha, warningAlpha, palette, paletteStyle, type PaletteKey } from '../../theme'
 import { sessionStatusLabel, labelFromEnum, roleBadge } from '../../components/ui/Badge'
 import { reviewMeetingsApi } from '../../api/reviewMeetings'
 import { ReviewSlotPicker } from '../../components/review/ReviewSlotPicker'
@@ -1343,6 +1343,13 @@ function eventEndTime(ev: CalendarEvent): string | undefined {
   return undefined
 }
 
+/** A session that has finished but is still SCHEDULED — i.e. its completion status/notes are missing. */
+function sessionNotesOverdue(ev: CalendarEvent): boolean {
+  if (ev.kind !== 'session') return false
+  const s = ev.raw as TherapySessionResponse
+  return s.status === 'SCHEDULED' && isPastDateTime(s.sessionDate, s.endTime.slice(0, 5))
+}
+
 function AgendaView({
   events, onSelect, colorFn, emptyMessage = 'Nothing scheduled for this day',
 }: {
@@ -1435,7 +1442,15 @@ function AgendaView({
                     style={rowStyle}>
                     {ev.kind === 'session' ? (
                       <>
-                        <span className="text-sm font-semibold truncate block">{ev.title}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="text-sm font-semibold truncate block">{ev.title}</span>
+                          {sessionNotesOverdue(ev) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap"
+                              style={{ background: warningAlpha(0.14), color: colors.status.warning }}>
+                              Notes overdue
+                            </span>
+                          )}
+                        </span>
                         {(sessionTherapistName(ev) || sessionPatientName(ev)) && (
                           <span className="text-xs opacity-80 truncate block">
                             {[sessionTherapistName(ev), sessionPatientName(ev)].filter(Boolean).join(' · ')}
