@@ -807,6 +807,8 @@ export function SessionNotesModal({
   // A session already marked Completed / No Show / Cancelled opens read-only; whoever may edit it gets an explicit
   // Edit button to unlock the fields. `mayEdit` is the permission, `canEdit` is "the fields are unlocked right now".
   const mayEdit = canEditProp && !hideFeedback
+  // Finished but still SCHEDULED — nobody has marked it done or written it up yet.
+  const notesPending = session.status === 'SCHEDULED' && isPastDateTime(session.sessionDate, session.endTime.slice(0, 5))
   const isFinalised = session.status === 'COMPLETED' || session.status === 'NO_SHOW' || session.status === 'CANCELLED'
   const [editingNotes, setEditingNotes] = useState(false)
   const [movingSession, setMovingSession] = useState(false)
@@ -1021,9 +1023,10 @@ export function SessionNotesModal({
             style={
               session.status === 'COMPLETED' ? paletteStyle('teal', 0.12, 0)
               : session.status === 'CANCELLED' || session.status === 'NO_SHOW' || session.status === 'CANCELLATION_REQUESTED' ? paletteStyle('red', 0.12, 0)
+              : notesPending ? paletteStyle('amber', 0.14, 0)
               : paletteStyle('blue', 0.10, 0)
             }>
-            {session.status.replace('_', ' ')}
+            {notesPending ? 'NOTES PENDING' : session.status.replace('_', ' ')}
           </span>
           {!onThisCase && (
             <Link
