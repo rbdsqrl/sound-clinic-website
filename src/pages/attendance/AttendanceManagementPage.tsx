@@ -540,7 +540,7 @@ function PunchReport({ rows, from, to, weeklyOffSet, holidayNames, leaves, clini
   onOpenEmployee: (memberId: string) => void
   onEditRecord: (record: AttendanceResponse) => void
 }) {
-  const days = useMemo(() => eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }), [from, to])
+  const days = useMemo(() => eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }).reverse(), [from, to])
   const todayKey = formatDate(new Date(), 'yyyy-MM-dd')
   const leavesByUser = useMemo(() => {
     const m = new Map<string, LeaveResponse[]>()
