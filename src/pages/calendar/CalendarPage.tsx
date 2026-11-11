@@ -2404,7 +2404,7 @@ export default function CalendarPage() {
   const [view,         setView]         = useState<ViewMode>('day')
   // Calendar vs. Agenda is its own top-level toggle, orthogonal to the Day/Week/Month grid
   // picker above — Agenda has its own Day/Week/Month granularity (see agendaGranularity).
-  const [mode,         setMode]         = useState<'calendar' | 'agenda'>('calendar')
+  const [mode,         setMode]         = useState<'calendar' | 'agenda'>('agenda')
   const [agendaGranularity, setAgendaGranularity] = useState<AgendaGranularity>('day')
   const [current,      setCurrent]      = useState(new Date())
   const [selected,     setSelected]     = useState<CalendarEvent | null>(null)
