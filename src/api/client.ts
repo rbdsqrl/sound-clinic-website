@@ -67,7 +67,7 @@ function activeRoleHeader(): string | null {
   }
 }
 
-const GET_TIMEOUT_MS = 30_000
+const GET_TIMEOUT_MS = 60_000
 
 // ── Request: attach Bearer token + active role ─────────────────────────────────
 client.interceptors.request.use((config: InternalAxiosRequestConfig) => {

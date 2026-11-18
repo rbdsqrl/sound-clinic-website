@@ -298,7 +298,7 @@ Higher-level pieces built from the `ui/` primitives above, factored out because 
 
 ### Server failures must not look like empty data
 
-A failed read (server down, cold start, 5xx, 30s timeout on GETs — see `api/client.ts`) is retried a few times with growing pauses (`lib/queryRetry.ts`), and meanwhile `ConnectionBanner` (in `AppLayout`) says plainly that it's a server problem, with Retry and a 15s auto-retry. A list page that would otherwise draw its empty state should also check `isError` and render `describeServerProblem(error)` instead (see `PatientsPage`, Dashboard "Today's Sessions") — otherwise an outage reads as "No cases" and is mistaken for a functional bug.
+A failed read (server down, cold start, 5xx, 60s timeout on GETs — see `api/client.ts`) is retried a few times with growing pauses (`lib/queryRetry.ts`), and meanwhile `ConnectionBanner` (in `AppLayout`) says plainly that it's a server problem, with Retry and a 15s auto-retry. A list page that would otherwise draw its empty state should also check `isError` and render `describeServerProblem(error)` instead (see `PatientsPage`, Dashboard "Today's Sessions") — otherwise an outage reads as "No cases" and is mistaken for a functional bug.
 
 ### Tabs live in the URL
 
